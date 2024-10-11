@@ -6,7 +6,8 @@ import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/c
 import { guiInfoLog } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
-import customAxeConfig from './customAxeFunctions.js';
+import { customAxeConfig } from './customAxeFunctions.js';
+import { Page } from 'playwright';
 
 // types
 type RuleDetails = {
@@ -167,16 +168,16 @@ export const filterAxeResults = (
 };
 
 export const runAxeScript = async (
-  includeScreenshots,
-  page,
-  randomToken,
-  customFlowDetails,
+  includeScreenshots: boolean,
+  page: Page,
+  randomToken: string,
+  customFlowDetails: CustomFlowDetails,
   selectors = [],
 ) => {
   // Checking for DOM mutations before proceeding to scan
   await page.evaluate(() => {
-    return new Promise(resolve => {
-      let timeout;
+    return new Promise((resolve) => {
+      let timeout: NodeJS.Timeout;
       let mutationCount = 0;
       const MAX_MUTATIONS = 100;
       const MAX_SAME_MUTATION_LIMIT = 10;
@@ -193,8 +194,8 @@ export const runAxeScript = async (
         }
 
         // To handle scenario where DOM elements are constantly changing and unable to exit
-        mutationsList.forEach(mutation => {
-          let mutationKey;
+        mutationsList.forEach((mutation) => {
+          let mutationKey: string;
 
           if (mutation.target instanceof Element) {
             Array.from(mutation.target.attributes).forEach(attr => {
@@ -235,7 +236,7 @@ export const runAxeScript = async (
 
   const results = await page.evaluate(
     async ({ selectors, saflyIconSelector, customAxeConfig }) => {
-      const evaluateAltText = node => {
+      const evaluateAltText = (node: Element) => {
         const altText = node.getAttribute('alt');
         const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
 
