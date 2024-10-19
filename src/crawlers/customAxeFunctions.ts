@@ -1,4 +1,5 @@
-import { Spec } from "axe-core";
+import { Spec } from 'axe-core';
+
 // Custom Axe Functions for axe.config
 export const customAxeConfig: Spec = {
   branding: {
@@ -15,6 +16,16 @@ export const customAxeConfig: Spec = {
         },
       },
     },
+    {
+      id: 'oobee-accessible-label',
+      metadata: {
+        impact: 'serious',
+        messages: {
+          pass: 'The clickable element has an accessible label.',
+          fail: "The clickable element does not have an accessible label.",
+        },
+      },
+    },
   ],
   rules: [
     { id: 'target-size', enabled: true },
@@ -28,6 +39,18 @@ export const customAxeConfig: Spec = {
         description: 'Ensures image alt text is clear and useful.',
         help: 'Image alt text must not be vague or unhelpful.',
         helpUrl: 'https://www.deque.com/blog/great-alt-text-introduction/',
+      },
+    },
+    {
+      id: 'oobee-accessible-label',
+      selector: '[data-flagged="true"]',
+      enabled: true,
+      any: ['oobee-accessible-label'],
+      tags: ['wcag2a', 'wcag111'],
+      metadata: {
+        description: 'Ensures clickable elements have an accessible label.',
+        help: 'Clickable elements must have accessible labels.',
+        helpUrl: 'https://www.example.com/blog/clickable-accessible-label',
       },
     },
   ],
