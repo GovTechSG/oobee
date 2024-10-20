@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-param-reassign */
 import crawlee from 'crawlee';
-import axe, { resultGroups } from 'axe-core';
+import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
 import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
 import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
@@ -9,15 +9,21 @@ import { isFilePath } from '../constants/common.js';
 import { customAxeConfig } from './customAxeFunctions.js';
 import { Page } from 'playwright';
 import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
+import { ItemsInfo } from '../mergeAxeResults.js';
 
 // types
 type RuleDetails = {
-  [key: string]: any[];
+  description: string;
+  axeImpact: ImpactValue;
+  helpUrl: string;
+  conformance: TagValue[];
+  totalItems: number;
+  items: ItemsInfo[];
 };
 
 type ResultCategory = {
   totalItems: number;
-  rules: RuleDetails;
+  rules: Record<string, RuleDetails>;
 };
 
 type CustomFlowDetails = {
@@ -41,19 +47,19 @@ type FilteredResults = {
 };
 
 export const filterAxeResults = (
-  results: any,
+  results: AxeResults,
   pageTitle: string,
   customFlowDetails?: CustomFlowDetails,
 ): FilteredResults => {
   const { violations, passes, incomplete, url } = results;
 
   let totalItems = 0;
-  const mustFix = { totalItems: 0, rules: {} };
-  const goodToFix = { totalItems: 0, rules: {} };
-  const passed = { totalItems: 0, rules: {} };
-  const needsReview = { totalItems: 0, rules: {} };
+  const mustFix: ResultCategory = { totalItems: 0, rules: {} };
+  const goodToFix: ResultCategory = { totalItems: 0, rules: {} };
+  const passed: ResultCategory = { totalItems: 0, rules: {} };
+  const needsReview: ResultCategory = { totalItems: 0, rules: {} };
 
-  const process = (item, displayNeedsReview) => {
+  const process = (item: Result, displayNeedsReview: boolean) => {
     const { id: rule, help: description, helpUrl, tags, nodes } = item;
 
     if (rule === 'frame-tested') return;
@@ -74,9 +80,8 @@ export const filterAxeResults = (
       });
     }
 
-    const addTo = (category, node) => {
-      const { html, failureSummary, screenshotPath, target } = node;
-      const axeImpact = node.impact;
+    const addTo = (category: ResultCategory, node: NodeResult) => {
+      const { html, failureSummary, screenshotPath, target, impact: axeImpact } = node;
       if (!(rule in category.rules)) {
         category.rules[rule] = {
           description,
@@ -126,8 +131,8 @@ export const filterAxeResults = (
   violations.forEach(item => process(item, false));
   incomplete.forEach(item => process(item, true));
 
-  passes.forEach(item => {
-    const { id: rule, help: description, axeImpact, helpUrl, tags, nodes } = item;
+  passes.forEach((item: Result) => {
+    const { id: rule, help: description, impact: axeImpact, helpUrl, tags, nodes } = item;
 
     if (rule === 'frame-tested') return;
 
@@ -145,7 +150,7 @@ export const filterAxeResults = (
           items: [],
         };
       }
-      passed.rules[rule].items.push({ html });
+      passed.rules[rule].items.push({ html, screenshotPath: '', message: '', xpath: '' });
       passed.totalItems += 1;
       passed.rules[rule].totalItems += 1;
       totalItems += 1;
@@ -266,7 +271,7 @@ export const runAxeScript = async (
           },
           {
             ...customAxeConfig.checks[1],
-            evaluate: (node: Element) => {
+            evaluate: (node: HTMLElement) => {
               return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
             },
           },
@@ -323,7 +328,7 @@ export const failedRequestHandler = async ({ request }) => {
   crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
 };
 
-export const isUrlPdf = url => {
+export const isUrlPdf = (url: string) => {
   if (isFilePath(url)) {
     return /\.pdf$/i.test(url);
   }

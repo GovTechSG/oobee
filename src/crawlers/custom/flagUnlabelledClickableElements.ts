@@ -1,4 +1,6 @@
-export const flagUnlabelledClickableElements = async page => {
+import { Page } from "playwright";
+
+export const flagUnlabelledClickableElements = async (page: Page )=> {
     // Just paste the entire script into the body of the page.evaluate callback below
     // There's some code that is not needed when running this on backend but
     // we avoid changing the script for now to make it easy to update

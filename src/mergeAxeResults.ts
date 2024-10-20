@@ -24,11 +24,12 @@ import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 
-type ItemsInfo = {
+export type ItemsInfo = {
   html: string;
   message: string;
   screenshotPath: string;
   xpath: string;
+  displayNeedsReview?: boolean;
 };
 
 type PageInfo = {
@@ -40,7 +41,7 @@ type PageInfo = {
   metadata: string;
 };
 
-type RuleInfo = {
+export type RuleInfo = {
   totalItems: number;
   pagesAffected: PageInfo[];
   rule: string;
