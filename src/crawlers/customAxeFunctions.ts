@@ -46,11 +46,11 @@ export const customAxeConfig: Spec = {
       selector: '[data-flagged="true"]',
       enabled: true,
       any: ['oobee-accessible-label'],
-      tags: ['wcag2a', 'wcag111'],
+      tags: ['wcag2a', 'wcag211', 'wcag243','wcag412'],
       metadata: {
         description: 'Ensures clickable elements have an accessible label.',
         help: 'Clickable elements must have accessible labels.',
-        helpUrl: 'https://www.example.com/blog/clickable-accessible-label',
+        helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
       },
     },
   ],
