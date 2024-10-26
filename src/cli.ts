@@ -128,18 +128,15 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     return option;
   })
   .coerce('x', option => {
-    const filename = fileURLToPath(import.meta.url);
-    const dirname = `${path.dirname(filename)}/../`; // check in the parent of dist directory
-
     try {
+      const filename = fileURLToPath(import.meta.url);
+      const dirname = `${path.dirname(filename)}/../`; // check in the parent of dist directory
+
       return validateFilePath(option, dirname);
     } catch (err) {
       printMessage([`Invalid blacklistedPatternsFilename file path. ${err}`], messageOptions);
-      process.exit(1);
+      return process.exit(1);
     }
-
-    // eslint-disable-next-line no-unreachable
-    return null;
   })
   .coerce('i', option => {
     const { choices } = cliOptions.i;
@@ -252,18 +249,15 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     }
     case statuses.unauthorised.code: {
       printMessage([statuses.unauthorised.message], messageOptions);
-      process.exit(res.status);
-      break;
+      return process.exit(res.status);
     }
     case statuses.cannotBeResolved.code: {
       printMessage([statuses.cannotBeResolved.message], messageOptions);
-      process.exit(res.status);
-      break;
+      return process.exit(res.status);
     }
     case statuses.systemError.code: {
       printMessage([statuses.systemError.message], messageOptions);
-      process.exit(res.status);
-      break;
+      return process.exit(res.status);
     }
     case statuses.invalidUrl.code: {
       if (
@@ -293,18 +287,15 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     }
     case statuses.notASitemap.code: {
       printMessage([statuses.notASitemap.message], messageOptions);
-      process.exit(res.status);
-      break;
+      return process.exit(res.status);
     }
     case statuses.notALocalFile.code: {
       printMessage([statuses.notALocalFile.message], messageOptions);
-      process.exit(res.status);
-      break;
+      return process.exit(res.status);
     }
     case statuses.browserError.code: {
       printMessage([statuses.browserError.message], messageOptions);
-      process.exit(res.status);
-      break;
+      return process.exit(res.status);
     }
     default:
       break;
