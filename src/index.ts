@@ -23,6 +23,7 @@ import {
 import questions from './constants/questions.js';
 import combineRun from './combine.js';
 import { BrowserTypes, ScannerTypes } from './constants/constants.js';
+import { DeviceDescriptor } from './types/types.js';
 
 export type Answers = {
   headless: boolean;
@@ -33,7 +34,7 @@ export type Answers = {
   scanner: ScannerTypes;
   url: string;
   clonedBrowserDataDir: string;
-  playwrightDeviceDetailsObject: object;
+  playwrightDeviceDetailsObject: DeviceDescriptor;
   nameEmail: string;
   fileTypes: string;
   metadata: string;
@@ -60,7 +61,7 @@ export type Data = {
   deviceChosen: string;
   customDevice: string;
   viewportWidth: number;
-  playwrightDeviceDetailsObject: object;
+  playwrightDeviceDetailsObject: DeviceDescriptor;
   maxRequestsPerCrawl: number;
   strategy: EnqueueStrategy;
   isLocalFileScan: boolean;

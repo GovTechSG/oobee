@@ -31,6 +31,7 @@ import { silentLogger } from '../logs.js';
 import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
 import { randomThreeDigitNumberString } from '../utils.js';
 import { Answers, Data } from '../index.js';
+import { DeviceDescriptor } from '../types/types.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -1628,8 +1629,8 @@ export const getPlaywrightDeviceDetailsObject = (
   deviceChosen: string,
   customDevice: string,
   viewportWidth: number,
-) => {
-  let playwrightDeviceDetailsObject = {};
+): DeviceDescriptor => {
+  let playwrightDeviceDetailsObject: DeviceDescriptor;
   if (deviceChosen === 'Mobile' || customDevice === 'iPhone 11') {
     playwrightDeviceDetailsObject = devices['iPhone 11'];
   } else if (customDevice === 'Samsung Galaxy S9+') {
@@ -1637,6 +1638,11 @@ export const getPlaywrightDeviceDetailsObject = (
   } else if (viewportWidth) {
     playwrightDeviceDetailsObject = {
       viewport: { width: viewportWidth, height: 720 },
+      userAgent: 'custom',
+      isMobile: false,
+      hasTouch: false,
+      deviceScaleFactor: 1,
+      defaultBrowserType: 'chromium',
     };
   } else if (customDevice) {
     playwrightDeviceDetailsObject = devices[customDevice.replace(/_/g, ' ')];

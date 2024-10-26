@@ -12,19 +12,20 @@ import { consoleLogger, silentLogger } from './logs.js';
 import runCustom from './crawlers/runCustom.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
 import { Data } from './index.js';
+import { DeviceDescriptor } from './types/types.js';
 
 // Class exports
 export class ViewportSettingsClass {
   deviceChosen: string;
   customDevice: string;
   viewportWidth: number;
-  playwrightDeviceDetailsObject: any; // You can replace 'any' with a more specific type if possible
+  playwrightDeviceDetailsObject: DeviceDescriptor;
 
   constructor(
     deviceChosen: string,
     customDevice: string,
     viewportWidth: number,
-    playwrightDeviceDetailsObject: any,
+    playwrightDeviceDetailsObject: DeviceDescriptor,
   ) {
     this.deviceChosen = deviceChosen;
     this.customDevice = customDevice;

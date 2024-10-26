@@ -1,4 +1,5 @@
 import { ScannerTypes, UrlsCrawled } from '../constants/constants.js';
+import { devices } from 'playwright';
 
 export type ViewportSize = {
   width: number;
@@ -21,14 +22,7 @@ export type StructureTree = {
   pageIndex?: number;
 };
 
-type DeviceDescriptor = {
-  viewport: ViewportSize;
-  userAgent: string;
-  deviceScaleFactor: number;
-  isMobile: boolean;
-  hasTouch: boolean;
-  defaultBrowserType: 'chromium' | 'firefox' | 'webkit';
-};
+export type DeviceDescriptor = typeof devices["any"]
 
 export type viewportSettings = {
   deviceChosen: string;
