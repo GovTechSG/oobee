@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-param-reassign */
 import crawlee from 'crawlee';
-import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
+import axe, { AfterResult, AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
 import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
 import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
@@ -274,6 +274,14 @@ export const runAxeScript = async (
             evaluate: (node: HTMLElement) => {
               return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
             },
+            after: (results: AfterResult[]) => {
+              return results.map((result) => {
+                // remove data-flagged attribute added by flagging script from output source
+                result.node.source = result.node.source.replace(/\s?data-flagged="true"/, '');
+                return result;
+              });
+            },
+
           },
         ],
         rules: customAxeConfig.rules,
