@@ -804,7 +804,6 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
     }
 
     function flagElements() {
-      console.warn("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       console.time('Accessibility Check Time');
 
       const currentFlaggedElementsByDocument = {}; // Temporary object to hold current flagged elements
@@ -815,8 +814,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
     */
       // Process main document
       const currentFlaggedElements = [];
-      let allElements = Array.from(document.querySelectorAll('.bad'));
-      // let allElements = Array.from(document.querySelectorAll('*'));
+      let allElements = Array.from(document.querySelectorAll('*'));
       console.log('allElements', allElements);
       allElements.forEach(element => {
         // if it selects a frameset
