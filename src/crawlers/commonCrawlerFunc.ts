@@ -1,12 +1,14 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-param-reassign */
 import crawlee from 'crawlee';
-import axe, { resultGroups } from 'axe-core';
+import axe, { AfterResult, resultGroups } from 'axe-core';
 import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
-import { guiInfoLog } from '../logs.js';
+import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
 import { customAxeConfig } from './customAxeFunctions.js';
+import { Page } from 'playwright';
+import { scrapeTextContent } from './custom/flag_grading_text_contents.js';
 
 // types
 type RuleDetails = {
@@ -38,6 +40,7 @@ type FilteredResults = {
   actualUrl?: string;
 };
 
+// Function to filter accessibility results
 export const filterAxeResults = (
   results: any,
   pageTitle: string,
@@ -57,7 +60,6 @@ export const filterAxeResults = (
     if (rule === 'frame-tested') return;
 
     const conformance = tags.filter(tag => tag.startsWith('wcag') || tag === 'best-practice');
-    // handle rare cases where conformance level is not the first element
     const levels = ['wcag2a', 'wcag2aa', 'wcag2aaa'];
     if (conformance[0] !== 'best-practice' && !levels.includes(conformance[0])) {
       conformance.sort((a, b) => {
@@ -66,7 +68,6 @@ export const filterAxeResults = (
         } else if (levels.includes(b)) {
           return 1;
         }
-
         return 0;
       });
     }
@@ -74,6 +75,7 @@ export const filterAxeResults = (
     const addTo = (category, node) => {
       const { html, failureSummary, screenshotPath, target } = node;
       const axeImpact = node.impact;
+
       if (!(rule in category.rules)) {
         category.rules[rule] = {
           description,
@@ -88,14 +90,11 @@ export const filterAxeResults = (
         ? failureSummary.slice(failureSummary.indexOf('\n') + 1).trim()
         : failureSummary;
 
-      let finalHtml = html;
-      if (html.includes('</script>')) {
-        finalHtml = html.replaceAll('</script>', '&lt;/script>');
-      }
+      let finalHtml = html.includes('</script>') ? html.replaceAll('</script>', '&lt;/script>') : html;
 
       const xpath = target.length === 1 && typeof target[0] === 'string' ? target[0] : null;
 
-      // add in screenshot path
+      // Add in screenshot path
       category.rules[rule].items.push({
         html: finalHtml,
         message,
@@ -165,6 +164,7 @@ export const filterAxeResults = (
   };
 };
 
+// Function to run the axe accessibility script
 export const runAxeScript = async (
   includeScreenshots,
   page,
@@ -172,149 +172,138 @@ export const runAxeScript = async (
   customFlowDetails,
   selectors = [],
 ) => {
-  // Checking for DOM mutations before proceeding to scan
-  await page.evaluate(() => {
-    return new Promise((resolve) => {
-      let timeout;
-      let mutationCount = 0;
-      const MAX_MUTATIONS = 100;
-      const MAX_SAME_MUTATION_LIMIT = 10;
-      const mutationHash = {};
+  try {
+    // Checking for DOM mutations before proceeding to scan
+    await page.evaluate(() => {
+      return new Promise((resolve) => {
+        let timeout;
+        let mutationCount = 0;
+        const MAX_MUTATIONS = 100;
+        const MAX_SAME_MUTATION_LIMIT = 10;
+        const mutationHash = {};
 
-      const observer = new MutationObserver((mutationsList) => {
-        clearTimeout(timeout);
+        const observer = new MutationObserver((mutationsList) => {
+          clearTimeout(timeout);
+          mutationCount += 1;
 
-        mutationCount += 1;
-
-        if (mutationCount > MAX_MUTATIONS) {
-          observer.disconnect();
-          resolve('Too many mutations detected');
-        }
-
-        // To handle scenario where DOM elements are constantly changing and unable to exit
-        mutationsList.forEach((mutation) => {
-          let mutationKey;
-
-          if (mutation.target instanceof Element) {
-            Array.from(mutation.target.attributes).forEach(attr => {
-              mutationKey = `${mutation.target.nodeName}-${attr.name}`;
-  
-              if (mutationKey) {
-                if (!mutationHash[mutationKey]) {
-                  mutationHash[mutationKey] = 1;
-                } else {
-                  mutationHash[mutationKey]++;
-                }
-
-                if (mutationHash[mutationKey] >= MAX_SAME_MUTATION_LIMIT) {
-                  observer.disconnect();
-                  resolve(`Repeated mutation detected for ${mutationKey}`);
-                }
-              }
-            });
+          if (mutationCount > MAX_MUTATIONS) {
+            observer.disconnect();
+            resolve('Too many mutations detected');
           }
+
+          mutationsList.forEach((mutation) => {
+            let mutationKey;
+
+            if (mutation.target instanceof Element) {
+              Array.from(mutation.target.attributes).forEach(attr => {
+                mutationKey = `${mutation.target.nodeName}-${attr.name}`;
+  
+                if (mutationKey) {
+                  if (!mutationHash[mutationKey]) {
+                    mutationHash[mutationKey] = 1;
+                  } else {
+                    mutationHash[mutationKey]++;
+                  }
+
+                  if (mutationHash[mutationKey] >= MAX_SAME_MUTATION_LIMIT) {
+                    observer.disconnect();
+                    resolve(`Repeated mutation detected for ${mutationKey}`);
+                  }
+                }
+              });
+            }
+          });
+
+          timeout = setTimeout(() => {
+            observer.disconnect();
+            resolve('DOM stabilized after mutations.');
+          }, 1000);
         });
 
         timeout = setTimeout(() => {
           observer.disconnect();
-          resolve('DOM stabilized after mutations.');
+          resolve('No mutations detected, exit from idle state');
         }, 1000);
+
+        observer.observe(document, { childList: true, subtree: true, attributes: true });
       });
-
-      timeout = setTimeout(() => {
-        observer.disconnect();
-        resolve('No mutations detected, exit from idle state');
-      }, 1000);
-
-      observer.observe(document, { childList: true, subtree: true, attributes: true });
     });
-  });
 
-  await crawlee.playwrightUtils.injectFile(page, axeScript);
+    // Logging console messages
+    page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
 
-  const results = await page.evaluate(
-    async ({ selectors, saflyIconSelector, customAxeConfig }) => {
-      const evaluateAltText = node => {
-        const altText = node.getAttribute('alt');
-        const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
+    console.log('BEFORE ----------------------------------------------------------------------------------------');
+    const oobeeAccessibleTextFlagged = (await scrapeTextContent(page));
+    console.log('AFTER ----------------------------------------------------------------------------------------');
+    console.log('-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=', oobeeAccessibleTextFlagged);
 
-        if (altText) {
-          const trimmedAltText = altText.trim().toLowerCase();
-          if (confusingTexts.includes(trimmedAltText)) {
-            return false;
+    await crawlee.playwrightUtils.injectFile(page, axeScript);
+
+    const results = await page.evaluate(
+      async ({ selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleTextFlagged }) => {
+        const evaluateAltText = node => {
+          const altText = node.getAttribute('alt');
+          const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
+
+          if (altText) {
+            const trimmedAltText = altText.trim().toLowerCase();
+            if (confusingTexts.includes(trimmedAltText)) {
+              return false;
+            }
           }
-        }
-        return true;
-      };
+          return true;
+        };
 
-      // remove so that axe does not scan
-      document.querySelector(saflyIconSelector)?.remove();
+        // Remove specific elements so that axe does not scan them
+        document.querySelector(saflyIconSelector)?.remove();
 
-      axe.configure({
-        branding: customAxeConfig.branding,
-        checks: [
-          {
-            ...customAxeConfig.checks[0],
-            evaluate: evaluateAltText,
-          },
-        ],
-        rules: customAxeConfig.rules,
-      });
+        axe.configure({
+          branding: customAxeConfig.branding,
+          checks: [
+            {
+              ...customAxeConfig.checks[0],
+              evaluate: evaluateAltText,
+            },
+            {
+              ...customAxeConfig.checks[1],
+              evaluate: (node: HTMLElement) => {
+                return false; // Fail all elements
+              },
+              after: (results: AfterResult[]) => {
+                return results.map(result => {
+                  return result; // Return results without modification
+                });
+              },
+            },
+          ],
+          rules: [
+            customAxeConfig.rules[0],
+            customAxeConfig.rules[1],
+            { ...customAxeConfig.rules[2], enabled: true },
+            { ...customAxeConfig.rules[3], enabled: true },
+          ],
+        });
 
-      //removed needsReview condition
-      let defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
+        return await axe.run(selectors);
+      },
+      { selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleTextFlagged }
+    );
 
-      return axe.run(selectors, {
-        resultTypes: defaultResultTypes,
-      });
-    },
-    { selectors, saflyIconSelector, customAxeConfig },
-  );
+    if (includeScreenshots) {
+      results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
+      results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
+    }
 
-  if (includeScreenshots) {
-    results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
-    results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
+    const pageTitle = await page.evaluate(() => document.title);
+    return filterAxeResults(results, pageTitle, customFlowDetails);
+  } catch (error) {
+    console.error("Error running axe script:", error);
+    throw new Error("Accessibility check failed");
   }
-
-  const pageTitle = await page.evaluate(() => document.title);
-  return filterAxeResults(results, pageTitle, customFlowDetails);
 };
 
-export const createCrawleeSubFolders = async (
-  randomToken: string,
-): Promise<{ dataset: crawlee.Dataset; requestQueue: crawlee.RequestQueue }> => {
-  const dataset = await crawlee.Dataset.open(randomToken);
-  const requestQueue = await crawlee.RequestQueue.open(randomToken);
-  return { dataset, requestQueue };
-};
-
-export const preNavigationHooks = extraHTTPHeaders => {
-  return [
-    async (crawlingContext, gotoOptions) => {
-      if (extraHTTPHeaders) {
-        crawlingContext.request.headers = extraHTTPHeaders;
-      }
-      gotoOptions = { waitUntil: 'networkidle', timeout: 30000 };
-    },
-  ];
-};
-
-export const postNavigationHooks = [
-  async _crawlingContext => {
-    guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
-  },
-];
-
-export const failedRequestHandler = async ({ request }) => {
-  guiInfoLog(guiInfoStatusTypes.ERROR, { numScanned: 0, urlScanned: request.url });
-  crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
-};
-
-export const isUrlPdf = url => {
-  if (isFilePath(url)) {
-    return /\.pdf$/i.test(url);
-  } else {
-    const parsedUrl = new URL(url);
-    return /\.pdf($|\?|#)/i.test(parsedUrl.pathname) || /\.pdf($|\?|#)/i.test(parsedUrl.href);
-  }
+// Function to check if the URL points to a PDF
+export const isUrlPdf = (url: string): boolean => {
+  const pdfPattern = /\.pdf$/i;
+  return pdfPattern.test(url) || isFilePath(url);
 };
