@@ -43,7 +43,7 @@ export const customAxeConfig: Spec = {
     },
     {
       id: 'oobee-accessible-label',
-      selector: '[data-flagged="true"]',
+      // selector: '*', // to be set with the checker function output xpaths converted to css selectors
       enabled: true,
       any: ['oobee-accessible-label'],
       tags: ['wcag2a', 'wcag211', 'wcag243','wcag412'],

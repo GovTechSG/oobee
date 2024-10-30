@@ -4,7 +4,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
   // Just paste the entire script into the body of the page.evaluate callback below
   // There's some code that is not needed when running this on backend but
   // we avoid changing the script for now to make it easy to update
-  await page.evaluate(() => {
+  return await page.evaluate(() => {
     const allowNonClickableFlagging = true; // Change this to true to flag non-clickable images
     const landmarkElements = [
       'header',
@@ -927,6 +927,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       console.log('All flagged elements XPaths:', JSON.stringify(previousAllFlaggedElementsXPaths));
 
       console.timeEnd('Accessibility Check Time');
+      return previousAllFlaggedElementsXPaths;
     }
 
     // Toggle function
@@ -988,7 +989,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
     });
 
     // Initial flagging when the script first runs
-    flagElements();
+    return flagElements();
     // toggleHighlight(window.showHighlights);
     // console.log(flaggedElementsByDocument);
   });
