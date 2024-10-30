@@ -559,8 +559,18 @@ const crawlDomain = async (
           },
         ]
       : [
-          async ({ request }) => {
-            preNavigationHooks(extraHTTPHeaders);
+          async (crawlingContext, gotoOptions) => {
+            const { page, request } = crawlingContext;
+
+            await page.setExtraHTTPHeaders({
+              ...extraHTTPHeaders,
+            });
+
+            Object.assign(gotoOptions, {
+              waitUntil: 'networkidle',
+              timeout: 30000,
+            });
+
             const processible = await isProcessibleUrl(request.url);
             if (!processible) {
               request.skipNavigation = true;

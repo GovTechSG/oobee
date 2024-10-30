@@ -181,7 +181,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     return option;
   })
   .coerce('m', option => {
-    return parseHeaders(option);
+    return option;
   })
   .check(argvs => {
     if (
