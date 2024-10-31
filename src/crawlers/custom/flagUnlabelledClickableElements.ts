@@ -559,7 +559,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       }
 
       // Skip flagging if any child has an accessible label (e.g., <img alt="...">
-      if (hasChildWithAccessibleText(element)) {
+      if (hasAllChildrenAccessible(element)) {
         customConsoleWarn('Element has child nodes with accessible text.');
         return false;
       }
