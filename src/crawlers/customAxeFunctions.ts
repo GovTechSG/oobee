@@ -1,5 +1,7 @@
+import { Spec } from 'axe-core';
+
 // Custom Axe Functions for axe.config
-const customAxeConfig = {
+export const customAxeConfig: Spec = {
   branding: {
     application: 'oobee',
   },
@@ -11,6 +13,16 @@ const customAxeConfig = {
         messages: {
           pass: 'The image alt text is probably useful.',
           fail: "The image alt text set as 'img', 'image', 'picture', 'photo', or 'graphic' is confusing or not useful.",
+        },
+      },
+    },
+    {
+      id: 'oobee-accessible-label',
+      metadata: {
+        impact: 'serious',
+        messages: {
+          pass: 'The clickable element has an accessible label.',
+          fail: "The clickable element does not have an accessible label.",
         },
       },
     },
@@ -27,6 +39,18 @@ const customAxeConfig = {
         description: 'Ensures image alt text is clear and useful.',
         help: 'Image alt text must not be vague or unhelpful.',
         helpUrl: 'https://www.deque.com/blog/great-alt-text-introduction/',
+      },
+    },
+    {
+      id: 'oobee-accessible-label',
+      // selector: '*', // to be set with the checker function output xpaths converted to css selectors
+      enabled: true,
+      any: ['oobee-accessible-label'],
+      tags: ['wcag2a', 'wcag211', 'wcag243','wcag412'],
+      metadata: {
+        description: 'Ensures clickable elements have an accessible label.',
+        help: 'Clickable elements must have accessible labels.',
+        helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
       },
     },
   ],
