@@ -214,10 +214,26 @@ const writeSummaryHTML = async (allIssues, storagePath, htmlFilename = 'summary'
   fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
 };
 
-// Proper base64 encoding function using Buffer
+// Base64 encoding function with size-based approach
 const base64Encode = data => {
   try {
-    return Buffer.from(JSON.stringify(data)).toString('base64');
+    const jsonString = JSON.stringify(data);
+    
+    // If data is small enough, use simple Buffer approach
+    if (jsonString.length < 1024 * 1024) { // Less than 1MB
+      return Buffer.from(jsonString).toString('base64');
+    }
+    
+    // For larger data, use chunking
+    const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+    let result = '';
+    
+    for (let i = 0; i < jsonString.length; i += CHUNK_SIZE) {
+      const chunk = jsonString.slice(i, i + CHUNK_SIZE);
+      result += Buffer.from(chunk).toString('base64');
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error encoding data to base64:', error);
     throw error;
@@ -248,17 +264,45 @@ const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html')
   const headIndex = htmlContent.indexOf('</head>');
   const injectScript = `
   <script>
-    // Function to decode Base64
-    const base64Decode = (data) => {
-      const compressedBytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-      const jsonString = new TextDecoder().decode(compressedBytes);
-      return JSON.parse(jsonString);
+    // Function to decode Base64 with chunking support
+    const base64Decode = (encodedString) => {
+      try {
+        // Handle empty or invalid input
+        if (!encodedString || typeof encodedString !== 'string') {
+          console.error('Invalid base64 input:', encodedString);
+          return null;
+        }
+
+        // For smaller strings, use simple decoding
+        if (encodedString.length < 1024 * 1024) {
+          const jsonString = atob(encodedString);
+          return JSON.parse(jsonString);
+        }
+
+        // For larger strings, use chunking
+        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+        let jsonString = '';
+        
+        for (let i = 0; i < encodedString.length; i += CHUNK_SIZE) {
+          const chunk = encodedString.slice(i, Math.min(i + CHUNK_SIZE, encodedString.length));
+          jsonString += atob(chunk);
+        }
+
+        return JSON.parse(jsonString);
+      } catch (error) {
+        console.error('Error decoding base64:', error);
+        return null;
+      }
     };
 
-    // Check if encodedScanData and encodedScanItems are defined
-    // Decode the encoded data
-    scanData = base64Decode('${encodedScanData}');
-    scanItems = base64Decode('${encodedScanItems}');
+    // Initialize data
+    let scanData = base64Decode('${encodedScanData}');
+    let scanItems = base64Decode('${encodedScanItems}');
+
+    // Validate decoded data
+    if (!scanData || !scanItems) {
+      console.error('Failed to decode scan data');
+    }
   </script>
   `;
 
