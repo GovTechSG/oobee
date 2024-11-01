@@ -220,220 +220,152 @@ interface JsonStringifierTransform extends Transform {
   firstChunk?: boolean;
 }
 
-interface DataStreamReader extends Readable {
-  currentIndex?: number;
-}
-
-const base64Encode = async (data: any): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    try {
-      // Create a streaming JSON stringifier with proper typing
-      const jsonStringifier = new Transform({
-        objectMode: true,
-        transform(this: JsonStringifierTransform, chunk, encoding, callback) {
-          try {
-            if (!this.firstChunk) {
-              this.firstChunk = true;
-              this.push('[');
-            } else {
-              this.push(',');
-            }
-            this.push(JSON.stringify(chunk));
-            callback();
-          } catch (err) {
-            callback(err as Error);
-          }
-        },
-        flush(callback) {
-          this.push(']');
-          callback();
-        }
-      }) as JsonStringifierTransform;
-
-      // Convert object to array if needed
-      const dataArray = Array.isArray(data) ? data : [data];
-      
-      // Create readable stream from data array with proper typing
-      const dataStream = new Readable({
-        objectMode: true,
-        read(this: DataStreamReader) {
-          if (this.currentIndex === undefined) {
-            this.currentIndex = 0;
-          }
-          
-          if (this.currentIndex < dataArray.length) {
-            this.push(dataArray[this.currentIndex++]);
-          } else {
-            this.push(null);
-          }
-        }
-      }) as DataStreamReader;
-
-      // Base64 encoder with optimized chunk size
-      const base64Encoder = new Transform({
-        transform(chunk: Buffer | string, encoding: string, callback) {
-          try {
-            const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-            const base64Chunk = buffer.toString('base64');
-            callback(null, base64Chunk);
-          } catch (err) {
-            callback(err as Error);
-          }
-        },
-        highWaterMark: 16 * 1024 // 16KB chunks for better memory management
-      });
-
-      let result = '';
-      const pipeline = dataStream
-        .pipe(jsonStringifier)
-        .pipe(base64Encoder);
-
-      pipeline.on('data', (chunk: string) => {
-        result += chunk;
-      });
-
-      pipeline.on('end', () => {
-        resolve(result);
-      });
-
-      pipeline.on('error', (error) => {
-        reject(error);
-      });
-
-    } catch (error) {
-      reject(error);
+const base64Encode = async (data: any) => {
+  try {
+    // First convert the entire data to string at once since that's what we need to do regardless
+    const jsonString = JSON.stringify(data);
+    
+    // Create chunks of the JSON string
+    const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+    const chunks = [];
+    
+    for (let i = 0; i < jsonString.length; i += CHUNK_SIZE) {
+      chunks.push(jsonString.slice(i, i + CHUNK_SIZE));
     }
-  });
+
+    // Base64 encoder stream
+    const base64Encoder = new Transform({
+      transform(chunk: string, encoding: string, callback: TransformCallback) {
+        try {
+          const base64Chunk = Buffer.from(chunk).toString('base64');
+          callback(null, base64Chunk);
+        } catch (err) {
+          callback(err as Error);
+        }
+      },
+      highWaterMark: 1024 * 1024 // 1MB buffer limit
+    });
+
+    // Set up streaming pipeline
+    const dataStream = Readable.from(chunks);
+    let result = '';
+    
+    for await (const chunk of dataStream.pipe(base64Encoder)) {
+      result += chunk;
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error encoding data to base64:', error);
+    throw error;
+  }
 };
 
-const writeBase64 = async (allIssues: AllIssues, storagePath: string, htmlFilename = 'report.html'): Promise<void> => {
-  try {
-    const { items, ...rest } = allIssues;
+const writeBase64 = async (allIssues: AllIssues, storagePath: string, htmlFilename = 'report.html') => {
+  const { items, ...rest } = allIssues;
 
-    // Encode data streams separately to reduce memory pressure
-    const encodedScanItems = await base64Encode(items);
-    const encodedScanData = await base64Encode(rest);
+  const encodedScanItems = await base64Encode(items);
+  const encodedScanData = await base64Encode(rest);
 
-    // Ensure directory exists
-    const filePath = path.join(storagePath, 'scanDetails.csv');
-    const directoryPath = path.dirname(filePath);
-    await fs.ensureDir(directoryPath);
+  const filePath = path.join(storagePath, 'scanDetails.csv');
 
-    // Write encoded data to CSV
-    await fs.writeFile(
-      filePath,
-      `scanData_base64,scanItems_base64\n${encodedScanData},${encodedScanItems}`
-    );
+  const directoryPath = path.dirname(filePath);
+  if (!fs.existsSync(directoryPath)) {
+    fs.mkdirSync(directoryPath, { recursive: true });
+  }
 
-    // Read and modify HTML file
-    const htmlFilePath = path.join(storagePath, htmlFilename);
-    let htmlContent = await fs.readFile(htmlFilePath, 'utf8');
+  await fs.promises.writeFile(
+    filePath,
+    `scanData_base64,scanItems_base64\n${encodedScanData},${encodedScanItems}`,
+  );
 
-    // Inject optimized decoder script
-    const decoderScript = `
-    <script>
-      // Efficient base64 lookup table
-      const base64Lookup = new Uint8Array(256);
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.split('').forEach((c, i) => {
-        base64Lookup[c.charCodeAt(0)] = i;
+  const htmlFilePath = path.join(storagePath, htmlFilename);
+  let htmlContent = fs.readFileSync(htmlFilePath, 'utf8');
+
+  const headIndex = htmlContent.indexOf('</head>');
+  const injectScript = `
+  <script>
+    // Efficient base64 lookup table
+    const base64Lookup = new Uint8Array(256);
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.split('').forEach((c, i) => {
+      base64Lookup[c.charCodeAt(0)] = i;
+    });
+    base64Lookup['='.charCodeAt(0)] = 64;
+
+    // Stream decoder with optimal chunk size
+    const base64Decode = async (base64String) => {
+      const CHUNK_SIZE = 32 * 1024; // 32KB chunks
+      const decoder = new TextDecoder();
+      let jsonBuffer = '';
+      
+      const base64Stream = new TransformStream({
+        transform(chunk, controller) {
+          const bytes = new Uint8Array(Math.floor(chunk.length * 0.75));
+          let p = 0;
+          
+          for (let i = 0; i < chunk.length - 3; i += 4) {
+            const enc1 = base64Lookup[chunk.charCodeAt(i)];
+            const enc2 = base64Lookup[chunk.charCodeAt(i + 1)];
+            const enc3 = base64Lookup[chunk.charCodeAt(i + 2)];
+            const enc4 = base64Lookup[chunk.charCodeAt(i + 3)];
+            
+            bytes[p++] = (enc1 << 2) | (enc2 >> 4);
+            if (enc3 !== 64) bytes[p++] = ((enc2 & 15) << 4) | (enc3 >> 2);
+            if (enc4 !== 64) bytes[p++] = ((enc3 & 3) << 6) | enc4;
+          }
+          
+          controller.enqueue(bytes.slice(0, p));
+        }
       });
-      base64Lookup['='.charCodeAt(0)] = 64;
 
-      // Optimized streaming decoder
-      const base64Decode = async (base64String) => {
-        const CHUNK_SIZE = 16 * 1024; // 16KB chunks
-        const decoder = new TextDecoder();
-        let jsonBuffer = '';
-        
-        const base64Stream = new TransformStream({
-          transform(chunk, controller) {
-            // Process in smaller sub-chunks to avoid large allocations
-            const subChunks = chunk.match(/.{1,32000}/g) || [];
-            for (const subChunk of subChunks) {
-              const bytes = new Uint8Array(Math.floor(subChunk.length * 0.75));
-              let p = 0;
-              
-              for (let i = 0; i < subChunk.length - 3; i += 4) {
-                const enc1 = base64Lookup[subChunk.charCodeAt(i)];
-                const enc2 = base64Lookup[subChunk.charCodeAt(i + 1)];
-                const enc3 = base64Lookup[subChunk.charCodeAt(i + 2)];
-                const enc4 = base64Lookup[subChunk.charCodeAt(i + 3)];
-                
-                bytes[p++] = (enc1 << 2) | (enc2 >> 4);
-                if (enc3 !== 64) bytes[p++] = ((enc2 & 15) << 4) | (enc3 >> 2);
-                if (enc4 !== 64) bytes[p++] = ((enc3 & 3) << 6) | enc4;
-              }
-              
-              controller.enqueue(bytes.slice(0, p));
+      try {
+        const readable = new ReadableStream({
+          start(controller) {
+            for (let i = 0; i < base64String.length; i += CHUNK_SIZE) {
+              controller.enqueue(base64String.slice(i, i + CHUNK_SIZE));
             }
+            controller.close();
           }
         });
 
-        try {
-          const readable = new ReadableStream({
-            start(controller) {
-              for (let i = 0; i < base64String.length; i += CHUNK_SIZE) {
-                controller.enqueue(base64String.slice(i, i + CHUNK_SIZE));
-              }
-              controller.close();
+        const streamPromise = readable
+          .pipeThrough(base64Stream)
+          .pipeTo(new WritableStream({
+            write(chunk) {
+              jsonBuffer += decoder.decode(chunk, { stream: true });
+            },
+            close() {
+              jsonBuffer += decoder.decode(new Uint8Array(), { stream: false }); // Flush decoder
             }
-          });
+          }));
 
-          const streamPromise = readable
-            .pipeThrough(base64Stream)
-            .pipeTo(new WritableStream({
-              write(chunk) {
-                jsonBuffer += decoder.decode(chunk, { stream: true });
-              },
-              close() {
-                jsonBuffer += decoder.decode(new Uint8Array(), { stream: false });
-              }
-            }));
+        await streamPromise;
+        return JSON.parse(jsonBuffer);
+      } catch (error) {
+        console.error('Error in stream processing:', error);
+        throw error;
+      }
+    };
 
-          await streamPromise;
-          
-          // Parse JSON with error handling
-          try {
-            return JSON.parse(jsonBuffer);
-          } catch (parseError) {
-            console.error('Error parsing JSON:', parseError);
-            throw parseError;
-          }
-        } catch (error) {
-          console.error('Error in stream processing:', error);
-          throw error;
-        }
-      };
+    // Initialize data with streaming
+    (async function() {
+      try {
+        scanData = await base64Decode('${encodedScanData}');
+        scanItems = await base64Decode('${encodedScanItems}');
+      } catch(error) {
+        console.error('Error initializing data:', error);
+      }
+    })();
+  </script>
+  `;
 
-      // Initialize data with streaming and error handling
-      (async function() {
-        try {
-          console.log('Starting data initialization...');
-          scanData = await base64Decode('${encodedScanData}');
-          console.log('Scan data loaded successfully');
-          scanItems = await base64Decode('${encodedScanItems}');
-          console.log('Scan items loaded successfully');
-        } catch(error) {
-          console.error('Error initializing data:', error);
-        }
-      })();
-    </script>`;
-
-    // Insert decoder script before </head>
-    const headIndex = htmlContent.indexOf('</head>');
-    if (headIndex !== -1) {
-      htmlContent = htmlContent.slice(0, headIndex) + decoderScript + htmlContent.slice(headIndex);
-    } else {
-      htmlContent += decoderScript;
-    }
-
-    // Write modified HTML file
-    await fs.writeFile(htmlFilePath, htmlContent);
-
-  } catch (error) {
-    console.error('Error in writeBase64:', error);
-    throw error;
+  if (headIndex !== -1) {
+    htmlContent = htmlContent.slice(0, headIndex) + injectScript + htmlContent.slice(headIndex);
+  } else {
+    htmlContent += injectScript;
   }
+
+  fs.writeFileSync(htmlFilePath, htmlContent);
 };
 
 let browserChannel = 'chrome';
