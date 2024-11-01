@@ -1,15 +1,8 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-param-reassign */
 import crawlee from 'crawlee';
-import axe, {
-  AfterResult,
-  AxeResults,
-  ImpactValue,
-  NodeResult,
-  Result,
-  resultGroups,
-  TagValue,
-} from 'axe-core';
+import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
+import xPathToCss from 'xpath-to-css';
 import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
 import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
@@ -248,25 +241,10 @@ export const runAxeScript = async (
 
   page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
 
-  const xpathToCssSelector = (xpath: string) => {
-    return xpath.replaceAll('/', ' ');
-  };
-  console.log(
-    'BEFORE ----------------------------------------------------------------------------------------',
-  );
-  const oobeeAccessibleLabelFlaggedXpaths = (await flagUnlabelledClickableElements(page))
+  const oobeeAccessibleLabelFlaggedCssSelectors = (await flagUnlabelledClickableElements(page))
     .map(item => item.xpath)
-    .map(xpathToCssSelector)
+    .map(xPathToCss)
     .join(', ');
-  console.log(
-    'AFTER ----------------------------------------------------------------------------------------',
-  );
-  console.log(
-    '-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=',
-    oobeeAccessibleLabelFlaggedXpaths,
-  );
-
-  // const oobeeAccessibleLabelFlaggedXpaths = 'html body div div, img';
 
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
@@ -275,7 +253,7 @@ export const runAxeScript = async (
       selectors,
       saflyIconSelector,
       customAxeConfig,
-      oobeeAccessibleLabelFlaggedXpaths,
+      oobeeAccessibleLabelFlaggedCssSelectors,
     }) => {
       const evaluateAltText = (node: Element) => {
         const altText = node.getAttribute('alt');
@@ -302,23 +280,18 @@ export const runAxeScript = async (
           },
           {
             ...customAxeConfig.checks[1],
-            evaluate: (node: HTMLElement) => {
-              return false; // fail all elements
-              // return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
-            },
-            after: (results: AfterResult[]) => {
-              return results.map(result => {
-                // remove data-flagged attribute added by flagging script from output source
-                // result.node.source = result.node.source.replace(/\s?data-flagged="true"/, '');
-                return result;
-              });
+            evaluate: (_node: HTMLElement) => {
+              if (oobeeAccessibleLabelFlaggedCssSelectors === '') {
+                return true; // nothing flagged, so pass everything
+              }
+              return false; // fail all elements that match the selector
             },
           },
         ],
         rules: [
           customAxeConfig.rules[0],
           customAxeConfig.rules[1],
-          { ...customAxeConfig.rules[2], selector: oobeeAccessibleLabelFlaggedXpaths },
+          { ...customAxeConfig.rules[2], selector: oobeeAccessibleLabelFlaggedCssSelectors },
         ],
       });
 
@@ -329,7 +302,7 @@ export const runAxeScript = async (
         resultTypes: defaultResultTypes,
       });
     },
-    { selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleLabelFlaggedXpaths },
+    { selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleLabelFlaggedCssSelectors },
   );
 
   if (includeScreenshots) {

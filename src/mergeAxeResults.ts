@@ -156,10 +156,6 @@ const writeCsv = async (allIssues, storagePath) => {
       const { url, items } = affectedPage;
       items.forEach(item => {
         const { html, page, message, xpath } = item;
-        console.log(
-          '--------------------------------------------------------------------------------',
-          xpath,
-        );
         const howToFix = message.replace(/(\r\n|\n|\r)/g, ' '); // remove newlines
         const violation = html || formatPageViolation(page); // page is a number, not a string
         const context = violation.replace(/(\r\n|\n|\r)/g, ''); // remove newlines

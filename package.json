@@ -31,6 +31,7 @@
     "which": "^4.0.0",
     "winston": "^3.11.0",
     "xml2js": "^0.6.2",
+    "xpath-to-css": "^1.2.0",
     "yargs": "^17.7.2"
   },
   "devDependencies": {

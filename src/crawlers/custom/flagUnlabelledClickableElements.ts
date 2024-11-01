@@ -926,8 +926,17 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       console.log('Updated previousFlaggedXPathsByDocument:', previousFlaggedXPathsByDocument);
       console.log('All flagged elements XPaths:', JSON.stringify(previousAllFlaggedElementsXPaths));
 
+      cleanupFlaggedElements();
       console.timeEnd('Accessibility Check Time');
       return previousAllFlaggedElementsXPaths;
+    }
+
+    // Clean up [data-flagged="true"] attribute
+    function cleanupFlaggedElements() {
+      const flaggedElements = document.querySelectorAll('[data-flagged="true"]');
+      flaggedElements.forEach(flaggedElement => {
+        flaggedElement.removeAttribute('data-flagged');
+      });
     }
 
     // Toggle function
