@@ -23,6 +23,8 @@ import {
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
+import { Transform } from 'stream';
+import { Readable } from 'stream';
 
 type ItemsInfo = {
   html: string;
@@ -215,9 +217,26 @@ const writeSummaryHTML = async (allIssues, storagePath, htmlFilename = 'summary'
 };
 
 // Proper base64 encoding function using Buffer
-const base64Encode = data => {
+const base64Encode = async (data) => {
   try {
-    return Buffer.from(JSON.stringify(data)).toString('base64');
+    // Create a transform stream for base64 encoding
+    const base64Encoder = new Transform({
+      transform(chunk, encoding, callback) {
+        const base64Chunk = Buffer.from(chunk).toString('base64');
+        callback(null, base64Chunk);
+      }
+    });
+
+    // Create a readable stream from the data
+    const dataStream = Readable.from(JSON.stringify(data));
+
+    // Set up pipeline
+    let result = '';
+    for await (const chunk of dataStream.pipe(base64Encoder)) {
+      result += chunk;
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error encoding data to base64:', error);
     throw error;
