@@ -23,8 +23,7 @@ import {
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
-import { Transform } from 'stream';
-import { Readable } from 'stream';
+import { Transform, Readable, TransformCallback } from 'stream';
 
 type ItemsInfo = {
   html: string;
@@ -217,21 +216,40 @@ const writeSummaryHTML = async (allIssues, storagePath, htmlFilename = 'summary'
 };
 
 // Proper base64 encoding function using Buffer
-const base64Encode = async (data) => {
+interface JsonStringifierTransform extends Transform {
+  firstChunk?: boolean;
+}
+
+const base64Encode = async (data: any) => {
   try {
-    // Create a transform stream for base64 encoding
+    // First convert the entire data to string at once since that's what we need to do regardless
+    const jsonString = JSON.stringify(data);
+    
+    // Create chunks of the JSON string
+    const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+    const chunks = [];
+    
+    for (let i = 0; i < jsonString.length; i += CHUNK_SIZE) {
+      chunks.push(jsonString.slice(i, i + CHUNK_SIZE));
+    }
+
+    // Base64 encoder stream
     const base64Encoder = new Transform({
-      transform(chunk, encoding, callback) {
-        const base64Chunk = Buffer.from(chunk).toString('base64');
-        callback(null, base64Chunk);
-      }
+      transform(chunk: string, encoding: string, callback: TransformCallback) {
+        try {
+          const base64Chunk = Buffer.from(chunk).toString('base64');
+          callback(null, base64Chunk);
+        } catch (err) {
+          callback(err as Error);
+        }
+      },
+      highWaterMark: 1024 * 1024 // 1MB buffer limit
     });
 
-    // Create a readable stream from the data
-    const dataStream = Readable.from(JSON.stringify(data));
-
-    // Set up pipeline
+    // Set up streaming pipeline
+    const dataStream = Readable.from(chunks);
     let result = '';
+    
     for await (const chunk of dataStream.pipe(base64Encoder)) {
       result += chunk;
     }
@@ -243,11 +261,11 @@ const base64Encode = async (data) => {
   }
 };
 
-const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html') => {
+const writeBase64 = async (allIssues: AllIssues, storagePath: string, htmlFilename = 'report.html') => {
   const { items, ...rest } = allIssues;
 
-  const encodedScanItems = base64Encode(items);
-  const encodedScanData = base64Encode(rest);
+  const encodedScanItems = await base64Encode(items);
+  const encodedScanData = await base64Encode(rest);
 
   const filePath = path.join(storagePath, 'scanDetails.csv');
 
@@ -267,17 +285,77 @@ const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html')
   const headIndex = htmlContent.indexOf('</head>');
   const injectScript = `
   <script>
-    // Function to decode Base64
-    const base64Decode = (data) => {
-      const compressedBytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-      const jsonString = new TextDecoder().decode(compressedBytes);
-      return JSON.parse(jsonString);
+    // Efficient base64 lookup table
+    const base64Lookup = new Uint8Array(256);
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.split('').forEach((c, i) => {
+      base64Lookup[c.charCodeAt(0)] = i;
+    });
+    base64Lookup['='.charCodeAt(0)] = 64;
+
+    // Stream decoder with optimal chunk size
+    const base64Decode = async (base64String) => {
+      const CHUNK_SIZE = 32 * 1024; // 32KB chunks
+      const decoder = new TextDecoder();
+      let jsonBuffer = '';
+      
+      const base64Stream = new TransformStream({
+        transform(chunk, controller) {
+          const bytes = new Uint8Array(Math.floor(chunk.length * 0.75));
+          let p = 0;
+          
+          for (let i = 0; i < chunk.length - 3; i += 4) {
+            const enc1 = base64Lookup[chunk.charCodeAt(i)];
+            const enc2 = base64Lookup[chunk.charCodeAt(i + 1)];
+            const enc3 = base64Lookup[chunk.charCodeAt(i + 2)];
+            const enc4 = base64Lookup[chunk.charCodeAt(i + 3)];
+            
+            bytes[p++] = (enc1 << 2) | (enc2 >> 4);
+            if (enc3 !== 64) bytes[p++] = ((enc2 & 15) << 4) | (enc3 >> 2);
+            if (enc4 !== 64) bytes[p++] = ((enc3 & 3) << 6) | enc4;
+          }
+          
+          controller.enqueue(bytes.slice(0, p));
+        }
+      });
+
+      try {
+        const readable = new ReadableStream({
+          start(controller) {
+            for (let i = 0; i < base64String.length; i += CHUNK_SIZE) {
+              controller.enqueue(base64String.slice(i, i + CHUNK_SIZE));
+            }
+            controller.close();
+          }
+        });
+
+        const streamPromise = readable
+          .pipeThrough(base64Stream)
+          .pipeTo(new WritableStream({
+            write(chunk) {
+              jsonBuffer += decoder.decode(chunk, { stream: true });
+            },
+            close() {
+              jsonBuffer += decoder.decode(new Uint8Array(), { stream: false }); // Flush decoder
+            }
+          }));
+
+        await streamPromise;
+        return JSON.parse(jsonBuffer);
+      } catch (error) {
+        console.error('Error in stream processing:', error);
+        throw error;
+      }
     };
 
-    // Check if encodedScanData and encodedScanItems are defined
-    // Decode the encoded data
-    scanData = base64Decode('${encodedScanData}');
-    scanItems = base64Decode('${encodedScanItems}');
+    // Initialize data with streaming
+    (async function() {
+      try {
+        scanData = await base64Decode('${encodedScanData}');
+        scanItems = await base64Decode('${encodedScanItems}');
+      } catch(error) {
+        console.error('Error initializing data:', error);
+      }
+    })();
   </script>
   `;
 
