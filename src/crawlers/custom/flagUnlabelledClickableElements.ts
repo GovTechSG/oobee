@@ -18,13 +18,12 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
     ];
     const loggingEnabled = false; // Set to true to enable console warnings
 
-    let flaggedElementsByDocument = {}; // Object mapping document root XPath to flagged elements
     let previousFlaggedXPathsByDocument = {}; // Object to hold previous flagged XPaths
     let previousAllFlaggedElementsXPaths = []; // Array to store all flagged XPaths
 
-    function getXPath(element) {
+    function getXPath(element: Node) {
       if (!element) return null;
-      if (element.id) {
+      if (element instanceof HTMLElement && element.id) {
         return `//*[@id="${element.id}"]`;
       }
       if (element === element.ownerDocument.body) {
@@ -34,7 +33,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
         return '';
       }
 
-      const siblings = Array.from(element.parentNode.childNodes).filter(
+      const siblings: Node[] = Array.from(element.parentNode.childNodes).filter(
         node => node.nodeName === element.nodeName,
       );
       const ix = siblings.indexOf(element) + 1;
@@ -42,7 +41,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       return `${getXPath(element.parentNode)}/${element.nodeName.toLowerCase()}${siblingIndex}`;
     }
 
-    function customConsoleWarn(message, data) {
+    function customConsoleWarn(message: string, data?: any) {
       if (loggingEnabled) {
         if (data) {
           console.warn(message, data);
@@ -52,7 +51,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       }
     }
 
-    function hasPointerCursor(element) {
+    function hasPointerCursor(element: Element) {
       const computedStyle = element.ownerDocument.defaultView.getComputedStyle(element);
       const hasPointerStyle = computedStyle.cursor === 'pointer';
       const hasOnClick = element.hasAttribute('onclick');
@@ -76,7 +75,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       );
     }
 
-    function isAccessibleText(value) {
+    function isAccessibleText(value: string) {
       if (!value || value.trim().length === 0) {
         return false;
       }
@@ -99,11 +98,11 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       return false;
     }
 
-    function getElementById(element, id) {
+    function getElementById(element: Element, id: string) {
       return element.ownerDocument.getElementById(id);
     }
 
-    function getAriaLabelledByText(element) {
+    function getAriaLabelledByText(element: Element) {
       const labelledById = element.getAttribute('aria-labelledby');
       if (labelledById) {
         const labelledByElement = getElementById(element, labelledById);
@@ -115,7 +114,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       return '';
     }
 
-    function hasAccessibleLabel(element) {
+    function hasAccessibleLabel(element: Element) {
       const ariaLabel = element.getAttribute('aria-label');
       const ariaLabelledByText = getAriaLabelledByText(element);
       const altText = element.getAttribute('alt');
@@ -129,12 +128,12 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       );
     }
 
-    function hasSummaryOrDetailsLabel(element) {
+    function hasSummaryOrDetailsLabel(element: Element) {
       const summary = element.closest('summary, details');
       return summary && hasAccessibleLabel(summary);
     }
 
-    function hasSiblingWithAccessibleLabel(element) {
+    function hasSiblingWithAccessibleLabel(element: Element) {
       // Check all siblings (previous and next)
       let sibling = element.previousElementSibling;
       while (sibling) {
@@ -155,7 +154,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       return false;
     }
 
-    function hasSiblingOrParentAccessibleLabel(element) {
+    function hasSiblingOrParentAccessibleLabel(element: Element) {
       // Check previous and next siblings
       const previousSibling = element.previousElementSibling;
       const nextSibling = element.nextElementSibling;
@@ -175,7 +174,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       return false;
     }
 
-    function hasChildWithAccessibleText(element) {
+    function hasChildWithAccessibleText(element: Element) {
       // Check element children
       const hasAccessibleChildElement = Array.from(element.children).some(child => {
         if (child.nodeName.toLowerCase() === 'style' || child.nodeName.toLowerCase() === 'script') {
@@ -201,7 +200,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       return hasAccessibleChildElement || hasDirectAccessibleText;
     }
 
-    function hasAllChildrenAccessible(element) {
+    function hasAllChildrenAccessible(element: Element) {
       // If the element is aria-hidden, consider it accessible
       if (element.getAttribute('aria-hidden') === 'true') {
         return true;
@@ -243,7 +242,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
 `;
     document.head.appendChild(style);
 
-    function injectStylesIntoFrame(frame) {
+    function injectStylesIntoFrame(frame: HTMLIFrameElement) {
       try {
         const frameDocument = frame.contentDocument || frame.contentWindow.document;
         if (frameDocument) {
@@ -263,13 +262,13 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       }
     }
 
-    function hasCSSContent(element) {
+    function hasCSSContent(element: Element) {
       const beforeContent = window
         .getComputedStyle(element, '::before')
         .getPropertyValue('content');
       const afterContent = window.getComputedStyle(element, '::after').getPropertyValue('content');
 
-      function isAccessibleContent(value) {
+      function isAccessibleContent(value: string) {
         if (!value || value === 'none' || value === 'normal') {
           return false;
         }
@@ -283,7 +282,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       return isAccessibleContent(beforeContent) || isAccessibleContent(afterContent);
     }
 
-    function isElementTooSmall(element) {
+    function isElementTooSmall(element: Element) {
       // Get the bounding rectangle of the element
       const rect = element.getBoundingClientRect();
 
@@ -291,7 +290,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       return rect.width < 1 || rect.height < 1;
     }
 
-    function shouldFlagElement(element, allowNonClickableFlagging) {
+    function shouldFlagElement(element: HTMLElement, allowNonClickableFlagging: boolean) {
       // if (!element || !(element instanceof Element)) {
       //     customConsoleWarn("Element is null or not a valid Element.");
       //     return false;
@@ -628,7 +627,8 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       }
 
       if (
-        element.nodeName.toLowerCase() === 'input' &&
+        element instanceof HTMLInputElement &&
+        // element.nodeName.toLowerCase() === 'input' &&
         element.type === 'image' &&
         !hasAccessibleLabel(element)
       ) {
@@ -701,7 +701,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
 
       if (element.nodeName.toLowerCase() === 'div') {
         const flaggedChild = Array.from(element.children).some(
-          child => child.dataset.flagged === 'true',
+          (child: HTMLElement) => child.dataset.flagged === 'true',
         );
         if (flaggedChild) {
           customConsoleWarn('Div contains a flagged child, flagging only outermost element.');
@@ -806,16 +806,15 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
     function flagElements() {
       console.time('Accessibility Check Time');
 
-      const currentFlaggedElementsByDocument = {}; // Temporary object to hold current flagged elements
+      const currentFlaggedElementsByDocument: Record<string, HTMLElement[]> = {}; // Temporary object to hold current flagged elements
 
       /* 
         Collects all the elements and places then into an array
         Then places the array in the correct frame
     */
       // Process main document
-      const currentFlaggedElements = [];
-      let allElements = Array.from(document.querySelectorAll('*'));
-      console.log('allElements', allElements);
+      const currentFlaggedElements: HTMLElement[] = [];
+      let allElements = Array.from(document.querySelectorAll<HTMLElement>('*'));
       allElements.forEach(element => {
         // if it selects a frameset
         if (
@@ -835,8 +834,8 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
         try {
           const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
           if (iframeDocument) {
-            const iframeFlaggedElements = [];
-            const iframeElements = iframeDocument.querySelectorAll('*');
+            const iframeFlaggedElements: HTMLElement[] = [];
+            const iframeElements = iframeDocument.querySelectorAll<HTMLElement>('*');
             iframeElements.forEach(element => {
               if (
                 shouldFlagElement(element, allowNonClickableFlagging) ||
@@ -862,8 +861,8 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
         try {
           const iframeDocument = frame.contentDocument || frame.contentWindow.document;
           if (iframeDocument) {
-            const iframeFlaggedElements = [];
-            const iframeElements = iframeDocument.querySelectorAll('*');
+            const iframeFlaggedElements: HTMLElement[] = [];
+            const iframeElements = iframeDocument.querySelectorAll<HTMLElement>('*');
             iframeElements.forEach(element => {
               console.log('elements nodeName in frame', element.nodeName);
               try {
@@ -922,16 +921,12 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       // Update previousFlaggedXPathsByDocument before finishing
       previousFlaggedXPathsByDocument = { ...flaggedXPathsByDocument };
 
-      // Log both variables to verify they're populated
-      console.log('Updated previousFlaggedXPathsByDocument:', previousFlaggedXPathsByDocument);
-      console.log('All flagged elements XPaths:', JSON.stringify(previousAllFlaggedElementsXPaths));
-
       cleanupFlaggedElements();
       console.timeEnd('Accessibility Check Time');
       return previousAllFlaggedElementsXPaths;
     }
 
-    // Clean up [data-flagged="true"] attribute
+    // Clean up [data-flagged="true"] attribute added by this script
     function cleanupFlaggedElements() {
       const flaggedElements = document.querySelectorAll('[data-flagged="true"]');
       flaggedElements.forEach(flaggedElement => {
@@ -939,67 +934,6 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       });
     }
 
-    // Toggle function
-    window.showHighlights = true;
-    function toggleHighlight(show) {
-      const flaggedElements = document.querySelectorAll('[data-flagged="true"]');
-      flaggedElements.forEach(flaggedElement => {
-        if (show) {
-          flaggedElement.classList.add('highlight-flagged');
-        } else {
-          flaggedElement.classList.remove('highlight-flagged');
-        }
-      });
-
-      // Handle iframes separately
-      const iframes = document.querySelectorAll('iframe');
-      iframes.forEach(iframe => {
-        try {
-          const frameDocument = iframe.contentDocument || iframe.contentWindow.document;
-          if (frameDocument) {
-            const frameFlaggedElements = frameDocument.querySelectorAll('[data-flagged="true"]');
-            frameFlaggedElements.forEach(flaggedElement => {
-              if (show) {
-                flaggedElement.classList.add('highlight-flagged');
-              } else {
-                flaggedElement.classList.remove('highlight-flagged');
-              }
-            });
-          }
-        } catch (error) {
-          customConsoleWarn('Cannot access frame document:', error);
-        }
-      });
-    }
-    function debounce(func, wait) {
-      let timeout;
-      return function (...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-      };
-    }
-
-    // Maintain debounce to space out the DOM changes
-    const observer = new MutationObserver(() => {
-      debouncedFlagElements();
-    });
-
-    // Create a debounced version of flagElements
-    const debouncedFlagElements = debounce(() => {
-      flagElements();
-      toggleHighlight(window.showHighlights);
-      // console.log(flaggedElementsByDocument);
-    }, 1000);
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-    });
-
-    // Initial flagging when the script first runs
     return flagElements();
-    // toggleHighlight(window.showHighlights);
-    // console.log(flaggedElementsByDocument);
   });
 };
