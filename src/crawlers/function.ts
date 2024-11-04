@@ -14,8 +14,6 @@ import { extractAndGradeText } from './custom/extractAndGradeText.js';
     const result = await extractAndGradeText(page);
 
     // Print the results
-    console.log('Extracted Text Content:', result.textContent);
-    console.log('Readability Score:', result.readabilityScore);
     if (result.error) {
       console.log('Error:', result.error);
     }
