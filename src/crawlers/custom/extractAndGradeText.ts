@@ -31,6 +31,7 @@ export async function extractAndGradeText(page: Page): Promise<{ readabilityScor
 
     // Check if any valid sentences were extracted
     if (sentences.length === 0) {
+      console.log('No sentences found and extracted. Manual testing required.');
       return { readabilityScore: 0, textContent: '', error: 'No valid sentences found.' };
     }
 
