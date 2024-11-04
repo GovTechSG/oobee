@@ -746,19 +746,20 @@ const generateArtifacts = async (
     };
 
     const { items, startTime, endTime, ...rest } = allIssues;
-    const encodedScanItems = base64Encode(items);
-    const formattedStartTime = formatDateTimeForMassScanner(startTime);
-    const formattedEndTime = formatDateTimeForMassScanner(endTime);
-    rest.critical = axeImpactCount.critical;
-    rest.serious = axeImpactCount.serious;
-    rest.moderate = axeImpactCount.moderate;
-    rest.minor = axeImpactCount.minor;
-
-    // Adding encoded start time and end time to rest object
-    rest.formattedStartTime = formattedStartTime;
-    rest.formattedEndTime = formattedEndTime;
-
-    const encodedScanData = base64Encode(rest);
+    
+    // Wait for both encodings to complete before creating the message
+    const [encodedScanItems, encodedScanData] = await Promise.all([
+      base64Encode(items),
+      base64Encode({
+        ...rest,
+        critical: axeImpactCount.critical,
+        serious: axeImpactCount.serious,
+        moderate: axeImpactCount.moderate,
+        minor: axeImpactCount.minor,
+        formattedStartTime: formatDateTimeForMassScanner(startTime),
+        formattedEndTime: formatDateTimeForMassScanner(endTime)
+      })
+    ]);
 
     const scanDetailsMessage = {
       type: 'scanDetailsMessage',
