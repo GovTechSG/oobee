@@ -1,7 +1,7 @@
 import { Page } from 'playwright';
 import textReadability from 'text-readability';
 
-export async function extractAndGradeText(page: Page): Promise<{ readabilityScore: number; textContent: string; error?: string }> {
+export async function extractAndGradeText(page: Page): Promise<{ readabilityScore: number; textContent: string; error?: string; flag?: string }> {
   try {
     // Extract text content from all specified elements (e.g., paragraphs)
     const sentences: string[] = await page.evaluate(() => {
@@ -31,7 +31,6 @@ export async function extractAndGradeText(page: Page): Promise<{ readabilityScor
 
     // Check if any valid sentences were extracted
     if (sentences.length === 0) {
-      console.log('No sentences found and extracted. Manual testing required.');
       return { readabilityScore: 0, textContent: '', error: 'No valid sentences found.' };
     }
 
@@ -45,16 +44,18 @@ export async function extractAndGradeText(page: Page): Promise<{ readabilityScor
 
     // Grade the text content only if there are 20 words or more
     const readabilityScore = wordCount >= 20 ? textReadability.fleschReadingEase(filteredText) : 0;
+    let flag = '';
 
     // Final log statements to confirm function flow
     console.log('Readability Score:', readabilityScore); // Debug log
 
-    // If word count is less than 20, print a message but continue to the final return statement
-    if (wordCount < 20) {
-        console.log('Not enough data to give an accurate grade. Best to have manual testing.');
-    }  
+    // Check for a low readability score and set flag
+    if (readabilityScore > 0 && readabilityScore < 50) {
+      flag = 'This content has a Flesch-Kincaid Reading Ease score below 50 and may be difficult to read for university.';
+      console.log(flag); // Log the flag message
+    }
 
-    return { readabilityScore, textContent: filteredText };
+    return { readabilityScore, textContent: filteredText, flag };
   } catch (error) {
     console.error('Error extracting and grading text:', error);
     return { readabilityScore: 0, textContent: '', error: 'Error processing the page.' };
