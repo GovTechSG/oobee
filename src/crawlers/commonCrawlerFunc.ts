@@ -3,10 +3,11 @@
 import crawlee from 'crawlee';
 import axe, { resultGroups } from 'axe-core';
 import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
-import { guiInfoLog } from '../logs.js';
+import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
 import customAxeConfig from './customAxeFunctions.js';
+import { extractAndGradeText } from './custom/extractAndGradeText.js';
 
 // types
 type RuleDetails = {
@@ -231,10 +232,14 @@ export const runAxeScript = async (
     });
   });
 
+  page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
+
+  const oobeeTextContentsSelectors = (await extractAndGradeText(page));
+
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
   const results = await page.evaluate(
-    async ({ selectors, saflyIconSelector, customAxeConfig }) => {
+    async ({ selectors, saflyIconSelector, customAxeConfig, oobeeTextContentsSelectors }) => {
       const evaluateAltText = node => {
         const altText = node.getAttribute('alt');
         const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
@@ -258,8 +263,21 @@ export const runAxeScript = async (
             ...customAxeConfig.checks[0],
             evaluate: evaluateAltText,
           },
+          {
+            ...customAxeConfig.checks[1],
+            evaluate: (_node: HTMLElement) => {
+              if (oobeeTextContentsSelectors === '') {
+                return true; // nothing flagged, so pass everything
+              }
+              return false; // fail all elements that match the selector
+            },
+          },
         ],
-        rules: customAxeConfig.rules,
+        rules: [
+          customAxeConfig.rules[0],
+          customAxeConfig.rules[1],
+          { ...customAxeConfig.rules[2], selector: oobeeTextContentsSelectors },
+        ],
       });
 
       // removed needsReview condition
@@ -269,7 +287,7 @@ export const runAxeScript = async (
         resultTypes: defaultResultTypes,
       });
     },
-    { selectors, saflyIconSelector, customAxeConfig },
+    { selectors, saflyIconSelector, customAxeConfig, oobeeTextContentsSelectors },
   );
 
   if (includeScreenshots) {
