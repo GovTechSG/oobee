@@ -234,12 +234,19 @@ export const runAxeScript = async (
 
   page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
 
-  const oobeeTextContentsSelectors = (await extractAndGradeText(page));
+  // Call extractAndGradeText to get readability score and flag for difficult-to-read text
+  const { readabilityScore, textContent, flag } = await extractAndGradeText(page);
+
+  if (!flag) {
+      console.warn("Flag was not set as expected in extractAndGradeText.");
+  }else{
+    console.warn("Flag was set as expected in extractAndGradeText.");
+  }
 
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
   const results = await page.evaluate(
-    async ({ selectors, saflyIconSelector, customAxeConfig, oobeeTextContentsSelectors }) => {
+    async ({ selectors, saflyIconSelector, customAxeConfig, flag }) => {
       const evaluateAltText = node => {
         const altText = node.getAttribute('alt');
         const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
@@ -265,20 +272,18 @@ export const runAxeScript = async (
           },
           {
             ...customAxeConfig.checks[1],
-            evaluate: (_node: HTMLElement) => {
-              if (oobeeTextContentsSelectors === '') {
-                return true; // nothing flagged, so pass everything
-              }
-              return false; // fail all elements that match the selector
+            evaluate: (_node) => {
+              // Fail elements only when flag is defined
+              return flag ? document.querySelector(flag) !== null : true;
             },
           },
         ],
         rules: [
           customAxeConfig.rules[0],
           customAxeConfig.rules[1],
-          { ...customAxeConfig.rules[2], selector: oobeeTextContentsSelectors },
+          { ...customAxeConfig.rules[2], selector: flag || '*' },
         ],
-      });
+      });         
 
       // removed needsReview condition
       const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
@@ -287,7 +292,7 @@ export const runAxeScript = async (
         resultTypes: defaultResultTypes,
       });
     },
-    { selectors, saflyIconSelector, customAxeConfig, oobeeTextContentsSelectors },
+    { selectors, saflyIconSelector, customAxeConfig, flag },
   );
 
   if (includeScreenshots) {
