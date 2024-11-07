@@ -1,7 +1,7 @@
 import { Page } from 'playwright';
 import textReadability from 'text-readability';
 
-export async function extractAndGradeText(page: Page): Promise<{ readabilityScore: number; textContent: string; error?: string; flag?: string }> {
+export async function extractAndGradeText(page: Page): Promise<boolean> {
   try {
     // Extract text content from all specified elements (e.g., paragraphs)
     const sentences: string[] = await page.evaluate(() => {
@@ -31,7 +31,7 @@ export async function extractAndGradeText(page: Page): Promise<{ readabilityScor
 
     // Check if any valid sentences were extracted
     if (sentences.length === 0) {
-      return { readabilityScore: 0, textContent: '', error: 'No valid sentences found.' };
+      return false; // No valid sentences to grade
     }
 
     // Join the valid sentences into a single string
@@ -44,20 +44,17 @@ export async function extractAndGradeText(page: Page): Promise<{ readabilityScor
 
     // Grade the text content only if there are 20 words or more
     const readabilityScore = wordCount >= 20 ? textReadability.fleschReadingEase(filteredText) : 0;
-    let flag = '';
+
+    // Set the flag as a boolean based on readability score
+    const flag = readabilityScore > 0 && readabilityScore < 50;
 
     // Final log statements to confirm function flow
     console.log('Readability Score:', readabilityScore); // Debug log
+    console.log('Flag:', flag); // Log the boolean flag
 
-    // Check for a low readability score and set flag
-    if (readabilityScore > 0 && readabilityScore < 50) {
-      flag = 'This content has a Flesch-Kincaid Reading Ease score below 50 and may be difficult to read for university.';
-      console.log(flag); // Log the flag message
-    }
-
-    return { readabilityScore, textContent: filteredText, flag };
+    return flag;
   } catch (error) {
     console.error('Error extracting and grading text:', error);
-    return { readabilityScore: 0, textContent: '', error: 'Error processing the page.' };
+    return false; // Return false in case of an error
   }
 }

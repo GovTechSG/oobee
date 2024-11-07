@@ -235,7 +235,7 @@ export const runAxeScript = async (
   page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
 
   // Call extractAndGradeText to get readability score and flag for difficult-to-read text
-  const { readabilityScore, textContent, flag } = await extractAndGradeText(page);
+  const flag = await extractAndGradeText(page);
 
   if (!flag) {
       console.warn("Flag was not set as expected in extractAndGradeText.");
@@ -272,16 +272,18 @@ export const runAxeScript = async (
           },
           {
             ...customAxeConfig.checks[1],
-            evaluate: (_node) => {
-              // Fail elements only when flag is defined
-              return flag ? document.querySelector(flag) !== null : true;
+            evaluate: (_node: HTMLElement) => {
+              if (flag === '') {
+                return true; // nothing flagged, so pass everything
+              }
+              return false; // fail all elements that match the selector
             },
           },
         ],
         rules: [
           customAxeConfig.rules[0],
           customAxeConfig.rules[1],
-          { ...customAxeConfig.rules[2], selector: flag || '*' },
+          { ...customAxeConfig.rules[2], selector: flag },
         ],
       });         
 
