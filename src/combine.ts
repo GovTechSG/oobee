@@ -59,6 +59,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     extraHTTPHeaders,
     safeMode,
     zip,
+    ruleset,
   } = envDetails;
 
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
@@ -165,7 +166,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       break;
 
     case ScannerTypes.WEBSITE:
-      urlsCrawledObj = await crawlDomain(
+      urlsCrawledObj = await crawlDomain({
         url,
         randomToken,
         host,
@@ -181,7 +182,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         followRobots,
         extraHTTPHeaders,
         safeMode,
-      );
+        ruleset,
+      });
       break;
 
     default:
