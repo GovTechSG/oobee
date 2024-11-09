@@ -393,6 +393,7 @@ const optionsAnswer: Answers = {
   specifiedMaxConcurrency: options.specifiedMaxConcurrency,
   blacklistedPatternsFilename: options.blacklistedPatternsFilename,
   playwrightDeviceDetailsObject: options.playwrightDeviceDetailsObject,
+  ruleset: options.ruleset,
 };
 await scanInit(optionsAnswer);
 process.exit(0);

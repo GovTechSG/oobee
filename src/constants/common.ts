@@ -578,6 +578,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     header,
     safeMode,
     zip,
+    ruleset,
   } = argv;
 
   // construct filename for scan results
@@ -623,6 +624,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     extraHTTPHeaders: parseHeaders(header),
     safeMode,
     zip,
+    ruleset,
   };
 };
 

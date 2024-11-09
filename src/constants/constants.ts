@@ -430,3 +430,9 @@ export const cssQuerySelectors = [
   'a:not([href])',
   '[role="button"]:not(a[href])', // Add this line to select elements with role="button" where it is not <a> with href
 ];
+
+export enum RuleFlags {
+  DEFAULT = 'default',
+  WITHOUT_OOBEE = 'without-oobee',
+  INCLUDE_WCAG_AAA = 'include-wcag-aaa',
+}

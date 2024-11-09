@@ -340,6 +340,10 @@ Options:
   -m, --header                       The HTTP authentication header keys and the
                                      ir respective values to enable crawler acce
                                      ss to restricted resources.        [string]
+  -y, --ruleset                      Specify scan ruleset for accessibility chec
+                                     ks
+  [string] [choices: "default", "without-oobee", "include-wcag-aaa", "without-oo
+                                     bee,include-wcag-aaa"] [default: "default"]
 
 Examples:
   To scan sitemap of website:', 'npm run cli -- -c [ 1 | sitemap ] -u <url_lin
