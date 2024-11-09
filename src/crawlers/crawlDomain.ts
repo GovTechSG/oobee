@@ -733,7 +733,7 @@ const crawlDomain = async ({
             return;
           }
 
-          const results = await runAxeScript(includeScreenshots, page, randomToken, null);
+          const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
           if (isRedirected) {
             const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(

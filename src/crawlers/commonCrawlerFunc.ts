@@ -1,7 +1,12 @@
 import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
 import xPathToCss from 'xpath-to-css';
-import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
+import {
+  axeScript,
+  guiInfoStatusTypes,
+  RuleFlags,
+  saflyIconSelector,
+} from '../constants/constants.js';
 import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
@@ -186,13 +191,21 @@ export const filterAxeResults = (
   };
 };
 
-export const runAxeScript = async (
-  includeScreenshots: boolean,
-  page: Page,
-  randomToken: string,
-  customFlowDetails: CustomFlowDetails,
+export const runAxeScript = async ({
+  includeScreenshots,
+  page,
+  randomToken,
+  customFlowDetails = null,
   selectors = [],
-) => {
+  ruleset = [],
+}: {
+  includeScreenshots: boolean;
+  page: Page;
+  randomToken: string;
+  customFlowDetails?: CustomFlowDetails;
+  selectors?: string[];
+  ruleset?: RuleFlags[];
+}) => {
   // Checking for DOM mutations before proceeding to scan
   await page.evaluate(() => {
     return new Promise(resolve => {
