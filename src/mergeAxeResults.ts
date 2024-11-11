@@ -220,46 +220,106 @@ interface JsonStringifierTransform extends Transform {
   firstChunk?: boolean;
 }
 
-const base64Encode = async (data: any) => {
-  try {
-    // First convert the entire data to string at once since that's what we need to do regardless
-    const jsonString = JSON.stringify(data);
-    
-    // Create chunks of the JSON string
-    const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
-    const chunks = [];
-    
-    for (let i = 0; i < jsonString.length; i += CHUNK_SIZE) {
-      chunks.push(jsonString.slice(i, i + CHUNK_SIZE));
-    }
+class JsonStringifierTransform extends Transform {
+  private _firstChunk: boolean = true;
 
-    // Base64 encoder stream
-    const base64Encoder = new Transform({
-      transform(chunk: string, encoding: string, callback: TransformCallback) {
-        try {
-          const base64Chunk = Buffer.from(chunk).toString('base64');
-          callback(null, base64Chunk);
-        } catch (err) {
-          callback(err as Error);
-        }
-      },
-      highWaterMark: 1024 * 1024 // 1MB buffer limit
+  constructor() {
+    super({
+      objectMode: true
     });
+  }
 
-    // Set up streaming pipeline
-    const dataStream = Readable.from(chunks);
+  _transform(chunk: any, encoding: string, callback: TransformCallback): void {
+    try {
+      if (this._firstChunk) {
+        this._firstChunk = false;
+        callback(null, JSON.stringify(chunk));
+      } else {
+        callback(null, ',' + JSON.stringify(chunk));
+      }
+    } catch (err) {
+      callback(err as Error);
+    }
+  }
+
+  _flush(callback: TransformCallback): void {
+    callback(null);
+  }
+}
+
+// Base64 encoder transform stream
+class Base64EncoderTransform extends Transform {
+  constructor() {
+    super({
+      highWaterMark: 1024 * 1024 // 1MB chunks
+    });
+  }
+
+  _transform(chunk: Buffer, encoding: string, callback: TransformCallback): void {
+    try {
+      const base64Chunk = chunk.toString('base64');
+      callback(null, base64Chunk);
+    } catch (err) {
+      callback(err as Error);
+    }
+  }
+}
+
+const base64Encode = async (data: any): Promise<string> => {
+  try {
+    // Create transformer instances
+    const jsonStringifier = new JsonStringifierTransform();
+    const base64Encoder = new Base64EncoderTransform();
+
+    // If data is an array, process it in chunks
+    if (Array.isArray(data)) {
+      const chunkSize = 100; // Process 100 items at a time
+      const chunks = [];
+      
+      for (let i = 0; i < data.length; i += chunkSize) {
+        chunks.push(data.slice(i, i + chunkSize));
+      }
+      
+      let result = '';
+      for (const chunk of chunks) {
+        const chunkStream = Readable.from([chunk]);
+        for await (const encodedChunk of chunkStream.pipe(jsonStringifier).pipe(base64Encoder)) {
+          result += encodedChunk.toString();
+        }
+      }
+      return result;
+    }
+    
+    // For objects, process them directly
+    const jsonString = JSON.stringify(data);
+    const CHUNK_SIZE = 512 * 1024; // 512KB chunks
     let result = '';
     
-    for await (const chunk of dataStream.pipe(base64Encoder)) {
-      result += chunk;
+    for (let i = 0; i < jsonString.length; i += CHUNK_SIZE) {
+      const chunk = jsonString.slice(i, i + CHUNK_SIZE);
+      const chunkStream = Readable.from([chunk]);
+      
+      for await (const encodedChunk of chunkStream.pipe(base64Encoder)) {
+        result += encodedChunk.toString();
+      }
     }
-    
+
     return result;
   } catch (error) {
     console.error('Error encoding data to base64:', error);
     throw error;
   }
 };
+
+// Helper function to create stream pipeline
+const streamToString = async (stream: NodeJS.ReadableStream): Promise<string> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+};
+
 
 const writeBase64 = async (allIssues: AllIssues, storagePath: string, htmlFilename = 'report.html') => {
   const { items, ...rest } = allIssues;
