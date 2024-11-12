@@ -41,10 +41,10 @@ const customAxeConfig = {
     },
     {
       id: 'oobee-grading-text-contents',
-      selector: '*',
+      selector: 'p',
       enabled: true,
       any: ['oobee-grading-text-contents'],
-      tags: ['wcag3.1.5'],
+      tags: ['wcag111'],
       metadata: {
         description: 'Ensures text that uses short, common words and short sentences is easier to decode.',
         help: 'Content should be written as clearly and simply as possible.',

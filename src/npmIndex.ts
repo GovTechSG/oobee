@@ -104,6 +104,27 @@ export const init = async (
               },
             },
           },
+          {
+            id: 'oobee-grading-text-contents',
+            evaluate(node: HTMLElement) {
+              const textContent = node.textContent;
+            
+              // Check if the text content is a single sentence
+              const wordCount = textContent.length;
+              if (wordCount >= 20) {
+                return false; 
+              }
+            
+              return true;
+            },
+            metadata: {
+              impact: 'moderate',
+              messages: {
+                pass: 'The text contents is readable text.',
+                fail: "The text contents is potentially unreadable text.",
+              },
+            },
+          },
         ],
         rules: [
           { id: 'target-size', enabled: true },
@@ -119,6 +140,20 @@ export const init = async (
               description: 'Ensures image alt text is clear and useful',
               help: 'Image alt text must not be vague or unhelpful',
               helpUrl: 'https://www.deque.com/blog/great-alt-text-introduction/',
+            },
+          },
+          {
+            id: 'oobee-grading-text-contents',
+            selector: 'p',
+            enabled: true,
+            any: ['oobee-grading-text-contents'],
+            all: [],
+            none: [],
+            tags: ['wcag111'],
+            metadata: {
+              description: 'Ensures text that uses short, common words and short sentences is easier to decode.',
+              help: 'Content should be written as clearly and simply as possible.',
+              helpUrl: 'https://www.w3.org/WAI/WCAG21/Understanding/reading-level',
             },
           },
         ],

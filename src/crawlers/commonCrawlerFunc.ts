@@ -273,7 +273,7 @@ export const runAxeScript = async (
           {
             ...customAxeConfig.checks[1],
             evaluate: (_node: HTMLElement) => {
-              if (flag === '') {
+              if (flag === false) {
                 return true; // nothing flagged, so pass everything
               }
               return false; // fail all elements that match the selector
