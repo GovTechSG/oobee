@@ -2,14 +2,16 @@
 /* eslint-disable no-param-reassign */
 import crawlee from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
+import xPathToCss from 'xpath-to-css';
 import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
 import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
-import customAxeConfig from './customAxeFunctions.js';
+import { customAxeConfig } from './customAxeFunctions.js';
+import { Page } from 'playwright';
+import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
-import { Page } from 'playwright';
 
 // types
 type RuleDetails = {
@@ -47,7 +49,7 @@ type FilteredResults = {
 };
 
 export const filterAxeResults = (
-  results: any,
+  results: AxeResults,
   pageTitle: string,
   customFlowDetails?: CustomFlowDetails,
 ): FilteredResults => {
@@ -240,6 +242,11 @@ export const runAxeScript = async (
 
   page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
 
+  const oobeeAccessibleLabelFlaggedCssSelectors = (await flagUnlabelledClickableElements(page))
+    .map(item => item.xpath)
+    .map(xPathToCss)
+    .join(', ');
+
   // Call extractAndGradeText to get readability score and flag for difficult-to-read text
   const flag = await extractAndGradeText(page);
 
@@ -252,8 +259,14 @@ export const runAxeScript = async (
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
   const results = await page.evaluate(
-    async ({ selectors, saflyIconSelector, customAxeConfig, flag }) => {
-      const evaluateAltText = node => {
+    async ({
+      selectors,
+      saflyIconSelector,
+      customAxeConfig,
+      oobeeAccessibleLabelFlaggedCssSelectors,
+      flag
+    }) => {
+      const evaluateAltText = (node: Element) => {
         const altText = node.getAttribute('alt');
         const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
 
@@ -279,6 +292,15 @@ export const runAxeScript = async (
           {
             ...customAxeConfig.checks[1],
             evaluate: (_node: HTMLElement) => {
+              if (oobeeAccessibleLabelFlaggedCssSelectors === '') {
+                return true; // nothing flagged, so pass everything
+              }
+              return false; // fail all elements that match the selector
+            },
+          },
+          {
+            ...customAxeConfig.checks[2],
+            evaluate: (_node: HTMLElement) => {
               if (flag === false) {
                 return true; // nothing flagged, so pass everything
               }
@@ -289,9 +311,10 @@ export const runAxeScript = async (
         rules: [
           customAxeConfig.rules[0],
           customAxeConfig.rules[1],
-          { ...customAxeConfig.rules[2], selector: flag },
+          { ...customAxeConfig.rules[2], selector: oobeeAccessibleLabelFlaggedCssSelectors },
+          { ...customAxeConfig.rules[3], select: flag },
         ],
-      });         
+      });
 
       // removed needsReview condition
       const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
@@ -300,7 +323,7 @@ export const runAxeScript = async (
         resultTypes: defaultResultTypes,
       });
     },
-    { selectors, saflyIconSelector, customAxeConfig, flag },
+    { selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleLabelFlaggedCssSelectors, flag },
   );
 
   if (includeScreenshots) {
@@ -342,7 +365,7 @@ export const failedRequestHandler = async ({ request }) => {
   crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
 };
 
-export const isUrlPdf = url => {
+export const isUrlPdf = (url: string) => {
   if (isFilePath(url)) {
     return /\.pdf$/i.test(url);
   }

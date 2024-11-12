@@ -65,10 +65,10 @@ export const customAxeConfig: Spec = {
     },
     {
       id: 'oobee-grading-text-contents',
-      selector: '*',
+      selector: 'html',
       enabled: true,
       any: ['oobee-grading-text-contents'],
-      tags: ['wcag111'],
+      tags: ['best-practice'],
       metadata: {
         description: 'Ensures text that uses short, common words and short sentences is easier to decode.',
         help: 'Content should be written as clearly and simply as possible.',
