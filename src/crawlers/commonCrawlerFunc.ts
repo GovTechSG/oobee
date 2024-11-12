@@ -241,10 +241,27 @@ export const runAxeScript = async (
 
   page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
 
-  const oobeeAccessibleLabelFlaggedCssSelectors = (await flagUnlabelledClickableElements(page))
-    .map(item => item.xpath)
-    .map(xPathToCss)
-    .join(', ');
+  const oobeeAccessibleLabelFlaggedXpaths = (await flagUnlabelledClickableElements(page)).map(
+    item => item.xpath,
+  );
+  const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
+    .map(xpath => {
+      try {
+        console.log('================converting', xpath);
+        const cssSelector = xPathToCss(xpath);
+        console.log('================converted', cssSelector);
+        return cssSelector;
+      } catch (e) {
+        console.log('------------------------------error', xpath);
+        return '';
+      }
+    })
+    .filter(item => item !== '');
+
+  // console.log('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+  // console.log(oobeeAccessibleLabelFlaggedXpaths);
+  // console.log('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+  // console.log(oobeeAccessibleLabelFlaggedCssSelectors);
 
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
@@ -253,6 +270,7 @@ export const runAxeScript = async (
       selectors,
       saflyIconSelector,
       customAxeConfig,
+      oobeeAccessibleLabelFlaggedXpaths,
       oobeeAccessibleLabelFlaggedCssSelectors,
     }) => {
       const evaluateAltText = (node: Element) => {
@@ -278,31 +296,66 @@ export const runAxeScript = async (
             ...customAxeConfig.checks[0],
             evaluate: evaluateAltText,
           },
-          {
-            ...customAxeConfig.checks[1],
-            evaluate: (_node: HTMLElement) => {
-              if (oobeeAccessibleLabelFlaggedCssSelectors === '') {
-                return true; // nothing flagged, so pass everything
-              }
-              return false; // fail all elements that match the selector
-            },
-          },
         ],
-        rules: [
-          customAxeConfig.rules[0],
-          customAxeConfig.rules[1],
-          { ...customAxeConfig.rules[2], selector: oobeeAccessibleLabelFlaggedCssSelectors },
-        ],
+        rules: [customAxeConfig.rules[0], customAxeConfig.rules[1]],
       });
 
       // removed needsReview condition
       const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
 
-      return axe.run(selectors, {
-        resultTypes: defaultResultTypes,
-      });
+      return axe
+        .run(selectors, {
+          resultTypes: defaultResultTypes,
+        })
+        .then(results => {
+          // filter for css selectors to test rendering report with subset
+          const filteredCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.filter(cssSelector =>
+            cssSelector.startsWith('#profile'),
+          );
+          console.log('filteredCssSelectors', filteredCssSelectors);
+          // Create custom violations to add to Axe's report
+          const customViolations = filteredCssSelectors.map(cssSelector => ({
+            id: 'oobee-accessible-label',
+            impact: 'serious' as ImpactValue,
+            tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
+            description: 'Ensures clickable elements have an accessible label.',
+            help: 'Clickable elements must have accessible labels.',
+            helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
+            nodes: [
+              {
+                html: document.querySelector(cssSelector).outerHTML,
+                target: [cssSelector],
+                impact: 'serious' as ImpactValue,
+                failureSummary:
+                  'Fix any of the following:\n  The clickable element does not have an accessible label.',
+                any: [
+                  {
+                    id: 'oobee-accessible-label',
+                    data: null,
+                    relatedNodes: [],
+                    impact: 'serious',
+                    message: 'The clickable element does not have an accessible label.',
+                  },
+                ],
+                all: [],
+                none: [],
+              },
+            ],
+          }));
+
+          console.log("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv");
+          console.log(JSON.stringify(customViolations));
+          results.violations = results.violations.concat(customViolations);
+          return results;
+        });
     },
-    { selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleLabelFlaggedCssSelectors },
+    {
+      selectors,
+      saflyIconSelector,
+      customAxeConfig,
+      oobeeAccessibleLabelFlaggedXpaths,
+      oobeeAccessibleLabelFlaggedCssSelectors,
+    },
   );
 
   if (includeScreenshots) {
