@@ -82,7 +82,7 @@ export const filterAxeResults = (
       });
     }
 
-    const addTo = (category: ResultCategory, node: NodeResult) => {
+    const addTo = (category: ResultCategory, node) => {
       const { html, failureSummary, screenshotPath, target, impact: axeImpact } = node;
       if (!(rule in category.rules)) {
         category.rules[rule] = {
