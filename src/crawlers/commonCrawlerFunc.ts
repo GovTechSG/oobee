@@ -310,42 +310,38 @@ export const runAxeScript = async (
         .then(results => {
           // filter for css selectors to test rendering report with subset
           const filteredCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.filter(cssSelector =>
-            cssSelector.startsWith('#profile'),
+            cssSelector.startsWith('#block'),
           );
           console.log('filteredCssSelectors', filteredCssSelectors);
           // Create custom violations to add to Axe's report
-          const customViolations = filteredCssSelectors.map(cssSelector => ({
+          const oobeeAccessibleLabelViolations = {
             id: 'oobee-accessible-label',
             impact: 'serious' as ImpactValue,
             tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
             description: 'Ensures clickable elements have an accessible label.',
             help: 'Clickable elements must have accessible labels.',
             helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
-            nodes: [
-              {
-                html: document.querySelector(cssSelector).outerHTML,
-                target: [cssSelector],
-                impact: 'serious' as ImpactValue,
-                failureSummary:
-                  'Fix any of the following:\n  The clickable element does not have an accessible label.',
-                any: [
-                  {
-                    id: 'oobee-accessible-label',
-                    data: null,
-                    relatedNodes: [],
-                    impact: 'serious',
-                    message: 'The clickable element does not have an accessible label.',
-                  },
-                ],
-                all: [],
-                none: [],
-              },
-            ],
-          }));
+            nodes: filteredCssSelectors.map(cssSelector => ({
+              html: document.querySelector(cssSelector).outerHTML,
+              target: [cssSelector],
+              impact: 'serious' as ImpactValue,
+              failureSummary:
+                'Fix any of the following:\n  The clickable element does not have an accessible label.',
+              any: [
+                {
+                  id: 'oobee-accessible-label',
+                  data: null,
+                  relatedNodes: [],
+                  impact: 'serious',
+                  message: 'The clickable element does not have an accessible label.',
+                },
+              ],
+              all: [],
+              none: [],
+            })),
+          };
 
-          console.log("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv");
-          console.log(JSON.stringify(customViolations));
-          results.violations = results.violations.concat(customViolations);
+          results.violations = [...results.violations, oobeeAccessibleLabelViolations];
           return results;
         });
     },
@@ -359,10 +355,14 @@ export const runAxeScript = async (
   );
 
   if (includeScreenshots) {
-    results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
+    results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken, undefined, 500);
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
   }
 
+  console.log('******************************************************************');
+  console.log(
+    results.violations.map(result => ({ help: result.help, count: result.nodes.length })),
+  );
   const pageTitle = await page.evaluate(() => document.title);
   return filterAxeResults(results, pageTitle, customFlowDetails);
 };
