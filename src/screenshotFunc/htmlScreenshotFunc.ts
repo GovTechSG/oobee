@@ -3,26 +3,33 @@ import { createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { consoleLogger } from '../logs.js';
+import { Result } from 'axe-core';
+import { Page } from 'playwright';
 
 const screenshotMap = {}; // Map of screenshot hashkey to its buffer value and screenshot path
 
 export const takeScreenshotForHTMLElements = async (
-  violations,
-  page,
-  randomToken,
+  violations: Result[],
+  page: Page,
+  randomToken: string,
   locatorTimeout = 2000,
   maxScreenshots = 50,
 ) => {
   const newViolations = [];
   let screenshotCount = 0;
   for (const violation of violations) {
-    if (screenshotCount >= maxScreenshots) break;
-    const { id: rule } = violation;
+    if (screenshotCount >= maxScreenshots) {
+      consoleLogger.warn(
+        `Skipping screenshots for ${violation.id} as maxScreenshots (${maxScreenshots}) exceeded. You can increase it by specifying a higher value when calling takeScreenshotForHTMLElements.`,
+      );
+      newViolations.push(violation);
+      continue;
+    }
     const newViolationNodes = [];
     for (const node of violation.nodes) {
-      const { html, target, impact } = node;
+      const { target } = node;
       const hasValidSelector = target.length === 1 && typeof target[0] === 'string';
-      const selector = hasValidSelector ? target[0] : null;
+      const selector = hasValidSelector ? (target[0] as string) : null;
       if (selector) {
         try {
           const locator = page.locator(selector);
