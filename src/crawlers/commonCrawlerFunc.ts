@@ -239,7 +239,14 @@ export const runAxeScript = async (
     });
   });
 
-  page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
+  page.on('console', msg => {
+    const type = msg.type();
+    if (type === 'error') {
+      silentLogger.log({ level: 'error', message: msg.text() });
+    } else {
+      silentLogger.log({ level: 'info', message: msg.text() });
+    }
+  });
 
   const oobeeAccessibleLabelFlaggedXpaths = (await flagUnlabelledClickableElements(page)).map(
     item => item.xpath,
@@ -247,12 +254,10 @@ export const runAxeScript = async (
   const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
     .map(xpath => {
       try {
-        console.log('================converting', xpath);
         const cssSelector = xPathToCss(xpath);
-        console.log('================converted', cssSelector);
         return cssSelector;
       } catch (e) {
-        console.log('------------------------------error', xpath);
+        console.error('Error converting XPath to CSS: ', xpath, e);
         return '';
       }
     })
@@ -270,99 +275,112 @@ export const runAxeScript = async (
       selectors,
       saflyIconSelector,
       customAxeConfig,
-      oobeeAccessibleLabelFlaggedXpaths,
       oobeeAccessibleLabelFlaggedCssSelectors,
     }) => {
-      const evaluateAltText = (node: Element) => {
-        const altText = node.getAttribute('alt');
-        const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
+      try {
+        const evaluateAltText = (node: Element) => {
+          const altText = node.getAttribute('alt');
+          const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
 
-        if (altText) {
-          const trimmedAltText = altText.trim().toLowerCase();
-          if (confusingTexts.includes(trimmedAltText)) {
-            return false;
+          if (altText) {
+            const trimmedAltText = altText.trim().toLowerCase();
+            if (confusingTexts.includes(trimmedAltText)) {
+              return false;
+            }
           }
-        }
-        return true;
-      };
+          return true;
+        };
 
-      // remove so that axe does not scan
-      document.querySelector(saflyIconSelector)?.remove();
+        // for css id selectors starting with a digit, escape it with the unicode character e.g. #123 -> #\31 23
+        const escapeCSSSelector = (selector: string) => {
+          try {
+            return selector.replace(
+              /([#\.])(\d)/g,
+              (_match, prefix, digit) => `${prefix}\\3${digit} `,
+            );
+          } catch (e) {
+            console.error(`error escaping css selector: ${selector}`, e);
+            return selector;
+          }
+        };
 
-      axe.configure({
-        branding: customAxeConfig.branding,
-        checks: [
-          {
-            ...customAxeConfig.checks[0],
-            evaluate: evaluateAltText,
-          },
-        ],
-        rules: [customAxeConfig.rules[0], customAxeConfig.rules[1]],
-      });
+        // remove so that axe does not scan
+        document.querySelector(saflyIconSelector)?.remove();
 
-      // removed needsReview condition
-      const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
-
-      return axe
-        .run(selectors, {
-          resultTypes: defaultResultTypes,
-        })
-        .then(results => {
-          // filter for css selectors to test rendering report with subset
-          const filteredCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.filter(cssSelector =>
-            cssSelector.startsWith('#block'),
-          );
-          console.log('filteredCssSelectors', filteredCssSelectors);
-          // Create custom violations to add to Axe's report
-          const oobeeAccessibleLabelViolations = {
-            id: 'oobee-accessible-label',
-            impact: 'serious' as ImpactValue,
-            tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
-            description: 'Ensures clickable elements have an accessible label.',
-            help: 'Clickable elements must have accessible labels.',
-            helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
-            nodes: filteredCssSelectors.map(cssSelector => ({
-              html: document.querySelector(cssSelector).outerHTML,
-              target: [cssSelector],
-              impact: 'serious' as ImpactValue,
-              failureSummary:
-                'Fix any of the following:\n  The clickable element does not have an accessible label.',
-              any: [
-                {
-                  id: 'oobee-accessible-label',
-                  data: null,
-                  relatedNodes: [],
-                  impact: 'serious',
-                  message: 'The clickable element does not have an accessible label.',
-                },
-              ],
-              all: [],
-              none: [],
-            })),
-          };
-
-          results.violations = [...results.violations, oobeeAccessibleLabelViolations];
-          return results;
+        axe.configure({
+          branding: customAxeConfig.branding,
+          checks: [
+            {
+              ...customAxeConfig.checks[0],
+              evaluate: evaluateAltText,
+            },
+          ],
+          rules: [customAxeConfig.rules[0], customAxeConfig.rules[1]],
         });
+
+        // removed needsReview condition
+        const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
+
+        return axe
+          .run(selectors, {
+            resultTypes: defaultResultTypes,
+          })
+          .then(results => {
+            const escapedCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
+
+            // Add oobee violations to Axe's report
+            const oobeeAccessibleLabelViolations = {
+              id: 'oobee-accessible-label',
+              impact: 'serious' as ImpactValue,
+              tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
+              description: 'Ensures clickable elements have an accessible label.',
+              help: 'Clickable elements must have accessible labels.',
+              helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
+              nodes: escapedCssSelectors.map(cssSelector => ({
+                html: document.querySelector(cssSelector).outerHTML,
+                target: [cssSelector],
+                impact: 'serious' as ImpactValue,
+                failureSummary:
+                  'Fix any of the following:\n  The clickable element does not have an accessible label.',
+                any: [
+                  {
+                    id: 'oobee-accessible-label',
+                    data: null,
+                    relatedNodes: [],
+                    impact: 'serious',
+                    message: 'The clickable element does not have an accessible label.',
+                  },
+                ],
+                all: [],
+                none: [],
+              })),
+            };
+
+            results.violations = [...results.violations, oobeeAccessibleLabelViolations];
+            return results;
+          })
+          .catch(e => {
+            console.error('Error at axe.run', e);
+            throw e;
+          });
+      } catch (e) {
+        console.error(e);
+        throw e;
+      }
     },
     {
       selectors,
       saflyIconSelector,
       customAxeConfig,
-      oobeeAccessibleLabelFlaggedXpaths,
       oobeeAccessibleLabelFlaggedCssSelectors,
     },
   );
 
   if (includeScreenshots) {
-    results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken, undefined, 500);
+    results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
   }
 
-  console.log('******************************************************************');
-  console.log(
-    results.violations.map(result => ({ help: result.help, count: result.nodes.length })),
-  );
   const pageTitle = await page.evaluate(() => document.title);
   return filterAxeResults(results, pageTitle, customFlowDetails);
 };
