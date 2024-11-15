@@ -198,6 +198,8 @@ const writeCsv = async (allIssues, storagePath) => {
 
 const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
   const ejsString = fs.readFileSync(path.join(dirname, './static/ejs/report.ejs'), 'utf-8');
+  // console.log('allIssues 111', allIssues);
+  // console.log('allIssues typeof 111', typeof allIssues);
   const template = ejs.compile(ejsString, {
     filename: path.join(dirname, './static/ejs/report.ejs'),
   });
@@ -214,10 +216,82 @@ const writeSummaryHTML = async (allIssues, storagePath, htmlFilename = 'summary'
   fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
 };
 
+function writeFormattedValue(value, writeStream) {
+  // console.log('typeof value 111', typeof value, value);
+  if (typeof value === 'function') {
+    writeStream.write('null');
+  } else if (value === undefined) {
+    writeStream.write('null'); // Convert undefined to null for JSON compatibility
+  } else if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') {
+    writeStream.write(JSON.stringify(value)); // JSON.stringify handles escaping
+  } else if (value === null) {
+    writeStream.write('null'); // Handle null explicitly
+  }
+}
+// Recursive function to handle objects and arrays
+function serializeObject(obj, writeStream, depth = 0) {
+  if (obj instanceof Date) {
+    // console.log('obj 111', obj);
+    // Handle Date objects by converting them to ISO strings
+    writeStream.write(JSON.stringify(obj.toISOString()));
+  } else if (Array.isArray(obj)) {
+    writeStream.write('[');
+    obj.forEach((item, index) => {
+      if (index > 0) writeStream.write(',');
+      serializeObject(item, writeStream, depth + 1);
+    });
+    writeStream.write(']');
+  } else if (typeof obj === 'object' && obj !== null) {
+    writeStream.write('{');
+    const keys = Object.keys(obj);
+    // console.log('keys 111', keys);
+    keys.forEach((key, index) => {
+      if (index > 0) writeStream.write(',');
+      writeStream.write(JSON.stringify(key)); // JSON.stringify for key escaping
+      writeStream.write(':');
+      serializeObject(obj[key], writeStream, depth + 1);
+    });
+    writeStream.write('}');
+  } else {
+    writeFormattedValue(obj, writeStream); // Primitive values
+  }
+}
+// Main function to write JSON data to a file in a memory-efficient manner
+function writeLargeJsonToFile(obj, filePath) {
+  return new Promise((resolve, reject) => {
+    const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
+
+    writeStream.on('error', error => {
+      console.error('Stream error:', error);
+      reject(error);
+    });
+
+    writeStream.on('finish', () => {
+      console.log('File written successfully:', filePath);
+      resolve(true);
+    });
+
+    serializeObject(obj, writeStream);
+    writeStream.end();
+  });
+}
+
 // Proper base64 encoding function using Buffer
-const base64Encode = data => {
+const base64Encode = async (data, num, hardcoded) => {
   try {
-    return Buffer.from(JSON.stringify(data)).toString('base64');
+    const filePath = num === 1 ? 'result.json' : 'result1.json';
+
+    if (hardcoded) {
+      await writeLargeJsonToFile(data, filePath); // Ensure file is written before reading
+    }
+
+    // Read the file asynchronously
+    const fileContents = await fs.readFile(filePath, { encoding: 'utf8' });
+
+    console.log(`File contents for ${filePath}:`, fileContents);
+
+    // Convert file contents to Base64
+    return Buffer.from(fileContents).toString('base64');
   } catch (error) {
     console.error('Error encoding data to base64:', error);
     throw error;
@@ -227,8 +301,9 @@ const base64Encode = data => {
 const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html') => {
   const { items, ...rest } = allIssues;
 
-  const encodedScanItems = base64Encode(items);
-  const encodedScanData = base64Encode(rest);
+  // Use await for asynchronous base64Encode
+  const encodedScanItems = await base64Encode(items, 1, true);
+  const encodedScanData = await base64Encode(rest, 2, true);
 
   const filePath = path.join(storagePath, 'scanDetails.csv');
 
@@ -237,17 +312,18 @@ const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html')
     fs.mkdirSync(directoryPath, { recursive: true });
   }
 
-  await fs.promises.writeFile(
+  await fs.writeFile(
     filePath,
     `scanData_base64,scanItems_base64\n${encodedScanData},${encodedScanItems}`,
   );
 
   const htmlFilePath = path.join(storagePath, htmlFilename);
-  let htmlContent = fs.readFileSync(htmlFilePath, 'utf8');
+  let htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
 
   const headIndex = htmlContent.indexOf('</head>');
   const injectScript = `
   <script>
+    try {
     // Function to decode Base64
     const base64Decode = (data) => {
       const compressedBytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
@@ -255,10 +331,16 @@ const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html')
       return JSON.parse(jsonString);
     };
 
-    // Check if encodedScanData and encodedScanItems are defined
     // Decode the encoded data
     scanData = base64Decode('${encodedScanData}');
     scanItems = base64Decode('${encodedScanItems}');
+    
+    // console.log("Decoded scanData:", scanData);
+    // console.log("Decoded scanItems:", scanItems);
+
+  } catch (error) {
+    console.error("Error decoding base64 data:", error);
+  }
   </script>
   `;
 
@@ -268,7 +350,7 @@ const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html')
     htmlContent += injectScript;
   }
 
-  fs.writeFileSync(htmlFilePath, htmlContent);
+  await fs.writeFile(htmlFilePath, htmlContent);
 };
 
 let browserChannel = 'chrome';
@@ -325,6 +407,9 @@ const writeSummaryPdf = async (storagePath, filename = 'summary') => {
 
 const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   const { url, pageTitle, filePath } = pageResults;
+
+  // console.log('pageResults 111', pageResults);
+  // console.log('allIssues 111', allIssues);
 
   const totalIssuesInPage = new Set();
   Object.keys(pageResults.mustFix.rules).forEach(k => totalIssuesInPage.add(k));
@@ -615,6 +700,8 @@ const generateArtifacts = async (
     return impactCount;
   };
 
+  // console.log('allIssues 111', allIssues);
+
   if (process.env.OOBEE_VERBOSE) {
     const axeImpactCount = getAxeImpactCount(allIssues);
 
@@ -649,19 +736,22 @@ const generateArtifacts = async (
     };
 
     const { items, startTime, endTime, ...rest } = allIssues;
-    const encodedScanItems = base64Encode(items);
+    const encodedScanItems = base64Encode(items, 1, true);
     const formattedStartTime = formatDateTimeForMassScanner(startTime);
     const formattedEndTime = formatDateTimeForMassScanner(endTime);
     rest.critical = axeImpactCount.critical;
     rest.serious = axeImpactCount.serious;
     rest.moderate = axeImpactCount.moderate;
     rest.minor = axeImpactCount.minor;
+    // rest.startTime = startTime;
+    // rest.endTime = endTime;
 
     // Adding encoded start time and end time to rest object
+    // console.log('formattedStartTime 111', formattedStartTime);
     rest.formattedStartTime = formattedStartTime;
     rest.formattedEndTime = formattedEndTime;
 
-    const encodedScanData = base64Encode(rest);
+    const encodedScanData = base64Encode(rest, 2, true);
 
     const scanDetailsMessage = {
       type: 'scanDetailsMessage',

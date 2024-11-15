@@ -25,6 +25,8 @@
     "prettier": "^3.1.0",
     "print-message": "^3.0.1",
     "safe-regex": "^2.1.1",
+    "stream-chain": "^3.3.2",
+    "stream-json": "^1.9.0",
     "typescript": "^5.4.5",
     "url": "^0.11.3",
     "validator": "^13.11.0",
