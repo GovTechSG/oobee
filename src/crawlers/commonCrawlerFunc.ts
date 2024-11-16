@@ -1,6 +1,4 @@
-/* eslint-disable no-unused-vars */
-/* eslint-disable no-param-reassign */
-import crawlee from 'crawlee';
+import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
 import xPathToCss from 'xpath-to-css';
 import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
@@ -13,6 +11,20 @@ import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickabl
 import { ItemsInfo } from '../mergeAxeResults.js';
 
 // types
+interface AxeResultsWithScreenshot extends AxeResults {
+  passes: ResultWithScreenshot[];
+  incomplete: ResultWithScreenshot[];
+  violations: ResultWithScreenshot[];
+}
+
+export interface ResultWithScreenshot extends Result {
+  nodes: NodeResultWithScreenshot[];
+}
+
+export interface NodeResultWithScreenshot extends NodeResult {
+  screenshotPath?: string;
+}
+
 type RuleDetails = {
   description: string;
   axeImpact: ImpactValue;
@@ -48,7 +60,7 @@ type FilteredResults = {
 };
 
 export const filterAxeResults = (
-  results: AxeResults,
+  results: AxeResultsWithScreenshot,
   pageTitle: string,
   customFlowDetails?: CustomFlowDetails,
 ): FilteredResults => {
@@ -60,7 +72,7 @@ export const filterAxeResults = (
   const passed: ResultCategory = { totalItems: 0, rules: {} };
   const needsReview: ResultCategory = { totalItems: 0, rules: {} };
 
-  const process = (item: Result, displayNeedsReview: boolean) => {
+  const process = (item: ResultWithScreenshot, displayNeedsReview: boolean) => {
     const { id: rule, help: description, helpUrl, tags, nodes } = item;
 
     if (rule === 'frame-tested') return;
@@ -81,7 +93,7 @@ export const filterAxeResults = (
       });
     }
 
-    const addTo = (category: ResultCategory, node: NodeResult) => {
+    const addTo = (category: ResultCategory, node: NodeResultWithScreenshot) => {
       const { html, failureSummary, screenshotPath, target, impact: axeImpact } = node;
       if (!(rule in category.rules)) {
         category.rules[rule] = {
@@ -263,11 +275,6 @@ export const runAxeScript = async (
     })
     .filter(item => item !== '');
 
-  // console.log('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
-  // console.log(oobeeAccessibleLabelFlaggedXpaths);
-  // console.log('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
-  // console.log(oobeeAccessibleLabelFlaggedCssSelectors);
-
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
   const results = await page.evaluate(
@@ -394,9 +401,9 @@ export const createCrawleeSubFolders = async (
   return { dataset, requestQueue };
 };
 
-export const preNavigationHooks = extraHTTPHeaders => {
+export const preNavigationHooks = (extraHTTPHeaders: Record<string, string>) => {
   return [
-    async (crawlingContext, gotoOptions) => {
+    async (crawlingContext: CrawlingContext, gotoOptions: PlaywrightGotoOptions) => {
       if (extraHTTPHeaders) {
         crawlingContext.request.headers = extraHTTPHeaders;
       }
@@ -406,7 +413,7 @@ export const preNavigationHooks = extraHTTPHeaders => {
 };
 
 export const postNavigationHooks = [
-  async _crawlingContext => {
+  async (_crawlingContext: CrawlingContext) => {
     guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
   },
 ];

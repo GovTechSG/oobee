@@ -5,6 +5,7 @@ import path from 'path';
 import { consoleLogger } from '../logs.js';
 import { Result } from 'axe-core';
 import { Page } from 'playwright';
+import { NodeResultWithScreenshot, ResultWithScreenshot } from '../crawlers/commonCrawlerFunc.js';
 
 const screenshotMap = {}; // Map of screenshot hashkey to its buffer value and screenshot path
 
@@ -14,8 +15,8 @@ export const takeScreenshotForHTMLElements = async (
   randomToken: string,
   locatorTimeout = 2000,
   maxScreenshots = 50,
-) => {
-  const newViolations = [];
+): Promise<ResultWithScreenshot[]> => {
+  const newViolations: ResultWithScreenshot[] = [];
   let screenshotCount = 0;
   for (const violation of violations) {
     if (screenshotCount >= maxScreenshots) {
@@ -25,8 +26,9 @@ export const takeScreenshotForHTMLElements = async (
       newViolations.push(violation);
       continue;
     }
-    const newViolationNodes = [];
+    const newViolationNodes: NodeResultWithScreenshot[] = [];
     for (const node of violation.nodes) {
+      const nodeWithScreenshotPath: NodeResultWithScreenshot = node;
       const { target } = node;
       const hasValidSelector = target.length === 1 && typeof target[0] === 'string';
       const selector = hasValidSelector ? (target[0] as string) : null;
@@ -41,7 +43,7 @@ export const takeScreenshotForHTMLElements = async (
             if (isVisible) {
               const buffer = await currLocator.screenshot({ timeout: locatorTimeout });
               const screenshotPath = getScreenshotPath(buffer, randomToken);
-              node.screenshotPath = screenshotPath;
+              nodeWithScreenshotPath.screenshotPath = screenshotPath;
               screenshotCount++;
             } else {
               consoleLogger.info(`Element at ${currLocator} is not visible`);
@@ -53,7 +55,7 @@ export const takeScreenshotForHTMLElements = async (
           consoleLogger.info(`Unable to take element screenshot at ${selector}`);
         }
       }
-      newViolationNodes.push(node);
+      newViolationNodes.push(nodeWithScreenshotPath);
     }
     violation.nodes = newViolationNodes;
     newViolations.push(violation);
