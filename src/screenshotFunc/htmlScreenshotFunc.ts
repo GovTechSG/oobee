@@ -63,18 +63,18 @@ export const takeScreenshotForHTMLElements = async (
   return newViolations;
 };
 
-const generateBufferHash = buffer => {
+const generateBufferHash = (buffer: Buffer) => {
   const hash = createHash('sha256');
   hash.update(buffer);
   return hash.digest('hex');
 };
 
-const isSameBufferHash = (buffer, hash) => {
+const isSameBufferHash = (buffer: Buffer, hash: string) => {
   const bufferHash = generateBufferHash(buffer);
   return hash === bufferHash;
 };
 
-const getIdenticalScreenshotKey = buffer => {
+const getIdenticalScreenshotKey = (buffer: Buffer) => {
   for (const hashKey in screenshotMap) {
     const isIdentical = isSameBufferHash(buffer, hashKey);
     if (isIdentical) return hashKey;
@@ -82,7 +82,7 @@ const getIdenticalScreenshotKey = buffer => {
   return undefined;
 };
 
-const getScreenshotPath = (buffer, randomToken) => {
+const getScreenshotPath = (buffer: Buffer, randomToken: string) => {
   let hashKey = getIdenticalScreenshotKey(buffer);
   // If exists identical entry in screenshot map, get its filepath
   if (hashKey) {
@@ -99,11 +99,11 @@ const getScreenshotPath = (buffer, randomToken) => {
   return path;
 };
 
-const generateScreenshotPath = hashKey => {
+const generateScreenshotPath = (hashKey: string) => {
   return `elemScreenshots/html/${hashKey}.jpeg`;
 };
 
-const saveImageBufferToFile = (buffer, fileName) => {
+const saveImageBufferToFile = (buffer: Buffer, fileName: string) => {
   if (!fileName) return;
   // Find and create parent directories recursively if not exist
   const absPath = path.resolve(fileName);
