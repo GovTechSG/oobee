@@ -315,7 +315,7 @@ export const runAxeScript = async (
               evaluate: evaluateAltText,
             },
           ],
-          rules: [customAxeConfig.rules[0], customAxeConfig.rules[1]],
+          rules: customAxeConfig.rules,
         });
 
         // removed needsReview condition
@@ -326,7 +326,8 @@ export const runAxeScript = async (
             resultTypes: defaultResultTypes,
           })
           .then(results => {
-            const escapedCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
+            const escapedCssSelectors =
+              oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
 
             // Add oobee violations to Axe's report
             const oobeeAccessibleLabelViolations = {
