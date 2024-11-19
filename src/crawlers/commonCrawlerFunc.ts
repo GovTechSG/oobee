@@ -289,6 +289,8 @@ export const runAxeScript = async ({
     })
     .filter(item => item !== '');
 
+  const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
+
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
   const results = await page.evaluate(
@@ -297,6 +299,7 @@ export const runAxeScript = async ({
       saflyIconSelector,
       customAxeConfig,
       disableOobee,
+      enableWcagAaa,
       oobeeAccessibleLabelFlaggedCssSelectors,
     }) => {
       try {
@@ -337,9 +340,17 @@ export const runAxeScript = async ({
               evaluate: evaluateAltText,
             },
           ],
-          rules: customAxeConfig.rules.filter(rule =>
-            disableOobee ? !rule.id.startsWith('oobee') : true,
-          ),
+          rules: customAxeConfig.rules
+            .filter(rule => (disableOobee ? !rule.id.startsWith('oobee') : true))
+            .concat(
+              enableWcagAaa
+                ? [
+                    { id: 'color-contrast-enhanced', enabled: true },
+                    { id: 'identical-links-same-purpose', enabled: true },
+                    { id: 'meta-refresh-no-exceptions', enabled: true },
+                  ]
+                : [],
+            ),
         });
 
         // removed needsReview condition
@@ -402,6 +413,7 @@ export const runAxeScript = async ({
       saflyIconSelector,
       customAxeConfig,
       disableOobee,
+      enableWcagAaa,
       oobeeAccessibleLabelFlaggedCssSelectors,
     },
   );
