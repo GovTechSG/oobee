@@ -61,7 +61,8 @@ export async function extractAndGradeText(page: Page): Promise<boolean> {
     // Final log statements to confirm function flow
     console.log('Readability Score:', readabilityScore); // Debug log
     console.log('Flag:', flag); // Log the boolean flag
-
+    const pageUrl = await page.url(); // Get the page URL
+    console.log('Page URL:', pageUrl); // Log the URL of the page
 
     return flag;
   } catch (error) {
