@@ -433,6 +433,6 @@ export const cssQuerySelectors = [
 
 export enum RuleFlags {
   DEFAULT = 'default',
-  WITHOUT_OOBEE = 'without-oobee',
-  INCLUDE_WCAG_AAA = 'include-wcag-aaa',
+  DISABLE_OOBEE = 'disable-oobee',
+  ENABLE_WCAG_AAA = 'enable-wcag-aaa',
 }

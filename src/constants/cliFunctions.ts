@@ -263,7 +263,7 @@ export const cliOptions: { [key: string]: Options } = {
     alias: 'ruleset',
     describe: 'Specify scan ruleset for accessibility checks',
     type: 'string',
-    choices: ['default', 'without-oobee', 'include-wcag-aaa', 'without-oobee,include-wcag-aaa'],
+    choices: ['default', 'disable-oobee', 'enable-wcag-aaa', 'disable-oobee,enable-wcag-aaa'],
     demandOption: false,
     requiresArg: true,
     default: 'default',

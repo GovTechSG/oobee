@@ -273,8 +273,8 @@ export const runAxeScript = async ({
     }
   });
 
-  const withoutOobee = ruleset.includes(RuleFlags.WITHOUT_OOBEE);
-  const oobeeAccessibleLabelFlaggedXpaths = withoutOobee
+  const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
+  const oobeeAccessibleLabelFlaggedXpaths = disableOobee
     ? []
     : (await flagUnlabelledClickableElements(page)).map(item => item.xpath);
   const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
@@ -296,7 +296,7 @@ export const runAxeScript = async ({
       selectors,
       saflyIconSelector,
       customAxeConfig,
-      withoutOobee,
+      disableOobee,
       oobeeAccessibleLabelFlaggedCssSelectors,
     }) => {
       try {
@@ -338,7 +338,7 @@ export const runAxeScript = async ({
             },
           ],
           rules: customAxeConfig.rules.filter(rule =>
-            withoutOobee ? !rule.id.startsWith('oobee') : true,
+            disableOobee ? !rule.id.startsWith('oobee') : true,
           ),
         });
 
@@ -350,7 +350,7 @@ export const runAxeScript = async ({
             resultTypes: defaultResultTypes,
           })
           .then(results => {
-            if (withoutOobee) {
+            if (disableOobee) {
               return results;
             }
             // handle css id selectors that start with a digit
@@ -401,7 +401,7 @@ export const runAxeScript = async ({
       selectors,
       saflyIconSelector,
       customAxeConfig,
-      withoutOobee,
+      disableOobee,
       oobeeAccessibleLabelFlaggedCssSelectors,
     },
   );
