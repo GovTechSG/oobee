@@ -288,7 +288,7 @@ const base64Encode = async (data, num, hardcoded) => {
     // Read the file asynchronously
     const fileContents = await fs.readFile(filePath, { encoding: 'utf8' });
 
-    console.log(`File contents for ${filePath}:`, fileContents);
+    // console.log(`File contents for ${filePath}:`, fileContents);
 
     // Convert file contents to Base64
     return Buffer.from(fileContents).toString('base64');
@@ -702,6 +702,8 @@ const generateArtifacts = async (
 
   // console.log('allIssues 111', allIssues);
 
+  console.log('process.env.OOBEE_VERBOSE 111', process.env.OOBEE_VERBOSE);
+
   if (process.env.OOBEE_VERBOSE) {
     const axeImpactCount = getAxeImpactCount(allIssues);
 
@@ -736,7 +738,7 @@ const generateArtifacts = async (
     };
 
     const { items, startTime, endTime, ...rest } = allIssues;
-    const encodedScanItems = base64Encode(items, 1, true);
+    const encodedScanItems = await base64Encode(items, 1, true);
     const formattedStartTime = formatDateTimeForMassScanner(startTime);
     const formattedEndTime = formatDateTimeForMassScanner(endTime);
     rest.critical = axeImpactCount.critical;
@@ -751,15 +753,31 @@ const generateArtifacts = async (
     rest.formattedStartTime = formattedStartTime;
     rest.formattedEndTime = formattedEndTime;
 
-    const encodedScanData = base64Encode(rest, 2, true);
+    const encodedScanData = await base64Encode(rest, 2, true);
 
-    const scanDetailsMessage = {
-      type: 'scanDetailsMessage',
-      payload: { scanData: encodedScanData, scanItems: encodedScanItems },
-    };
+    console.log('typeof 111 encodedScanData', typeof encodedScanData);
 
+    // const largeData = await fs.readFile('largeDataWithBase64.json', { encoding: 'utf8' });
+    // console.log('largeData 111', JSON.stringify(largeData));
+
+    const scanDetailsMessageModified = `{
+      "type": "scanDetailsMessage",
+      "payload": { "scanData": "${encodedScanData}", "scanItems": "${encodedScanItems}" }
+    }`;
+
+    // const scanDetailsMessage = {
+    //   type: 'scanDetailsMessage',
+    //   payload: { scanData: encodedScanData, scanItems: encodedScanItems },
+    // };
+
+    // console.log('result 111', scanDetailsMessageModified === JSON.stringify(scanDetailsMessage));
+    // console.log('result 222', scanDetailsMessageModified);
+    // console.log('result 333', JSON.stringify(scanDetailsMessage));
+
+    // console.log('before process.send', scanDetailsMessage);
     if (process.send) {
-      process.send(JSON.stringify(scanDetailsMessage));
+      // console.log('what happened here? 111', JSON.stringify(scanDetailsMessage));
+      process.send(scanDetailsMessageModified);
     }
   }
 
@@ -794,6 +812,7 @@ const generateArtifacts = async (
       }
 
       if (process.send && process.env.OOBEE_VERBOSE && process.env.REPORT_BREAKDOWN != '1') {
+        console.log('what happened here? 222');
         const zipFileNameMessage = {
           type: 'zipFileName',
           payload: `${constants.cliZipFileName}`,
