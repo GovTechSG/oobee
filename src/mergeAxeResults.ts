@@ -23,6 +23,7 @@ import {
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export type ItemsInfo = {
   html: string;
@@ -278,21 +279,28 @@ function writeLargeJsonToFile(obj, filePath) {
 }
 
 // Proper base64 encoding function using Buffer
-const base64Encode = async (data, num, hardcoded) => {
+const base64Encode = async (data, num) => {
   try {
-    const filePath = num === 1 ? 'result.json' : 'result1.json';
+    // Generate a unique filename using UUID
+    const tempFilename = num === 1 ? `scanItems_${uuidv4()}.json` : (num === 2 ? `scanData_${uuidv4()}.json` : `${uuidv4()}.json`);
+    const tempFilePath = path.join(process.cwd(), tempFilename);
 
-    if (hardcoded) {
-      await writeLargeJsonToFile(data, filePath); // Ensure file is written before reading
+    // Write data to temporary file
+    await writeLargeJsonToFile(data, tempFilePath);
+
+    try {
+      // Read and encode the file contents
+      const fileContents = await fs.readFile(tempFilePath, { encoding: 'utf8' });
+      return Buffer.from(fileContents).toString('base64');
+    } finally {
+      // Clean up: Delete the temporary file
+      try {
+        await fs.unlink(tempFilePath);
+      } catch (deleteError) {
+        console.error('Error deleting temporary file:', deleteError);
+        // Continue execution even if deletion fails
+      }
     }
-
-    // Read the file asynchronously
-    const fileContents = await fs.readFile(filePath, { encoding: 'utf8' });
-
-    // console.log(`File contents for ${filePath}:`, fileContents);
-
-    // Convert file contents to Base64
-    return Buffer.from(fileContents).toString('base64');
   } catch (error) {
     console.error('Error encoding data to base64:', error);
     throw error;
@@ -302,9 +310,9 @@ const base64Encode = async (data, num, hardcoded) => {
 const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html') => {
   const { items, ...rest } = allIssues;
 
-  // Use await for asynchronous base64Encode
-  const encodedScanItems = await base64Encode(items, 1, true);
-  const encodedScanData = await base64Encode(rest, 2, true);
+  // Remove the 'hardcoded' parameter since we're always using temp files now
+  const encodedScanItems = await base64Encode(items, 1);
+  const encodedScanData = await base64Encode(rest, 2);
 
   const filePath = path.join(storagePath, 'scanDetails.csv');
 
@@ -325,23 +333,19 @@ const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html')
   const injectScript = `
   <script>
     try {
-    // Function to decode Base64
-    const base64Decode = (data) => {
-      const compressedBytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-      const jsonString = new TextDecoder().decode(compressedBytes);
-      return JSON.parse(jsonString);
-    };
+      // Function to decode Base64
+      const base64Decode = (data) => {
+        const compressedBytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+        const jsonString = new TextDecoder().decode(compressedBytes);
+        return JSON.parse(jsonString);
+      };
 
-    // Decode the encoded data
-    scanData = base64Decode('${encodedScanData}');
-    scanItems = base64Decode('${encodedScanItems}');
-    
-    // console.log("Decoded scanData:", scanData);
-    // console.log("Decoded scanItems:", scanItems);
-
-  } catch (error) {
-    console.error("Error decoding base64 data:", error);
-  }
+      // Decode the encoded data
+      scanData = base64Decode('${encodedScanData}');
+      scanItems = base64Decode('${encodedScanItems}');
+    } catch (error) {
+      console.error("Error decoding base64 data:", error);
+    }
   </script>
   `;
 
@@ -739,7 +743,7 @@ const generateArtifacts = async (
     };
 
     const { items, startTime, endTime, ...rest } = allIssues;
-    const encodedScanItems = await base64Encode(items, 1, true);
+    const encodedScanItems = await base64Encode(items, 1);
     const formattedStartTime = formatDateTimeForMassScanner(startTime);
     const formattedEndTime = formatDateTimeForMassScanner(endTime);
     rest.critical = axeImpactCount.critical;
@@ -754,7 +758,7 @@ const generateArtifacts = async (
     rest.formattedStartTime = formattedStartTime;
     rest.formattedEndTime = formattedEndTime;
 
-    const encodedScanData = await base64Encode(rest, 2, true);
+    const encodedScanData = await base64Encode(rest, 2);
 
     console.log('typeof 111 encodedScanData', typeof encodedScanData);
 
