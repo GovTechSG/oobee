@@ -278,8 +278,8 @@ function writeLargeJsonToFile(obj, filePath) {
   });
 }
 
-// Proper base64 encoding function using streams to handle large files
-const base64Encode = async (data: any, num: number): Promise<string> => {
+// Proper base64 encoding function using buffer
+const base64Encode = async (data: any, num: number) => {
   try {
     // Generate a unique filename using UUID
     const tempFilename = num === 1 ? `scanItems_${uuidv4()}.json` : (num === 2 ? `scanData_${uuidv4()}.json` : `${uuidv4()}.json`);
@@ -288,36 +288,37 @@ const base64Encode = async (data: any, num: number): Promise<string> => {
     // Write data to temporary file
     await writeLargeJsonToFile(data, tempFilePath);
 
-    return new Promise<string>((resolve, reject) => {
+    try {
+      // Read and encode the file contents in chunks
       let base64Content = '';
-      const readStream = fs.createReadStream(tempFilePath, { encoding: 'utf8' });
+      const chunkSize = 10000000; // Process 10MB at a time
+      const fileHandle = await fs.promises.open(tempFilePath, 'r');
+      const stats = await fs.stat(tempFilePath);
+      const fileSize = stats.size;
+      let bytesRead = 0;
 
-      readStream.on('data', (chunk: string) => {
-        // Since we specified utf8 encoding in createReadStream, chunk will be string
-        base64Content += Buffer.from(chunk).toString('base64');
-      });
+      while (bytesRead < fileSize) {
+        const chunk = await fileHandle.read(Buffer.alloc(chunkSize), 0, chunkSize, bytesRead);
+        if (chunk.bytesRead === 0) break;
 
-      readStream.on('end', () => {
-        // Clean up: Delete the temporary file
-        fs.unlink(tempFilePath, (deleteError) => {
-          if (deleteError) {
-            console.error('Error deleting temporary file:', deleteError);
-            // Continue execution even if deletion fails
-          }
-          resolve(base64Content);
-        });
-      });
+        const chunkString = chunk.buffer.slice(0, chunk.bytesRead).toString('utf8');
+        base64Content += Buffer.from(chunkString).toString('base64');
+        bytesRead += chunk.bytesRead;
+      }
 
-      readStream.on('error', (error: Error) => {
-        console.error('Error reading file for base64 encoding:', error);
-        // Clean up on error
-        fs.unlink(tempFilePath, () => {
-          reject(error);
-        });
-      });
-    });
+      await fileHandle.close();
+      return base64Content;
+    } finally {
+      // Clean up: Delete the temporary file
+      try {
+        await fs.unlink(tempFilePath);
+      } catch (deleteError) {
+        console.error('Error deleting temporary file:', deleteError);
+        // Continue execution even if deletion fails
+      }
+    }
   } catch (error) {
-    console.error('Error in base64Encode:', error);
+    console.error('Error encoding data to base64:', error);
     throw error;
   }
 };
