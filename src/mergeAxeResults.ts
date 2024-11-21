@@ -277,8 +277,8 @@ function writeLargeJsonToFile(obj, filePath) {
   });
 }
 
-// Proper base64 encoding function using Buffer
-const base64Encode = async (data, num) => {
+// Proper base64 encoding function using streams to handle large files
+const base64Encode = async (data: any, num: number): Promise<string> => {
   try {
     // Generate a unique filename using UUID
     const tempFilename = num === 1 ? `scanItems_${uuidv4()}.json` : (num === 2 ? `scanData_${uuidv4()}.json` : `${uuidv4()}.json`);
@@ -287,21 +287,36 @@ const base64Encode = async (data, num) => {
     // Write data to temporary file
     await writeLargeJsonToFile(data, tempFilePath);
 
-    try {
-      // Read and encode the file contents
-      const fileContents = await fs.readFile(tempFilePath, { encoding: 'utf8' });
-      return Buffer.from(fileContents).toString('base64');
-    } finally {
-      // Clean up: Delete the temporary file
-      try {
-        await fs.unlink(tempFilePath);
-      } catch (deleteError) {
-        console.error('Error deleting temporary file:', deleteError);
-        // Continue execution even if deletion fails
-      }
-    }
+    return new Promise<string>((resolve, reject) => {
+      let base64Content = '';
+      const readStream = fs.createReadStream(tempFilePath, { encoding: 'utf8' });
+
+      readStream.on('data', (chunk: string) => {
+        // Since we specified utf8 encoding in createReadStream, chunk will be string
+        base64Content += Buffer.from(chunk).toString('base64');
+      });
+
+      readStream.on('end', () => {
+        // Clean up: Delete the temporary file
+        fs.unlink(tempFilePath, (deleteError) => {
+          if (deleteError) {
+            console.error('Error deleting temporary file:', deleteError);
+            // Continue execution even if deletion fails
+          }
+          resolve(base64Content);
+        });
+      });
+
+      readStream.on('error', (error: Error) => {
+        console.error('Error reading file for base64 encoding:', error);
+        // Clean up on error
+        fs.unlink(tempFilePath, () => {
+          reject(error);
+        });
+      });
+    });
   } catch (error) {
-    console.error('Error encoding data to base64:', error);
+    console.error('Error in base64Encode:', error);
     throw error;
   }
 };
