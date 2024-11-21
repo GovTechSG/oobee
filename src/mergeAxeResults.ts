@@ -815,6 +815,7 @@ const generateArtifacts = async (
     }
   }
 
+  // process.send storagePath
   await fs
     .ensureDir(storagePath)
     .then(() => {
@@ -829,14 +830,25 @@ const generateArtifacts = async (
           'Reports have been further broken down according to their respective impact level.',
         );
       }
+      // const storagePathMessage = {
+      //   type: 'storagePath',
+      //   payload: `${storagePath}`,
+      // };
+
+      // console.log('zipFileNameMessage 111', JSON.stringify(storagePathMessage));
 
       if (process.send && process.env.OOBEE_VERBOSE && process.env.REPORT_BREAKDOWN != '1') {
-        console.log('what happened here? 222');
         const zipFileNameMessage = {
           type: 'zipFileName',
           payload: `${constants.cliZipFileName}`,
         };
+        // const storagePathMessage = {
+        //   type: 'storagePath',
+        //   payload: `${storagePath}`,
+        // };
 
+        // console.log('zipFileNameMessage 111', storagePathMessage);
+        // process.send(JSON.stringify(storagePathMessage));
         process.send(JSON.stringify(zipFileNameMessage));
       }
 
