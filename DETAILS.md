@@ -9,6 +9,7 @@ Details of each issue and severity rating provided by the current scan engine.
 3. [WCAG 2.0 Level AA](#wcag-20-level-aa)
 4. [WCAG 2.1 Level AA](#wcag-21-level-aa)
 5. [WCAG 2.2 Level AA](#wcag-22-level-aa)
+5. [WCAG 2.x Level AAA](#wcag-2x-level-aaa)
 6. [Best Practice](#best-practice)
 
 ## Conformance Covered
@@ -24,15 +25,19 @@ Details of each issue and severity rating provided by the current scan engine.
 | WCAG 1.4.2  |
 | WCAG 1.4.3  |
 | WCAG 1.4.4  |
+| WCAG 1.4.6  |
 | WCAG 2.1.1  |
 | WCAG 2.2.1  |
 | WCAG 2.2.2  |
+| WCAG 2.2.4  |
 | WCAG 2.4.1  |
 | WCAG 2.4.2  |
 | WCAG 2.4.4  |
+| WCAG 2.4.9  |
 | WCAG 3.1.1  |
 | WCAG 3.1.2  |
 | WCAG 3.3.2  |
+| WCAG 3.2.5  |
 | WCAG 4.1.2  |
 
 ## WCAG 2.0 Level A

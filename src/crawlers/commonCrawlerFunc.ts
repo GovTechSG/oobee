@@ -345,9 +345,21 @@ export const runAxeScript = async ({
             .concat(
               enableWcagAaa
                 ? [
-                    { id: 'color-contrast-enhanced', enabled: true },
-                    { id: 'identical-links-same-purpose', enabled: true },
-                    { id: 'meta-refresh-no-exceptions', enabled: true },
+                    {
+                      id: 'color-contrast-enhanced',
+                      enabled: true,
+                      tags: ['wcag2aaa', 'wcag146'],
+                    },
+                    {
+                      id: 'identical-links-same-purpose',
+                      enabled: true,
+                      tags: ['wcag2aaa', 'wcag249'],
+                    },
+                    {
+                      id: 'meta-refresh-no-exceptions',
+                      enabled: true,
+                      tags: ['wcag2aaa', 'wcag224', 'wcag325'],
+                    },
                   ]
                 : [],
             ),

@@ -188,6 +188,10 @@ const LEVEL_AA = ['1.3.4', '1.4.3', '1.4.4', '1.4.10'];
 const LEVEL_A = ['1.3.1', '4.1.1', '4.1.2'];
 const clauseToLevel = {
   // mapping of clause to its A/AA/AAA level
+  ...LEVEL_AAA.reduce((prev, curr) => {
+    prev[curr] = 'wcag2aaa';
+    return prev;
+  }, {}),
   ...LEVEL_AA.reduce((prev, curr) => {
     prev[curr] = 'wcag2aa';
     return prev;
