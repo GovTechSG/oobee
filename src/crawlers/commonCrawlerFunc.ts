@@ -67,6 +67,7 @@ export const filterAxeResults = (
     if (rule === 'frame-tested') return;
 
     const conformance = tags.filter(tag => tag.startsWith('wcag') || tag === 'best-practice');
+
     // handle rare cases where conformance level is not the first element
     const levels = ['wcag2a', 'wcag2aa', 'wcag2aaa'];
     if (conformance[0] !== 'best-practice' && !levels.includes(conformance[0])) {
@@ -85,6 +86,7 @@ export const filterAxeResults = (
     const addTo = (category: ResultCategory, node) => {
       const { html, failureSummary, screenshotPath, target, impact: axeImpact } = node;
       if (!(rule in category.rules)) {
+        // console.log(`Adding new rule to category: ${category}`);
         category.rules[rule] = {
           description,
           axeImpact,
@@ -104,7 +106,7 @@ export const filterAxeResults = (
       }
 
       const xpath = target.length === 1 && typeof target[0] === 'string' ? target[0] : null;
-
+    
       // add in screenshot path
       category.rules[rule].items.push({
         html: finalHtml,
@@ -120,6 +122,8 @@ export const filterAxeResults = (
 
     nodes.forEach(node => {
       const { impact } = node;
+      // Log impact and decision
+      // console.log('Node impact:', { impact, displayNeedsReview });
       if (displayNeedsReview) {
         addTo(needsReview, node);
       } else if (impact === 'critical' || impact === 'serious') {
@@ -129,6 +133,14 @@ export const filterAxeResults = (
       }
     });
   };
+
+  // Log the final results after processing all items
+  // console.log('Final categories:', {
+  //   mustFix,
+  //   goodToFix,
+  //   needsReview,
+  //   passed,
+  // });
 
   violations.forEach(item => process(item, false));
   incomplete.forEach(item => process(item, true));
@@ -241,6 +253,9 @@ export const runAxeScript = async (
   });
 
   page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
+  page.on('console', (msg) => {
+    console.log(msg.text());  // This will capture logs from page.evaluate()
+  }); 
 
   const oobeeAccessibleLabelFlaggedCssSelectors = (await flagUnlabelledClickableElements(page))
     .map(item => item.xpath)
@@ -249,12 +264,7 @@ export const runAxeScript = async (
 
   // Call extractAndGradeText to get readability score and flag for difficult-to-read text
   const flag = await extractAndGradeText(page);
-
-  if (!flag) {
-      console.warn("Flag was not set as expected in extractAndGradeText.");
-  }else{
-    console.warn("Flag was set as expected in extractAndGradeText.");
-  }
+  console.log(flag);
 
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
@@ -301,10 +311,21 @@ export const runAxeScript = async (
           {
             ...customAxeConfig.checks[2],
             evaluate: (_node: HTMLElement) => {
-              if (flag === false) {
+              // console.log('Evaluate function triggered');
+              // if (flag === true) {
+              //   console.warn('Readability issues detected passed');
+              //   return true; // nothing flagged, so pass everything
+              // }
+              // console.warn('Readability issues detected failed');
+              // return false; // fail all elements that match the selector
+              // console.log('Flag in evaluate:', flag);
+              // return flag ? true : false; // Fail if flag is true, pass if false
+              if (flag === '') {
+                console.log('none');
                 return true; // nothing flagged, so pass everything
               }
-              return false; // fail all elements that match the selector
+              console.log('have');
+              return false;
             },
           },
         ],

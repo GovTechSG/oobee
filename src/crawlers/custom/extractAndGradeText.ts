@@ -1,14 +1,12 @@
 import { Page } from 'playwright';
 import textReadability from 'text-readability';
 
-
-export async function extractAndGradeText(page: Page): Promise<boolean> {
+export async function extractAndGradeText(page: Page): Promise<string> {
   try {
     // Extract text content from all specified elements (e.g., paragraphs)
     const sentences: string[] = await page.evaluate(() => {
       const elements = document.querySelectorAll('p'); // Adjust selector as needed
       const extractedSentences: string[] = [];
-
 
       elements.forEach(element => {
         const text = element.innerText.trim();
@@ -26,47 +24,37 @@ export async function extractAndGradeText(page: Page): Promise<boolean> {
         }
       });
 
-
       return extractedSentences;
     });
 
-
-    console.log('Extracted Sentences:', sentences); // Debug log
-
-
     // Check if any valid sentences were extracted
     if (sentences.length === 0) {
-      return false; // No valid sentences to grade
+      return ""; // Return an empty string if no valid sentences are found
     }
-
 
     // Join the valid sentences into a single string
     const filteredText = sentences.join(' ').trim();
-    console.log('Filtered Text:', filteredText); // Debug log
-
 
     // Count the total number of words in the filtered text
     const wordCount = filteredText.split(/\s+/).length;
-    console.log('Word Count:', wordCount); // Debug log
-
 
     // Grade the text content only if there are 20 words or more
     const readabilityScore = wordCount >= 20 ? textReadability.fleschReadingEase(filteredText) : 0;
 
+    // Log details for debugging
+    console.log('Readability Score:', readabilityScore);
+    console.log('Word Count:', wordCount);
 
-    // Set the flag as a boolean based on readability score
-    const flag = readabilityScore > 0 && readabilityScore < 50;
+    // Determine the return value
+    const result = readabilityScore === 0 || readabilityScore > 50 ? "" : readabilityScore.toString(); // Convert readabilityScore to string
 
-
-    // Final log statements to confirm function flow
-    console.log('Readability Score:', readabilityScore); // Debug log
-    console.log('Flag:', flag); // Log the boolean flag
     const pageUrl = await page.url(); // Get the page URL
-    console.log('Page URL:', pageUrl); // Log the URL of the page
+    console.log('Page URL:', pageUrl);
+    console.log('Result:', result);
 
-    return flag;
+    return result;
   } catch (error) {
     console.error('Error extracting and grading text:', error);
-    return false; // Return false in case of an error
+    return ""; // Return an empty string in case of an error
   }
 }
