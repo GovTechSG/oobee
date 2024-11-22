@@ -795,10 +795,10 @@ const generateArtifacts = async (
     // console.log('result 333', JSON.stringify(scanDetailsMessage));
 
     // console.log('before process.send', scanDetailsMessage);
-    if (process.send) {
-      // console.log('what happened here? 111', JSON.stringify(scanDetailsMessage));
-      process.send(scanDetailsMessageModified);
-    }
+    // if (process.send) {
+    //   // console.log('what happened here? 111', JSON.stringify(scanDetailsMessage));
+    //   process.send(scanDetailsMessageModified);
+    // }
   }
 
   await writeCsv(allIssues, storagePath);
@@ -837,6 +837,13 @@ const generateArtifacts = async (
           type: 'zipFileName',
           payload: `${constants.cliZipFileName}`,
         };
+        const storagePathMessage = {
+          type: 'storagePath',
+          payload: `${storagePath}`,
+        };
+
+        // console.log('zipFileNameMessage 111', storagePathMessage);
+        process.send(JSON.stringify(storagePathMessage));
 
         process.send(JSON.stringify(zipFileNameMessage));
       }
