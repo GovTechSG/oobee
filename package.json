@@ -76,8 +76,8 @@
     "build": "npm run copyfiles && tsc",
     "build:watch": "npm run build -- --watch",
     "copyfiles": "node ./scripts/copyFiles.js src/static/ejs dist/static && node ./scripts/copyFiles.js src/constants/errorMeta.json dist/constants && node ./scripts/copyFiles.js exclusions.txt dist",
-    "start": "node --max-old-space-size=6144 dist/index.js",
-    "cli": "node --max-old-space-size=6144 dist/cli.js",
+    "start": "node --max-old-space-size=10000 dist/index.js",
+    "cli": "node --max-old-space-size=10000 dist/cli.js",
     "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --fix --report-unused-disable-directives --max-warnings 0"
