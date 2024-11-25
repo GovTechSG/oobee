@@ -24,6 +24,7 @@ import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 import { v4 as uuidv4 } from 'uuid';
+import readline from 'readline';
 
 export type ItemsInfo = {
   html: string;
@@ -231,33 +232,35 @@ function writeFormattedValue(value, writeStream) {
   }
 }
 // Recursive function to handle objects and arrays
-function serializeObject(obj, writeStream, depth = 0) {
+function serializeObject(obj, writeStream, depth = 0, indent = '  ') {
+  const currentIndent = indent.repeat(depth); // Current level indentation
+  const nextIndent = indent.repeat(depth + 1); // Indentation for nested levels
+
   if (obj instanceof Date) {
-    // console.log('obj 111', obj);
     // Handle Date objects by converting them to ISO strings
     writeStream.write(JSON.stringify(obj.toISOString()));
   } else if (Array.isArray(obj)) {
-    writeStream.write('[');
+    writeStream.write('[\n');
     obj.forEach((item, index) => {
-      if (index > 0) writeStream.write(',');
-      serializeObject(item, writeStream, depth + 1);
+      if (index > 0) writeStream.write(',\n');
+      writeStream.write(nextIndent); // Indent array items
+      serializeObject(item, writeStream, depth + 1, indent);
     });
-    writeStream.write(']');
+    writeStream.write(`\n${currentIndent}]`);
   } else if (typeof obj === 'object' && obj !== null) {
-    writeStream.write('{');
+    writeStream.write('{\n');
     const keys = Object.keys(obj);
-    // console.log('keys 111', keys);
     keys.forEach((key, index) => {
-      if (index > 0) writeStream.write(',');
-      writeStream.write(JSON.stringify(key)); // JSON.stringify for key escaping
-      writeStream.write(':');
-      serializeObject(obj[key], writeStream, depth + 1);
+      if (index > 0) writeStream.write(',\n');
+      writeStream.write(`${nextIndent}${JSON.stringify(key)}: `); // Key with indentation
+      serializeObject(obj[key], writeStream, depth + 1, indent);
     });
-    writeStream.write('}');
+    writeStream.write(`\n${currentIndent}}`);
   } else {
     writeFormattedValue(obj, writeStream); // Primitive values
   }
 }
+
 // Main function to write JSON data to a file in a memory-efficient manner
 function writeLargeJsonToFile(obj, filePath) {
   return new Promise((resolve, reject) => {
@@ -273,7 +276,7 @@ function writeLargeJsonToFile(obj, filePath) {
       resolve(true);
     });
 
-    serializeObject(obj, writeStream);
+    serializeObject(obj, writeStream); // Use the updated serializeObject with indentation
     writeStream.end();
   });
 }
@@ -282,31 +285,32 @@ function writeLargeJsonToFile(obj, filePath) {
 const base64Encode = async (data: any, num: number) => {
   try {
     // Generate a unique filename using UUID
-    const tempFilename = num === 1 ? `scanItems_${uuidv4()}.json` : (num === 2 ? `scanData_${uuidv4()}.json` : `${uuidv4()}.json`);
+    const tempFilename =
+      num === 1
+        ? `scanItems_${uuidv4()}.json`
+        : num === 2
+          ? `scanData_${uuidv4()}.json`
+          : `${uuidv4()}.json`;
     const tempFilePath = path.join(process.cwd(), tempFilename);
 
     // Write data to temporary file
     await writeLargeJsonToFile(data, tempFilePath);
 
     try {
-      // Read and encode the file contents in chunks
+      // Read and encode the file contents line by line
+      const readStream = fs.createReadStream(tempFilePath, { encoding: 'utf8' });
+      const rl = readline.createInterface({ input: readStream });
+
       let base64Content = '';
-      const chunkSize = 10000000; // Process 10MB at a time
-      const fileHandle = await fs.promises.open(tempFilePath, 'r');
-      const stats = await fs.stat(tempFilePath);
-      const fileSize = stats.size;
-      let bytesRead = 0;
-
-      while (bytesRead < fileSize) {
-        const chunk = await fileHandle.read(Buffer.alloc(chunkSize), 0, chunkSize, bytesRead);
-        if (chunk.bytesRead === 0) break;
-
-        const chunkString = chunk.buffer.slice(0, chunk.bytesRead).toString('utf8');
-        base64Content += Buffer.from(chunkString).toString('base64');
-        bytesRead += chunk.bytesRead;
+      for await (const line of rl) {
+        // Encode each line separately and join with a delimiter
+        const encodedLine = Buffer.from(line).toString('base64');
+        base64Content += encodedLine + '.'; // Using '.' as a delimiter between encoded lines
       }
 
-      await fileHandle.close();
+      // Remove the trailing delimiter
+      base64Content = base64Content.slice(0, -1);
+
       return base64Content;
     } finally {
       // Clean up: Delete the temporary file
@@ -326,7 +330,6 @@ const base64Encode = async (data: any, num: number) => {
 const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html') => {
   const { items, ...rest } = allIssues;
 
-  // Remove the 'hardcoded' parameter since we're always using temp files now
   const encodedScanItems = await base64Encode(items, 1);
   const encodedScanData = await base64Encode(rest, 2);
 
@@ -351,8 +354,15 @@ const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html')
     try {
       // Function to decode Base64
       const base64Decode = (data) => {
-        const compressedBytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-        const jsonString = new TextDecoder().decode(compressedBytes);
+        // Split the encoded string by the delimiter
+        const encodedLines = data.split('.');
+        // Decode each line separately and join them
+        const jsonString = encodedLines
+          .map(line => {
+            const compressedBytes = Uint8Array.from(atob(line), c => c.charCodeAt(0));
+            return new TextDecoder().decode(compressedBytes);
+          })
+          .join('\\n');
         return JSON.parse(jsonString);
       };
 
