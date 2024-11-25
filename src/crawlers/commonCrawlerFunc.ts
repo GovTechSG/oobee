@@ -123,12 +123,13 @@ export const filterAxeResults = (
     nodes.forEach(node => {
       const { impact } = node;
       // Log impact and decision
-      // console.log('Node impact:', { impact, displayNeedsReview });
+      console.log('Node impact:', { impact, displayNeedsReview });
       if (displayNeedsReview) {
         addTo(needsReview, node);
       } else if (impact === 'critical' || impact === 'serious') {
         addTo(mustFix, node);
       } else {
+        console.log(node);
         addTo(goodToFix, node);
       }
     });
@@ -255,7 +256,7 @@ export const runAxeScript = async (
   page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
   page.on('console', (msg) => {
     console.log(msg.text());  // This will capture logs from page.evaluate()
-  }); 
+  });
 
   const oobeeAccessibleLabelFlaggedCssSelectors = (await flagUnlabelledClickableElements(page))
     .map(item => item.xpath)
@@ -263,7 +264,7 @@ export const runAxeScript = async (
     .join(', ');
 
   // Call extractAndGradeText to get readability score and flag for difficult-to-read text
-  const flag = await extractAndGradeText(page);
+  const flag = await extractAndGradeText(page);  // Ensure flag is obtained before proceeding
   console.log(flag);
 
   await crawlee.playwrightUtils.injectFile(page, axeScript);
@@ -289,7 +290,7 @@ export const runAxeScript = async (
         return true;
       };
 
-      // remove so that axe does not scan
+      // Remove Safly Icon to avoid scanning it
       document.querySelector(saflyIconSelector)?.remove();
 
       axe.configure({
@@ -311,21 +312,13 @@ export const runAxeScript = async (
           {
             ...customAxeConfig.checks[2],
             evaluate: (_node: HTMLElement) => {
-              // console.log('Evaluate function triggered');
-              // if (flag === true) {
-              //   console.warn('Readability issues detected passed');
-              //   return true; // nothing flagged, so pass everything
-              // }
-              // console.warn('Readability issues detected failed');
-              // return false; // fail all elements that match the selector
-              // console.log('Flag in evaluate:', flag);
-              // return flag ? true : false; // Fail if flag is true, pass if false
+              console.log('Readability flag check triggered');
               if (flag === '') {
-                console.log('none');
-                return true; // nothing flagged, so pass everything
+                console.log('No readability issues detected');
+                return true; // Pass if no readability issues
               }
-              console.log('have');
-              return false;
+              console.log('Readability issues detected');
+              return false; // Fail if readability issues are detected
             },
           },
         ],
@@ -337,9 +330,8 @@ export const runAxeScript = async (
         ],
       });
 
-      // removed needsReview condition
+      // Perform the axe accessibility test
       const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
-
       return axe.run(selectors, {
         resultTypes: defaultResultTypes,
       });
