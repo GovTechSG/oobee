@@ -104,6 +104,16 @@ export const init = async (
               },
             },
           },
+          {
+            id: 'oobee-grading-text-contents',
+            metadata: {
+              impact: 'moderate',
+              messages: {
+                pass: 'The text contents is readable text.',
+                fail: 'The text content is potentially difficult to read.',
+              },
+            },
+          },
         ],
         rules: [
           { id: 'target-size', enabled: true },
@@ -119,6 +129,18 @@ export const init = async (
               description: 'Ensures image alt text is clear and useful',
               help: 'Image alt text must not be vague or unhelpful',
               helpUrl: 'https://www.deque.com/blog/great-alt-text-introduction/',
+            },
+          },
+          {
+            id: 'oobee-grading-text-contents',
+            selector: 'html',
+            enabled: true,
+            any: ['oobee-grading-text-contents'],
+            tags: ['wcag2a', 'wcag315'],
+            metadata: {
+              description: 'Ensures text that uses short, common words and short sentences is easier to decode.',
+              help: 'Content should be written as clearly and simply as possible.',
+              helpUrl: 'https://www.w3.org/WAI/WCAG21/Understanding/reading-level',
             },
           },
         ],

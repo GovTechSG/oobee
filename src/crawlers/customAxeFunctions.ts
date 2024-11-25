@@ -32,7 +32,7 @@ export const customAxeConfig: Spec = {
         impact: 'moderate',
         messages: {
           pass: 'The text contents is readable text.',
-          fail: 'The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ${flag}. The target passing score is above 50, indicating content readable by university students and lower grade levels. A higher score reflects better readability.',
+          fail: 'The text content is potentially difficult to read.',
         },
       },
     },

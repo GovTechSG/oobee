@@ -86,7 +86,6 @@ export const filterAxeResults = (
     const addTo = (category: ResultCategory, node) => {
       const { html, failureSummary, screenshotPath, target, impact: axeImpact } = node;
       if (!(rule in category.rules)) {
-        // console.log(`Adding new rule to category: ${category}`);
         category.rules[rule] = {
           description,
           axeImpact,
@@ -122,14 +121,11 @@ export const filterAxeResults = (
 
     nodes.forEach(node => {
       const { impact } = node;
-      // Log impact and decision
-      console.log('Node impact:', { impact, displayNeedsReview });
       if (displayNeedsReview) {
         addTo(needsReview, node);
       } else if (impact === 'critical' || impact === 'serious') {
         addTo(mustFix, node);
       } else {
-        console.log(node);
         addTo(goodToFix, node);
       }
     });
@@ -264,8 +260,8 @@ export const runAxeScript = async (
     .join(', ');
 
   // Call extractAndGradeText to get readability score and flag for difficult-to-read text
-  const flag = await extractAndGradeText(page);  // Ensure flag is obtained before proceeding
-  console.log(flag);
+  const gradingReadabilityFlag= await extractAndGradeText(page);  // Ensure flag is obtained before proceeding
+  console.log(gradingReadabilityFlag);
 
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
@@ -275,7 +271,7 @@ export const runAxeScript = async (
       saflyIconSelector,
       customAxeConfig,
       oobeeAccessibleLabelFlaggedCssSelectors,
-      flag
+      gradingReadabilityFlag
     }) => {
       const evaluateAltText = (node: Element) => {
         const altText = node.getAttribute('alt');
@@ -313,11 +309,19 @@ export const runAxeScript = async (
             ...customAxeConfig.checks[2],
             evaluate: (_node: HTMLElement) => {
               console.log('Readability flag check triggered');
-              if (flag === '') {
+              if (gradingReadabilityFlag=== '') {
                 console.log('No readability issues detected');
                 return true; // Pass if no readability issues
               }
               console.log('Readability issues detected');
+              // Dynamically update the grading messages
+              const gradingCheck = customAxeConfig.checks.find(
+                (check) => check.id === 'oobee-grading-text-contents'
+              );
+              if (gradingCheck) {
+                gradingCheck.metadata.messages.fail = `The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ${gradingReadabilityFlag}. The target passing score is above 50, indicating content readable by university students and lower grade levels. A higher score reflects better readability.`;
+              }
+
               return false; // Fail if readability issues are detected
             },
           },
@@ -326,7 +330,7 @@ export const runAxeScript = async (
           customAxeConfig.rules[0],
           customAxeConfig.rules[1],
           { ...customAxeConfig.rules[2], selector: oobeeAccessibleLabelFlaggedCssSelectors },
-          { ...customAxeConfig.rules[3], select: flag },
+          { ...customAxeConfig.rules[3], select: gradingReadabilityFlag},
         ],
       });
 
@@ -336,7 +340,7 @@ export const runAxeScript = async (
         resultTypes: defaultResultTypes,
       });
     },
-    { selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleLabelFlaggedCssSelectors, flag },
+    { selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleLabelFlaggedCssSelectors, gradingReadabilityFlag},
   );
 
   if (includeScreenshots) {
