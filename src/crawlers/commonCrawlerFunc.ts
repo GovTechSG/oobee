@@ -64,6 +64,8 @@ export const filterAxeResults = (
   const process = (item: Result, displayNeedsReview: boolean) => {
     const { id: rule, help: description, helpUrl, tags, nodes } = item;
 
+    //console.log(nodes)
+
     if (rule === 'frame-tested') return;
 
     const conformance = tags.filter(tag => tag.startsWith('wcag') || tag === 'best-practice');
@@ -319,7 +321,8 @@ export const runAxeScript = async (
                 (check) => check.id === 'oobee-grading-text-contents'
               );
               if (gradingCheck) {
-                gradingCheck.metadata.messages.fail = `The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ${gradingReadabilityFlag}. The target passing score is above 50, indicating content readable by university students and lower grade levels. A higher score reflects better readability.`;
+                gradingCheck.metadata.messages.fail = 'The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ' + 
+                gradingReadabilityFlag + '.\nThe target passing score is above 50, indicating content readable by university students and lower grade levels.\nA higher score reflects better readability.';
               }
 
               return false; // Fail if readability issues are detected
@@ -348,7 +351,11 @@ export const runAxeScript = async (
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
   }
 
+  console.log(results)
+
   const pageTitle = await page.evaluate(() => document.title);
+  //console.log('results', results);
+  //console.log('pageTitle', pageTitle);
   return filterAxeResults(results, pageTitle, customFlowDetails);
 };
 
