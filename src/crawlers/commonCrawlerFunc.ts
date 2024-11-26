@@ -64,8 +64,6 @@ export const filterAxeResults = (
   const process = (item: Result, displayNeedsReview: boolean) => {
     const { id: rule, help: description, helpUrl, tags, nodes } = item;
 
-    //console.log(nodes)
-
     if (rule === 'frame-tested') return;
 
     const conformance = tags.filter(tag => tag.startsWith('wcag') || tag === 'best-practice');
@@ -132,14 +130,6 @@ export const filterAxeResults = (
       }
     });
   };
-
-  // Log the final results after processing all items
-  // console.log('Final categories:', {
-  //   mustFix,
-  //   goodToFix,
-  //   needsReview,
-  //   passed,
-  // });
 
   violations.forEach(item => process(item, false));
   incomplete.forEach(item => process(item, true));
@@ -347,15 +337,15 @@ export const runAxeScript = async (
   );
 
   if (includeScreenshots) {
+    //console.log('Before screenshot processing:', results.violations);
     results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
   }
 
-  console.log(results)
+  //console.log('After screenshot processing:', results.violations);  // Check for unexpected changes
 
   const pageTitle = await page.evaluate(() => document.title);
-  //console.log('results', results);
-  //console.log('pageTitle', pageTitle);
+
   return filterAxeResults(results, pageTitle, customFlowDetails);
 };
 
