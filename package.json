@@ -29,6 +29,7 @@
     "stream-json": "^1.9.0",
     "typescript": "^5.4.5",
     "url": "^0.11.3",
+    "uuid": "^11.0.3",
     "validator": "^13.11.0",
     "which": "^4.0.0",
     "winston": "^3.11.0",
