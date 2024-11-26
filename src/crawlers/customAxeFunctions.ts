@@ -31,8 +31,8 @@ export const customAxeConfig: Spec = {
       metadata: {
         impact: 'moderate',
         messages: {
-          pass: 'The text contents is readable text.',
-          fail: 'The text content is potentially difficult to read.',
+          pass: 'The text content is easy to understand.',
+          fail: "The text content is potentially difficult to undersatnd.",
         },
       },
     },
@@ -71,7 +71,7 @@ export const customAxeConfig: Spec = {
       tags: ['wcag2a', 'wcag315'],
       metadata: {
         description: 'Ensures text that uses short, common words and short sentences is easier to decode.',
-        help: 'Content should be written as clearly and simply as possible.',
+        help: 'Text content should be clear and plain to ensure that it is easily understood.',
         helpUrl: 'https://www.w3.org/WAI/WCAG21/Understanding/reading-level',
       },
     },
