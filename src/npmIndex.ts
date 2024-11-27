@@ -138,7 +138,7 @@ export const init = async (
             any: ['oobee-grading-text-contents'],
             tags: ['wcag2a', 'wcag315'],
             metadata: {
-              description: 'Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is too difficult to understand, provide supplemental content (eg. audio version, illustration, summary paragraph) or a version that is easy to understand.',
+              description: 'Text content should be clear and plain to ensure that it is easily understood. Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is too difficult to understand, provide supplemental content (eg. audio version, illustration, summary paragraph) or a version that is easy to understand.',
               help: 'Text content should be clear and plain to ensure that it is easily understood.',
               helpUrl: 'https://www.w3.org/WAI/WCAG21/Understanding/reading-level',
             },
