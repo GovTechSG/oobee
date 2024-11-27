@@ -109,8 +109,8 @@ export const init = async (
             metadata: {
               impact: 'moderate',
               messages: {
-                pass: 'The text contents is readable text.',
-                fail: 'The text content is potentially difficult to read.',
+                pass: 'The text content is easy to understand.',
+                fail: "The text content is potentially difficult to understand.",
               },
             },
           },
@@ -138,8 +138,8 @@ export const init = async (
             any: ['oobee-grading-text-contents'],
             tags: ['wcag2a', 'wcag315'],
             metadata: {
-              description: 'Ensures text that uses short, common words and short sentences is easier to decode.',
-              help: 'Content should be written as clearly and simply as possible.',
+              description: 'Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is too difficult to understand, provide supplemental content (eg. audio version, illustration, summary paragraph) or a version that is easy to understand.',
+              help: 'Text content should be clear and plain to ensure that it is easily understood.',
               helpUrl: 'https://www.w3.org/WAI/WCAG21/Understanding/reading-level',
             },
           },
