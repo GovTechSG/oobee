@@ -9,6 +9,8 @@ import { fileURLToPath } from 'url';
 import { chromium } from 'playwright';
 import { createWriteStream } from 'fs';
 import { AsyncParser, ParserOptions } from '@json2csv/node';
+import { v4 as uuidv4 } from 'uuid';
+import readline from 'readline';
 import constants, { ScannerTypes } from './constants/constants.js';
 import { urlWithoutAuth } from './constants/common.js';
 import {
@@ -23,8 +25,6 @@ import {
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
-import { v4 as uuidv4 } from 'uuid';
-import readline from 'readline';
 
 type ItemsInfo = {
   html: string;
@@ -296,19 +296,27 @@ const base64Encode = async (data: any, num: number) => {
     await writeLargeJsonToFile(data, tempFilePath);
 
     try {
-      // Read and encode the file contents line by line
-      const readStream = fs.createReadStream(tempFilePath, { encoding: 'utf8' });
-      const rl = readline.createInterface({ input: readStream });
+      // Read and encode the file contents in chunks
+      const CHUNK_SIZE = 1028 * 1028; // 1MB chunks
+      const readStream = fs.createReadStream(tempFilePath, {
+        encoding: 'utf8',
+        highWaterMark: CHUNK_SIZE,
+      });
 
       let base64Content = '';
-      for await (const line of rl) {
-        // Encode each line separately and join with a delimiter
-        const encodedLine = Buffer.from(line).toString('base64');
-        base64Content += encodedLine + '.'; // Using '.' as a delimiter between encoded lines
-      }
+      let chunkCounter = 0;
 
-      // Remove the trailing delimiter
-      base64Content = base64Content.slice(0, -1);
+      for await (const chunk of readStream) {
+        // Encode each chunk separately
+        const encodedChunk = Buffer.from(chunk).toString('base64');
+
+        // Add chunk delimiter only between chunks
+        if (chunkCounter > 0) {
+          base64Content += '.';
+        }
+        base64Content += encodedChunk;
+        chunkCounter++;
+      }
 
       return base64Content;
     } finally {
@@ -353,17 +361,17 @@ const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html')
     try {
       // Function to decode Base64
       const base64Decode = (data) => {
-        // Split the encoded string by the delimiter
-        const encodedLines = data.split('.');
-        // Decode each line separately and join them
-        const jsonString = encodedLines
-          .map(line => {
-            const compressedBytes = Uint8Array.from(atob(line), c => c.charCodeAt(0));
-            return new TextDecoder().decode(compressedBytes);
-          })
-          .join('\\n');
-        return JSON.parse(jsonString);
-      };
+      // Split the encoded string by the delimiter
+      const encodedChunks = data.split('.');
+      // Decode each chunk separately and join them
+      const jsonString = encodedChunks
+        .map(chunk => {
+          const decodedBytes = atob(chunk);
+          return decodedBytes;
+        })
+        .join('');
+      return JSON.parse(jsonString);
+    };
 
       // Decode the encoded data
       scanData = base64Decode('${encodedScanData}');
