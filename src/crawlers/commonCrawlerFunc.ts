@@ -311,7 +311,7 @@ export const runAxeScript = async (
                 (check) => check.id === 'oobee-grading-text-contents'
               );
               if (gradingCheck) {
-                gradingCheck.metadata.messages.fail = 'The text content may be challenging to understand, with a Flesch-Kincaid Reading Ease score of ' + 
+                gradingCheck.metadata.messages.incomplete = 'The text content may be challenging to understand, with a Flesch-Kincaid Reading Ease score of ' + 
                 gradingReadabilityFlag + '.\nThe target passing score is above 50, indicating content that can be understood by education levels up to university graduates.\nA higher score reflects greater ease of understanding.\nFor scores below 50, provide supplemental content and/or versions that helps aid in the original text’s understanding. Some considerations to explore are (but not limited to):\n Simplify the language\n Shorten sentences\n Structure the content\n Provide summaries or simplified versions\n Include visual aids, illustrations\n Provide glossary of difficult terms or acronyms';
               }
 
@@ -341,6 +341,8 @@ export const runAxeScript = async (
     results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
   }
+
+  console.log(results);
 
   //console.log('After screenshot processing:', results.violations);  // Check for unexpected changes
 
