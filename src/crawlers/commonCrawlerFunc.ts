@@ -250,7 +250,7 @@ export const runAxeScript = async (
     .map(item => item.xpath)
     .map(xPathToCss)
     .join(', ');
-
+    
   // Call extractAndGradeText to get readability score and flag for difficult-to-read text
   const gradingReadabilityFlag= await extractAndGradeText(page);  // Ensure flag is obtained before proceeding
   console.log(gradingReadabilityFlag);
@@ -314,7 +314,7 @@ export const runAxeScript = async (
                 gradingCheck.metadata.messages.fail = 'Simplify the language\n Shorten sentences\n Structure the content\n Provide summaries or simplified versions\n Include visual aids, illustrations\n Provide glossary of difficult terms or acronyms';
               }
 
-              return false; // Fail if readability issues are detected
+              return ; // Fail if readability issues are detected
             },
           },
         ],
@@ -334,17 +334,6 @@ export const runAxeScript = async (
     },
     { selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleLabelFlaggedCssSelectors, gradingReadabilityFlag},
   );
-
-  console.log(results);
-
-  // Adjust results to classify `oobee-grading-text-contents` under "incomplete"
-  results.violations = results.violations.filter((violation) => {
-    if (violation.id === 'oobee-grading-text-contents') {
-      results.incomplete.push(violation); // Move to "incomplete"
-      return false; // Remove from "violations"
-    }
-    return true;
-  });
 
   if (includeScreenshots) {
     //console.log('Before screenshot processing:', results.violations);
