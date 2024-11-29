@@ -104,16 +104,6 @@ export const init = async (
               },
             },
           },
-          {
-            id: 'oobee-grading-text-contents',
-            metadata: {
-              impact: 'moderate',
-              messages: {
-                pass: 'The text content is easy to understand.',
-                fail: "The text content is potentially difficult to understand.",
-              },
-            },
-          },
         ],
         rules: [
           { id: 'target-size', enabled: true },
@@ -129,18 +119,6 @@ export const init = async (
               description: 'Ensures image alt text is clear and useful',
               help: 'Image alt text must not be vague or unhelpful',
               helpUrl: 'https://www.deque.com/blog/great-alt-text-introduction/',
-            },
-          },
-          {
-            id: 'oobee-grading-text-contents',
-            selector: 'html',
-            enabled: true,
-            any: ['oobee-grading-text-contents'],
-            tags: ['wcag2a', 'wcag315'],
-            metadata: {
-              description: 'Text content should be clear and plain to ensure that it is easily understood. Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is too difficult to understand, provide supplemental content (eg. audio version, illustration, summary paragraph) or a version that is easy to understand.',
-              help: 'Text content should be clear and plain to ensure that it is easily understood.',
-              helpUrl: 'https://www.w3.org/WAI/WCAG21/Understanding/reading-level',
             },
           },
         ],
