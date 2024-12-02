@@ -386,7 +386,7 @@ export const runAxeScript = async ({
               impact: 'serious' as ImpactValue,
               tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
               description: 'Ensures clickable elements have an accessible label.',
-              help: 'Clickable elements (ie elements with mouse-click interaction) must have accessible labels.',
+              help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
               helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
               nodes: escapedCssSelectors.map(cssSelector => ({
                 html: document.querySelector(cssSelector).outerHTML,
