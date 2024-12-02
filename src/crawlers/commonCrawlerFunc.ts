@@ -1,6 +1,7 @@
 import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
 import xPathToCss from 'xpath-to-css';
+import { Page } from 'playwright';
 import {
   axeScript,
   guiInfoStatusTypes,
@@ -11,7 +12,6 @@ import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
 import { customAxeConfig } from './customAxeFunctions.js';
-import { Page } from 'playwright';
 import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
 
@@ -386,7 +386,7 @@ export const runAxeScript = async ({
               impact: 'serious' as ImpactValue,
               tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
               description: 'Ensures clickable elements have an accessible label.',
-              help: 'Clickable elements must have accessible labels.',
+              help: 'Clickable elements (ie elements with mouse-click interaction) must have accessible labels.',
               helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
               nodes: escapedCssSelectors.map(cssSelector => ({
                 html: document.querySelector(cssSelector).outerHTML,
