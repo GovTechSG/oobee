@@ -73,7 +73,7 @@ export const customAxeConfig: Spec = {
         description:
           'Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.',
         help: 'Text content should be clear and plain to ensure that it is easily understood.',
-        helpUrl: 'https://www.w3.org/WAI/WCAG21/Understanding/reading-level',
+        helpUrl: 'https://www.wcag.com/uncategorized/3-1-5-reading-level/',
       },
     },
   ],

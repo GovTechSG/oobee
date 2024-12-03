@@ -313,7 +313,7 @@ export const runAxeScript = async (
               if (gradingCheck) {
                 gradingCheck.metadata.messages.incomplete = `The text content may be challenging to understand, with a Flesch-Kincaid Reading Ease score of ${
                   gradingReadabilityFlag
-                }.\nThe target passing score is above 50, indicating content that can be understood by education levels up to university graduates.\nA higher score reflects greater ease of understanding.\nFor scores below 50, provide supplemental content and/or versions that helps aid in the original text’s understanding. Some considerations to explore are (but not limited to):\n Simplify the language\n Shorten sentences\n Structure the content\n Provide summaries or simplified versions\n Include visual aids, illustrations\n Provide glossary of difficult terms or acronyms`;
+                }. The target passing score is above 50, indicating content that can be understood by education levels up to university graduates. A higher score reflects greater ease of understanding.`;
               }
 
               // Fail if readability issues are detected
