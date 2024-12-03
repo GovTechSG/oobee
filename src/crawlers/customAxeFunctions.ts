@@ -22,7 +22,7 @@ export const customAxeConfig: Spec = {
         impact: 'serious',
         messages: {
           pass: 'The clickable element has an accessible label.',
-          fail: "The clickable element does not have an accessible label.",
+          fail: 'The clickable element does not have an accessible label.',
         },
       },
     },
@@ -32,7 +32,7 @@ export const customAxeConfig: Spec = {
         impact: 'moderate',
         messages: {
           pass: 'The text content is easy to understand.',
-          fail: "The text content is potentially difficult to undersatnd.",
+          fail: 'The text content is potentially difficult to undersatnd.',
         },
       },
     },
@@ -56,7 +56,7 @@ export const customAxeConfig: Spec = {
       // selector: '*', // to be set with the checker function output xpaths converted to css selectors
       enabled: true,
       any: ['oobee-accessible-label'],
-      tags: ['wcag2a', 'wcag211', 'wcag243','wcag412'],
+      tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
       metadata: {
         description: 'Ensures clickable elements have an accessible label.',
         help: 'Clickable elements must have accessible labels.',
@@ -70,7 +70,8 @@ export const customAxeConfig: Spec = {
       any: ['oobee-grading-text-contents'],
       tags: ['wcag2a', 'wcag315'],
       metadata: {
-        description: 'Text content should be clear and plain to ensure that it is easily understood. Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is too difficult to understand, provide supplemental content (eg. audio version, illustration, summary paragraph) or a version that is easy to understand.',
+        description:
+          'Text content should be clear and plain to ensure that it is easily understood. Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is too difficult to understand, provide supplemental content (eg. audio version, illustration, summary paragraph) or a version that is easy to understand.',
         help: 'Text content should be clear and plain to ensure that it is easily understood.',
         helpUrl: 'https://www.w3.org/WAI/WCAG21/Understanding/reading-level',
       },

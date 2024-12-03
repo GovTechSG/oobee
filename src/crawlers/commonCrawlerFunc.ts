@@ -3,12 +3,12 @@
 import crawlee from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
 import xPathToCss from 'xpath-to-css';
+import { Page } from 'playwright';
 import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
 import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
 import { customAxeConfig } from './customAxeFunctions.js';
-import { Page } from 'playwright';
 import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
@@ -105,7 +105,7 @@ export const filterAxeResults = (
       }
 
       const xpath = target.length === 1 && typeof target[0] === 'string' ? target[0] : null;
-    
+
       // add in screenshot path
       category.rules[rule].items.push({
         html: finalHtml,
@@ -242,8 +242,8 @@ export const runAxeScript = async (
   });
 
   page.on('console', msg => silentLogger.log({ level: 'info', message: msg.text() }));
-  page.on('console', (msg) => {
-    console.log(msg.text());  // This will capture logs from page.evaluate()
+  page.on('console', msg => {
+    console.log(msg.text()); // This will capture logs from page.evaluate()
   });
 
   const oobeeAccessibleLabelFlaggedCssSelectors = (await flagUnlabelledClickableElements(page))
@@ -252,7 +252,7 @@ export const runAxeScript = async (
     .join(', ');
 
   // Call extractAndGradeText to get readability score and flag for difficult-to-read text
-  const gradingReadabilityFlag= await extractAndGradeText(page);  // Ensure flag is obtained before proceeding
+  const gradingReadabilityFlag = await extractAndGradeText(page); // Ensure flag is obtained before proceeding
   console.log(gradingReadabilityFlag);
 
   await crawlee.playwrightUtils.injectFile(page, axeScript);
@@ -263,7 +263,7 @@ export const runAxeScript = async (
       saflyIconSelector,
       customAxeConfig,
       oobeeAccessibleLabelFlaggedCssSelectors,
-      gradingReadabilityFlag
+      gradingReadabilityFlag,
     }) => {
       const evaluateAltText = (node: Element) => {
         const altText = node.getAttribute('alt');
@@ -301,21 +301,22 @@ export const runAxeScript = async (
             ...customAxeConfig.checks[2],
             evaluate: (_node: HTMLElement) => {
               console.log('Readability flag check triggered');
-              if (gradingReadabilityFlag=== '') {
+              if (gradingReadabilityFlag === '') {
                 console.log('No readability issues detected');
                 return true; // Pass if no readability issues
               }
               console.log('Readability issues detected');
               // Dynamically update the grading messages
               const gradingCheck = customAxeConfig.checks.find(
-                (check) => check.id === 'oobee-grading-text-contents'
+                check => check.id === 'oobee-grading-text-contents',
               );
               if (gradingCheck) {
-                gradingCheck.metadata.messages.incomplete = 'The text content may be challenging to understand, with a Flesch-Kincaid Reading Ease score of ' + 
-                gradingReadabilityFlag + '.\nThe target passing score is above 50, indicating content that can be understood by education levels up to university graduates.\nA higher score reflects greater ease of understanding.\nFor scores below 50, provide supplemental content and/or versions that helps aid in the original text’s understanding. Some considerations to explore are (but not limited to):\n Simplify the language\n Shorten sentences\n Structure the content\n Provide summaries or simplified versions\n Include visual aids, illustrations\n Provide glossary of difficult terms or acronyms';
+                gradingCheck.metadata.messages.incomplete = `The text content may be challenging to understand, with a Flesch-Kincaid Reading Ease score of ${
+                  gradingReadabilityFlag
+                }.\nThe target passing score is above 50, indicating content that can be understood by education levels up to university graduates.\nA higher score reflects greater ease of understanding.\nFor scores below 50, provide supplemental content and/or versions that helps aid in the original text’s understanding. Some considerations to explore are (but not limited to):\n Simplify the language\n Shorten sentences\n Structure the content\n Provide summaries or simplified versions\n Include visual aids, illustrations\n Provide glossary of difficult terms or acronyms`;
               }
 
-              return ; // Fail if readability issues are detected
+              // Fail if readability issues are detected
             },
           },
         ],
@@ -323,7 +324,7 @@ export const runAxeScript = async (
           customAxeConfig.rules[0],
           customAxeConfig.rules[1],
           { ...customAxeConfig.rules[2], selector: oobeeAccessibleLabelFlaggedCssSelectors },
-          { ...customAxeConfig.rules[3], select: gradingReadabilityFlag},
+          { ...customAxeConfig.rules[3], select: gradingReadabilityFlag },
         ],
       });
 
@@ -333,18 +334,24 @@ export const runAxeScript = async (
         resultTypes: defaultResultTypes,
       });
     },
-    { selectors, saflyIconSelector, customAxeConfig, oobeeAccessibleLabelFlaggedCssSelectors, gradingReadabilityFlag},
+    {
+      selectors,
+      saflyIconSelector,
+      customAxeConfig,
+      oobeeAccessibleLabelFlaggedCssSelectors,
+      gradingReadabilityFlag,
+    },
   );
 
   if (includeScreenshots) {
-    //console.log('Before screenshot processing:', results.violations);
+    // console.log('Before screenshot processing:', results.violations);
     results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
   }
 
   console.log(results);
 
-  //console.log('After screenshot processing:', results.violations);  // Check for unexpected changes
+  // console.log('After screenshot processing:', results.violations);  // Check for unexpected changes
 
   const pageTitle = await page.evaluate(() => document.title);
 
