@@ -8,7 +8,7 @@ import {
   RuleFlags,
   saflyIconSelector,
 } from '../constants/constants.js';
-import { guiInfoLog, silentLogger } from '../logs.js';
+import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
 import { customAxeConfig } from './customAxeFunctions.js';
@@ -379,6 +379,31 @@ export const runAxeScript = async ({
             // handle css id selectors that start with a digit
             const escapedCssSelectors =
               oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
+
+            function findElementByCssSelector(cssSelector: string): string | null {
+              let element = document.querySelector(cssSelector);
+              if (!element) {
+                const shadowRoots = [];
+                const allElements = document.querySelectorAll('*');
+                
+                // Look for elements with shadow roots
+                allElements.forEach(el => {
+                  if (el.shadowRoot) {
+                    shadowRoots.push(el.shadowRoot);
+                  }
+                });
+          
+                // Search inside each shadow root for the element
+                for (const shadowRoot of shadowRoots) {
+                  const shadowElement = shadowRoot.querySelector(cssSelector);
+                  if (shadowElement) {
+                    element = shadowElement;  // Found the element inside shadow DOM
+                    break;
+                  }
+                }
+              }
+              return element ? element.outerHTML : null;
+            }
 
             // Add oobee violations to Axe's report
             const oobeeAccessibleLabelViolations = {
