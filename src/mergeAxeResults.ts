@@ -201,12 +201,101 @@ const writeCsv = async (allIssues, storagePath) => {
   parser.parse(allIssues).pipe(csvOutput);
 };
 
+const compileHtmlWithEJS = async (allIssues, storagePath, htmlFilename = 'report') => {
+  const htmlFilePath = `${path.join(storagePath, htmlFilename)}.html`;
+  const ejsString = fs.readFileSync(path.join(dirname, './static/ejs/report.ejs'), 'utf-8');
+  const template = ejs.compile(ejsString, {
+    filename: path.join(dirname, './static/ejs/report.ejs'),
+  });
+  const html = template(allIssues);
+  await fs.writeFile(htmlFilePath, html);
+
+  // fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
+
+  let htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
+
+  const headIndex = htmlContent.indexOf('</head>');
+  const injectScript = `
+  <script>
+    try {
+      // Function to decode Base64
+      const base64Decode = (data) => {
+      // Split the encoded string by the delimiter
+      const encodedChunks = data.split('.');
+      // Decode each chunk separately and join them
+      const jsonString = encodedChunks
+        .map(chunk => {
+          const decodedBytes = atob(chunk);
+          return decodedBytes;
+        })
+        .join('');
+      return JSON.parse(jsonString);
+    };
+
+    // IMPORTANT! DO NOT REMOVE ME: Decode the encoded data
+    } catch (error) {
+      console.error("Error decoding base64 data:", error);
+    }
+  </script>
+  `;
+
+  if (headIndex !== -1) {
+    htmlContent = htmlContent.slice(0, headIndex) + injectScript + htmlContent.slice(headIndex);
+  } else {
+    htmlContent += injectScript;
+  }
+
+  await fs.writeFile(htmlFilePath, htmlContent);
+
+  return htmlFilePath;
+};
+
+const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
+  try {
+    const htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
+    const splitMarker = '// IMPORTANT! DO NOT REMOVE ME: Decode the encoded data';
+    const splitIndex = htmlContent.indexOf(splitMarker);
+
+    if (splitIndex === -1) {
+      throw new Error('Marker comment not found in the HTML file.');
+    }
+
+    // Part before the marker with a newline after the marker
+    const topContent = htmlContent.slice(0, splitIndex + splitMarker.length) + '\n\n';
+
+    // Part after the marker
+    const bottomContent = htmlContent.slice(splitIndex + splitMarker.length);
+
+    // Paths for the new files
+    const topFilePath = path.join(storagePath, 'report-partial-top.htm.txt');
+    const bottomFilePath = path.join(storagePath, 'report-partial-bottom.htm.txt');
+
+    // Write the top and bottom contents to separate files
+    await fs.writeFile(topFilePath, topContent, { encoding: 'utf8' });
+    await fs.writeFile(bottomFilePath, bottomContent, { encoding: 'utf8' });
+
+    // Unlink the original HTML file
+    await fs.unlink(htmlFilePath);
+    console.log(`Original HTML file ${htmlFilePath} deleted.`);
+
+    console.log('Files created successfully:', { topFilePath, bottomFilePath });
+  } catch (error) {
+    console.error('Error splitting HTML and creating files:', error);
+  }
+};
+
 const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
+  const htmlFilePath = await compileHtmlWithEJS(allIssues, storagePath, htmlFilename);
   const inputFilePath = path.resolve(storagePath, 'scanDetails.csv');
   const outputFilePath = `${storagePath}/${htmlFilename}.html`;
 
-  const prefixData = fs.readFileSync(path.join(cwd, 'report-partial-top.htm.txt'), 'utf-8');
-  const suffixData = fs.readFileSync(path.join(cwd, 'report-partial-bottom.htm.txt'), 'utf-8');
+  await splitHtmlAndCreateFiles(htmlFilePath, storagePath);
+
+  const prefixData = fs.readFileSync(path.join(storagePath, 'report-partial-top.htm.txt'), 'utf-8');
+  const suffixData = fs.readFileSync(
+    path.join(storagePath, 'report-partial-bottom.htm.txt'),
+    'utf-8',
+  );
 
   const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a' });
 
@@ -426,15 +515,14 @@ const streamEncodedDataToFile = async (inputFilePath, writeStream, appendComma) 
   for await (const chunk of readStream) {
     if (isFirstChunk) {
       isFirstChunk = false;
-      writeStream.write(chunk); // Write the first chunk directly
+      writeStream.write(chunk);
     } else {
-      writeStream.write(chunk); // Write subsequent chunks
+      writeStream.write(chunk);
     }
   }
 
-  // Append a comma after streaming the entire file if needed
   if (appendComma) {
-    writeStream.write(','); // No new line, just a comma
+    writeStream.write(',');
   }
 };
 
@@ -452,58 +540,14 @@ const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html')
 
   const csvWriteStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
 
-  csvWriteStream.write('scanData_base64,scanItems_base64\n'); // Write the header
-  await streamEncodedDataToFile(encodedScanDataPath, csvWriteStream, true); // Append scanData chunks
-  await streamEncodedDataToFile(encodedScanItemsPath, csvWriteStream, false); // Append scanItems chunks
+  csvWriteStream.write('scanData_base64,scanItems_base64\n');
+  await streamEncodedDataToFile(encodedScanDataPath, csvWriteStream, true);
+  await streamEncodedDataToFile(encodedScanItemsPath, csvWriteStream, false);
 
   await new Promise((resolve, reject) => {
     csvWriteStream.end(resolve);
     csvWriteStream.on('error', reject);
   });
-
-  // const htmlFilePath = path.join(storagePath, htmlFilename);
-  // let htmlContent = await fs.promises.readFile(htmlFilePath, { encoding: 'utf8' });
-
-  // const headIndex = htmlContent.indexOf('</head>');
-  // const injectScript = `
-  // <script>
-  //   try {
-  //     // Function to decode Base64
-  //     const base64Decode = (data) => {
-  //       const encodedChunks = data.split('.');
-  //       const jsonString = encodedChunks
-  //         .map(chunk => atob(chunk))
-  //         .join('');
-  //       return JSON.parse(jsonString);
-  //     };
-
-  //     const loadBase64Data = async () => {
-  //       const response = await fetch('${encodedScanDataPath}');
-  //       const scanDataChunks = await response.text();
-  //       const scanData = base64Decode(scanDataChunks);
-
-  //       const response2 = await fetch('${encodedScanItemsPath}');
-  //       const scanItemsChunks = await response2.text();
-  //       const scanItems = base64Decode(scanItemsChunks);
-
-  //       console.log('Decoded scanData:', scanData);
-  //       console.log('Decoded scanItems:', scanItems);
-  //     };
-
-  //     loadBase64Data();
-  //   } catch (error) {
-  //     console.error("Error decoding base64 data:", error);
-  //   }
-  // </script>
-  // `;
-
-  // if (headIndex !== -1) {
-  //   htmlContent = htmlContent.slice(0, headIndex) + injectScript + htmlContent.slice(headIndex);
-  // } else {
-  //   htmlContent += injectScript;
-  // }
-
-  // await fs.promises.writeFile(htmlFilePath, htmlContent);
 
   await fs.promises
     .unlink(encodedScanDataPath)
@@ -567,9 +611,6 @@ const writeSummaryPdf = async (storagePath, filename = 'summary') => {
 
 const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   const { url, pageTitle, filePath } = pageResults;
-
-  // console.log('pageResults 111', pageResults);
-  // console.log('allIssues 111', allIssues);
 
   const totalIssuesInPage = new Set();
   Object.keys(pageResults.mustFix.rules).forEach(k => totalIssuesInPage.add(k));
@@ -915,7 +956,7 @@ const generateArtifacts = async (
 
     const encodedScanData = await base64Encode(rest, 2);
 
-    console.log('typeof 111 encodedScanData', typeof encodedScanData);
+    console.log('typeof 111 encodedScanData', encodedScanData);
 
     // const largeData = await fs.readFile('largeDataWithBase64.json', { encoding: 'utf8' });
     // console.log('largeData 111', JSON.stringify(largeData));
