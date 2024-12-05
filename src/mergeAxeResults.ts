@@ -26,6 +26,8 @@ import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 
+const cwd = process.cwd();
+
 export type ItemsInfo = {
   html: string;
   message: string;
@@ -200,14 +202,108 @@ const writeCsv = async (allIssues, storagePath) => {
 };
 
 const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
-  const ejsString = fs.readFileSync(path.join(dirname, './static/ejs/report.ejs'), 'utf-8');
-  // console.log('allIssues 111', allIssues);
-  // console.log('allIssues typeof 111', typeof allIssues);
-  const template = ejs.compile(ejsString, {
-    filename: path.join(dirname, './static/ejs/report.ejs'),
+  const inputFilePath = path.resolve(storagePath, 'scanDetails.csv');
+  const outputFilePath = `${storagePath}/${htmlFilename}.html`;
+
+  const prefixData = fs.readFileSync(path.join(cwd, 'report-partial-top.htm.txt'), 'utf-8');
+  const suffixData = fs.readFileSync(path.join(cwd, 'report-partial-bottom.htm.txt'), 'utf-8');
+
+  const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a' });
+
+  outputStream.write(prefixData);
+
+  // Create a readable stream for the input file with a highWaterMark set to 10MB
+  const BUFFER_LIMIT = 10 * 1024 * 1024; // 10 MB
+  const inputStream = fs.createReadStream(inputFilePath, {
+    encoding: 'utf-8',
+    highWaterMark: BUFFER_LIMIT,
   });
-  const html = template(allIssues);
-  fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
+
+  let isFirstLine = true;
+  let lineEndingDetected = false;
+  let isFirstField = true;
+  let isWritingFirstDataLine = true;
+  let buffer = '';
+
+  function flushBuffer() {
+    if (buffer.length > 0) {
+      outputStream.write(buffer);
+      buffer = '';
+    }
+  }
+
+  inputStream.on('data', chunk => {
+    let chunkIndex = 0;
+
+    // Iterate through the chunk character by character
+    while (chunkIndex < chunk.length) {
+      const char = chunk[chunkIndex];
+
+      if (isFirstLine) {
+        // Detecting the line ending to move to the next line (Windows - \r\n, Linux/Mac - \n or \r)
+        if (char === '\n' || char === '\r') {
+          lineEndingDetected = true;
+        } else if (lineEndingDetected) {
+          if (char !== '\n' && char !== '\r') {
+            isFirstLine = false; // Switch to the data reading mode after the first line is fully skipped
+
+            // Write the prefix for the first field of the data line
+            if (isWritingFirstDataLine) {
+              buffer += "scanData = base64Decode('";
+              isWritingFirstDataLine = false;
+            }
+            buffer += char;
+          }
+          lineEndingDetected = false; // Reset for next potential line ending detection
+        }
+      } else {
+        // Processing the actual data (second line)
+        if (char === ',') {
+          // Close the current base64Decode for scanData and start for scanItems
+          buffer += "')\n";
+          buffer += "scanItems = base64Decode('";
+          isFirstField = false;
+        } else if (char === '\n' || char === '\r') {
+          // Close the base64Decode for scanItems if we're at the end of the line
+          if (!isFirstField) {
+            buffer += "')\n";
+          }
+        } else {
+          // Accumulate the character in the buffer
+          buffer += char;
+        }
+
+        // Write buffer if it exceeds the limit
+        if (buffer.length >= BUFFER_LIMIT) {
+          flushBuffer();
+        }
+      }
+
+      chunkIndex++;
+    }
+  });
+
+  inputStream.on('end', () => {
+    // Flush any remaining data in the buffer
+    if (!isFirstField) {
+      buffer += "')\n";
+    }
+    flushBuffer();
+
+    // Append the suffix data after the input file content
+    outputStream.write(suffixData);
+    outputStream.end();
+    console.log('Content appended successfully.');
+  });
+
+  inputStream.on('error', err => {
+    console.error('Error reading input file:', err);
+    outputStream.end();
+  });
+
+  outputStream.on('error', err => {
+    console.error('Error writing to output file:', err);
+  });
 };
 
 const writeSummaryHTML = async (allIssues, storagePath, htmlFilename = 'summary') => {
@@ -220,30 +316,28 @@ const writeSummaryHTML = async (allIssues, storagePath, htmlFilename = 'summary'
 };
 
 function writeFormattedValue(value, writeStream) {
-  // console.log('typeof value 111', typeof value, value);
   if (typeof value === 'function') {
     writeStream.write('null');
   } else if (value === undefined) {
-    writeStream.write('null'); // Convert undefined to null for JSON compatibility
+    writeStream.write('null');
   } else if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') {
-    writeStream.write(JSON.stringify(value)); // JSON.stringify handles escaping
+    writeStream.write(JSON.stringify(value));
   } else if (value === null) {
-    writeStream.write('null'); // Handle null explicitly
+    writeStream.write('null');
   }
 }
-// Recursive function to handle objects and arrays
+
 function serializeObject(obj, writeStream, depth = 0, indent = '  ') {
-  const currentIndent = indent.repeat(depth); // Current level indentation
-  const nextIndent = indent.repeat(depth + 1); // Indentation for nested levels
+  const currentIndent = indent.repeat(depth);
+  const nextIndent = indent.repeat(depth + 1);
 
   if (obj instanceof Date) {
-    // Handle Date objects by converting them to ISO strings
     writeStream.write(JSON.stringify(obj.toISOString()));
   } else if (Array.isArray(obj)) {
     writeStream.write('[\n');
     obj.forEach((item, index) => {
       if (index > 0) writeStream.write(',\n');
-      writeStream.write(nextIndent); // Indent array items
+      writeStream.write(nextIndent);
       serializeObject(item, writeStream, depth + 1, indent);
     });
     writeStream.write(`\n${currentIndent}]`);
@@ -252,16 +346,15 @@ function serializeObject(obj, writeStream, depth = 0, indent = '  ') {
     const keys = Object.keys(obj);
     keys.forEach((key, index) => {
       if (index > 0) writeStream.write(',\n');
-      writeStream.write(`${nextIndent}${JSON.stringify(key)}: `); // Key with indentation
+      writeStream.write(`${nextIndent}${JSON.stringify(key)}: `);
       serializeObject(obj[key], writeStream, depth + 1, indent);
     });
     writeStream.write(`\n${currentIndent}}`);
   } else {
-    writeFormattedValue(obj, writeStream); // Primitive values
+    writeFormattedValue(obj, writeStream);
   }
 }
 
-// Main function to write JSON data to a file in a memory-efficient manner
 function writeLargeJsonToFile(obj, filePath) {
   return new Promise((resolve, reject) => {
     const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
@@ -276,15 +369,13 @@ function writeLargeJsonToFile(obj, filePath) {
       resolve(true);
     });
 
-    serializeObject(obj, writeStream); // Use the updated serializeObject with indentation
+    serializeObject(obj, writeStream);
     writeStream.end();
   });
 }
 
-// Proper base64 encoding function using buffer
-const base64Encode = async (data: any, num: number) => {
+const base64Encode = async (data, num) => {
   try {
-    // Generate a unique filename using UUID
     const tempFilename =
       num === 1
         ? `scanItems_${uuidv4()}.json`
@@ -293,103 +384,133 @@ const base64Encode = async (data: any, num: number) => {
           : `${uuidv4()}.json`;
     const tempFilePath = path.join(process.cwd(), tempFilename);
 
-    // Write data to temporary file
     await writeLargeJsonToFile(data, tempFilePath);
 
+    const outputFilename = `encoded_${uuidv4()}.txt`;
+    const outputFilePath = path.join(process.cwd(), outputFilename);
+
     try {
-      // Read and encode the file contents in chunks
-      const CHUNK_SIZE = 1028 * 1028; // 1MB chunks
+      const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
       const readStream = fs.createReadStream(tempFilePath, {
         encoding: 'utf8',
         highWaterMark: CHUNK_SIZE,
       });
-
-      let base64Content = '';
-      let chunkCounter = 0;
+      const writeStream = fs.createWriteStream(outputFilePath, { encoding: 'utf8' });
 
       for await (const chunk of readStream) {
-        // Encode each chunk separately
         const encodedChunk = Buffer.from(chunk).toString('base64');
-
-        // Add chunk delimiter only between chunks
-        if (chunkCounter > 0) {
-          base64Content += '.';
-        }
-        base64Content += encodedChunk;
-        chunkCounter++;
+        writeStream.write(`${encodedChunk}.`);
       }
 
-      return base64Content;
+      await new Promise((resolve, reject) => {
+        writeStream.end(resolve);
+        writeStream.on('error', reject);
+      });
+
+      return outputFilePath;
     } finally {
-      // Clean up: Delete the temporary file
-      try {
-        await fs.unlink(tempFilePath);
-      } catch (deleteError) {
-        console.error('Error deleting temporary file:', deleteError);
-        // Continue execution even if deletion fails
-      }
+      await fs.promises
+        .unlink(tempFilePath)
+        .catch(err => console.error('Temp file delete error:', err));
     }
   } catch (error) {
-    console.error('Error encoding data to base64:', error);
+    console.error('Error encoding data to Base64:', error);
     throw error;
+  }
+};
+
+const streamEncodedDataToFile = async (inputFilePath, writeStream, appendComma) => {
+  const readStream = fs.createReadStream(inputFilePath, { encoding: 'utf8' });
+  let isFirstChunk = true;
+
+  for await (const chunk of readStream) {
+    if (isFirstChunk) {
+      isFirstChunk = false;
+      writeStream.write(chunk); // Write the first chunk directly
+    } else {
+      writeStream.write(chunk); // Write subsequent chunks
+    }
+  }
+
+  // Append a comma after streaming the entire file if needed
+  if (appendComma) {
+    writeStream.write(','); // No new line, just a comma
   }
 };
 
 const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html') => {
   const { items, ...rest } = allIssues;
-
-  const encodedScanItems = await base64Encode(items, 1);
-  const encodedScanData = await base64Encode(rest, 2);
+  const encodedScanItemsPath = await base64Encode(items, 1);
+  const encodedScanDataPath = await base64Encode(rest, 2);
 
   const filePath = path.join(storagePath, 'scanDetails.csv');
-
   const directoryPath = path.dirname(filePath);
+
   if (!fs.existsSync(directoryPath)) {
     fs.mkdirSync(directoryPath, { recursive: true });
   }
 
-  await fs.writeFile(
-    filePath,
-    `scanData_base64,scanItems_base64\n${encodedScanData},${encodedScanItems}`,
-  );
+  const csvWriteStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
 
-  const htmlFilePath = path.join(storagePath, htmlFilename);
-  let htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
+  csvWriteStream.write('scanData_base64,scanItems_base64\n'); // Write the header
+  await streamEncodedDataToFile(encodedScanDataPath, csvWriteStream, true); // Append scanData chunks
+  await streamEncodedDataToFile(encodedScanItemsPath, csvWriteStream, false); // Append scanItems chunks
 
-  const headIndex = htmlContent.indexOf('</head>');
-  const injectScript = `
-  <script>
-    try {
-      // Function to decode Base64
-      const base64Decode = (data) => {
-      // Split the encoded string by the delimiter
-      const encodedChunks = data.split('.');
-      // Decode each chunk separately and join them
-      const jsonString = encodedChunks
-        .map(chunk => {
-          const decodedBytes = atob(chunk);
-          return decodedBytes;
-        })
-        .join('');
-      return JSON.parse(jsonString);
-    };
+  await new Promise((resolve, reject) => {
+    csvWriteStream.end(resolve);
+    csvWriteStream.on('error', reject);
+  });
 
-      // Decode the encoded data
-      scanData = base64Decode('${encodedScanData}');
-      scanItems = base64Decode('${encodedScanItems}');
-    } catch (error) {
-      console.error("Error decoding base64 data:", error);
-    }
-  </script>
-  `;
+  // const htmlFilePath = path.join(storagePath, htmlFilename);
+  // let htmlContent = await fs.promises.readFile(htmlFilePath, { encoding: 'utf8' });
 
-  if (headIndex !== -1) {
-    htmlContent = htmlContent.slice(0, headIndex) + injectScript + htmlContent.slice(headIndex);
-  } else {
-    htmlContent += injectScript;
-  }
+  // const headIndex = htmlContent.indexOf('</head>');
+  // const injectScript = `
+  // <script>
+  //   try {
+  //     // Function to decode Base64
+  //     const base64Decode = (data) => {
+  //       const encodedChunks = data.split('.');
+  //       const jsonString = encodedChunks
+  //         .map(chunk => atob(chunk))
+  //         .join('');
+  //       return JSON.parse(jsonString);
+  //     };
 
-  await fs.writeFile(htmlFilePath, htmlContent);
+  //     const loadBase64Data = async () => {
+  //       const response = await fetch('${encodedScanDataPath}');
+  //       const scanDataChunks = await response.text();
+  //       const scanData = base64Decode(scanDataChunks);
+
+  //       const response2 = await fetch('${encodedScanItemsPath}');
+  //       const scanItemsChunks = await response2.text();
+  //       const scanItems = base64Decode(scanItemsChunks);
+
+  //       console.log('Decoded scanData:', scanData);
+  //       console.log('Decoded scanItems:', scanItems);
+  //     };
+
+  //     loadBase64Data();
+  //   } catch (error) {
+  //     console.error("Error decoding base64 data:", error);
+  //   }
+  // </script>
+  // `;
+
+  // if (headIndex !== -1) {
+  //   htmlContent = htmlContent.slice(0, headIndex) + injectScript + htmlContent.slice(headIndex);
+  // } else {
+  //   htmlContent += injectScript;
+  // }
+
+  // await fs.promises.writeFile(htmlFilePath, htmlContent);
+
+  await fs.promises
+    .unlink(encodedScanDataPath)
+    .catch(err => console.error('Encoded file delete error:', err));
+  await fs.promises
+    .unlink(encodedScanItemsPath)
+    .catch(err => console.error('Encoded file delete error:', err));
 };
 
 let browserChannel = 'chrome';
@@ -821,9 +942,9 @@ const generateArtifacts = async (
   }
 
   await writeCsv(allIssues, storagePath);
-  await writeHTML(allIssues, storagePath);
   await writeBase64(allIssues, storagePath);
   await writeSummaryHTML(allIssues, storagePath);
+  await writeHTML(allIssues, storagePath);
   await retryFunction(() => writeSummaryPdf(storagePath), 1);
 
   // Take option if set
