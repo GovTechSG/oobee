@@ -3,26 +3,35 @@ import { createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { consoleLogger } from '../logs.js';
+import { Result } from 'axe-core';
+import { Page } from 'playwright';
+import { NodeResultWithScreenshot, ResultWithScreenshot } from '../crawlers/commonCrawlerFunc.js';
 
 const screenshotMap = {}; // Map of screenshot hashkey to its buffer value and screenshot path
 
 export const takeScreenshotForHTMLElements = async (
-  violations,
-  page,
-  randomToken,
+  violations: Result[],
+  page: Page,
+  randomToken: string,
   locatorTimeout = 2000,
   maxScreenshots = 50,
-) => {
-  const newViolations = [];
+): Promise<ResultWithScreenshot[]> => {
+  const newViolations: ResultWithScreenshot[] = [];
   let screenshotCount = 0;
   for (const violation of violations) {
-    if (screenshotCount >= maxScreenshots) break;
-    const { id: rule } = violation;
-    const newViolationNodes = [];
+    if (screenshotCount >= maxScreenshots) {
+      consoleLogger.warn(
+        `Skipping screenshots for ${violation.id} as maxScreenshots (${maxScreenshots}) exceeded. You can increase it by specifying a higher value when calling takeScreenshotForHTMLElements.`,
+      );
+      newViolations.push(violation);
+      continue;
+    }
+    const newViolationNodes: NodeResultWithScreenshot[] = [];
     for (const node of violation.nodes) {
-      const { html, target, impact } = node;
+      const nodeWithScreenshotPath: NodeResultWithScreenshot = node;
+      const { target } = node;
       const hasValidSelector = target.length === 1 && typeof target[0] === 'string';
-      const selector = hasValidSelector ? target[0] : null;
+      const selector = hasValidSelector ? (target[0] as string) : null;
       if (selector) {
         try {
           const locator = page.locator(selector);
@@ -34,7 +43,7 @@ export const takeScreenshotForHTMLElements = async (
             if (isVisible) {
               const buffer = await currLocator.screenshot({ timeout: locatorTimeout });
               const screenshotPath = getScreenshotPath(buffer, randomToken);
-              node.screenshotPath = screenshotPath;
+              nodeWithScreenshotPath.screenshotPath = screenshotPath;
               screenshotCount++;
             } else {
               consoleLogger.info(`Element at ${currLocator} is not visible`);
@@ -46,7 +55,7 @@ export const takeScreenshotForHTMLElements = async (
           consoleLogger.info(`Unable to take element screenshot at ${selector}`);
         }
       }
-      newViolationNodes.push(node);
+      newViolationNodes.push(nodeWithScreenshotPath);
     }
     violation.nodes = newViolationNodes;
     newViolations.push(violation);
@@ -54,18 +63,18 @@ export const takeScreenshotForHTMLElements = async (
   return newViolations;
 };
 
-const generateBufferHash = buffer => {
+const generateBufferHash = (buffer: Buffer) => {
   const hash = createHash('sha256');
   hash.update(buffer);
   return hash.digest('hex');
 };
 
-const isSameBufferHash = (buffer, hash) => {
+const isSameBufferHash = (buffer: Buffer, hash: string) => {
   const bufferHash = generateBufferHash(buffer);
   return hash === bufferHash;
 };
 
-const getIdenticalScreenshotKey = buffer => {
+const getIdenticalScreenshotKey = (buffer: Buffer) => {
   for (const hashKey in screenshotMap) {
     const isIdentical = isSameBufferHash(buffer, hashKey);
     if (isIdentical) return hashKey;
@@ -73,7 +82,7 @@ const getIdenticalScreenshotKey = buffer => {
   return undefined;
 };
 
-const getScreenshotPath = (buffer, randomToken) => {
+const getScreenshotPath = (buffer: Buffer, randomToken: string) => {
   let hashKey = getIdenticalScreenshotKey(buffer);
   // If exists identical entry in screenshot map, get its filepath
   if (hashKey) {
@@ -90,11 +99,11 @@ const getScreenshotPath = (buffer, randomToken) => {
   return path;
 };
 
-const generateScreenshotPath = hashKey => {
+const generateScreenshotPath = (hashKey: string) => {
   return `elemScreenshots/html/${hashKey}.jpeg`;
 };
 
-const saveImageBufferToFile = (buffer, fileName) => {
+const saveImageBufferToFile = (buffer: Buffer, fileName: string) => {
   if (!fileName) return;
   // Find and create parent directories recursively if not exist
   const absPath = path.resolve(fileName);

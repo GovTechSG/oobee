@@ -111,7 +111,7 @@ export const runAxeScan = async (
   dataset,
   urlsCrawled,
 ) => {
-  const result = await runAxeScript(includeScreenshots, page, randomToken, customFlowDetails);
+  const result = await runAxeScript({ includeScreenshots, page, randomToken, customFlowDetails });
 
   await dataset.pushData(result);
 

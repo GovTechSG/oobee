@@ -1,21 +1,47 @@
-/* eslint-disable no-unused-vars */
-/* eslint-disable no-param-reassign */
-import crawlee from 'crawlee';
-import axe, { resultGroups } from 'axe-core';
-import { axeScript, guiInfoStatusTypes, saflyIconSelector } from '../constants/constants.js';
-import { guiInfoLog } from '../logs.js';
+import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
+import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
+import xPathToCss from 'xpath-to-css';
+import { Page } from 'playwright';
+import {
+  axeScript,
+  guiInfoStatusTypes,
+  RuleFlags,
+  saflyIconSelector,
+} from '../constants/constants.js';
+import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
-import customAxeConfig from './customAxeFunctions.js';
+import { customAxeConfig } from './customAxeFunctions.js';
+import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
+import { ItemsInfo } from '../mergeAxeResults.js';
 
 // types
+interface AxeResultsWithScreenshot extends AxeResults {
+  passes: ResultWithScreenshot[];
+  incomplete: ResultWithScreenshot[];
+  violations: ResultWithScreenshot[];
+}
+
+export interface ResultWithScreenshot extends Result {
+  nodes: NodeResultWithScreenshot[];
+}
+
+export interface NodeResultWithScreenshot extends NodeResult {
+  screenshotPath?: string;
+}
+
 type RuleDetails = {
-  [key: string]: any[];
+  description: string;
+  axeImpact: ImpactValue;
+  helpUrl: string;
+  conformance: TagValue[];
+  totalItems: number;
+  items: ItemsInfo[];
 };
 
 type ResultCategory = {
   totalItems: number;
-  rules: RuleDetails;
+  rules: Record<string, RuleDetails>;
 };
 
 type CustomFlowDetails = {
@@ -39,19 +65,19 @@ type FilteredResults = {
 };
 
 export const filterAxeResults = (
-  results: any,
+  results: AxeResultsWithScreenshot,
   pageTitle: string,
   customFlowDetails?: CustomFlowDetails,
 ): FilteredResults => {
   const { violations, passes, incomplete, url } = results;
 
   let totalItems = 0;
-  const mustFix = { totalItems: 0, rules: {} };
-  const goodToFix = { totalItems: 0, rules: {} };
-  const passed = { totalItems: 0, rules: {} };
-  const needsReview = { totalItems: 0, rules: {} };
+  const mustFix: ResultCategory = { totalItems: 0, rules: {} };
+  const goodToFix: ResultCategory = { totalItems: 0, rules: {} };
+  const passed: ResultCategory = { totalItems: 0, rules: {} };
+  const needsReview: ResultCategory = { totalItems: 0, rules: {} };
 
-  const process = (item, displayNeedsReview) => {
+  const process = (item: ResultWithScreenshot, displayNeedsReview: boolean) => {
     const { id: rule, help: description, helpUrl, tags, nodes } = item;
 
     if (rule === 'frame-tested') return;
@@ -72,9 +98,8 @@ export const filterAxeResults = (
       });
     }
 
-    const addTo = (category, node) => {
-      const { html, failureSummary, screenshotPath, target } = node;
-      const axeImpact = node.impact;
+    const addTo = (category: ResultCategory, node: NodeResultWithScreenshot) => {
+      const { html, failureSummary, screenshotPath, target, impact: axeImpact } = node;
       if (!(rule in category.rules)) {
         category.rules[rule] = {
           description,
@@ -124,8 +149,8 @@ export const filterAxeResults = (
   violations.forEach(item => process(item, false));
   incomplete.forEach(item => process(item, true));
 
-  passes.forEach(item => {
-    const { id: rule, help: description, axeImpact, helpUrl, tags, nodes } = item;
+  passes.forEach((item: Result) => {
+    const { id: rule, help: description, impact: axeImpact, helpUrl, tags, nodes } = item;
 
     if (rule === 'frame-tested') return;
 
@@ -143,7 +168,7 @@ export const filterAxeResults = (
           items: [],
         };
       }
-      passed.rules[rule].items.push({ html });
+      passed.rules[rule].items.push({ html, screenshotPath: '', message: '', xpath: '' });
       passed.totalItems += 1;
       passed.rules[rule].totalItems += 1;
       totalItems += 1;
@@ -166,17 +191,25 @@ export const filterAxeResults = (
   };
 };
 
-export const runAxeScript = async (
+export const runAxeScript = async ({
   includeScreenshots,
   page,
   randomToken,
-  customFlowDetails,
+  customFlowDetails = null,
   selectors = [],
-) => {
+  ruleset = [],
+}: {
+  includeScreenshots: boolean;
+  page: Page;
+  randomToken: string;
+  customFlowDetails?: CustomFlowDetails;
+  selectors?: string[];
+  ruleset?: RuleFlags[];
+}) => {
   // Checking for DOM mutations before proceeding to scan
   await page.evaluate(() => {
     return new Promise(resolve => {
-      let timeout;
+      let timeout: NodeJS.Timeout;
       let mutationCount = 0;
       const MAX_MUTATIONS = 100;
       const MAX_SAME_MUTATION_LIMIT = 10;
@@ -194,7 +227,7 @@ export const runAxeScript = async (
 
         // To handle scenario where DOM elements are constantly changing and unable to exit
         mutationsList.forEach(mutation => {
-          let mutationKey;
+          let mutationKey: string;
 
           if (mutation.target instanceof Element) {
             Array.from(mutation.target.attributes).forEach(attr => {
@@ -231,45 +264,195 @@ export const runAxeScript = async (
     });
   });
 
+  page.on('console', msg => {
+    const type = msg.type();
+    if (type === 'error') {
+      silentLogger.log({ level: 'error', message: msg.text() });
+    } else {
+      silentLogger.log({ level: 'info', message: msg.text() });
+    }
+  });
+
+  const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
+  const oobeeAccessibleLabelFlaggedXpaths = disableOobee
+    ? []
+    : (await flagUnlabelledClickableElements(page)).map(item => item.xpath);
+  const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
+    .map(xpath => {
+      try {
+        const cssSelector = xPathToCss(xpath);
+        return cssSelector;
+      } catch (e) {
+        console.error('Error converting XPath to CSS: ', xpath, e);
+        return '';
+      }
+    })
+    .filter(item => item !== '');
+
+  const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
+
   await crawlee.playwrightUtils.injectFile(page, axeScript);
 
   const results = await page.evaluate(
-    async ({ selectors, saflyIconSelector, customAxeConfig }) => {
-      const evaluateAltText = node => {
-        const altText = node.getAttribute('alt');
-        const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
+    async ({
+      selectors,
+      saflyIconSelector,
+      customAxeConfig,
+      disableOobee,
+      enableWcagAaa,
+      oobeeAccessibleLabelFlaggedCssSelectors,
+    }) => {
+      try {
+        const evaluateAltText = (node: Element) => {
+          const altText = node.getAttribute('alt');
+          const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
 
-        if (altText) {
-          const trimmedAltText = altText.trim().toLowerCase();
-          if (confusingTexts.includes(trimmedAltText)) {
-            return false;
+          if (altText) {
+            const trimmedAltText = altText.trim().toLowerCase();
+            if (confusingTexts.includes(trimmedAltText)) {
+              return false;
+            }
           }
-        }
-        return true;
-      };
+          return true;
+        };
 
-      // remove so that axe does not scan
-      document.querySelector(saflyIconSelector)?.remove();
+        // for css id selectors starting with a digit, escape it with the unicode character e.g. #123 -> #\31 23
+        const escapeCSSSelector = (selector: string) => {
+          try {
+            return selector.replace(
+              /([#\.])(\d)/g,
+              (_match, prefix, digit) => `${prefix}\\3${digit} `,
+            );
+          } catch (e) {
+            console.error(`error escaping css selector: ${selector}`, e);
+            return selector;
+          }
+        };
 
-      axe.configure({
-        branding: customAxeConfig.branding,
-        checks: [
-          {
-            ...customAxeConfig.checks[0],
-            evaluate: evaluateAltText,
-          },
-        ],
-        rules: customAxeConfig.rules,
-      });
+        // remove so that axe does not scan
+        document.querySelector(saflyIconSelector)?.remove();
 
-      // removed needsReview condition
-      const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
+        axe.configure({
+          branding: customAxeConfig.branding,
+          checks: [
+            {
+              ...customAxeConfig.checks[0],
+              evaluate: evaluateAltText,
+            },
+          ],
+          rules: customAxeConfig.rules
+            .filter(rule => (disableOobee ? !rule.id.startsWith('oobee') : true))
+            .concat(
+              enableWcagAaa
+                ? [
+                    {
+                      id: 'color-contrast-enhanced',
+                      enabled: true,
+                      tags: ['wcag2aaa', 'wcag146'],
+                    },
+                    {
+                      id: 'identical-links-same-purpose',
+                      enabled: true,
+                      tags: ['wcag2aaa', 'wcag249'],
+                    },
+                    {
+                      id: 'meta-refresh-no-exceptions',
+                      enabled: true,
+                      tags: ['wcag2aaa', 'wcag224', 'wcag325'],
+                    },
+                  ]
+                : [],
+            ),
+        });
 
-      return axe.run(selectors, {
-        resultTypes: defaultResultTypes,
-      });
+        // removed needsReview condition
+        const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
+
+        return axe
+          .run(selectors, {
+            resultTypes: defaultResultTypes,
+          })
+          .then(results => {
+            if (disableOobee) {
+              return results;
+            }
+            // handle css id selectors that start with a digit
+            const escapedCssSelectors =
+              oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
+
+            function findElementByCssSelector(cssSelector: string): string | null {
+              let element = document.querySelector(cssSelector);
+              if (!element) {
+                const shadowRoots = [];
+                const allElements = document.querySelectorAll('*');
+                
+                // Look for elements with shadow roots
+                allElements.forEach(el => {
+                  if (el.shadowRoot) {
+                    shadowRoots.push(el.shadowRoot);
+                  }
+                });
+          
+                // Search inside each shadow root for the element
+                for (const shadowRoot of shadowRoots) {
+                  const shadowElement = shadowRoot.querySelector(cssSelector);
+                  if (shadowElement) {
+                    element = shadowElement;  // Found the element inside shadow DOM
+                    break;
+                  }
+                }
+              }
+              return element ? element.outerHTML : null;
+            }
+
+            // Add oobee violations to Axe's report
+            const oobeeAccessibleLabelViolations = {
+              id: 'oobee-accessible-label',
+              impact: 'serious' as ImpactValue,
+              tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
+              description: 'Ensures clickable elements have an accessible label.',
+              help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
+              helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
+              nodes: escapedCssSelectors.map(cssSelector => ({
+                html: document.querySelector(cssSelector).outerHTML,
+                target: [cssSelector],
+                impact: 'serious' as ImpactValue,
+                failureSummary:
+                  'Fix any of the following:\n  The clickable element does not have an accessible label.',
+                any: [
+                  {
+                    id: 'oobee-accessible-label',
+                    data: null,
+                    relatedNodes: [],
+                    impact: 'serious',
+                    message: 'The clickable element does not have an accessible label.',
+                  },
+                ],
+                all: [],
+                none: [],
+              })),
+            };
+
+            results.violations = [...results.violations, oobeeAccessibleLabelViolations];
+            return results;
+          })
+          .catch(e => {
+            console.error('Error at axe.run', e);
+            throw e;
+          });
+      } catch (e) {
+        console.error(e);
+        throw e;
+      }
     },
-    { selectors, saflyIconSelector, customAxeConfig },
+    {
+      selectors,
+      saflyIconSelector,
+      customAxeConfig,
+      disableOobee,
+      enableWcagAaa,
+      oobeeAccessibleLabelFlaggedCssSelectors,
+    },
   );
 
   if (includeScreenshots) {
@@ -289,9 +472,9 @@ export const createCrawleeSubFolders = async (
   return { dataset, requestQueue };
 };
 
-export const preNavigationHooks = extraHTTPHeaders => {
+export const preNavigationHooks = (extraHTTPHeaders: Record<string, string>) => {
   return [
-    async (crawlingContext, gotoOptions) => {
+    async (crawlingContext: CrawlingContext, gotoOptions: PlaywrightGotoOptions) => {
       if (extraHTTPHeaders) {
         crawlingContext.request.headers = extraHTTPHeaders;
       }
@@ -301,7 +484,7 @@ export const preNavigationHooks = extraHTTPHeaders => {
 };
 
 export const postNavigationHooks = [
-  async _crawlingContext => {
+  async (_crawlingContext: CrawlingContext) => {
     guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
   },
 ];
@@ -311,7 +494,7 @@ export const failedRequestHandler = async ({ request }) => {
   crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
 };
 
-export const isUrlPdf = url => {
+export const isUrlPdf = (url: string) => {
   if (isFilePath(url)) {
     return /\.pdf$/i.test(url);
   }

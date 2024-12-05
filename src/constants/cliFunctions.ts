@@ -1,6 +1,6 @@
 import { Options } from 'yargs';
 import printMessage from 'print-message';
-import { BrowserTypes, ScannerTypes } from './constants.js';
+import { BrowserTypes, RuleFlags, ScannerTypes } from './constants.js';
 
 export const messageOptions = {
   border: false,
@@ -258,6 +258,41 @@ export const cliOptions: { [key: string]: Options } = {
     type: 'string',
     requiresArg: true,
     demandOption: false,
+  },
+  y: {
+    alias: 'ruleset',
+    describe: 'Specify scan ruleset for accessibility checks',
+    type: 'string',
+    choices: ['default', 'disable-oobee', 'enable-wcag-aaa', 'disable-oobee,enable-wcag-aaa'],
+    demandOption: false,
+    requiresArg: true,
+    default: 'default',
+    coerce: option => {
+      const validChoices = Object.values(RuleFlags);
+      const userChoices: string[] = option.split(',');
+      const invalidUserChoices = userChoices.filter(choice => !validChoices.includes(choice as RuleFlags));
+      if (invalidUserChoices.length > 0) {
+        printMessage(
+          [
+            `Invalid values ${invalidUserChoices.join(',')} for -y, --ruleset. Please provide valid values: ${validChoices.join(
+              ', ',
+            )}.`,
+          ],
+          messageOptions,
+        );
+        process.exit(1);
+      }
+      if (userChoices.length > 1 && userChoices.includes('default')) {
+        printMessage(
+          [
+            `default and ${userChoices.filter(choice => choice !== 'default').join(',')} are mutually exclusive`,
+          ],
+          messageOptions,
+        );
+        process.exit(1);
+      }
+      return userChoices;
+    },
   },
 };
 

@@ -18,6 +18,7 @@ import constants, {
   blackListedFileExtensions,
   guiInfoStatusTypes,
   cssQuerySelectors,
+  RuleFlags,
 } from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
@@ -56,26 +57,47 @@ const isBlacklisted = (url: string) => {
   }
 };
 
-const crawlDomain = async (
-  url: string,
-  randomToken: string,
-  _host: string,
-  viewportSettings: ViewportSettingsClass,
-  maxRequestsPerCrawl: number,
-  browser: string,
-  userDataDirectory: string,
-  strategy: EnqueueStrategy,
-  specifiedMaxConcurrency: number,
-  fileTypes: string,
-  blacklistedPatterns: string[],
-  includeScreenshots: boolean,
-  followRobots: boolean,
-  extraHTTPHeaders: Record<string, string>,
-  safeMode: boolean = false, // optional
-  fromCrawlIntelligentSitemap: boolean = false, // optional
-  datasetFromIntelligent: crawlee.Dataset = null, // optional
-  urlsCrawledFromIntelligent: UrlsCrawled = null, // optional
-) => {
+const crawlDomain = async ({
+  url,
+  randomToken,
+  host: _host,
+  viewportSettings,
+  maxRequestsPerCrawl,
+  browser,
+  userDataDirectory,
+  strategy,
+  specifiedMaxConcurrency,
+  fileTypes,
+  blacklistedPatterns,
+  includeScreenshots,
+  followRobots,
+  extraHTTPHeaders,
+  safeMode = false,
+  fromCrawlIntelligentSitemap = false,
+  datasetFromIntelligent = null,
+  urlsCrawledFromIntelligent = null,
+  ruleset = [],
+}: {
+  url: string;
+  randomToken: string;
+  host: string;
+  viewportSettings: ViewportSettingsClass;
+  maxRequestsPerCrawl: number;
+  browser: string;
+  userDataDirectory: string;
+  strategy: EnqueueStrategy;
+  specifiedMaxConcurrency: number;
+  fileTypes: string;
+  blacklistedPatterns: string[];
+  includeScreenshots: boolean;
+  followRobots: boolean;
+  extraHTTPHeaders: Record<string, string>;
+  safeMode?: boolean;
+  fromCrawlIntelligentSitemap?: boolean;
+  datasetFromIntelligent?: crawlee.Dataset;
+  urlsCrawledFromIntelligent?: UrlsCrawled;
+  ruleset?: RuleFlags[];
+}) => {
   let dataset: crawlee.Dataset;
   let urlsCrawled: UrlsCrawled;
   let requestQueue: crawlee.RequestQueue;
@@ -711,7 +733,7 @@ const crawlDomain = async (
             return;
           }
 
-          const results = await runAxeScript(includeScreenshots, page, randomToken, null);
+          const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
           if (isRedirected) {
             const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(

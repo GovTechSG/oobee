@@ -18,18 +18,23 @@ category summary is clicked %>
         wcag142: 'https://www.w3.org/TR/WCAG22/#audio-control',
         wcag143: 'https://www.w3.org/TR/WCAG22/#contrast-minimum',
         wcag144: 'https://www.w3.org/TR/WCAG22/#resize-text',
+        wcag146: 'https://www.w3.org/TR/WCAG21/#contrast-enhanced',
         wcag1410: 'https://www.w3.org/TR/WCAG22/#reflow',
         wcag1412: 'https://www.w3.org/TR/WCAG22/#text-spacing',
         wcag211: 'https://www.w3.org/TR/WCAG22/#keyboard',
         wcag221: 'https://www.w3.org/TR/WCAG22/#timing-adjustable',
         wcag222: 'https://www.w3.org/TR/WCAG22/#pause-stop-hide',
+        wcag224: 'https://www.w3.org/TR/WCAG21/#interruptions',
         wcag241: 'https://www.w3.org/TR/WCAG22/#bypass-blocks',
         wcag242: 'https://www.w3.org/TR/WCAG22/#page-titled',
+        wcag243: 'https://www.w3.org/TR/WCAG22/#focus-order',
         wcag244: 'https://www.w3.org/TR/WCAG22/#link-purpose-in-context',
+        wcag249: 'https://www.w3.org/TR/WCAG21/#link-purpose-link-only',
         wcag258: 'https://www.w3.org/TR/WCAG22/#target-size-minimum',
         wcag311: 'https://www.w3.org/TR/WCAG22/#language-of-page',
         wcag312: 'https://www.w3.org/TR/WCAG22/#language-of-parts',
         wcag332: 'https://www.w3.org/TR/WCAG22/#labels-or-instructions',
+        wcag325: 'https://www.w3.org/TR/WCAG21/#change-on-request',
         wcag411: 'https://www.w3.org/TR/WCAG22/#parsing',
         wcag412: 'https://www.w3.org/TR/WCAG22/#name-role-value',
       };
@@ -53,6 +58,7 @@ category summary is clicked %>
         wcag2aa: 'AA',
         wcag21aa: 'AA',
         wcag22aa: 'AA',
+        wcag2aaa: 'AAA',
       };
 
       document.getElementById('expandedRuleName').innerHTML = htmlEscapeString(
@@ -787,6 +793,7 @@ category summary is clicked %>
       'aria-deprecated-role': '<p class="rule-desc-text">\nUsing deprecated WAI-ARIA roles is bad for accessibility. They will not be recognized or correctly processed by screen readers and other assistive technologies. Using these means not everyone will be able to access essential information.\n</p>',
       'aria-prohibited-attr': '<p class="rule-desc-text">\nUsing ARIA attributes in roles where they are prohibited can mean that important information is not communicated to users of assistive technologies. assistive technologies may also attempt to compensate for the issue, resulting in inconsistent and confusing behavior of these tools.\n</p>',
       'target-size' : '<p>\n Touch targets must have sufficient size and spacing in order to "be easily activated without accidentally activating an adjacent target." When touch targets are too small or too close together, it becomes difficult for users to activate them.\n</p>',
-      'oobee-confusing-alt-text' : '<p>\n Alt text should be clear and concise, providing a brief description of the image. If the alt text is too long or confusing, it can be difficult for screen reader users to understand the image.\n</p>',
+      'oobee-confusing-alt-text' : '<p>\n Alt text should be clear and concise. It should relay informative content / function of the image. If the alt text is too long or confusing, it can be difficult for screen reader users to understand the image.\n</p>',
+      'oobee-accessible-label' : '<p>\n Unlabelled clickable elements are inaccessible because it prevents screen readers from effectively conveying the purpose of the element. This causes challenges for screen reader users to navigate and understand the webpage. Clickable elements should also be made focusable by screen readers unless deliberately excluded (e.g. decorative or functionally redundant).\n</p>',
     };
 </script>

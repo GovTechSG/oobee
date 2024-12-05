@@ -1,15 +1,19 @@
 # Scan Issue Details
+
 Details of each issue and severity rating provided by the current scan engine.
 
 ## Table Of Contents
+
 1. [Conformance Covered](#conformance-covered)
 2. [WCAG 2.0 Level A](#wcag-20-level-a)
 3. [WCAG 2.0 Level AA](#wcag-20-level-aa)
 4. [WCAG 2.1 Level AA](#wcag-21-level-aa)
 5. [WCAG 2.2 Level AA](#wcag-22-level-aa)
+5. [WCAG 2.x Level AAA](#wcag-2x-level-aaa)
 6. [Best Practice](#best-practice)
 
 ## Conformance Covered
+
 | Conformance |
 | ----------- |
 | WCAG 1.1.1  |
@@ -21,32 +25,37 @@ Details of each issue and severity rating provided by the current scan engine.
 | WCAG 1.4.2  |
 | WCAG 1.4.3  |
 | WCAG 1.4.4  |
+| WCAG 1.4.6  |
 | WCAG 2.1.1  |
 | WCAG 2.2.1  |
 | WCAG 2.2.2  |
+| WCAG 2.2.4  |
 | WCAG 2.4.1  |
 | WCAG 2.4.2  |
 | WCAG 2.4.4  |
+| WCAG 2.4.9  |
 | WCAG 3.1.1  |
 | WCAG 3.1.2  |
 | WCAG 3.3.2  |
+| WCAG 3.2.5  |
 | WCAG 4.1.2  |
 
 ## WCAG 2.0 Level A
+
 | Issue ID                    | Issue Description                                                                                                                                     | Severity    | Conformance            |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------- |
 | area-alt                    | Ensures `<area>` elements of image maps have alternate text                                                                                           | Must Fix    | WCAG 2.4.4, WCAG 4.1.2 |
 | aria-allowed-attr           | Ensures an element's role supports its ARIA attributes                                                                                                | Must Fix    | WCAG 4.1.2             |
-| aria-braille-equivalent          | Ensure aria-braillelabel and aria-brailleroledescription have a non-braille equivalent                                                                                                | Must Fix    | WCAG 4.1.2             |
+| aria-braille-equivalent     | Ensure aria-braillelabel and aria-brailleroledescription have a non-braille equivalent                                                                | Must Fix    | WCAG 4.1.2             |
 | aria-command-name           | Ensures every ARIA button, link and menuitem has an accessible name                                                                                   | Must Fix    | WCAG 4.1.2             |
-| aria-conditional-attr          | Ensures ARIA attributes are used as described in the specification of the element's role                                                  | Must Fix    | WCAG 4.1.2             |
-| aria-deprecated-role          | Ensures elements do not use deprecated roles                                        | Good To Fix  | WCAG 4.1.2             |
+| aria-conditional-attr       | Ensures ARIA attributes are used as described in the specification of the element's role                                                              | Must Fix    | WCAG 4.1.2             |
+| aria-deprecated-role        | Ensures elements do not use deprecated roles                                                                                                          | Good To Fix | WCAG 4.1.2             |
 | aria-hidden-body            | Ensures aria-hidden="true" is not present on the document body.                                                                                       | Must Fix    | WCAG 4.1.2             |
 | aria-hidden-focus           | Ensures aria-hidden elements are not focusable nor contain focusable elements                                                                         | Must Fix    | WCAG 4.1.2             |
 | aria-input-field-name       | Ensures every ARIA input field has an accessible name                                                                                                 | Must Fix    | WCAG 4.1.2             |
 | aria-meter-name             | Ensures every ARIA meter node has an accessible name                                                                                                  | Must Fix    | WCAG 1.1.1             |
 | aria-progressbar-name       | Ensures every ARIA progressbar node has an accessible name                                                                                            | Must Fix    | WCAG 1.1.1             |
-| aria-prohibited-attr       | Ensures ARIA attributes are not prohibited for an element's rolessible name                                                                                            | Must Fix    | WCAG 4.1.2           |
+| aria-prohibited-attr        | Ensures ARIA attributes are not prohibited for an element's rolessible name                                                                           | Must Fix    | WCAG 4.1.2             |
 | aria-required-attr          | Ensures elements with ARIA roles have all required ARIA attributes                                                                                    | Must Fix    | WCAG 4.1.2             |
 | aria-required-children      | Ensures elements with an ARIA role that require child roles contain them                                                                              | Must Fix    | WCAG 1.3.1             |
 | aria-required-parent        | Ensures elements with an ARIA role that require parent roles are contained by them                                                                    | Must Fix    | WCAG 1.3.1             |
@@ -92,6 +101,7 @@ Details of each issue and severity rating provided by the current scan engine.
 | video-caption               | Ensures `<video>` elements have captions                                                                                                              | Must Fix    | WCAG 1.2.2             |
 
 ## WCAG 2.0 Level AA
+
 | Issue ID       | Issue Description                                                                                               | Severity | Conformance |
 | -------------- | --------------------------------------------------------------------------------------------------------------- | -------- | ----------- |
 | color-contrast | Ensures the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds | Must Fix | WCAG 1.4.3  |
@@ -99,17 +109,28 @@ Details of each issue and severity rating provided by the current scan engine.
 | valid-lang     | Ensures lang attributes have valid values                                                                       | Must Fix | WCAG 3.1.2  |
 
 ## WCAG 2.1 Level AA
+
 | Issue ID             | Issue Description                                                                             | Severity | Conformance |
 | -------------------- | --------------------------------------------------------------------------------------------- | -------- | ----------- |
 | autocomplete-valid   | Ensure the autocomplete attribute is correct and suitable for the form field                  | Must Fix | WCAG 1.3.5  |
 | avoid-inline-spacing | Ensure that text spacing set through style attributes can be adjusted with custom stylesheets | Must Fix | WCAG 1.4.12 |
 
 ## WCAG 2.2 Level AA
+
 | Issue ID    | Issue Description                                  | Severity | Conformance |
 | ----------- | -------------------------------------------------- | -------- | ----------- |
 | target-size | Ensure touch target have sufficient size and space | Must Fix | WCAG 2.5.8  |
 
+## WCAG 2.x Level AAA
+
+| Issue ID                     | Issue Description                                                                                                | Severity    | Conformance            |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------- |
+| color-contrast-enhanced      | Ensure the contrast between foreground and background colors meets WCAG 2 AAA enhanced contrast ratio thresholds | Must Fix    | WCAG 1.4.6             |
+| identical-links-same-purpose | Ensure that links with the same accessible name serve a similar purpose                                          | Good to Fix | WCAG 2.4.9             |
+| meta-refresh-no-exceptions   | Ensure <meta http-equiv="refresh"> is not used for delayed refresh                                               | Good to Fix | WCAG 2.2.4, WCAG 3.2.5 |
+
 ## Best Practice
+
 | Issue ID                            | Issue Description                                                                                                                              | Severity    |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | accesskeys                          | Ensures every accesskey attribute value is unique                                                                                              | Must Fix    |

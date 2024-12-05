@@ -86,7 +86,7 @@ const crawlIntelligentSitemap = async (
   if (!sitemapExist) {
     console.log('Unable to find sitemap. Commencing website crawl instead.');
     // run crawlDomain as per normal
-    urlsCrawledFinal = await crawlDomain(
+    urlsCrawledFinal = await crawlDomain({
       url,
       randomToken,
       host,
@@ -101,7 +101,7 @@ const crawlIntelligentSitemap = async (
       includeScreenshots,
       followRobots,
       extraHTTPHeaders,
-    );
+    });
     return urlsCrawledFinal;
   }
   console.log(`Sitemap found at ${sitemapUrl}`);
@@ -128,7 +128,7 @@ const crawlIntelligentSitemap = async (
 
   if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
     // run crawl domain starting from root website, only on pages not scanned before
-    urlsCrawledFinal = await crawlDomain(
+    urlsCrawledFinal = await crawlDomain({
       url,
       randomToken,
       host,
@@ -145,9 +145,9 @@ const crawlIntelligentSitemap = async (
       extraHTTPHeaders,
       safeMode,
       fromCrawlIntelligentSitemap,
-      dataset, // for crawlDomain to add on to
-      urlsCrawledFinal, // urls for crawlDomain to exclude
-    );
+      datasetFromIntelligent: dataset, // for crawlDomain to add on to
+      urlsCrawledFromIntelligent: urlsCrawledFinal, // urls for crawlDomain to exclude
+    });
   }
 
   guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
