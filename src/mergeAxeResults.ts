@@ -218,18 +218,21 @@ const compileHtmlWithEJS = async (allIssues, storagePath, htmlFilename = 'report
   const injectScript = `
   <script>
     try {
-      // Function to decode Base64
-      const base64Decode = (data) => {
-      // Split the encoded string by the delimiter
+      const base64DecodeChunkedWithDecoder = (data, chunkSize = 1024 * 1024) => {
       const encodedChunks = data.split('.');
-      // Decode each chunk separately and join them
-      const jsonString = encodedChunks
-        .map(chunk => {
-          const decodedBytes = atob(chunk);
-          return decodedBytes;
-        })
-        .join('');
-      return JSON.parse(jsonString);
+      const decoder = new TextDecoder();
+      const jsonParts = [];
+
+      encodedChunks.forEach(chunk => {
+          for (let i = 0; i < chunk.length; i += chunkSize) {
+              const chunkPart = chunk.slice(i, i + chunkSize);
+              const decodedBytes = Uint8Array.from(atob(chunkPart), c => c.charCodeAt(0));
+              jsonParts.push(decoder.decode(decodedBytes, { stream: true }));
+          }
+      });
+
+      return JSON.parse(jsonParts.join(''));
+
     };
 
     // IMPORTANT! DO NOT REMOVE ME: Decode the encoded data
@@ -338,7 +341,7 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
 
             // Write the prefix for the first field of the data line
             if (isWritingFirstDataLine) {
-              buffer += "scanData = base64Decode('";
+              buffer += "scanData = base64DecodeChunkedWithDecoder('";
               isWritingFirstDataLine = false;
             }
             buffer += char;
@@ -350,7 +353,7 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
         if (char === ',') {
           // Close the current base64Decode for scanData and start for scanItems
           buffer += "')\n";
-          buffer += "scanItems = base64Decode('";
+          buffer += "scanItems = base64DecodeChunkedWithDecoder('";
           isFirstField = false;
         } else if (char === '\n' || char === '\r') {
           // Close the base64Decode for scanItems if we're at the end of the line
@@ -567,7 +570,7 @@ if (os.platform() === 'linux') {
   browserChannel = 'chromium';
 }
 
-const writeSummaryPdf = async (storagePath, filename = 'summary') => {
+const writeSummaryPdf = async (storagePath, pagesScanned, filename = 'summary') => {
   const htmlFilePath = `${storagePath}/${filename}.html`;
   const fileDestinationPath = `${storagePath}/${filename}.pdf`;
   const browser = await chromium.launch({
@@ -606,7 +609,9 @@ const writeSummaryPdf = async (storagePath, filename = 'summary') => {
   await context.close();
   await browser.close();
 
-  fs.unlinkSync(htmlFilePath);
+  if (pagesScanned < 2000) {
+    fs.unlinkSync(htmlFilePath);
+  }
 };
 
 const pushResults = async (pageResults, allIssues, isCustomFlow) => {
@@ -986,7 +991,7 @@ const generateArtifacts = async (
   await writeBase64(allIssues, storagePath);
   await writeSummaryHTML(allIssues, storagePath);
   await writeHTML(allIssues, storagePath);
-  await retryFunction(() => writeSummaryPdf(storagePath), 1);
+  await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length), 1);
 
   // Take option if set
   if (typeof zip === 'string') {
