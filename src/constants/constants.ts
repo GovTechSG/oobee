@@ -321,6 +321,7 @@ const wcagLinks = {
   'WCAG 2.2.2': 'https://www.w3.org/TR/WCAG21/#pause-stop-hide',
   'WCAG 2.4.1': 'https://www.w3.org/TR/WCAG21/#bypass-blocks',
   'WCAG 2.4.2': 'https://www.w3.org/TR/WCAG21/#page-titled',
+  'WCAG 2.4.3': 'https://www.w3.org/TR/WCAG21/#focus-order',
   'WCAG 2.4.4': 'https://www.w3.org/TR/WCAG21/#link-purpose-in-context',
   'WCAG 2.5.8': 'https://www.w3.org/TR/WCAG22/#target-size-minimum',
   'WCAG 3.1.1': 'https://www.w3.org/TR/WCAG21/#language-of-page',
