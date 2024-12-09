@@ -10,7 +10,6 @@ import { chromium } from 'playwright';
 import { createWriteStream } from 'fs';
 import { AsyncParser, ParserOptions } from '@json2csv/node';
 import { v4 as uuidv4 } from 'uuid';
-import readline from 'readline';
 import constants, { ScannerTypes } from './constants/constants.js';
 import { urlWithoutAuth } from './constants/common.js';
 import {
@@ -18,7 +17,6 @@ import {
   getStoragePath,
   getVersion,
   getWcagPassPercentage,
-  formatDateTimeForMassScanner,
   retryFunction,
   zipResults,
 } from './utils.js';
@@ -210,8 +208,6 @@ const compileHtmlWithEJS = async (allIssues, storagePath, htmlFilename = 'report
   const html = template(allIssues);
   await fs.writeFile(htmlFilePath, html);
 
-  // fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
-
   let htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
 
   const headIndex = htmlContent.indexOf('</head>');
@@ -263,25 +259,16 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
       throw new Error('Marker comment not found in the HTML file.');
     }
 
-    // Part before the marker with a newline after the marker
     const topContent = htmlContent.slice(0, splitIndex + splitMarker.length) + '\n\n';
-
-    // Part after the marker
     const bottomContent = htmlContent.slice(splitIndex + splitMarker.length);
 
-    // Paths for the new files
     const topFilePath = path.join(storagePath, 'report-partial-top.htm.txt');
     const bottomFilePath = path.join(storagePath, 'report-partial-bottom.htm.txt');
 
-    // Write the top and bottom contents to separate files
     await fs.writeFile(topFilePath, topContent, { encoding: 'utf8' });
     await fs.writeFile(bottomFilePath, bottomContent, { encoding: 'utf8' });
 
-    // Unlink the original HTML file
     await fs.unlink(htmlFilePath);
-    console.log(`Original HTML file ${htmlFilePath} deleted.`);
-
-    console.log('Files created successfully:', { topFilePath, bottomFilePath });
   } catch (error) {
     console.error('Error splitting HTML and creating files:', error);
   }
@@ -327,45 +314,37 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
   inputStream.on('data', chunk => {
     let chunkIndex = 0;
 
-    // Iterate through the chunk character by character
     while (chunkIndex < chunk.length) {
       const char = chunk[chunkIndex];
 
       if (isFirstLine) {
-        // Detecting the line ending to move to the next line (Windows - \r\n, Linux/Mac - \n or \r)
         if (char === '\n' || char === '\r') {
           lineEndingDetected = true;
         } else if (lineEndingDetected) {
           if (char !== '\n' && char !== '\r') {
-            isFirstLine = false; // Switch to the data reading mode after the first line is fully skipped
+            isFirstLine = false;
 
-            // Write the prefix for the first field of the data line
             if (isWritingFirstDataLine) {
               buffer += "scanData = base64DecodeChunkedWithDecoder('";
               isWritingFirstDataLine = false;
             }
             buffer += char;
           }
-          lineEndingDetected = false; // Reset for next potential line ending detection
+          lineEndingDetected = false;
         }
       } else {
-        // Processing the actual data (second line)
         if (char === ',') {
-          // Close the current base64Decode for scanData and start for scanItems
-          buffer += "')\n";
+          buffer += "')\n\n";
           buffer += "scanItems = base64DecodeChunkedWithDecoder('";
           isFirstField = false;
         } else if (char === '\n' || char === '\r') {
-          // Close the base64Decode for scanItems if we're at the end of the line
           if (!isFirstField) {
             buffer += "')\n";
           }
         } else {
-          // Accumulate the character in the buffer
           buffer += char;
         }
 
-        // Write buffer if it exceeds the limit
         if (buffer.length >= BUFFER_LIMIT) {
           flushBuffer();
         }
@@ -376,13 +355,11 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
   });
 
   inputStream.on('end', () => {
-    // Flush any remaining data in the buffer
     if (!isFirstField) {
       buffer += "')\n";
     }
     flushBuffer();
 
-    // Append the suffix data after the input file content
     outputStream.write(suffixData);
     outputStream.end();
     console.log('Content appended successfully.');
@@ -906,85 +883,14 @@ const generateArtifacts = async (
     return impactCount;
   };
 
-  // console.log('allIssues 111', allIssues);
-
-  console.log('process.env.OOBEE_VERBOSE 111', process.env.OOBEE_VERBOSE);
-
   if (process.env.OOBEE_VERBOSE) {
     const axeImpactCount = getAxeImpactCount(allIssues);
-
-    const scanData = {
-      url: allIssues.urlScanned,
-      startTime: formatDateTimeForMassScanner(allIssues.startTime),
-      endTime: formatDateTimeForMassScanner(allIssues.endTime),
-      pagesScanned: allIssues.pagesScanned.length,
-      wcagPassPercentage: allIssues.wcagPassPercentage,
-      critical: axeImpactCount.critical,
-      serious: axeImpactCount.serious,
-      moderate: axeImpactCount.moderate,
-      minor: axeImpactCount.minor,
-      mustFix: {
-        issues: allIssues.items.mustFix.rules.length,
-        occurrence: allIssues.items.mustFix.totalItems,
-        rules: allIssues.items.mustFix.rules,
-      },
-      goodToFix: {
-        issues: allIssues.items.goodToFix.rules.length,
-        occurrence: allIssues.items.goodToFix.totalItems,
-        rules: allIssues.items.goodToFix.rules,
-      },
-      needsReview: {
-        issues: allIssues.items.needsReview.rules.length,
-        occurrence: allIssues.items.needsReview.totalItems,
-        rules: allIssues.items.needsReview.rules,
-      },
-      passed: {
-        occurrence: allIssues.items.passed.totalItems,
-      },
-    };
-
     const { items, startTime, endTime, ...rest } = allIssues;
-    const encodedScanItems = await base64Encode(items, 1);
-    const formattedStartTime = formatDateTimeForMassScanner(startTime);
-    const formattedEndTime = formatDateTimeForMassScanner(endTime);
+
     rest.critical = axeImpactCount.critical;
     rest.serious = axeImpactCount.serious;
     rest.moderate = axeImpactCount.moderate;
     rest.minor = axeImpactCount.minor;
-    // rest.startTime = startTime;
-    // rest.endTime = endTime;
-
-    // Adding encoded start time and end time to rest object
-    // console.log('formattedStartTime 111', formattedStartTime);
-    rest.formattedStartTime = formattedStartTime;
-    rest.formattedEndTime = formattedEndTime;
-
-    const encodedScanData = await base64Encode(rest, 2);
-
-    console.log('typeof 111 encodedScanData', encodedScanData);
-
-    // const largeData = await fs.readFile('largeDataWithBase64.json', { encoding: 'utf8' });
-    // console.log('largeData 111', JSON.stringify(largeData));
-
-    const scanDetailsMessageModified = `{
-      "type": "scanDetailsMessage",
-      "payload": { "scanData": "${encodedScanData}", "scanItems": "${encodedScanItems}" }
-    }`;
-
-    // const scanDetailsMessage = {
-    //   type: 'scanDetailsMessage',
-    //   payload: { scanData: encodedScanData, scanItems: encodedScanItems },
-    // };
-
-    // console.log('result 111', scanDetailsMessageModified === JSON.stringify(scanDetailsMessage));
-    // console.log('result 222', scanDetailsMessageModified);
-    // console.log('result 333', JSON.stringify(scanDetailsMessage));
-
-    // console.log('before process.send', scanDetailsMessage);
-    // if (process.send) {
-    //   // console.log('what happened here? 111', JSON.stringify(scanDetailsMessage));
-    //   process.send(scanDetailsMessageModified);
-    // }
   }
 
   await writeCsv(allIssues, storagePath);
@@ -1018,7 +924,6 @@ const generateArtifacts = async (
       }
 
       if (process.send && process.env.OOBEE_VERBOSE && process.env.REPORT_BREAKDOWN != '1') {
-        console.log('what happened here? 222');
         const zipFileNameMessage = {
           type: 'zipFileName',
           payload: `${constants.cliZipFileName}`,
@@ -1028,7 +933,6 @@ const generateArtifacts = async (
           payload: `${storagePath}`,
         };
 
-        // console.log('zipFileNameMessage 111', storagePathMessage);
         process.send(JSON.stringify(storagePathMessage));
 
         process.send(JSON.stringify(zipFileNameMessage));
