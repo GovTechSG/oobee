@@ -269,6 +269,8 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
     await fs.writeFile(bottomFilePath, bottomContent, { encoding: 'utf8' });
 
     await fs.unlink(htmlFilePath);
+
+    return { topFilePath, bottomFilePath };
   } catch (error) {
     console.error('Error splitting HTML and creating files:', error);
   }
@@ -279,7 +281,7 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
   const inputFilePath = path.resolve(storagePath, 'scanDetails.csv');
   const outputFilePath = `${storagePath}/${htmlFilename}.html`;
 
-  await splitHtmlAndCreateFiles(htmlFilePath, storagePath);
+  const { topFilePath, bottomFilePath } = await splitHtmlAndCreateFiles(htmlFilePath, storagePath);
 
   const prefixData = fs.readFileSync(path.join(storagePath, 'report-partial-top.htm.txt'), 'utf-8');
   const suffixData = fs.readFileSync(
@@ -310,6 +312,14 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
       buffer = '';
     }
   }
+
+  const cleanupFiles = async () => {
+    try {
+      await Promise.all([fs.promises.unlink(topFilePath), fs.promises.unlink(bottomFilePath)]);
+    } catch (err) {
+      console.error('Error cleaning up temporary files:', err);
+    }
+  };
 
   inputStream.on('data', chunk => {
     let chunkIndex = 0;
@@ -354,7 +364,7 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
     }
   });
 
-  inputStream.on('end', () => {
+  inputStream.on('end', async () => {
     if (!isFirstField) {
       buffer += "')\n";
     }
@@ -363,11 +373,15 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
     outputStream.write(suffixData);
     outputStream.end();
     console.log('Content appended successfully.');
+
+    await cleanupFiles();
   });
 
-  inputStream.on('error', err => {
+  inputStream.on('error', async err => {
     console.error('Error reading input file:', err);
     outputStream.end();
+
+    await cleanupFiles();
   });
 
   outputStream.on('error', err => {
@@ -506,7 +520,7 @@ const streamEncodedDataToFile = async (inputFilePath, writeStream, appendComma) 
   }
 };
 
-const writeBase64 = async (allIssues, storagePath, htmlFilename = 'report.html') => {
+const writeBase64 = async (allIssues, storagePath) => {
   const { items, ...rest } = allIssues;
   const encodedScanItemsPath = await base64Encode(items, 1);
   const encodedScanDataPath = await base64Encode(rest, 2);
