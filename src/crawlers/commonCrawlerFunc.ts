@@ -409,20 +409,141 @@ export const runAxeScript = async ({
             // handle css id selectors that start with a digit
             const escapedCssSelectors =
               oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
+            
+            function frameCheck(cssSelector: string): { doc: Document; remainingSelector: string } {
+              let doc = document; // Start with the main document
+              let frameSelector = ""; // To store the frame part of the selector
+            
+              // Extract the 'frame' part of the selector
+              let frameMatch = cssSelector.match(/(frame[^>]*>)/i);
+              if (frameMatch) {
+                frameSelector = frameMatch[1].replace(">", "").trim(); // Clean up the frame part
+                cssSelector = cssSelector.split(frameMatch[1])[1].trim(); // Remove the frame portion
+              }
+            
+              let targetFrame = null; // Target frame element
+            
+              // Locate the frame based on the extracted frameSelector
+              if (frameSelector.includes("first-of-type")) {
+                // Select the first frame
+                targetFrame = document.querySelector("frame:first-of-type");
+              } else if (frameSelector.includes("nth-of-type")) {
+                // Select the nth frame
+                let nthIndex = frameSelector.match(/nth-of-type\((\d+)\)/);
+                if (nthIndex) {
+                  let index = parseInt(nthIndex[1]) - 1; // Zero-based index
+                  targetFrame = document.querySelectorAll("frame")[index];
+                }
+              } else if (frameSelector.includes("#")) {
+                // Frame with a specific ID
+                let idMatch = frameSelector.match(/#([\w-]+)/);
+                if (idMatch) {
+                  targetFrame = document.getElementById(idMatch[1]);
+                }
+              } else if (frameSelector.includes('[name="')) {
+                // Frame with a specific name attribute
+                let nameMatch = frameSelector.match(/name="([\w-]+)"/);
+                if (nameMatch) {
+                  targetFrame = document.querySelector(`frame[name="${nameMatch[1]}"]`);
+                }
+              } else {
+                // Default to the first frame
+                targetFrame = document.querySelector("frame");
+              }
+            
+              // Update the document if the frame was found
+              if (targetFrame && targetFrame.contentDocument) {
+                doc = targetFrame.contentDocument;
+              } else {
+                console.warn("Frame not found or contentDocument inaccessible.");
+              }
+            
+              return { doc, remainingSelector: cssSelector };
+            }
+
+            function iframeCheck(cssSelector: string): { doc: Document; remainingSelector: string } {
+              let doc = document; // Start with the main document
+              let iframeSelector = ""; // To store the iframe part of the selector
+            
+              // Extract the 'iframe' part of the selector
+              let iframeMatch = cssSelector.match(/(iframe[^>]*>)/i);
+              if (iframeMatch) {
+                iframeSelector = iframeMatch[1].replace(">", "").trim(); // Clean up the iframe part
+                cssSelector = cssSelector.split(iframeMatch[1])[1].trim(); // Remove the iframe portion
+              }
+            
+              let targetIframe = null; // Target iframe element
+            
+              // Locate the iframe based on the extracted iframeSelector
+              if (iframeSelector.includes("first-of-type")) {
+                // Select the first iframe
+                targetIframe = document.querySelector("iframe:first-of-type");
+              } else if (iframeSelector.includes("nth-of-type")) {
+                // Select the nth iframe
+                let nthIndex = iframeSelector.match(/nth-of-type\((\d+)\)/);
+                if (nthIndex) {
+                  let index = parseInt(nthIndex[1]) - 1; // Zero-based index
+                  targetIframe = document.querySelectorAll("iframe")[index];
+                }
+              } else if (iframeSelector.includes("#")) {
+                // Iframe with a specific ID
+                let idMatch = iframeSelector.match(/#([\w-]+)/);
+                if (idMatch) {
+                  targetIframe = document.getElementById(idMatch[1]);
+                }
+              } else if (iframeSelector.includes('[name="')) {
+                // Iframe with a specific name attribute
+                let nameMatch = iframeSelector.match(/name="([\w-]+)"/);
+                if (nameMatch) {
+                  targetIframe = document.querySelector(`iframe[name="${nameMatch[1]}"]`);
+                }
+              } else {
+                // Default to the first iframe
+                targetIframe = document.querySelector("iframe");
+              }
+            
+              // Update the document if the iframe was found
+              if (targetIframe && targetIframe.contentDocument) {
+                doc = targetIframe.contentDocument;
+              } else {
+                console.warn("Iframe not found or contentDocument inaccessible.");
+              }
+            
+              return { doc, remainingSelector: cssSelector };
+            }
 
             function findElementByCssSelector(cssSelector: string): string | null {
-              let element = document.querySelector(cssSelector);
+              let doc = document;
+            
+              // Check if the selector includes 'frame' and update doc and selector
+              if (cssSelector.includes("frame")) {
+                const result = frameCheck(cssSelector);
+                doc = result.doc;
+                cssSelector = result.remainingSelector;
+              }
+
+              // Check for iframe
+              if (cssSelector.includes("iframe")) {
+                const result = iframeCheck(cssSelector);
+                doc = result.doc;
+                cssSelector = result.remainingSelector;
+              }
+            
+              // Query the element in the document (including inside frames)
+              let element = doc.querySelector(cssSelector);
+            
+              // Handle Shadow DOM if the element is not found
               if (!element) {
                 const shadowRoots = [];
                 const allElements = document.querySelectorAll('*');
-
+            
                 // Look for elements with shadow roots
                 allElements.forEach(el => {
                   if (el.shadowRoot) {
                     shadowRoots.push(el.shadowRoot);
                   }
                 });
-
+            
                 // Search inside each shadow root for the element
                 for (const shadowRoot of shadowRoots) {
                   const shadowElement = shadowRoot.querySelector(cssSelector);
@@ -432,6 +553,7 @@ export const runAxeScript = async ({
                   }
                 }
               }
+            
               return element ? element.outerHTML : null;
             }
 
