@@ -32,7 +32,7 @@ export const takeScreenshotForHTMLElements = async (
 
     // Check if rule ID is 'oobee-grading-text-contents' and skip screenshot logic
     if (rule === 'oobee-grading-text-contents') {
-      console.log('Skipping screenshot for rule oobee-grading-text-contents');
+      consoleLogger.info('Skipping screenshot for rule oobee-grading-text-contents');
       newViolations.push(violation); // Make sure it gets added
       continue;
     }

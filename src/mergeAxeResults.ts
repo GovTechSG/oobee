@@ -443,12 +443,12 @@ function writeLargeJsonToFile(obj, filePath) {
     const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
 
     writeStream.on('error', error => {
-      console.error('Stream error:', error);
+      consoleLogger.error('Stream error:', error);
       reject(error);
     });
 
     writeStream.on('finish', () => {
-      console.log('File written successfully:', filePath);
+      consoleLogger.info('Temporary file written successfully:', filePath);
       resolve(true);
     });
 
