@@ -21,7 +21,7 @@
     "mime-types": "^2.1.35",
     "minimatch": "^9.0.3",
     "pdfjs-dist": "github:veraPDF/pdfjs-dist#v2.14.305-taggedPdf-0.1.11",
-    "playwright": "^1.49.0",
+    "playwright": "1.46.1",
     "prettier": "^3.1.0",
     "print-message": "^3.0.1",
     "safe-regex": "^2.1.1",
