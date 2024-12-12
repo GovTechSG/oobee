@@ -581,16 +581,9 @@ const crawlDomain = async ({
           },
         ]
       : [
-          async (crawlingContext, gotoOptions) => {
-            const { page, request } = crawlingContext;
-
+          async ({ page, request }) => {
             await page.setExtraHTTPHeaders({
               ...extraHTTPHeaders,
-            });
-
-            Object.assign(gotoOptions, {
-              waitUntil: 'networkidle',
-              timeout: 30000,
             });
 
             const processible = await isProcessibleUrl(request.url);
