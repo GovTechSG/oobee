@@ -488,7 +488,7 @@ function writeLargeJsonToFile(obj, filePath) {
   });
 }
 
-const base64Encode = async (data, num) => {
+const base64Encode = async (data, num, storagePath, generateJsonFiles) => {
   try {
     const tempFilename =
       num === 1
@@ -507,9 +507,11 @@ const base64Encode = async (data, num) => {
       await chunkJsonFileToBase64(tempFilePath, outputFilePath);
       return outputFilePath;
     } finally {
+      if (!generateJsonFiles) {
       await fs.promises
         .unlink(tempFilePath)
-        .catch(err => consoleLogger.error('Temp file delete error:', err));
+          .catch(err => console.error('Temp file delete error:', err));
+      }
     }
   } catch (error) {
     consoleLogger.error('Error encoding data to Base64:', error);
@@ -535,10 +537,10 @@ const streamEncodedDataToFile = async (inputFilePath, writeStream, appendComma) 
   }
 };
 
-const writeBase64 = async (allIssues, storagePath) => {
+const writeBase64 = async (allIssues, storagePath, generateJsonFiles) => {
   const { items, ...rest } = allIssues;
-  const encodedScanItemsPath = await base64Encode(items, 1);
-  const encodedScanDataPath = await base64Encode(rest, 2);
+  const encodedScanItemsPath = await base64Encode(items, 1, storagePath, generateJsonFiles);
+  const encodedScanDataPath = await base64Encode(rest, 2, storagePath, generateJsonFiles);
 
   const filePath = path.join(storagePath, 'scanDetails.csv');
   const directoryPath = path.dirname(filePath);
@@ -776,6 +778,7 @@ const generateArtifacts = async (
   cypressScanAboutMetadata,
   scanDetails,
   zip = undefined, // optional
+  generateJsonFiles = false,
 ) => {
   const intermediateDatasetsPath = `${randomToken}/datasets/${randomToken}`;
   const phAppVersion = getVersion();
@@ -918,7 +921,11 @@ const generateArtifacts = async (
   }
 
   await writeCsv(allIssues, storagePath);
-  const { encodedScanDataPath, encodedScanItemsPath } = await writeBase64(allIssues, storagePath);
+  const { encodedScanDataPath, encodedScanItemsPath } = await writeBase64(
+    allIssues,
+    storagePath,
+    generateJsonFiles,
+  );
   await writeSummaryHTML(allIssues, storagePath);
   await writeHTML(allIssues, storagePath);
 

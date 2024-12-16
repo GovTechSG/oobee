@@ -393,7 +393,9 @@ const optionsAnswer: Answers = {
   blacklistedPatternsFilename: options.blacklistedPatternsFilename,
   playwrightDeviceDetailsObject: options.playwrightDeviceDetailsObject,
   ruleset: options.ruleset,
+  generateJsonFiles: options.generateJsonFiles,
 };
+
 await scanInit(optionsAnswer);
 process.exit(0);
 

@@ -296,6 +296,27 @@ export const cliOptions: { [key: string]: Options } = {
       return userChoices;
     },
   },
+  g: {
+    alias: 'generateJsonFiles',
+    describe:
+      'Generate JSON files in the results folder. Accepts "yes", "no", "y", or "n". Default is "no".',
+    type: 'string',
+    requiresArg: true,
+    default: 'no',
+    demandOption: false,
+    coerce: value => {
+      const validYes = ['yes', 'y'];
+      const validNo = ['no', 'n'];
+
+      if (validYes.includes(value.toLowerCase())) {
+        return true;
+      }
+      if (validNo.includes(value.toLowerCase())) {
+        return false;
+      }
+      throw new Error(`Invalid value "${value}" for --generate. Use "yes", "y", "no", or "n".`);
+    },
+  },
 };
 
 export const configureReportSetting = (isEnabled: boolean): void => {

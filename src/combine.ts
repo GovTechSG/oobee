@@ -60,6 +60,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     safeMode,
     zip,
     ruleset,
+    generateJsonFiles,
   } = envDetails;
 
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
@@ -214,6 +215,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         undefined,
         scanDetails,
         zip,
+        generateJsonFiles,
       );
       const [name, email] = nameEmail.split(':');
 
