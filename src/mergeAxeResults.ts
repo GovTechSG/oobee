@@ -272,13 +272,12 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
 
     return { topFilePath, bottomFilePath };
   } catch (error) {
-    console.error('Error splitting HTML and creating files:', error);
+    consoleLogger.error('Error splitting HTML and creating files:', error);
   }
 };
 
 const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
   const htmlFilePath = await compileHtmlWithEJS(allIssues, storagePath, htmlFilename);
-  const inputFilePath = path.resolve(storagePath, 'scanDetails.csv');
   const outputFilePath = `${storagePath}/${htmlFilename}.html`;
 
   const { topFilePath, bottomFilePath } = await splitHtmlAndCreateFiles(htmlFilePath, storagePath);
@@ -289,104 +288,55 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
     'utf-8',
   );
 
-  const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a' });
+  const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a', encoding: 'utf-8' });
 
   outputStream.write(prefixData);
 
-  // Create a readable stream for the input file with a highWaterMark set to 10MB
-  const BUFFER_LIMIT = 10 * 1024 * 1024; // 10 MB
-  const inputStream = fs.createReadStream(inputFilePath, {
-    encoding: 'utf-8',
-    highWaterMark: BUFFER_LIMIT,
-  });
+  const { encodedScanDataPath, encodedScanItemsPath } = await writeBase64(allIssues, storagePath);
 
-  let isFirstLine = true;
-  let lineEndingDetected = false;
-  let isFirstField = true;
-  let isWritingFirstDataLine = true;
-  let buffer = '';
+  const appendEncodedData = async (filePath, variableName) => {
+    return new Promise((resolve, reject) => {
+      const readStream = fs.createReadStream(filePath, { encoding: 'utf8' });
 
-  function flushBuffer() {
-    if (buffer.length > 0) {
-      outputStream.write(buffer);
-      buffer = '';
-    }
-  }
+      outputStream.write(`${variableName} = base64DecodeChunkedWithDecoder(\`\n`);
 
-  const cleanupFiles = async () => {
-    try {
-      await Promise.all([fs.promises.unlink(topFilePath), fs.promises.unlink(bottomFilePath)]);
-    } catch (err) {
-      console.error('Error cleaning up temporary files:', err);
-    }
+      readStream.on('data', chunk => {
+        outputStream.write(`${chunk}\n`);
+      });
+
+      readStream.on('end', () => {
+        outputStream.write(`\`)\n`);
+        resolve(true);
+      });
+
+      readStream.on('error', err => {
+        reject(err);
+      });
+    });
   };
 
-  inputStream.on('data', chunk => {
-    let chunkIndex = 0;
+  try {
+    await appendEncodedData(encodedScanDataPath, 'scanData');
+    await appendEncodedData(encodedScanItemsPath, 'scanItems');
+  } catch (error) {
+    consoleLogger.error('Error appending encoded data:', error);
+  }
 
-    while (chunkIndex < chunk.length) {
-      const char = chunk[chunkIndex];
+  outputStream.write(suffixData);
+  outputStream.end();
 
-      if (isFirstLine) {
-        if (char === '\n' || char === '\r') {
-          lineEndingDetected = true;
-        } else if (lineEndingDetected) {
-          if (char !== '\n' && char !== '\r') {
-            isFirstLine = false;
+  await fs.promises
+    .unlink(encodedScanDataPath)
+    .catch(err => consoleLogger.error('Delete error:', err));
+  await fs.promises
+    .unlink(encodedScanItemsPath)
+    .catch(err => consoleLogger.error('Delete error:', err));
 
-            if (isWritingFirstDataLine) {
-              buffer += "scanData = base64DecodeChunkedWithDecoder('";
-              isWritingFirstDataLine = false;
-            }
-            buffer += char;
-          }
-          lineEndingDetected = false;
-        }
-      } else {
-        if (char === ',') {
-          buffer += "')\n\n";
-          buffer += "scanItems = base64DecodeChunkedWithDecoder('";
-          isFirstField = false;
-        } else if (char === '\n' || char === '\r') {
-          if (!isFirstField) {
-            buffer += "')\n";
-          }
-        } else {
-          buffer += char;
-        }
-
-        if (buffer.length >= BUFFER_LIMIT) {
-          flushBuffer();
-        }
-      }
-
-      chunkIndex++;
-    }
-  });
-
-  inputStream.on('end', async () => {
-    if (!isFirstField) {
-      buffer += "')\n";
-    }
-    flushBuffer();
-
-    outputStream.write(suffixData);
-    outputStream.end();
-    console.log('Content appended successfully.');
-
-    await cleanupFiles();
-  });
-
-  inputStream.on('error', async err => {
-    console.error('Error reading input file:', err);
-    outputStream.end();
-
-    await cleanupFiles();
-  });
-
-  outputStream.on('error', err => {
-    console.error('Error writing to output file:', err);
-  });
+  try {
+    await Promise.all([fs.promises.unlink(topFilePath), fs.promises.unlink(bottomFilePath)]);
+  } catch (err) {
+    consoleLogger.error('Error cleaning up temporary files:', err);
+  }
 };
 
 const writeSummaryHTML = async (allIssues, storagePath, htmlFilename = 'summary') => {
@@ -396,6 +346,87 @@ const writeSummaryHTML = async (allIssues, storagePath, htmlFilename = 'summary'
   });
   const html = template(allIssues);
   fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
+};
+
+const findLastKeyValuePair = buffer => {
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = 0; i < buffer.length; i++) {
+    const char = buffer[i];
+
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escapeNext = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (char === '{' || char === '[') {
+      depth++;
+    } else if (char === '}' || char === ']') {
+      depth--;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+
+  return -1;
+};
+
+const chunkJsonFileToBase64 = async (inputFilePath, outputFilePath) => {
+  try {
+    const readStream = fs.createReadStream(inputFilePath, {
+      encoding: 'utf8',
+      highWaterMark: 1024 * 1024,
+    });
+    const writeStream = fs.createWriteStream(outputFilePath, { encoding: 'utf8' });
+
+    let buffer = '';
+
+    for await (const chunk of readStream) {
+      buffer += chunk;
+
+      let splitIndex = findLastKeyValuePair(buffer);
+
+      while (splitIndex !== -1) {
+        const chunkToEncode = buffer.slice(0, splitIndex + 1);
+        const base64Chunk = Buffer.from(chunkToEncode).toString('base64');
+        writeStream.write(base64Chunk + '\n');
+
+        buffer = buffer.slice(splitIndex + 1);
+
+        splitIndex = findLastKeyValuePair(buffer);
+      }
+    }
+
+    if (buffer.trim()) {
+      const base64Chunk = Buffer.from(buffer).toString('base64');
+      writeStream.write(base64Chunk + '\n');
+    }
+
+    await new Promise((resolve, reject) => {
+      writeStream.end(resolve);
+      writeStream.on('error', reject);
+    });
+  } catch (error) {
+    consoleLogger.error('Error processing the JSON file in streaming mode:', error);
+    throw error;
+  }
 };
 
 function writeFormattedValue(value, writeStream) {
@@ -473,31 +504,15 @@ const base64Encode = async (data, num) => {
     const outputFilePath = path.join(process.cwd(), outputFilename);
 
     try {
-      const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
-      const readStream = fs.createReadStream(tempFilePath, {
-        encoding: 'utf8',
-        highWaterMark: CHUNK_SIZE,
-      });
-      const writeStream = fs.createWriteStream(outputFilePath, { encoding: 'utf8' });
-
-      for await (const chunk of readStream) {
-        const encodedChunk = Buffer.from(chunk).toString('base64');
-        writeStream.write(`${encodedChunk}.`);
-      }
-
-      await new Promise((resolve, reject) => {
-        writeStream.end(resolve);
-        writeStream.on('error', reject);
-      });
-
+      await chunkJsonFileToBase64(tempFilePath, outputFilePath);
       return outputFilePath;
     } finally {
       await fs.promises
         .unlink(tempFilePath)
-        .catch(err => console.error('Temp file delete error:', err));
+        .catch(err => consoleLogger.error('Temp file delete error:', err));
     }
   } catch (error) {
-    console.error('Error encoding data to Base64:', error);
+    consoleLogger.error('Error encoding data to Base64:', error);
     throw error;
   }
 };
@@ -543,12 +558,7 @@ const writeBase64 = async (allIssues, storagePath) => {
     csvWriteStream.on('error', reject);
   });
 
-  await fs.promises
-    .unlink(encodedScanDataPath)
-    .catch(err => console.error('Encoded file delete error:', err));
-  await fs.promises
-    .unlink(encodedScanItemsPath)
-    .catch(err => console.error('Encoded file delete error:', err));
+  return { encodedScanDataPath, encodedScanItemsPath };
 };
 
 let browserChannel = 'chrome';
@@ -908,9 +918,24 @@ const generateArtifacts = async (
   }
 
   await writeCsv(allIssues, storagePath);
-  await writeBase64(allIssues, storagePath);
+  const { encodedScanDataPath, encodedScanItemsPath } = await writeBase64(allIssues, storagePath);
   await writeSummaryHTML(allIssues, storagePath);
   await writeHTML(allIssues, storagePath);
+
+  try {
+    await fs.promises.unlink(encodedScanDataPath);
+    consoleLogger.info(`Successfully deleted: ${encodedScanDataPath}`);
+  } catch (error) {
+    consoleLogger.error(`Error deleting file ${encodedScanDataPath}:`, error);
+  }
+
+  try {
+    await fs.promises.unlink(encodedScanItemsPath);
+    consoleLogger.info(`Successfully deleted: ${encodedScanItemsPath}`);
+  } catch (error) {
+    consoleLogger.error(`Error deleting file ${encodedScanItemsPath}:`, error);
+  }
+
   await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length), 1);
 
   // Take option if set
