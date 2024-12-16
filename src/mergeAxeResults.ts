@@ -479,7 +479,6 @@ function writeLargeJsonToFile(obj, filePath) {
     });
 
     writeStream.on('finish', () => {
-      consoleLogger.info('Temporary file written successfully:', filePath);
       resolve(true);
     });
 
@@ -931,14 +930,12 @@ const generateArtifacts = async (
 
   try {
     await fs.promises.unlink(encodedScanDataPath);
-    consoleLogger.info(`Successfully deleted: ${encodedScanDataPath}`);
   } catch (error) {
     consoleLogger.error(`Error deleting file ${encodedScanDataPath}:`, error);
   }
 
   try {
     await fs.promises.unlink(encodedScanItemsPath);
-    consoleLogger.info(`Successfully deleted: ${encodedScanItemsPath}`);
   } catch (error) {
     consoleLogger.error(`Error deleting file ${encodedScanItemsPath}:`, error);
   }
