@@ -487,10 +487,10 @@ const base64Encode = async (data, num, storagePath, generateJsonFiles) => {
   try {
     const tempFilename =
       num === 1
-        ? `scanItems_${uuidv4()}.json`
+        ? path.join(storagePath, 'scanItems.json')
         : num === 2
-          ? `scanData_${uuidv4()}.json`
-          : `${uuidv4()}.json`;
+          ? path.join(storagePath, 'scanData.json')
+          : path.join(storagePath, `${uuidv4()}.json`);
     const tempFilePath = path.join(process.cwd(), tempFilename);
 
     await writeLargeJsonToFile(data, tempFilePath);
@@ -503,8 +503,8 @@ const base64Encode = async (data, num, storagePath, generateJsonFiles) => {
       return outputFilePath;
     } finally {
       if (!generateJsonFiles) {
-      await fs.promises
-        .unlink(tempFilePath)
+        await fs.promises
+          .unlink(tempFilePath)
           .catch(err => console.error('Temp file delete error:', err));
       }
     }
