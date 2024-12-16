@@ -270,7 +270,9 @@ export const cliOptions: { [key: string]: Options } = {
     coerce: option => {
       const validChoices = Object.values(RuleFlags);
       const userChoices: string[] = option.split(',');
-      const invalidUserChoices = userChoices.filter(choice => !validChoices.includes(choice as RuleFlags));
+      const invalidUserChoices = userChoices.filter(
+        choice => !validChoices.includes(choice as RuleFlags),
+      );
       if (invalidUserChoices.length > 0) {
         printMessage(
           [
