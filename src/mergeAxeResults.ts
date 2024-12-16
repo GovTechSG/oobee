@@ -276,7 +276,13 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
   }
 };
 
-const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
+const writeHTML = async (
+  allIssues,
+  storagePath,
+  encodedScanDataPath,
+  encodedScanItemsPath,
+  htmlFilename = 'report',
+) => {
   const htmlFilePath = await compileHtmlWithEJS(allIssues, storagePath, htmlFilename);
   const outputFilePath = `${storagePath}/${htmlFilename}.html`;
 
@@ -291,8 +297,6 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
   const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a', encoding: 'utf-8' });
 
   outputStream.write(prefixData);
-
-  const { encodedScanDataPath, encodedScanItemsPath } = await writeBase64(allIssues, storagePath);
 
   const appendEncodedData = async (filePath, variableName) => {
     return new Promise((resolve, reject) => {
@@ -324,14 +328,6 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
 
   outputStream.write(suffixData);
   outputStream.end();
-
-  await fs.promises
-    .unlink(encodedScanDataPath)
-    .catch(err => consoleLogger.error('Delete error:', err));
-  await fs.promises
-    .unlink(encodedScanItemsPath)
-    .catch(err => consoleLogger.error('Delete error:', err));
-
   try {
     await Promise.all([fs.promises.unlink(topFilePath), fs.promises.unlink(bottomFilePath)]);
   } catch (err) {
@@ -926,7 +922,7 @@ const generateArtifacts = async (
     generateJsonFiles,
   );
   await writeSummaryHTML(allIssues, storagePath);
-  await writeHTML(allIssues, storagePath);
+  await writeHTML(allIssues, storagePath, encodedScanDataPath, encodedScanItemsPath);
 
   try {
     await fs.promises.unlink(encodedScanDataPath);
