@@ -36,6 +36,7 @@ export type ItemsInfo = {
 
 type PageInfo = {
   items: ItemsInfo[];
+  itemsCount?: number;
   pageTitle: string;
   url?: string;
   pageImagePath?: string;
@@ -457,14 +458,9 @@ function writeLargeJsonToFile(obj, filePath) {
   });
 }
 
-const base64Encode = async (data, num) => {
+const base64Encode = async data => {
   try {
-    const tempFilename =
-      num === 1
-        ? `scanItems_${uuidv4()}.json`
-        : num === 2
-          ? `scanData_${uuidv4()}.json`
-          : `${uuidv4()}.json`;
+    const tempFilename = `${uuidv4()}.json`;
     const tempFilePath = path.join(process.cwd(), tempFilename);
 
     await writeLargeJsonToFile(data, tempFilePath);
@@ -520,10 +516,42 @@ const streamEncodedDataToFile = async (inputFilePath, writeStream, appendComma) 
   }
 };
 
-const writeBase64 = async (allIssues, storagePath) => {
+const writeBase64 = async (allIssues: AllIssues, storagePath: string) => {
   const { items, ...rest } = allIssues;
-  const encodedScanItemsPath = await base64Encode(items, 1);
-  const encodedScanDataPath = await base64Encode(rest, 2);
+  const encodedScanItemsPath = await base64Encode(items);
+  const encodedScanDataPath = await base64Encode(rest);
+  const reportTooBig = true; // placeholder for a function to determine this
+
+  let encodedScanItemsSummaryPath: string;
+  if (reportTooBig) {
+    // make a copy of items and remove the item details
+    const itemsSummary: AllIssues['items'] = JSON.parse(JSON.stringify(items));
+    itemsSummary.mustFix.rules.forEach(rule => {
+      rule.pagesAffected.forEach(page => {
+        page.itemsCount = page.items.length;
+        page.items = [];
+      });
+    });
+    itemsSummary.goodToFix.rules.forEach(rule => {
+      rule.pagesAffected.forEach(page => {
+        page.itemsCount = page.items.length;
+        page.items = [];
+      });
+    });
+    itemsSummary.needsReview.rules.forEach(rule => {
+      rule.pagesAffected.forEach(page => {
+        page.itemsCount = page.items.length;
+        page.items = [];
+      });
+    });
+    itemsSummary.passed.rules.forEach(rule => {
+      rule.pagesAffected.forEach(page => {
+        page.itemsCount = page.items.length;
+        page.items = [];
+      });
+    });
+    encodedScanItemsSummaryPath = await base64Encode(itemsSummary);
+  }
 
   const filePath = path.join(storagePath, 'scanDetails.csv');
   const directoryPath = path.dirname(filePath);
@@ -535,8 +563,13 @@ const writeBase64 = async (allIssues, storagePath) => {
   const csvWriteStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
 
   csvWriteStream.write('scanData_base64,scanItems_base64\n');
+  // csvWriteStream.write('scanData_base64,scanItems_base64,scanItemsSummary_base64\n');
   await streamEncodedDataToFile(encodedScanDataPath, csvWriteStream, true);
-  await streamEncodedDataToFile(encodedScanItemsPath, csvWriteStream, false);
+  if (reportTooBig) {
+    await streamEncodedDataToFile(encodedScanItemsSummaryPath, csvWriteStream, false);
+  } else {
+    await streamEncodedDataToFile(encodedScanItemsPath, csvWriteStream, false);
+  }
 
   await new Promise((resolve, reject) => {
     csvWriteStream.end(resolve);
