@@ -385,19 +385,21 @@ category summary is clicked %>
         var buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-${index}`;
         var errorAIId = `${ruleInCategory.rule}-${category}-error-AI-${index}`;
 
+        const pageItemsCount = page.items.length || page.itemsCount || 0;
+        const normalMode = page.itemsCount === undefined;
         const accordion = createElementFromString(`
           <li>
             <div class="accordion mt-2 ${category}">
               <div class="accordion-item">
                 <div class="accordion-header" id="${accordionId}-title">
                   <button
-                    aria-label="Page ${index + 1}: ${page.pageTitle}, ${page.items.length} ${page.items.length === 1 ? 'occurrence' : 'occurrences'}" class="accordion-button collapsed"
+                    aria-label="Page ${index + 1}: ${page.pageTitle}, ${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}" class="accordion-button collapsed"
                     type="button"
 
                   >
-                    <span class="sr-only visually-hidden">${page.items.length} ${page.items.length === 1 ? 'occurrence' : 'occurrences'}</span>
+                    <span class="sr-only visually-hidden">${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}</span>
                     <div class="me-3">${page.metadata ? page.metadata : page.pageTitle}</div>
-                    <div class="ms-auto counter">${page.items.length}</div>
+                    <div class="ms-auto counter">${pageItemsCount}</div>
                   </button>
                 </div>
                 <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
@@ -414,7 +416,7 @@ category summary is clicked %>
                     }
                     <div class="page-accordion-content-title">
                       <span>${getFormattedCategoryTitle(category)} elements</span>
-                      <span class="page-items-count">${page.items.length}</span>
+                      <span class="page-items-count">${pageItemsCount}</span>
                     </div>
                   </div>
                 </div>
@@ -423,45 +425,47 @@ category summary is clicked %>
           </li>
         `);
 
-        accordion.querySelector('button').addEventListener('click', function(event) {
-          var accordionBody = accordion.querySelector(".accordion-body");
-
-          // So that It does not keep adding
-          if (!accordionBody.querySelector(".unbulleted-list"))
-          {
-            buildExpandedRuleCategoryContentAccordian(accordionId,category,ruleInCategory,page,index);
-
-            this.setAttribute('data-bs-target', '#' + accordionId+"-content");
-
-            // Remove the event listener temporarily
-            this.removeEventListener('click', arguments.callee);
-
-            // Programmatically trigger a click on the button to open the accordion
-            this.click();
-          }
-        });
-
-        accordion.querySelector('button').addEventListener('click', function(event) {
-          // Set data attributes
-          this.setAttribute('data-bs-toggle', 'collapse');
-          this.setAttribute('data-bs-target', '#' + accordionId + "-content");
-          this.setAttribute('aria-expanded', 'false');
-          this.setAttribute('aria-controls', accordionId + "-content");
-
-          // Initialize  the Collapse plugin on the button element
-          var collapse = new bootstrap.Collapse(this, {
-            toggle: false // Set to true if you want to toggle the collapsed state on initialization
+        if (normalMode) {
+          accordion.querySelector('button').addEventListener('click', function(event) {
+            var accordionBody = accordion.querySelector(".accordion-body");
+  
+            // So that It does not keep adding
+            if (!accordionBody.querySelector(".unbulleted-list"))
+            {
+              buildExpandedRuleCategoryContentAccordian(accordionId,category,ruleInCategory,page,index);
+  
+              this.setAttribute('data-bs-target', '#' + accordionId+"-content");
+  
+              // Remove the event listener temporarily
+              this.removeEventListener('click', arguments.callee);
+  
+              // Programmatically trigger a click on the button to open the accordion
+              this.click();
+            }
           });
 
-          // Remove the event listener temporarily
-          this.removeEventListener('click', arguments.callee);
-
-          // Programmatically trigger a click on the button to open the accordion
-          setTimeout(() => { // Delaying to ensure the content is added before triggering the click
-              this.click();
-          }, 0);
-
-        })
+          accordion.querySelector('button').addEventListener('click', function(event) {
+            // Set data attributes
+            this.setAttribute('data-bs-toggle', 'collapse');
+            this.setAttribute('data-bs-target', '#' + accordionId + "-content");
+            this.setAttribute('aria-expanded', 'false');
+            this.setAttribute('aria-controls', accordionId + "-content");
+  
+            // Initialize  the Collapse plugin on the button element
+            var collapse = new bootstrap.Collapse(this, {
+              toggle: false // Set to true if you want to toggle the collapsed state on initialization
+            });
+  
+            // Remove the event listener temporarily
+            this.removeEventListener('click', arguments.callee);
+  
+            // Programmatically trigger a click on the button to open the accordion
+            setTimeout(() => { // Delaying to ensure the content is added before triggering the click
+                this.click();
+            }, 0);
+  
+          })
+        }
 
         if (isCustomFlow) {
           const customScreenshotElem = accordion.getElementsByClassName(`custom-flow-screenshot`)[0];
