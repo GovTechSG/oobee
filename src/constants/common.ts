@@ -579,6 +579,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     safeMode,
     zip,
     ruleset,
+    generateJsonFiles,
   } = argv;
 
   // construct filename for scan results
@@ -625,6 +626,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     safeMode,
     zip,
     ruleset,
+    generateJsonFiles,
   };
 };
 

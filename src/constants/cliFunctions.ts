@@ -270,7 +270,9 @@ export const cliOptions: { [key: string]: Options } = {
     coerce: option => {
       const validChoices = Object.values(RuleFlags);
       const userChoices: string[] = option.split(',');
-      const invalidUserChoices = userChoices.filter(choice => !validChoices.includes(choice as RuleFlags));
+      const invalidUserChoices = userChoices.filter(
+        choice => !validChoices.includes(choice as RuleFlags),
+      );
       if (invalidUserChoices.length > 0) {
         printMessage(
           [
@@ -292,6 +294,27 @@ export const cliOptions: { [key: string]: Options } = {
         process.exit(1);
       }
       return userChoices;
+    },
+  },
+  g: {
+    alias: 'generateJsonFiles',
+    describe:
+      'Generate JSON files in the results folder. Accepts "yes", "no", "y", or "n". Default is "no".',
+    type: 'string',
+    requiresArg: true,
+    default: 'no',
+    demandOption: false,
+    coerce: value => {
+      const validYes = ['yes', 'y'];
+      const validNo = ['no', 'n'];
+
+      if (validYes.includes(value.toLowerCase())) {
+        return true;
+      }
+      if (validNo.includes(value.toLowerCase())) {
+        return false;
+      }
+      throw new Error(`Invalid value "${value}" for --generate. Use "yes", "y", "no", or "n".`);
     },
   },
 };
