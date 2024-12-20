@@ -755,7 +755,8 @@
     margin: 1.5rem 0 1rem 0;
   }
 
-  button#wcagModalToggle {
+  button#wcagModalToggle,
+  button#advancedScanOptionsSummaryTitle {
     background: none;
     border: 0;
     padding: 0;
@@ -960,6 +961,26 @@
     margin-right: 1rem;
     height: 1.125rem;
     width: 1.125rem;
+  }
+
+  #advancedScanOptionsSummary li > svg {
+    margin-left: 2rem;
+  }
+
+  #advancedScanOptionsSummaryTitle::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9 16" fill="none"><path d="M1.03847 16C0.833084 16 0.632306 15.9388 0.461529 15.8241C0.290753 15.7095 0.157649 15.5465 0.0790493 15.3558C0.000449621 15.1651 -0.0201154 14.9553 0.0199549 14.7529C0.0600251 14.5505 0.158931 14.3645 0.304165 14.2186L6.49293 7.99975L0.304165 1.78088C0.109639 1.58514 0.000422347 1.31979 0.000518839 1.04315C0.000615331 0.766523 0.110018 0.501248 0.30468 0.30564C0.499341 0.110032 0.763331 9.70251e-05 1.03862 6.41929e-08C1.31392 -9.68968e-05 1.57798 0.109652 1.77278 0.305123L8.69586 7.26187C8.8906 7.45757 9 7.72299 9 7.99975C9 8.2765 8.8906 8.54192 8.69586 8.73763L1.77278 15.6944C1.67646 15.7914 1.562 15.8684 1.43598 15.9208C1.30996 15.9733 1.17487 16.0002 1.03847 16Z" fill="%23006B8C" transform="rotate(90, 4.5, 8)"/></svg>');
+    background-size: contain;
+    background-repeat: no-repeat;
+    transform: scaleY(1);
+    margin-left: 0.5rem;
+  }
+
+  #advancedScanOptionsSummaryTitle.chevron-rotated::after {
+    transform: scaleY(-1);
   }
 
   #footer {
