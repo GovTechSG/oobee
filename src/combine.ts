@@ -34,6 +34,8 @@ export class ViewportSettingsClass {
 }
 
 const combineRun = async (details: Data, deviceToScan: string) => {
+  // consoleLogger.info(`details is ${JSON.stringify(details, null, 2)}`);
+
   const envDetails = { ...details };
 
   const {
@@ -48,19 +50,20 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     maxRequestsPerCrawl,
     browser,
     userDataDirectory,
-    strategy,
-    specifiedMaxConcurrency,
+    strategy, // Allow subdomains: if checked, = 'same-domain'
+    specifiedMaxConcurrency, // Slow scan mode: if checked, = '1'
     fileTypes,
     blacklistedPatternsFilename,
-    includeScreenshots,
-    followRobots,
+    includeScreenshots, // Include screenshots: if checked, = 'true'
+    followRobots, // Adhere to robots.txt: if checked, = 'true'
     metadata,
     customFlowLabel = 'Custom Flow',
     extraHTTPHeaders,
     safeMode,
     zip,
-    ruleset,
+    ruleset, // Enable custom checks, Enable WCAG AAA: if checked, = 'enable-wcag-aaa')
   } = envDetails;
+  consoleLogger.info(`envDetails is ${JSON.stringify(envDetails, null, 2)}`);
 
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
@@ -90,6 +93,12 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     crawlType: type,
     requestUrl: finalUrl,
     urlsCrawled: new UrlsCrawled(),
+    isIncludeScreenshots: envDetails.includeScreenshots,
+    isAllowSubdomains: envDetails.includeScreenshots,
+    isEnableCustomChecks: envDetails.ruleset,
+    isEnableWcagAaa: envDetails.ruleset,
+    isSlowScanMode: envDetails.specifiedMaxConcurrency,
+    isAdhereRobots: envDetails.followRobots,
   };
 
   const viewportSettings: ViewportSettingsClass = new ViewportSettingsClass(
