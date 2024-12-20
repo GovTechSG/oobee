@@ -36,6 +36,7 @@ export type ItemsInfo = {
 
 type PageInfo = {
   items: ItemsInfo[];
+  itemsCount?: number;
   pageTitle: string;
   url?: string;
   pageImagePath?: string;
@@ -276,9 +277,17 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
   }
 };
 
-const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
+const writeHTML = async (
+  allIssues: AllIssues,
+  storagePath: string,
+  htmlFilename = 'report',
+  summarize = false,
+) => {
   const htmlFilePath = await compileHtmlWithEJS(allIssues, storagePath, htmlFilename);
-  const inputFilePath = path.resolve(storagePath, 'scanDetails.csv');
+  const inputFilePath = path.resolve(
+    storagePath,
+    summarize ? 'scanDetails_summary.csv' : 'scanDetails.csv',
+  );
   const outputFilePath = `${storagePath}/${htmlFilename}.html`;
 
   const { topFilePath, bottomFilePath } = await splitHtmlAndCreateFiles(htmlFilePath, storagePath);
@@ -457,14 +466,9 @@ function writeLargeJsonToFile(obj, filePath) {
   });
 }
 
-const base64Encode = async (data, num) => {
+const base64Encode = async data => {
   try {
-    const tempFilename =
-      num === 1
-        ? `scanItems_${uuidv4()}.json`
-        : num === 2
-          ? `scanData_${uuidv4()}.json`
-          : `${uuidv4()}.json`;
+    const tempFilename = `${uuidv4()}.json`;
     const tempFilePath = path.join(process.cwd(), tempFilename);
 
     await writeLargeJsonToFile(data, tempFilePath);
@@ -520,12 +524,46 @@ const streamEncodedDataToFile = async (inputFilePath, writeStream, appendComma) 
   }
 };
 
-const writeBase64 = async (allIssues, storagePath) => {
+const writeBase64 = async (allIssues: AllIssues, storagePath: string, summarize = false) => {
   const { items, ...rest } = allIssues;
-  const encodedScanItemsPath = await base64Encode(items, 1);
-  const encodedScanDataPath = await base64Encode(rest, 2);
+  const encodedScanItemsPath = await base64Encode(items);
+  const encodedScanDataPath = await base64Encode(rest);
 
-  const filePath = path.join(storagePath, 'scanDetails.csv');
+  let encodedScanItemsSummaryPath: string;
+  if (summarize) {
+    // make a copy of items and remove the item details
+    const itemsSummary: AllIssues['items'] = JSON.parse(JSON.stringify(items));
+    itemsSummary.mustFix.rules.forEach(rule => {
+      rule.pagesAffected.forEach(page => {
+        page.itemsCount = page.items.length;
+        page.items = [];
+      });
+    });
+    itemsSummary.goodToFix.rules.forEach(rule => {
+      rule.pagesAffected.forEach(page => {
+        page.itemsCount = page.items.length;
+        page.items = [];
+      });
+    });
+    itemsSummary.needsReview.rules.forEach(rule => {
+      rule.pagesAffected.forEach(page => {
+        page.itemsCount = page.items.length;
+        page.items = [];
+      });
+    });
+    itemsSummary.passed.rules.forEach(rule => {
+      rule.pagesAffected.forEach(page => {
+        page.itemsCount = page.items.length;
+        page.items = [];
+      });
+    });
+    encodedScanItemsSummaryPath = await base64Encode(itemsSummary);
+  }
+
+  const filePath = path.join(
+    storagePath,
+    summarize ? 'scanDetails_summary.csv' : 'scanDetails.csv',
+  );
   const directoryPath = path.dirname(filePath);
 
   if (!fs.existsSync(directoryPath)) {
@@ -535,8 +573,13 @@ const writeBase64 = async (allIssues, storagePath) => {
   const csvWriteStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
 
   csvWriteStream.write('scanData_base64,scanItems_base64\n');
+  // csvWriteStream.write('scanData_base64,scanItems_base64,scanItemsSummary_base64\n');
   await streamEncodedDataToFile(encodedScanDataPath, csvWriteStream, true);
-  await streamEncodedDataToFile(encodedScanItemsPath, csvWriteStream, false);
+  if (summarize) {
+    await streamEncodedDataToFile(encodedScanItemsSummaryPath, csvWriteStream, false);
+  } else {
+    await streamEncodedDataToFile(encodedScanItemsPath, csvWriteStream, false);
+  }
 
   await new Promise((resolve, reject) => {
     csvWriteStream.end(resolve);
@@ -908,9 +951,11 @@ const generateArtifacts = async (
   }
 
   await writeCsv(allIssues, storagePath);
-  await writeBase64(allIssues, storagePath);
+  await writeBase64(allIssues, storagePath, false); // generate scanDetails.csv
+  await writeBase64(allIssues, storagePath, true); // generate scanDetails_summary.csv
   await writeSummaryHTML(allIssues, storagePath);
-  await writeHTML(allIssues, storagePath);
+  await writeHTML(allIssues, storagePath, 'report', false); // generate report.html
+  await writeHTML(allIssues, storagePath, 'report_summary', true); // generate report_summary.html
   await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length), 1);
 
   // Take option if set
