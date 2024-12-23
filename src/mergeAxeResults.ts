@@ -24,8 +24,6 @@ import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 
-const cwd = process.cwd();
-
 export type ItemsInfo = {
   html: string;
   message: string;
@@ -88,6 +86,7 @@ type AllIssues = {
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
+const BUFFER_LIMIT = 25 * 1024 * 1024; // 25MB size
 
 const extractFileNames = async (directory: string): Promise<string[]> => {
   ensureDirSync(directory);
@@ -214,8 +213,8 @@ const compileHtmlWithEJS = async (allIssues, storagePath, htmlFilename = 'report
   const injectScript = `
   <script>
     try {
-      const base64DecodeChunkedWithDecoder = (data, chunkSize = 1024 * 1024) => {
-      const encodedChunks = data.split('.');
+      const base64DecodeChunkedWithDecoder = (data, chunkSize = ${BUFFER_LIMIT}) => {
+      const encodedChunks = data.split('|');
       const decoder = new TextDecoder();
       const jsonParts = [];
 
@@ -293,8 +292,6 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
 
   outputStream.write(prefixData);
 
-  // Create a readable stream for the input file with a highWaterMark set to 10MB
-  const BUFFER_LIMIT = 10 * 1024 * 1024; // 10 MB
   const inputStream = fs.createReadStream(inputFilePath, {
     encoding: 'utf-8',
     highWaterMark: BUFFER_LIMIT,
@@ -473,16 +470,28 @@ const base64Encode = async (data, num, storagePath, generateJsonFiles) => {
     const outputFilePath = path.join(process.cwd(), outputFilename);
 
     try {
-      const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
       const readStream = fs.createReadStream(tempFilePath, {
         encoding: 'utf8',
-        highWaterMark: CHUNK_SIZE,
+        highWaterMark: BUFFER_LIMIT,
       });
       const writeStream = fs.createWriteStream(outputFilePath, { encoding: 'utf8' });
 
+      let previousChunk = null;
+
       for await (const chunk of readStream) {
         const encodedChunk = Buffer.from(chunk).toString('base64');
-        writeStream.write(`${encodedChunk}.`);
+
+        if (previousChunk !== null) {
+          // Note: Notice the pipe symbol `|`, it is intended to be here as a delimiter
+          // for the scenario where there are chunking happens
+          writeStream.write(`${previousChunk}|`);
+        }
+
+        previousChunk = encodedChunk;
+      }
+
+      if (previousChunk !== null) {
+        writeStream.write(previousChunk);
       }
 
       await new Promise((resolve, reject) => {
