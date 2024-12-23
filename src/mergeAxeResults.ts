@@ -86,7 +86,7 @@ type AllIssues = {
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
-const BUFFER_LIMIT = 25 * 1024 * 1024; // 25MB size
+const BUFFER_LIMIT = 100 * 1024 * 1024; // 100MB size
 
 const extractFileNames = async (directory: string): Promise<string[]> => {
   ensureDirSync(directory);
