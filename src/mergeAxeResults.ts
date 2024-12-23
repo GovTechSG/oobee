@@ -213,28 +213,7 @@ const compileHtmlWithEJS = async (allIssues, storagePath, htmlFilename = 'report
   const headIndex = htmlContent.indexOf('</head>');
   const injectScript = `
   <script>
-    try {
-      const base64DecodeChunkedWithDecoder = (data, chunkSize = 1024 * 1024) => {
-      const encodedChunks = data.split('.');
-      const decoder = new TextDecoder();
-      const jsonParts = [];
-
-      encodedChunks.forEach(chunk => {
-          for (let i = 0; i < chunk.length; i += chunkSize) {
-              const chunkPart = chunk.slice(i, i + chunkSize);
-              const decodedBytes = Uint8Array.from(atob(chunkPart), c => c.charCodeAt(0));
-              jsonParts.push(decoder.decode(decodedBytes, { stream: true }));
-          }
-      });
-
-      return JSON.parse(jsonParts.join(''));
-
-    };
-
     // IMPORTANT! DO NOT REMOVE ME: Decode the encoded data
-    } catch (error) {
-      console.error("Error decoding base64 data:", error);
-    }
   </script>
   `;
 
@@ -278,7 +257,6 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
 
 const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
   const htmlFilePath = await compileHtmlWithEJS(allIssues, storagePath, htmlFilename);
-  const inputFilePath = path.resolve(storagePath, 'scanDetails.csv');
   const outputFilePath = `${storagePath}/${htmlFilename}.html`;
 
   const { topFilePath, bottomFilePath } = await splitHtmlAndCreateFiles(htmlFilePath, storagePath);
@@ -289,104 +267,53 @@ const writeHTML = async (allIssues, storagePath, htmlFilename = 'report') => {
     'utf-8',
   );
 
-  const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a' });
+  const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a', encoding: 'utf-8' });
 
   outputStream.write(prefixData);
 
-  // Create a readable stream for the input file with a highWaterMark set to 10MB
-  const BUFFER_LIMIT = 10 * 1024 * 1024; // 10 MB
-  const inputStream = fs.createReadStream(inputFilePath, {
-    encoding: 'utf-8',
-    highWaterMark: BUFFER_LIMIT,
-  });
+  const appendJsonData = async (jsonPath: string, variableName: string) => {
+    return new Promise((resolve, reject) => {
+      const readStream = fs.createReadStream(jsonPath, {
+        encoding: 'utf8',
+        highWaterMark: 1024 * 1024,
+      });
 
-  let isFirstLine = true;
-  let lineEndingDetected = false;
-  let isFirstField = true;
-  let isWritingFirstDataLine = true;
-  let buffer = '';
+      outputStream.write(`${variableName} = `);
 
-  function flushBuffer() {
-    if (buffer.length > 0) {
-      outputStream.write(buffer);
-      buffer = '';
-    }
-  }
+      readStream.on('data', chunk => {
+        outputStream.write(chunk);
+      });
 
-  const cleanupFiles = async () => {
-    try {
-      await Promise.all([fs.promises.unlink(topFilePath), fs.promises.unlink(bottomFilePath)]);
-    } catch (err) {
-      console.error('Error cleaning up temporary files:', err);
-    }
+      readStream.on('end', () => {
+        outputStream.write(`;\n`);
+        resolve(true);
+      });
+
+      readStream.on('error', err => {
+        reject(err);
+      });
+    });
   };
 
-  inputStream.on('data', chunk => {
-    let chunkIndex = 0;
+  try {
+    const scanDataPath = path.join(storagePath, 'scanData.json');
+    const scanItemsPath = path.join(storagePath, 'scanItems.json');
+    // // below is the POC code
+    // const scanItemsPath = path.join('./scanItems.json');
 
-    while (chunkIndex < chunk.length) {
-      const char = chunk[chunkIndex];
+    await appendJsonData(scanDataPath, 'scanData');
+    await appendJsonData(scanItemsPath, 'scanItems');
+  } catch (error) {
+    consoleLogger.error('Error appending encoded data:', error);
+  }
 
-      if (isFirstLine) {
-        if (char === '\n' || char === '\r') {
-          lineEndingDetected = true;
-        } else if (lineEndingDetected) {
-          if (char !== '\n' && char !== '\r') {
-            isFirstLine = false;
-
-            if (isWritingFirstDataLine) {
-              buffer += "scanData = base64DecodeChunkedWithDecoder('";
-              isWritingFirstDataLine = false;
-            }
-            buffer += char;
-          }
-          lineEndingDetected = false;
-        }
-      } else {
-        if (char === ',') {
-          buffer += "')\n\n";
-          buffer += "scanItems = base64DecodeChunkedWithDecoder('";
-          isFirstField = false;
-        } else if (char === '\n' || char === '\r') {
-          if (!isFirstField) {
-            buffer += "')\n";
-          }
-        } else {
-          buffer += char;
-        }
-
-        if (buffer.length >= BUFFER_LIMIT) {
-          flushBuffer();
-        }
-      }
-
-      chunkIndex++;
-    }
-  });
-
-  inputStream.on('end', async () => {
-    if (!isFirstField) {
-      buffer += "')\n";
-    }
-    flushBuffer();
-
-    outputStream.write(suffixData);
-    outputStream.end();
-    console.log('Content appended successfully.');
-
-    await cleanupFiles();
-  });
-
-  inputStream.on('error', async err => {
-    console.error('Error reading input file:', err);
-    outputStream.end();
-
-    await cleanupFiles();
-  });
-
-  outputStream.on('error', err => {
-    console.error('Error writing to output file:', err);
-  });
+  outputStream.write(suffixData);
+  outputStream.end();
+  try {
+    await Promise.all([fs.promises.unlink(topFilePath), fs.promises.unlink(bottomFilePath)]);
+  } catch (err) {
+    consoleLogger.error('Error cleaning up temporary files:', err);
+  }
 };
 
 const writeSummaryHTML = async (allIssues, storagePath, htmlFilename = 'summary') => {
@@ -493,9 +420,9 @@ const base64Encode = async (data, num, storagePath, generateJsonFiles) => {
       return outputFilePath;
     } finally {
       if (!generateJsonFiles) {
-      await fs.promises
-        .unlink(tempFilePath)
-        .catch(err => console.error('Temp file delete error:', err));
+        await fs.promises
+          .unlink(tempFilePath)
+          .catch(err => console.error('Temp file delete error:', err));
       }
     }
   } catch (error) {
