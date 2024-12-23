@@ -21,6 +21,7 @@
     "lodash": "^4.17.21",
     "mime-types": "^2.1.35",
     "minimatch": "^9.0.3",
+    "pako": "^2.1.0",
     "pdfjs-dist": "github:veraPDF/pdfjs-dist#v2.14.305-taggedPdf-0.1.11",
     "playwright": "1.46.1",
     "prettier": "^3.1.0",
