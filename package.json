@@ -1,7 +1,7 @@
 {
   "name": "@govtechsg/oobee",
   "main": "dist/npmIndex.js",
-  "version": "0.10.20",
+  "version": "0.10.21",
   "type": "module",
   "dependencies": {
     "@json2csv/node": "^7.0.3",

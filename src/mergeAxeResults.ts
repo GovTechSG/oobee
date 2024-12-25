@@ -25,8 +25,6 @@ import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 import pako from 'pako';
 
-const cwd = process.cwd();
-
 export type ItemsInfo = {
   html: string;
   message: string;
@@ -90,6 +88,7 @@ type AllIssues = {
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
+const BUFFER_LIMIT = 100 * 1024 * 1024; // 100MB size
 
 const extractFileNames = async (directory: string): Promise<string[]> => {
   ensureDirSync(directory);
@@ -219,7 +218,6 @@ const compileHtmlWithEJS = async (
   const headIndex = htmlContent.indexOf('</head>');
   const injectScript = `
   <script>
-
       /**
        * Streams through a Base64-encoded, gzipped JSON string and returns the parsed object.
        *
@@ -517,9 +515,19 @@ function compressObjectToBase64(obj: object, chunkSize = 65536) {
   return base64Encoded;
 }
 
-const base64Encode = async data => {
+const base64Encode = async (
+  data: object,
+  num: number,
+  storagePath: string,
+  generateJsonFiles: boolean,
+) => {
   try {
-    const tempFilename = `${uuidv4()}.json`;
+    const tempFilename =
+      num === 1
+        ? path.join(storagePath, 'scanItems.json')
+        : num === 2
+          ? path.join(storagePath, 'scanData.json')
+          : path.join(storagePath, `${uuidv4()}.json`);
     const tempFilePath = path.join(process.cwd(), tempFilename);
 
     await writeLargeJsonToFile(data, tempFilePath);
@@ -528,16 +536,28 @@ const base64Encode = async data => {
     const outputFilePath = path.join(process.cwd(), outputFilename);
 
     try {
-      const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
       const readStream = fs.createReadStream(tempFilePath, {
         encoding: 'utf8',
-        highWaterMark: CHUNK_SIZE,
+        highWaterMark: BUFFER_LIMIT,
       });
       const writeStream = fs.createWriteStream(outputFilePath, { encoding: 'utf8' });
 
+      let previousChunk = null;
+
       for await (const chunk of readStream) {
         const encodedChunk = Buffer.from(chunk).toString('base64');
-        writeStream.write(`${encodedChunk}.`);
+
+        if (previousChunk !== null) {
+          // Note: Notice the pipe symbol `|`, it is intended to be here as a delimiter
+          // for the scenario where there are chunking happens
+          writeStream.write(`${previousChunk}|`);
+        }
+
+        previousChunk = encodedChunk;
+      }
+
+      if (previousChunk !== null) {
+        writeStream.write(previousChunk);
       }
 
       await new Promise((resolve, reject) => {
@@ -547,9 +567,11 @@ const base64Encode = async data => {
 
       return outputFilePath;
     } finally {
-      await fs.promises
-        .unlink(tempFilePath)
-        .catch(err => console.error('Temp file delete error:', err));
+      if (!generateJsonFiles) {
+        await fs.promises
+          .unlink(tempFilePath)
+          .catch(err => console.error('Temp file delete error:', err));
+      }
     }
   } catch (error) {
     console.error('Error encoding data to Base64:', error);
@@ -579,7 +601,42 @@ const streamEncodedDataToFile = async (
   }
 };
 
-// creates scanData.json.gz, scanItems.json.gz and scanItemsSummary.json.gz
+const writeBase64 = async (
+  allIssues: AllIssues,
+  storagePath: string,
+  generateJsonFiles: boolean,
+) => {
+  const { items, ...rest } = allIssues;
+  const encodedScanItemsPath = await base64Encode(items, 1, storagePath, generateJsonFiles);
+  const encodedScanDataPath = await base64Encode(rest, 2, storagePath, generateJsonFiles);
+
+  const filePath = path.join(storagePath, 'scanDetails.csv');
+  const directoryPath = path.dirname(filePath);
+
+  if (!fs.existsSync(directoryPath)) {
+    fs.mkdirSync(directoryPath, { recursive: true });
+  }
+
+  const csvWriteStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
+
+  csvWriteStream.write('scanData_base64,scanItems_base64\n');
+  await streamEncodedDataToFile(encodedScanDataPath, csvWriteStream, true);
+  await streamEncodedDataToFile(encodedScanItemsPath, csvWriteStream, false);
+
+  await new Promise((resolve, reject) => {
+    csvWriteStream.end(resolve);
+    csvWriteStream.on('error', reject);
+  });
+
+  await fs.promises
+    .unlink(encodedScanDataPath)
+    .catch(err => console.error('Encoded file delete error:', err));
+  await fs.promises
+    .unlink(encodedScanItemsPath)
+    .catch(err => console.error('Encoded file delete error:', err));
+};
+
+// creates scanData.json.gz.b64, scanItems.json.gz.b64 and scanItemsSummary.json.gz.b64
 const writeCompressedBase64 = async (
   allIssues: AllIssues,
   storagePath: string,
@@ -595,7 +652,7 @@ const writeCompressedBase64 = async (
 
   // scanData
   const scanDataBase64 = compressObjectToBase64(rest);
-  const scanDataFilePath = path.join(storagePath, `scanData.json.gz`);
+  const scanDataFilePath = path.join(storagePath, `scanData.json.gz.b64`);
   const scanDataWriteStream = fs.createWriteStream(scanDataFilePath, { encoding: 'utf8' });
   scanDataWriteStream.write(Buffer.from(scanDataBase64));
   scanDataWriteStream.end();
@@ -604,11 +661,11 @@ const writeCompressedBase64 = async (
     scanDataWriteStream.on('finish', resolve);
   });
   const scanDataFileStats = fs.statSync(scanDataFilePath);
-  console.log(`File size of scanData.json.gz: ${scanDataFileStats.size} bytes`);
+  console.log(`File size of scanData.json.gz.b64: ${scanDataFileStats.size} bytes`);
 
   // scanItems
   const scanItemsBase64 = compressObjectToBase64(items);
-  const scanItemsFilePath = path.join(storagePath, `scanItems.json.gz`);
+  const scanItemsFilePath = path.join(storagePath, `scanItems.json.gz.b64`);
   const scanItemsWriteStream = fs.createWriteStream(scanItemsFilePath, { encoding: 'utf8' });
   scanItemsWriteStream.write(Buffer.from(scanItemsBase64));
   scanItemsWriteStream.end();
@@ -617,7 +674,7 @@ const writeCompressedBase64 = async (
     scanItemsWriteStream.on('finish', resolve);
   });
   const scanItemsFileStats = fs.statSync(scanItemsFilePath);
-  console.log(`File size of scanItems.json.gz: ${scanItemsFileStats.size} bytes`);
+  console.log(`File size of scanItems.json.gz.b64: ${scanItemsFileStats.size} bytes`);
 
   // scanItemsSummary
   // the below mutates the original items object, since it is expensive to clone
@@ -646,7 +703,7 @@ const writeCompressedBase64 = async (
     });
   });
   const scanItemsSummaryBase64 = compressObjectToBase64(items);
-  const scanItemsSummaryFilePath = path.join(storagePath, `scanItemsSummary.json.gz`);
+  const scanItemsSummaryFilePath = path.join(storagePath, `scanItemsSummary.json.gz.b64`);
   const scanItemsSummaryWriteStream = fs.createWriteStream(scanItemsSummaryFilePath, {
     encoding: 'utf8',
   });
@@ -657,7 +714,7 @@ const writeCompressedBase64 = async (
     scanItemsSummaryWriteStream.on('finish', resolve);
   });
   const scanItemsSummaryFileStats = fs.statSync(scanItemsSummaryFilePath);
-  console.log(`File size of scanItemsSummary.json.gz: ${scanItemsSummaryFileStats.size} bytes`);
+  console.log(`File size of scanItemsSummary.json.gz.b64: ${scanItemsSummaryFileStats.size} bytes`);
 
   return {
     scanDataFilePath,
@@ -909,6 +966,7 @@ const generateArtifacts = async (
   cypressScanAboutMetadata,
   scanDetails,
   zip = undefined, // optional
+  generateJsonFiles = false,
 ) => {
   const intermediateDatasetsPath = `${randomToken}/datasets/${randomToken}`;
   const phAppVersion = getVersion();
@@ -1050,6 +1108,8 @@ const generateArtifacts = async (
     rest.minor = axeImpactCount.minor;
   }
 
+  // TODO: writeBase64 overlaps with writeCompressedBase64, to deconflict, comment out for now
+  // await writeBase64(allIssues, storagePath, generateJsonFiles);
   await writeCsv(allIssues, storagePath);
   const {
     scanDataFilePath,

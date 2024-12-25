@@ -346,6 +346,24 @@ Options:
                                      ks
   [string] [choices: "default", "disable-oobee", "enable-wcag-aaa", "disable-oob
                                        ee,enable-wcag-aaa"] [default: "default"]
+  -g, --generateJsonFiles            Generate two JSON files containing the
+                                     results of the accessibility scan:
+                                     1. `scanData.json`: Provides an overview of
+                                        the scan, including:
+                                        - WCAG compliance score
+                                        - Violated WCAG clauses
+                                        - Metadata (e.g., scan start and end times)
+                                        - Pages scanned and skipped
+                                     2. `scanItems.json`: Contains detailed
+                                        information about detected accessibility
+                                        issues, including:
+                                        - Severity levels
+                                        - Issue descriptions
+                                        - Related WCAG guidelines
+                                        - URL of the pages violated the WCAG clauses
+                                     Useful for in-depth analysis or integration
+                                     with external reporting tools.
+                                     [string] [choices: "yes", "no"] [default: "no"]
 
 Examples:
   To scan sitemap of website:', 'npm run cli -- -c [ 1 | sitemap ] -u <url_lin

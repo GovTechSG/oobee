@@ -51,6 +51,7 @@ export type Answers = {
   exportDirectory: string;
   zip: string;
   ruleset: RuleFlags[];
+  generateJsonFiles: boolean;
 };
 
 export type Data = {
@@ -80,6 +81,7 @@ export type Data = {
   userDataDirectory?: string;
   zip?: string;
   ruleset: RuleFlags[];
+  generateJsonFiles: boolean;
 };
 
 const userData = getUserDataTxt();

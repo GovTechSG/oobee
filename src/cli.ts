@@ -184,11 +184,10 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     return option;
   })
   .check(argvs => {
-    if (
-      (argvs.scanner === ScannerTypes.CUSTOM) &&
-      argvs.maxpages
-    ) {
-      throw new Error('-p or --maxpages is only available in website, sitemap and local file scans.');
+    if (argvs.scanner === ScannerTypes.CUSTOM && argvs.maxpages) {
+      throw new Error(
+        '-p or --maxpages is only available in website, sitemap and local file scans.',
+      );
     }
     return true;
   })
@@ -394,7 +393,9 @@ const optionsAnswer: Answers = {
   blacklistedPatternsFilename: options.blacklistedPatternsFilename,
   playwrightDeviceDetailsObject: options.playwrightDeviceDetailsObject,
   ruleset: options.ruleset,
+  generateJsonFiles: options.generateJsonFiles,
 };
+
 await scanInit(optionsAnswer);
 process.exit(0);
 
