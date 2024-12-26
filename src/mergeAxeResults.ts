@@ -23,7 +23,10 @@ import {
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
-import pako from 'pako';
+import bfj from 'bfj';
+import zlib from 'zlib';
+import { Base64Encode } from 'base64-stream';
+import { pipeline } from 'stream/promises';
 
 export type ItemsInfo = {
   html: string;
@@ -321,7 +324,6 @@ const writeHTML = async (
     'utf-8',
   );
 
-  const BUFFER_LIMIT = 10 * 1024 * 1024; // 10 MB
   const scanDetailsReadStream = fs.createReadStream(scanDetailsFilePath, {
     encoding: 'utf8',
     highWaterMark: BUFFER_LIMIT,
@@ -449,72 +451,19 @@ function writeLargeJsonToFile(obj, filePath) {
   });
 }
 
-function compressObjectToBase64(obj: object, chunkSize = 65536) {
+async function writeObjectToGzipBase64File(obj: object, outputFilePath: string) {
   console.log('Producing large gzipped base64 from object...');
-  // First, convert the object to JSON text
-  const jsonString = JSON.stringify(obj);
-
-  // We'll store all compressed chunks (as Uint8Array) here
-  const compressedChunks = [];
-
-  // Create a streaming deflator configured for GZIP output
-  const deflator = new pako.Deflate({
-    gzip: true, // produce gzip container
-    level: 6, // compression level (1-9)
-    to: '', // store binary data in "chunks", not a single string
+  const jsonReadable = await bfj.streamify(obj);
+  const gzipStream = zlib.createGzip({
+    level: 6,
   });
-
-  // pako's streaming API allows us to capture data via an onData callback
-  deflator.onData = chunk => {
-    // chunk is a Uint8Array of compressed data
-    compressedChunks.push(chunk);
+  const base64EncodeStream = new Base64Encode();
+  const fileWriteStream = fs.createWriteStream(outputFilePath, { encoding: 'utf8' });
+  await pipeline(jsonReadable, gzipStream, base64EncodeStream, fileWriteStream);
+  const scanDataFileStats = fs.statSync(outputFilePath);
+  return {
+    fileSize: scanDataFileStats.size,
   };
-
-  deflator.onEnd = status => {
-    if (status !== 0) {
-      throw new Error(`Pako deflate error: ${deflator.msg}`);
-    }
-  };
-
-  // Stream the JSON string in smaller pieces
-  let offset = 0;
-  const encoder = new TextEncoder();
-  while (offset < jsonString.length) {
-    const slice = jsonString.slice(offset, offset + chunkSize);
-    offset += chunkSize;
-
-    // Convert slice to a Uint8Array
-    // const sliceBytes = new Uint8Array(slice.length);
-    // for (let i = 0; i < slice.length; i++) {
-    //   sliceBytes[i] = slice.charCodeAt(i);
-    // }
-    const sliceBytes = encoder.encode(slice);
-
-    // Push chunk into deflator. Last chunk = true if we've reached the end
-    const isLastChunk = offset >= jsonString.length;
-    deflator.push(sliceBytes, isLastChunk);
-  }
-
-  // Wait for deflation to finish
-  // deflator.finish();
-
-  // Combine all compressed chunks into a single Uint8Array
-  const totalSize = compressedChunks.reduce((sum, arr) => sum + arr.length, 0);
-  const compressedResult = new Uint8Array(totalSize);
-  let cursor = 0;
-  for (const chunk of compressedChunks) {
-    compressedResult.set(chunk, cursor);
-    cursor += chunk.length;
-  }
-
-  // Base64-encode the combined compressed data
-  let binaryString = '';
-  for (let i = 0; i < compressedResult.length; i++) {
-    binaryString += String.fromCharCode(compressedResult[i]);
-  }
-  const base64Encoded = btoa(binaryString);
-
-  return base64Encoded;
 }
 
 const base64Encode = async data => {
@@ -608,30 +557,17 @@ const writeCompressedBase64 = async (
   const { items, ...rest } = allIssues;
 
   // scanData
-  const scanDataBase64 = compressObjectToBase64(rest);
-  const scanDataFilePath = path.join(storagePath, `scanData.json.gz`);
-  const scanDataWriteStream = fs.createWriteStream(scanDataFilePath, { encoding: 'utf8' });
-  scanDataWriteStream.write(Buffer.from(scanDataBase64));
-  scanDataWriteStream.end();
-  await new Promise((resolve, reject) => {
-    scanDataWriteStream.on('error', reject);
-    scanDataWriteStream.on('finish', resolve);
-  });
-  const scanDataFileStats = fs.statSync(scanDataFilePath);
-  console.log(`File size of scanData.json.gz: ${scanDataFileStats.size} bytes`);
+  const scanDataFilePath = path.join(storagePath, 'scanData.json.gz.b64');
+  const { fileSize: scanDataFileSize } = await writeObjectToGzipBase64File(rest, scanDataFilePath);
+  console.log(`File size of scanData.json.gz.b64: ${scanDataFileSize} bytes`);
 
   // scanItems
-  const scanItemsBase64 = compressObjectToBase64(items);
-  const scanItemsFilePath = path.join(storagePath, `scanItems.json.gz`);
-  const scanItemsWriteStream = fs.createWriteStream(scanItemsFilePath, { encoding: 'utf8' });
-  scanItemsWriteStream.write(Buffer.from(scanItemsBase64));
-  scanItemsWriteStream.end();
-  await new Promise((resolve, reject) => {
-    scanItemsWriteStream.on('error', reject);
-    scanItemsWriteStream.on('finish', resolve);
-  });
-  const scanItemsFileStats = fs.statSync(scanItemsFilePath);
-  console.log(`File size of scanItems.json.gz: ${scanItemsFileStats.size} bytes`);
+  const scanItemsFilePath = path.join(storagePath, 'scanItems.json.gz.b64');
+  const { fileSize: scanItemsFileSize } = await writeObjectToGzipBase64File(
+    items,
+    scanItemsFilePath,
+  );
+  console.log(`File size of scanItems.json.gz.b64: ${scanItemsFileSize} bytes`);
 
   // scanItemsSummary
   // the below mutates the original items object, since it is expensive to clone
@@ -659,27 +595,20 @@ const writeCompressedBase64 = async (
       page.items = [];
     });
   });
-  const scanItemsSummaryBase64 = compressObjectToBase64(items);
-  const scanItemsSummaryFilePath = path.join(storagePath, `scanItemsSummary.json.gz`);
-  const scanItemsSummaryWriteStream = fs.createWriteStream(scanItemsSummaryFilePath, {
-    encoding: 'utf8',
-  });
-  scanItemsSummaryWriteStream.write(Buffer.from(scanItemsSummaryBase64));
-  scanItemsSummaryWriteStream.end();
-  await new Promise((resolve, reject) => {
-    scanItemsSummaryWriteStream.on('error', reject);
-    scanItemsSummaryWriteStream.on('finish', resolve);
-  });
-  const scanItemsSummaryFileStats = fs.statSync(scanItemsSummaryFilePath);
-  console.log(`File size of scanItemsSummary.json.gz: ${scanItemsSummaryFileStats.size} bytes`);
+  const scanItemsSummaryFilePath = path.join(storagePath, 'scanItemsSummary.json.gz.b64');
+  const { fileSize: scanItemsSummaryFileSize } = await writeObjectToGzipBase64File(
+    items,
+    scanItemsSummaryFilePath,
+  );
+  console.log(`File size of scanItemsSummary.json.gz.b64: ${scanItemsSummaryFileSize} bytes`);
 
   return {
     scanDataFilePath,
-    scanDataFileSize: scanDataFileStats.size,
+    scanDataFileSize,
     scanItemsFilePath,
-    scanItemsFileSize: scanItemsFileStats.size,
+    scanItemsFileSize,
     scanItemsSummaryFilePath,
-    scanItemsSummaryFileSize: scanItemsSummaryFileStats.size,
+    scanItemsSummaryFileSize,
   };
 };
 
