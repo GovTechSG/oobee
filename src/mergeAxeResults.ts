@@ -456,13 +456,12 @@ function writeLargeJsonToFile(obj, filePath) {
 
 const base64Encode = async (data, num, storagePath, generateJsonFiles) => {
   try {
-    const tempFilename =
+    const tempFilePath =
       num === 1
         ? path.join(storagePath, 'scanItems.json')
         : num === 2
           ? path.join(storagePath, 'scanData.json')
           : path.join(storagePath, `${uuidv4()}.json`);
-    const tempFilePath = path.join(process.cwd(), tempFilename);
 
     await writeLargeJsonToFile(data, tempFilePath);
 
