@@ -225,6 +225,71 @@
         </svg>
       </span>
     </li>
+
+    <li>
+      <svg aria-label="Advanced options scan summary" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <rect x="0.87" y="0.87" width="16.26" height="16.26" rx="3.13" stroke="#93928D" stroke-width="1.74"/>
+        <path d="M5 9L7.5 11.5L13 6" stroke="#93928D" stroke-width="1.74" stroke-linecap="square"/>
+      </svg>
+      <div>
+        <div class="d-flex flex-row justify-content-center align-items-center gap-3">
+          <button id="advancedScanOptionsSummaryTitle" onclick="toggleAdvanceScanSummary()">Advanced scan summary
+          </button>
+        </div>
+
+      </div>
+    </li>
+    <ul id="advancedScanOptionsSummary" class="d-none mb-3">
+      <li id="showIncludeScreenshots"class="d-flex flex-row">
+          <svg aria-label="Include screenshots was checked" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="0.87" y="0.87" width="16.26" height="16.26" rx="3.13" fill="#93928D" stroke="#93928D" stroke-width="1.74"/>
+            <path d="M5 9L7.5 11.5L13 6" fill="none" stroke="#ffffff" stroke-width="1.74" stroke-linecap="square"/>
+          </svg>
+        <div>Include screenshots
+        </div>
+      </li>
+      <li id="showAllowSubdomains"class="d-flex flex-row">
+          <svg aria-label="Allow subdomains was checked" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="0.87" y="0.87" width="16.26" height="16.26" rx="3.13" fill="#93928D" stroke="#93928D" stroke-width="1.74"/>
+            <path d="M5 9L7.5 11.5L13 6" fill="none" stroke="#ffffff" stroke-width="1.74" stroke-linecap="square"/>
+          </svg>
+        <div>Allow subdomains for scans
+        </div>
+      </li>
+      <li id="showEnableCustomChecks"class="d-flex flex-row">
+        <svg aria-label="Enable custom checks was checked" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="0.87" y="0.87" width="16.26" height="16.26" rx="3.13" fill="#93928D" stroke="#93928D" stroke-width="1.74"/>
+          <path d="M5 9L7.5 11.5L13 6" fill="none" stroke="#ffffff" stroke-width="1.74" stroke-linecap="square"/>
+        </svg>
+      <div>Enable custom checks
+      </div>
+    </li>
+    <li id="showEnableWcagAaa"class="d-flex flex-row">
+        <svg aria-label="Enable WCAG AAA checks was checked" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="0.87" y="0.87" width="16.26" height="16.26" rx="3.13" fill="#93928D" stroke="#93928D" stroke-width="1.74"/>
+          <path d="M5 9L7.5 11.5L13 6" fill="none" stroke="#ffffff" stroke-width="1.74" stroke-linecap="square"/>
+        </svg>
+      <div>Enable WCAG AAA checks
+      </div>
+    </li>
+      <li id="showSlowScanMode"class="d-flex flex-row">
+          <svg aria-label="Slow scan mode was checked" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="0.87" y="0.87" width="16.26" height="16.26" rx="3.13" fill="#93928D" stroke="#93928D" stroke-width="1.74"/>
+            <path d="M5 9L7.5 11.5L13 6" fill="none" stroke="#ffffff" stroke-width="1.74" stroke-linecap="square"/>
+          </svg>
+        <div>Slow scan mode
+        </div>
+      </li>
+
+      <li id="showAdhereRobots"class="d-flex flex-row">
+          <svg aria-label="Adhere to robots.txt was checked" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="0.87" y="0.87" width="16.26" height="16.26" rx="3.13" fill="#93928D" stroke="#93928D" stroke-width="1.74"/>
+            <path d="M5 9L7.5 11.5L13 6" fill="none" stroke="#ffffff" stroke-width="1.74" stroke-linecap="square"/>
+          </svg>
+        <div>Adhere to robots.txt
+        </div>
+      </li>
+    </ul>
     <li>
       <svg
         aria-label="Scan engine"

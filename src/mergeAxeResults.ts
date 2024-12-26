@@ -84,6 +84,7 @@ type AllIssues = {
   cypressScanAboutMetadata: string;
   wcagLinks: { [key: string]: string };
   [key: string]: any;
+  advancedScanOptionsSummaryItems: { [key: string]: boolean };
 };
 
 const filename = fileURLToPath(import.meta.url);
@@ -287,7 +288,7 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
       throw new Error('Marker comment not found in the HTML file.');
     }
 
-    const topContent = htmlContent.slice(0, splitIndex + splitMarker.length) + '\n\n';
+    const topContent = `${htmlContent.slice(0, splitIndex + splitMarker.length)}\n\n`;
     const bottomContent = htmlContent.slice(splitIndex + splitMarker.length);
 
     const topFilePath = path.join(storagePath, 'report-partial-top.htm.txt');
@@ -522,13 +523,12 @@ const base64Encode = async (
   generateJsonFiles: boolean,
 ) => {
   try {
-    const tempFilename =
+    const tempFilePath =
       num === 1
         ? path.join(storagePath, 'scanItems.json')
         : num === 2
           ? path.join(storagePath, 'scanData.json')
           : path.join(storagePath, `${uuidv4()}.json`);
-    const tempFilePath = path.join(process.cwd(), tempFilename);
 
     await writeLargeJsonToFile(data, tempFilePath);
 
@@ -971,6 +971,7 @@ const generateArtifacts = async (
   const intermediateDatasetsPath = `${randomToken}/datasets/${randomToken}`;
   const phAppVersion = getVersion();
   const storagePath = getStoragePath(randomToken);
+  consoleLogger.info(`scanDetails is ${JSON.stringify(scanDetails, null, 2)}`);
 
   urlScanned =
     scanType === ScannerTypes.SITEMAP || scanType === ScannerTypes.LOCALFILE
@@ -1036,6 +1037,17 @@ const generateArtifacts = async (
     },
     cypressScanAboutMetadata,
     wcagLinks: constants.wcagLinks,
+    // Populate boolean values for id="advancedScanOptionsSummary"
+    advancedScanOptionsSummaryItems: {
+      showIncludeScreenshots: [true].includes(scanDetails.isIncludeScreenshots),
+      showAllowSubdomains: [true].includes(scanDetails.isAllowSubdomains),
+      showEnableCustomChecks: ['default', 'enable-wcag-aaa'].includes(
+        scanDetails.isEnableCustomChecks?.[0],
+      ),
+      showEnableWcagAaa: (scanDetails.isEnableWcagAaa || []).includes('enable-wcag-aaa'),
+      showSlowScanMode: [1].includes(scanDetails.isSlowScanMode),
+      showAdhereRobots: [true].includes(scanDetails.isAdhereRobots),
+    },
   };
 
   const allFiles = await extractFileNames(intermediateDatasetsPath);
@@ -1071,6 +1083,9 @@ const generateArtifacts = async (
   }
 
   allIssues.wcagPassPercentage = getWcagPassPercentage(allIssues.wcagViolations);
+  consoleLogger.info(
+    `advancedScanOptionsSummaryItems is ${allIssues.advancedScanOptionsSummaryItems}`,
+  );
 
   const getAxeImpactCount = (allIssues: AllIssues) => {
     const impactCount = {
