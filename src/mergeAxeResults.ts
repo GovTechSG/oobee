@@ -392,6 +392,13 @@ const writeSummaryHTML = async (
   fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
 };
 
+const cleanUpJsonFiles = async (filesToDelete: string[]) => {
+  consoleLogger.info('Cleaning up JSON files...');
+  filesToDelete.forEach(file => {
+    fs.unlinkSync(file);
+  });
+};
+
 function writeFormattedValue(value, writeStream) {
   if (typeof value === 'function') {
     writeStream.write('null');
@@ -1036,6 +1043,10 @@ const generateArtifacts = async (
     scanDataFilePath,
     resultsTooBig ? scanItemsSummaryFilePath : scanItemsFilePath,
   );
+
+  if (!generateJsonFiles) {
+    await cleanUpJsonFiles([scanDataFilePath, scanItemsFilePath, scanItemsSummaryFilePath]);
+  }
 
   await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length), 1);
 
