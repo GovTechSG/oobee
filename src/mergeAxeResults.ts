@@ -23,10 +23,10 @@ import {
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
-import bfj from 'bfj';
 import zlib from 'zlib';
 import { Base64Encode } from 'base64-stream';
 import { pipeline } from 'stream/promises';
+import { objectToReadableStream } from './json-utils.js';
 
 export type ItemsInfo = {
   html: string;
@@ -370,11 +370,11 @@ const writeHTML = async (
     outputStream.end();
   });
 
-  console.log('Content appended successfully.');
+  consoleLogger.info('Content appended successfully.');
   await cleanupFiles();
 
   outputStream.on('error', err => {
-    console.error('Error writing to output file:', err);
+    consoleLogger.error('Error writing to output file:', err);
   });
 };
 
@@ -451,17 +451,17 @@ function writeLargeJsonToFile(obj, filePath) {
 }
 
 async function writeObjectToGzipBase64File(obj: object, outputFilePath: string) {
-  console.log('Producing large gzipped base64 from object...');
-  const jsonReadable = await bfj.streamify(obj);
+  consoleLogger.info(`Producing large gzipped base64 from object to ${outputFilePath}...`);
+  const jsonReadable = objectToReadableStream(obj);
   const gzipStream = zlib.createGzip({
     level: 6,
   });
   const base64EncodeStream = new Base64Encode();
   const fileWriteStream = fs.createWriteStream(outputFilePath, { encoding: 'utf8' });
   await pipeline(jsonReadable, gzipStream, base64EncodeStream, fileWriteStream);
-  const scanDataFileStats = fs.statSync(outputFilePath);
+  const fileStats = fs.statSync(outputFilePath);
   return {
-    fileSize: scanDataFileStats.size,
+    fileSize: fileStats.size,
   };
 }
 
@@ -602,7 +602,7 @@ const writeCompressedBase64 = async (
   // scanData
   const scanDataFilePath = path.join(storagePath, 'scanData.json.gz.b64');
   const { fileSize: scanDataFileSize } = await writeObjectToGzipBase64File(rest, scanDataFilePath);
-  console.log(`File size of scanData.json.gz.b64: ${scanDataFileSize} bytes`);
+  consoleLogger.info(`File size of scanData.json.gz.b64: ${scanDataFileSize} bytes`);
 
   // scanItems
   const scanItemsFilePath = path.join(storagePath, 'scanItems.json.gz.b64');
@@ -610,7 +610,7 @@ const writeCompressedBase64 = async (
     items,
     scanItemsFilePath,
   );
-  console.log(`File size of scanItems.json.gz.b64: ${scanItemsFileSize} bytes`);
+  consoleLogger.info(`File size of scanItems.json.gz.b64: ${scanItemsFileSize} bytes`);
 
   // scanItemsSummary
   // the below mutates the original items object, since it is expensive to clone
@@ -643,7 +643,9 @@ const writeCompressedBase64 = async (
     items,
     scanItemsSummaryFilePath,
   );
-  console.log(`File size of scanItemsSummary.json.gz.b64: ${scanItemsSummaryFileSize} bytes`);
+  consoleLogger.info(
+    `File size of scanItemsSummary.json.gz.b64: ${scanItemsSummaryFileSize} bytes`,
+  );
 
   return {
     scanDataFilePath,
