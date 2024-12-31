@@ -346,8 +346,9 @@ Options:
                                      ks
   [string] [choices: "default", "disable-oobee", "enable-wcag-aaa", "disable-oob
                                        ee,enable-wcag-aaa"] [default: "default"]
-  -g, --generateJsonFiles            Generate two JSON files containing the
-                                     results of the accessibility scan:
+  -g, --generateJsonFiles            Generate two gzipped and base64-encoded
+                                     JSON files containing the results of the
+                                     accessibility scan:
                                      1. `scanData.json`: Provides an overview of
                                         the scan, including:
                                         - WCAG compliance score
@@ -363,6 +364,13 @@ Options:
                                         - URL of the pages violated the WCAG clauses
                                      Useful for in-depth analysis or integration
                                      with external reporting tools.
+
+                                     To obtain the JSON files, you need to base64-decode
+                                     the file followed by gunzip. For example:
+                                     (macOS) base64 -D -i scanData.json.gz.b64 |
+                                     gunzip > scanData.json\n
+                                     (linux) base64 -d scanData.json.gz.b64 |
+                                     gunzip > scanData.json\n
                                      [string] [choices: "yes", "no"] [default: "no"]
 
 Examples:
