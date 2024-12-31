@@ -298,8 +298,22 @@ export const cliOptions: { [key: string]: Options } = {
   },
   g: {
     alias: 'generateJsonFiles',
-    describe:
-      'Generate JSON files in the results folder. Accepts "yes", "no", "y", or "n". Default is "no".',
+    describe: `Generate two gzipped and base64-encoded JSON files containing the results of the accessibility scan:\n
+1. scanData.json.gz.b64: Provides an overview of the scan, including:
+   - WCAG compliance score
+   - Violated WCAG clauses
+   - Metadata (e.g., scan start and end times)
+   - Pages scanned and skipped
+2. scanItems.json.gz.b64: Contains detailed information about detected accessibility issues, including:
+   - Severity levels
+   - Issue descriptions
+   - Related WCAG guidelines
+   - URL of the pages violated the WCAG clauses
+Useful for in-depth analysis or integration with external reporting tools.\n
+To obtain the JSON files, you need to base64-decode the file followed by gunzip. For example:\n
+(macOS) base64 -D -i scanData.json.gz.b64 | gunzip > scanData.json\n
+(linux) base64 -d scanData.json.gz.b64 | gunzip > scanData.json\n
+`,
     type: 'string',
     requiresArg: true,
     default: 'no',
