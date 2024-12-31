@@ -388,11 +388,11 @@ category summary is clicked %>
         const pageItemsCount = page.items.length || page.itemsCount || 0;
         const normalMode = page.itemsCount === undefined;
         const accordion = createElementFromString(`
-          <li>
+          <li class="${normalMode ? '' : 'no-chevron'}">
             <div class="accordion mt-2 ${category}">
               <div class="accordion-item">
                 <div class="accordion-header" id="${accordionId}-title">
-                  <button
+                  ${normalMode ? '<button' : '<div'}
                     aria-label="Page ${index + 1}: ${page.pageTitle}, ${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}" class="accordion-button collapsed"
                     type="button"
 
@@ -400,7 +400,7 @@ category summary is clicked %>
                     <span class="sr-only visually-hidden">${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}</span>
                     <div class="me-3">${page.metadata ? page.metadata : page.pageTitle}</div>
                     <div class="ms-auto counter">${pageItemsCount}</div>
-                  </button>
+                  ${normalMode ? '</button>' : '</div>'}
                 </div>
                 <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
                   <div class="accordion-body p-3">
