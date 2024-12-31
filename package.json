@@ -8,6 +8,7 @@
     "@napi-rs/canvas": "^0.1.53",
     "axe-core": "^4.10.2",
     "axios": "^1.7.4",
+    "base64-stream": "^1.0.0",
     "cheerio": "^1.0.0-rc.12",
     "crawlee": "^3.11.1",
     "ejs": "^3.1.9",
@@ -39,6 +40,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.0.2",
     "@eslint/js": "^9.6.0",
+    "@types/base64-stream": "^1.0.5",
     "@types/eslint__js": "^8.42.3",
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.7",
