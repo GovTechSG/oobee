@@ -394,7 +394,7 @@ category summary is clicked %>
                 <div class="accordion-header" id="${accordionId}-title">
                   ${normalMode ? '<button' : '<div'}
                     aria-label="Page ${index + 1}: ${page.pageTitle}, ${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}" class="accordion-button collapsed"
-                    type="button"
+                    ${normalMode ? 'type="button"' : ''}
 
                   >
                     <span class="sr-only visually-hidden">${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}</span>

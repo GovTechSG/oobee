@@ -230,54 +230,40 @@ const compileHtmlWithEJS = async (
        * @param {number} [chunkSize=65536] - Size of each chunk in characters.
        * @returns {Object} The decompressed JSON object.
        */
-      // function decompressJsonObject(base64Gzipped, chunkSize = 65536) {
-      //   // Create an Inflate (pako) instance for streaming decompression
-      //   const inflator = new pako.Inflate({ to: "string" });
-      //
-      //   let offset = 0;
-      //   const totalLength = base64Gzipped.length;
-      //
-      //   // Feed data in chunks
-      //   while (offset < totalLength) {
-      //     const chunk = base64Gzipped.slice(offset, offset + chunkSize);
-      //     offset += chunkSize;
-      //
-      //     // Base64 decode the current chunk to a binary string
-      //     const binaryString = atob(chunk);
-      //
-      //     // Convert the binary string to a Uint8Array
-      //     const bytes = new Uint8Array(binaryString.length);
-      //     for (let i = 0; i < binaryString.length; i++) {
-      //       bytes[i] = binaryString.charCodeAt(i);
-      //     }
-      //
-      //     // Push data to the inflator
-      //     const isLastChunk = offset >= totalLength;
-      //     inflator.push(bytes, isLastChunk);
-      //   }
-      //
-      //   // Check for any errors
-      //   if (inflator.err) {
-      //     throw new Error("Pako inflate error: " + inflator.msg);
-      //   }
-      //
-      //   // inflator.result is the decompressed string
-      //   const decompressedString = inflator.result;
-      //   return JSON.parse(decompressedString);
-      // }
-      function decompressJsonObject(base64String, chunkSize = 64 * 1024) {
-        try {
-          const decodedParts = [];
+      function decompressJsonObject(base64Gzipped, chunkSize = 65536) {
+        // Create an Inflate (pako) instance for streaming decompression
+        const inflator = new pako.Inflate({ to: "string" });
 
-          for (let offset = 0; offset < base64String.length; offset += chunkSize) {
-            const chunk = base64String.substring(offset, offset + chunkSize);
-            decodedParts.push(atob(chunk));
+        let offset = 0;
+        const totalLength = base64Gzipped.length;
+
+        // Feed data in chunks
+        while (offset < totalLength) {
+          const chunk = base64Gzipped.slice(offset, offset + chunkSize);
+          offset += chunkSize;
+
+          // Base64 decode the current chunk to a binary string
+          const binaryString = atob(chunk);
+
+          // Convert the binary string to a Uint8Array
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
           }
 
-          return JSON.parse(decodedParts.join(''));
-        } catch (error) {
-          console.error('Error decoding JSON:', error);
+          // Push data to the inflator
+          const isLastChunk = offset >= totalLength;
+          inflator.push(bytes, isLastChunk);
         }
+
+        // Check for any errors
+        if (inflator.err) {
+          throw new Error("Pako inflate error: " + inflator.msg);
+        }
+
+        // inflator.result is the decompressed string
+        const decompressedString = inflator.result;
+        return JSON.parse(decompressedString);
       }
     // IMPORTANT! DO NOT REMOVE ME: Decode the encoded data
 
@@ -409,6 +395,7 @@ const cleanUpJsonFiles = async (filesToDelete: string[]) => {
   consoleLogger.info('Cleaning up JSON files...');
   filesToDelete.forEach(file => {
     fs.unlinkSync(file);
+    consoleLogger.info(`Deleted ${file}`);
   });
 };
 
@@ -486,64 +473,46 @@ async function writeObjectToGzipBase64File(obj: object, outputFilePath: string) 
   };
 }
 
-const base64Encode = async (
+async function compressJsonFileStreaming(inputPath: string, outputPath: string) {
+  // Create the read and write streams
+  const readStream = fs.createReadStream(inputPath);
+  const writeStream = fs.createWriteStream(outputPath);
+
+  // Create a gzip transform stream
+  const gzip = zlib.createGzip();
+
+  // Create a Base64 transform stream
+  const base64Encode = new Base64Encode();
+
+  // Pipe the streams:
+  //   read -> gzip -> base64 -> write
+  await pipeline(readStream, gzip, base64Encode, writeStream);
+  console.log(`File successfully compressed and saved to ${outputPath}`);
+}
+
+const writeJsonFileAndCompressedJsonFile = async (
   data: object,
   storagePath: string,
   filename: string,
-  generateJsonFiles: boolean,
-) => {
+): Promise<{ jsonFilePath: string; base64FilePath: string }> => {
   try {
-    consoleLogger.info(`Starting base64Encode for ${filename}`);
-    const jsonFilePath = path.join(storagePath, `${filename}.json`);
-
     consoleLogger.info(`Writing JSON to ${filename}.json`);
+    const jsonFilePath = path.join(storagePath, `${filename}.json`);
     await writeLargeJsonToFile(data, jsonFilePath);
 
-    const base64FilePath = path.join(storagePath, `${filename}.json.b64`);
+    consoleLogger.info(
+      `Reading ${filename}.json, gzipping and base64 encoding it into ${filename}.json.gz.b64`,
+    );
+    const base64FilePath = path.join(storagePath, `${filename}.json.gz.b64`);
+    await compressJsonFileStreaming(jsonFilePath, base64FilePath);
 
-    try {
-      consoleLogger.info(`Reading ${filename}.json and encoding it into ${filename}.json.b64`);
-      const readStream = fs.createReadStream(jsonFilePath, {
-        encoding: 'utf8',
-        highWaterMark: BUFFER_LIMIT,
-      });
-      const writeStream = fs.createWriteStream(base64FilePath, { encoding: 'utf8' });
-
-      let previousChunk = null;
-
-      for await (const chunk of readStream) {
-        const encodedChunk = Buffer.from(chunk).toString('base64');
-
-        if (previousChunk !== null) {
-          // Note: Notice the pipe symbol `|`, it is intended to be here as a delimiter
-          // for the scenario where there are chunking happens
-          writeStream.write(`${previousChunk}|`);
-        }
-
-        previousChunk = encodedChunk;
-      }
-
-      if (previousChunk !== null) {
-        writeStream.write(previousChunk);
-      }
-
-      await new Promise((resolve, reject) => {
-        writeStream.end(resolve);
-        writeStream.on('error', reject);
-      });
-
-      consoleLogger.info(`Finished base64Encode for ${filename}`);
-      return base64FilePath;
-    } finally {
-      if (!generateJsonFiles) {
-        consoleLogger.info(`Deleting ${filename}.json.b64`);
-        await fs.promises
-          .unlink(jsonFilePath)
-          .catch(err => console.error('Temp file delete error:', err));
-      }
-    }
+    consoleLogger.info(`Finished compression and base64 encoding for ${filename}`);
+    return {
+      jsonFilePath,
+      base64FilePath,
+    };
   } catch (error) {
-    console.error('Error encoding data to Base64:', error);
+    consoleLogger.error(`Error compressing and encoding ${filename}`);
     throw error;
   }
 };
@@ -570,25 +539,24 @@ const streamEncodedDataToFile = async (
   }
 };
 
-const writeBase64 = async (
+const writeJsonAndBase64Files = async (
   allIssues: AllIssues,
   storagePath: string,
-  generateJsonFiles: boolean,
 ): Promise<{
-  encodedScanDataPath: string;
-  encodedScanItemsPath: string;
-  encodedScanItemsSummaryPath: string;
-  scanDataFileSize: number;
-  scanItemsFileSize: number;
+  scanDataJsonFilePath: string;
+  scanDataBase64FilePath: string;
+  scanItemsJsonFilePath: string;
+  scanItemsBase64FilePath: string;
+  scanItemsSummaryJsonFilePath: string;
+  scanItemsSummaryBase64FilePath: string;
+  scanDataJsonFileSize: number;
+  scanItemsJsonFileSize: number;
 }> => {
   const { items, ...rest } = allIssues;
-  const encodedScanDataPath = await base64Encode(rest, storagePath, 'scanData', generateJsonFiles);
-  const encodedScanItemsPath = await base64Encode(
-    items,
-    storagePath,
-    'scanItems',
-    generateJsonFiles,
-  );
+  const { jsonFilePath: scanDataJsonFilePath, base64FilePath: scanDataBase64FilePath } =
+    await writeJsonFileAndCompressedJsonFile(rest, storagePath, 'scanData');
+  const { jsonFilePath: scanItemsJsonFilePath, base64FilePath: scanItemsBase64FilePath } =
+    await writeJsonFileAndCompressedJsonFile(items, storagePath, 'scanItems');
 
   // scanItemsSummary
   // the below mutates the original items object, since it is expensive to clone
@@ -616,45 +584,20 @@ const writeBase64 = async (
       page.items = [];
     });
   });
-  const encodedScanItemsSummaryPath = await base64Encode(
-    items,
-    storagePath,
-    'scanItemsSummary',
-    generateJsonFiles,
-  );
-
-  // const filePath = path.join(storagePath, 'scanDetails.csv');
-  // const directoryPath = path.dirname(filePath);
-  //
-  // if (!fs.existsSync(directoryPath)) {
-  //   fs.mkdirSync(directoryPath, { recursive: true });
-  // }
-  //
-  // const csvWriteStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
-  //
-  // csvWriteStream.write('scanData_base64,scanItems_base64,scanItemsSummary_base64\n');
-  // await streamEncodedDataToFile(encodedScanDataPath, csvWriteStream, true);
-  // await streamEncodedDataToFile(encodedScanItemsPath, csvWriteStream, true);
-  // await streamEncodedDataToFile(encodedScanItemsSummaryPath, csvWriteStream, false);
-  //
-  // await new Promise((resolve, reject) => {
-  //   csvWriteStream.end(resolve);
-  //   csvWriteStream.on('error', reject);
-  // });
-
-  // await fs.promises
-  //   .unlink(encodedScanDataPath)
-  //   .catch(err => console.error('Encoded file delete error:', err));
-  // await fs.promises
-  //   .unlink(encodedScanItemsPath)
-  //   .catch(err => console.error('Encoded file delete error:', err));
+  const {
+    jsonFilePath: scanItemsSummaryJsonFilePath,
+    base64FilePath: scanItemsSummaryBase64FilePath,
+  } = await writeJsonFileAndCompressedJsonFile(items, storagePath, 'scanItemsSummary');
 
   return {
-    encodedScanDataPath,
-    encodedScanItemsPath,
-    encodedScanItemsSummaryPath,
-    scanDataFileSize: fs.statSync(encodedScanDataPath).size,
-    scanItemsFileSize: fs.statSync(encodedScanItemsPath).size,
+    scanDataJsonFilePath,
+    scanDataBase64FilePath,
+    scanItemsJsonFilePath,
+    scanItemsBase64FilePath,
+    scanItemsSummaryJsonFilePath,
+    scanItemsSummaryBase64FilePath,
+    scanDataJsonFileSize: fs.statSync(scanDataJsonFilePath).size,
+    scanItemsJsonFileSize: fs.statSync(scanItemsJsonFilePath).size,
   };
 };
 
@@ -1128,27 +1071,22 @@ const generateArtifacts = async (
 
   await writeCsv(allIssues, storagePath);
   const {
-    encodedScanDataPath: scanDataFilePath,
-    encodedScanItemsPath: scanItemsFilePath,
-    encodedScanItemsSummaryPath: scanItemsSummaryFilePath,
-    scanDataFileSize,
-    scanItemsFileSize,
-  } = await writeBase64(allIssues, storagePath, generateJsonFiles);
-  // const {
-  //   scanDataFilePath,
-  //   scanDataFileSize,
-  //   scanItemsFilePath,
-  //   scanItemsFileSize,
-  //   scanItemsSummaryFilePath,
-  //   scanItemsSummaryFileSize: _scanItemsSummaryFileSize,
-  // } = await writeCompressedBase64(allIssues, storagePath);
-  const BIG_RESULTS_THRESHOLD = 1024 * 1024; // 1 MB
-  const resultsTooBig = scanDataFileSize + scanItemsFileSize > BIG_RESULTS_THRESHOLD;
+    scanDataJsonFilePath,
+    scanDataBase64FilePath,
+    scanItemsJsonFilePath,
+    scanItemsBase64FilePath,
+    scanItemsSummaryJsonFilePath,
+    scanItemsSummaryBase64FilePath,
+    scanDataJsonFileSize,
+    scanItemsJsonFileSize,
+  } = await writeJsonAndBase64Files(allIssues, storagePath);
+  const BIG_RESULTS_THRESHOLD = 500 * 1024 * 1024; // 500 MB
+  const resultsTooBig = scanDataJsonFileSize + scanItemsJsonFileSize > BIG_RESULTS_THRESHOLD;
 
   await writeScanDetailsCsv(
-    scanDataFilePath,
-    scanItemsFilePath,
-    scanItemsSummaryFilePath,
+    scanDataBase64FilePath,
+    scanItemsBase64FilePath,
+    scanItemsSummaryBase64FilePath,
     storagePath,
   );
   await writeSummaryHTML(allIssues, storagePath);
@@ -1156,12 +1094,19 @@ const generateArtifacts = async (
     allIssues,
     storagePath,
     'report',
-    scanDataFilePath,
-    resultsTooBig ? scanItemsSummaryFilePath : scanItemsFilePath,
+    scanDataBase64FilePath,
+    resultsTooBig ? scanItemsSummaryBase64FilePath : scanItemsBase64FilePath,
   );
 
   if (!generateJsonFiles) {
-    await cleanUpJsonFiles([scanDataFilePath, scanItemsFilePath, scanItemsSummaryFilePath]);
+    await cleanUpJsonFiles([
+      scanDataJsonFilePath,
+      scanDataBase64FilePath,
+      scanItemsJsonFilePath,
+      scanItemsBase64FilePath,
+      scanItemsSummaryJsonFilePath,
+      scanItemsSummaryBase64FilePath,
+    ]);
   }
 
   await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length), 1);
