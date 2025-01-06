@@ -222,48 +222,6 @@ const compileHtmlWithEJS = async (
   const headIndex = htmlContent.indexOf('</head>');
   const injectScript = `
   <script>
-      /**
-       * Streams through a Base64-encoded, gzipped JSON string and returns the parsed object.
-       *
-       * @param {string} base64Gzipped - A Base64-encoded, gzipped JSON string.
-       * @param {number} [chunkSize=65536] - Size of each chunk in characters.
-       * @returns {Object} The decompressed JSON object.
-       */
-      function decompressJsonObject(base64Gzipped, chunkSize = 65536) {
-        // Create an Inflate (pako) instance for streaming decompression
-        const inflator = new pako.Inflate({ to: "string" });
-
-        let offset = 0;
-        const totalLength = base64Gzipped.length;
-
-        // Feed data in chunks
-        while (offset < totalLength) {
-          const chunk = base64Gzipped.slice(offset, offset + chunkSize);
-          offset += chunkSize;
-
-          // Base64 decode the current chunk to a binary string
-          const binaryString = atob(chunk);
-
-          // Convert the binary string to a Uint8Array
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-
-          // Push data to the inflator
-          const isLastChunk = offset >= totalLength;
-          inflator.push(bytes, isLastChunk);
-        }
-
-        // Check for any errors
-        if (inflator.err) {
-          throw new Error("Pako inflate error: " + inflator.msg);
-        }
-
-        // inflator.result is the decompressed string
-        const decompressedString = inflator.result;
-        return JSON.parse(decompressedString);
-      }
     // IMPORTANT! DO NOT REMOVE ME: Decode the encoded data
 
   </script>
@@ -344,12 +302,15 @@ const writeHTML = async (
 
   outputStream.write(prefixData);
 
-  outputStream.write("scanData = decompressJsonObject('");
+  // outputStream.write("scanData = decompressJsonObject('");
+  outputStream.write("(async () => { scanData = await decodeUnzipParse('");
   scanDetailsReadStream.pipe(outputStream, { end: false });
 
   scanDetailsReadStream.on('end', () => {
-    outputStream.write("')\n\n");
-    outputStream.write("scanItems = decompressJsonObject('");
+    // outputStream.write("')\n\n");
+    outputStream.write("'); })();\n\n");
+    // outputStream.write("(scanItems = decompressJsonObject('");
+    outputStream.write("(async () => { scanItems = await decodeUnzipParse('");
     scanItemsReadStream.pipe(outputStream, { end: false });
   });
 
@@ -359,7 +320,8 @@ const writeHTML = async (
   });
 
   scanItemsReadStream.on('end', () => {
-    outputStream.write("')\n\n");
+    // outputStream.write("')\n\n");
+    outputStream.write("'); })();\n\n");
     outputStream.write(suffixData);
     outputStream.end();
   });
