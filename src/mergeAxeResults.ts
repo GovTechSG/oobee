@@ -9,7 +9,9 @@ import { fileURLToPath } from 'url';
 import { chromium } from 'playwright';
 import { createWriteStream } from 'fs';
 import { AsyncParser, ParserOptions } from '@json2csv/node';
-import { v4 as uuidv4 } from 'uuid';
+import zlib from 'zlib';
+import { Base64Encode } from 'base64-stream';
+import { pipeline } from 'stream/promises';
 import constants, { ScannerTypes } from './constants/constants.js';
 import { urlWithoutAuth } from './constants/common.js';
 import {
@@ -23,10 +25,6 @@ import {
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
-import zlib from 'zlib';
-import { Base64Encode } from 'base64-stream';
-import { pipeline } from 'stream/promises';
-import { objectToReadableStream } from './json-utils.js';
 
 export type ItemsInfo = {
   html: string;
@@ -398,44 +396,51 @@ const cleanUpJsonFiles = async (filesToDelete: string[]) => {
   });
 };
 
-function writeFormattedValue(value, writeStream) {
+function* writeFormattedValue(value) {
   if (typeof value === 'function') {
-    writeStream.write('null');
+    yield 'null';
   } else if (value === undefined) {
-    writeStream.write('null');
+    yield 'null';
   } else if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') {
-    writeStream.write(JSON.stringify(value));
+    yield JSON.stringify(value);
   } else if (value === null) {
-    writeStream.write('null');
+    yield 'null';
   }
 }
 
-function serializeObject(obj, writeStream, depth = 0, indent = '  ') {
+function* serializeObject(obj, depth = 0, indent = '  ') {
   const currentIndent = indent.repeat(depth);
   const nextIndent = indent.repeat(depth + 1);
 
   if (obj instanceof Date) {
-    writeStream.write(JSON.stringify(obj.toISOString()));
-  } else if (Array.isArray(obj)) {
-    writeStream.write('[\n');
-    obj.forEach((item, index) => {
-      if (index > 0) writeStream.write(',\n');
-      writeStream.write(nextIndent);
-      serializeObject(item, writeStream, depth + 1, indent);
-    });
-    writeStream.write(`\n${currentIndent}]`);
-  } else if (typeof obj === 'object' && obj !== null) {
-    writeStream.write('{\n');
-    const keys = Object.keys(obj);
-    keys.forEach((key, index) => {
-      if (index > 0) writeStream.write(',\n');
-      writeStream.write(`${nextIndent}${JSON.stringify(key)}: `);
-      serializeObject(obj[key], writeStream, depth + 1, indent);
-    });
-    writeStream.write(`\n${currentIndent}}`);
-  } else {
-    writeFormattedValue(obj, writeStream);
+    yield JSON.stringify(obj.toISOString());
+    return;
   }
+
+  if (Array.isArray(obj)) {
+    yield '[\n';
+    for (let i = 0; i < obj.length; i++) {
+      if (i > 0) yield ',\n';
+      yield nextIndent;
+      yield* serializeObject(obj[i], depth + 1, indent);
+    }
+    yield `\n${currentIndent}]`;
+    return;
+  }
+
+  if (typeof obj === 'object' && obj !== null) {
+    yield '{\n';
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i++) {
+      if (i > 0) yield ',\n';
+      yield `${nextIndent}${JSON.stringify(keys[i])}: `;
+      yield* serializeObject(obj[keys[i]], depth + 1, indent);
+    }
+    yield `\n${currentIndent}}`;
+    return;
+  }
+
+  yield* writeFormattedValue(obj);
 }
 
 function writeLargeJsonToFile(obj: object, filePath: string) {
@@ -452,24 +457,15 @@ function writeLargeJsonToFile(obj: object, filePath: string) {
       resolve(true);
     });
 
-    serializeObject(obj, writeStream);
+    const generator = serializeObject(obj);
+    for (const chunk of generator) {
+      if (!writeStream.write(chunk)) {
+        writeStream.once('drain', () => {});
+      }
+    }
+
     writeStream.end();
   });
-}
-
-async function writeObjectToGzipBase64File(obj: object, outputFilePath: string) {
-  consoleLogger.info(`Producing large gzipped base64 from object to ${outputFilePath}...`);
-  const jsonReadable = objectToReadableStream(obj);
-  const gzipStream = zlib.createGzip({
-    level: 6,
-  });
-  const base64EncodeStream = new Base64Encode();
-  const fileWriteStream = fs.createWriteStream(outputFilePath, { encoding: 'utf8' });
-  await pipeline(jsonReadable, gzipStream, base64EncodeStream, fileWriteStream);
-  const fileStats = fs.statSync(outputFilePath);
-  return {
-    fileSize: fileStats.size,
-  };
 }
 
 async function compressJsonFileStreaming(inputPath: string, outputPath: string) {
@@ -597,78 +593,6 @@ const writeJsonAndBase64Files = async (
     scanItemsSummaryBase64FilePath,
     scanDataJsonFileSize: fs.statSync(scanDataJsonFilePath).size,
     scanItemsJsonFileSize: fs.statSync(scanItemsJsonFilePath).size,
-  };
-};
-
-// creates scanData.json.gz.b64, scanItems.json.gz.b64 and scanItemsSummary.json.gz.b64
-const writeCompressedBase64 = async (
-  allIssues: AllIssues,
-  storagePath: string,
-): Promise<{
-  scanDataFilePath: string;
-  scanDataFileSize: number;
-  scanItemsFilePath: string;
-  scanItemsFileSize: number;
-  scanItemsSummaryFilePath: string;
-  scanItemsSummaryFileSize: number;
-}> => {
-  const { items, ...rest } = allIssues;
-
-  // scanData
-  const scanDataFilePath = path.join(storagePath, 'scanData.json.gz.b64');
-  const { fileSize: scanDataFileSize } = await writeObjectToGzipBase64File(rest, scanDataFilePath);
-  consoleLogger.info(`File size of scanData.json.gz.b64: ${scanDataFileSize} bytes`);
-
-  // scanItems
-  const scanItemsFilePath = path.join(storagePath, 'scanItems.json.gz.b64');
-  const { fileSize: scanItemsFileSize } = await writeObjectToGzipBase64File(
-    items,
-    scanItemsFilePath,
-  );
-  consoleLogger.info(`File size of scanItems.json.gz.b64: ${scanItemsFileSize} bytes`);
-
-  // scanItemsSummary
-  // the below mutates the original items object, since it is expensive to clone
-  items.mustFix.rules.forEach(rule => {
-    rule.pagesAffected.forEach(page => {
-      page.itemsCount = page.items.length;
-      page.items = [];
-    });
-  });
-  items.goodToFix.rules.forEach(rule => {
-    rule.pagesAffected.forEach(page => {
-      page.itemsCount = page.items.length;
-      page.items = [];
-    });
-  });
-  items.needsReview.rules.forEach(rule => {
-    rule.pagesAffected.forEach(page => {
-      page.itemsCount = page.items.length;
-      page.items = [];
-    });
-  });
-  items.passed.rules.forEach(rule => {
-    rule.pagesAffected.forEach(page => {
-      page.itemsCount = page.items.length;
-      page.items = [];
-    });
-  });
-  const scanItemsSummaryFilePath = path.join(storagePath, 'scanItemsSummary.json.gz.b64');
-  const { fileSize: scanItemsSummaryFileSize } = await writeObjectToGzipBase64File(
-    items,
-    scanItemsSummaryFilePath,
-  );
-  consoleLogger.info(
-    `File size of scanItemsSummary.json.gz.b64: ${scanItemsSummaryFileSize} bytes`,
-  );
-
-  return {
-    scanDataFilePath,
-    scanDataFileSize,
-    scanItemsFilePath,
-    scanItemsFileSize,
-    scanItemsSummaryFilePath,
-    scanItemsSummaryFileSize,
   };
 };
 
