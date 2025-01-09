@@ -1,6 +1,6 @@
 import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
-import xPathToCss from 'xpath-to-css';
+import { xPathToCss } from '../xPathToCss.js';
 import { Page } from 'playwright';
 import {
   axeScript,
