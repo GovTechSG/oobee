@@ -360,47 +360,49 @@ const cleanUpJsonFiles = async (filesToDelete: string[]) => {
   });
 };
 
-function writeFormattedValue(value, writeStream) {
-  if (typeof value === 'function') {
-    writeStream.write('null');
-  } else if (value === undefined) {
-    writeStream.write('null');
-  } else if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') {
-    writeStream.write(JSON.stringify(value));
-  } else if (value === null) {
-    writeStream.write('null');
-  }
-}
-
-function serializeObject(obj, writeStream, depth = 0, indent = '  ') {
+function* serializeObject(obj, depth = 0, indent = '  ') {
   const currentIndent = indent.repeat(depth);
   const nextIndent = indent.repeat(depth + 1);
 
   if (obj instanceof Date) {
-    writeStream.write(JSON.stringify(obj.toISOString()));
-  } else if (Array.isArray(obj)) {
-    writeStream.write('[\n');
-    obj.forEach((item, index) => {
-      if (index > 0) writeStream.write(',\n');
-      writeStream.write(nextIndent);
-      serializeObject(item, writeStream, depth + 1, indent);
-    });
-    writeStream.write(`\n${currentIndent}]`);
-  } else if (typeof obj === 'object' && obj !== null) {
-    writeStream.write('{\n');
-    const keys = Object.keys(obj);
-    keys.forEach((key, index) => {
-      if (index > 0) writeStream.write(',\n');
-      writeStream.write(`${nextIndent}${JSON.stringify(key)}: `);
-      serializeObject(obj[key], writeStream, depth + 1, indent);
-    });
-    writeStream.write(`\n${currentIndent}}`);
-  } else {
-    writeFormattedValue(obj, writeStream);
+    yield JSON.stringify(obj.toISOString());
+    return;
   }
+
+  if (Array.isArray(obj)) {
+    yield '[\n';
+    for (let i = 0; i < obj.length; i++) {
+      if (i > 0) yield ',\n';
+      yield nextIndent;
+      yield* serializeObject(obj[i], depth + 1, indent);
+    }
+    yield `\n${currentIndent}]`;
+    return;
+  }
+
+  if (obj !== null && typeof obj === 'object') {
+    yield '{\n';
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (i > 0) yield ',\n';
+      yield `${nextIndent}${JSON.stringify(key)}: `;
+      yield* serializeObject(obj[key], depth + 1, indent);
+    }
+    yield `\n${currentIndent}}`;
+    return;
+  }
+
+  if (obj === null || typeof obj === 'function' || typeof obj === 'undefined') {
+    yield 'null';
+    return;
+  }
+
+  yield JSON.stringify(obj);
 }
 
-function writeLargeJsonToFile(obj: object, filePath: string) {
+
+function writeLargeJsonToFile(obj, filePath) {
   return new Promise((resolve, reject) => {
     const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
 
@@ -414,8 +416,20 @@ function writeLargeJsonToFile(obj: object, filePath: string) {
       resolve(true);
     });
 
-    serializeObject(obj, writeStream);
-    writeStream.end();
+    const generator = serializeObject(obj);
+
+    function write() {
+      let next;
+      while (!(next = generator.next()).done) {
+        if (!writeStream.write(next.value)) {
+          writeStream.once('drain', write);
+          return;
+        }
+      }
+      writeStream.end();
+    }
+
+    write();
   });
 }
 
@@ -451,15 +465,61 @@ async function compressJsonFileStreaming(inputPath: string, outputPath: string) 
   console.log(`File successfully compressed and saved to ${outputPath}`);
 }
 
+const appendJsonChunksToFile = async (chunks, filePath) => {
+  const writeStream = fs.createWriteStream(filePath, { flags: 'a', encoding: 'utf8' });
+
+  try {
+    writeStream.write('{\n');
+
+    const keys = Object.keys(chunks);
+    console.log('keys 111', keys);
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const value = chunks[key];
+
+      writeStream.write(`  "${key}": `);
+      const generator = serializeObject(value);
+
+      let next;
+      while (!(next = generator.next()).done) {
+        if (!writeStream.write(next.value)) {
+          await new Promise(resolve => writeStream.once('drain', resolve));
+        }
+      }
+
+      if (i < keys.length - 1) {
+        writeStream.write(',\n');
+      } else {
+        writeStream.write('\n');
+      }
+    }
+
+    writeStream.write('}\n');
+  } catch (err) {
+    console.error('Error appending JSON chunks:', err);
+    throw err;
+  } finally {
+    writeStream.end();
+  }
+};
+
+
 const writeJsonFileAndCompressedJsonFile = async (
   data: object,
   storagePath: string,
   filename: string,
+  appendChunks = false,
 ): Promise<{ jsonFilePath: string; base64FilePath: string }> => {
   try {
     consoleLogger.info(`Writing JSON to ${filename}.json`);
     const jsonFilePath = path.join(storagePath, `${filename}.json`);
-    await writeLargeJsonToFile(data, jsonFilePath);
+
+    if (appendChunks) {
+      await appendJsonChunksToFile(data, jsonFilePath);
+    } else {
+      await writeLargeJsonToFile(data, jsonFilePath);
+    }
 
     consoleLogger.info(
       `Reading ${filename}.json, gzipping and base64 encoding it into ${filename}.json.gz.b64`,
@@ -517,7 +577,7 @@ const writeJsonAndBase64Files = async (
   const { jsonFilePath: scanDataJsonFilePath, base64FilePath: scanDataBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(rest, storagePath, 'scanData');
   const { jsonFilePath: scanItemsJsonFilePath, base64FilePath: scanItemsBase64FilePath } =
-    await writeJsonFileAndCompressedJsonFile(items, storagePath, 'scanItems');
+    await writeJsonFileAndCompressedJsonFile(items, storagePath, 'scanItems', true);
 
   // scanItemsSummary
   // the below mutates the original items object, since it is expensive to clone
