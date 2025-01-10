@@ -360,47 +360,49 @@ const cleanUpJsonFiles = async (filesToDelete: string[]) => {
   });
 };
 
-function writeFormattedValue(value, writeStream) {
-  if (typeof value === 'function') {
-    writeStream.write('null');
-  } else if (value === undefined) {
-    writeStream.write('null');
-  } else if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') {
-    writeStream.write(JSON.stringify(value));
-  } else if (value === null) {
-    writeStream.write('null');
-  }
-}
-
-function serializeObject(obj, writeStream, depth = 0, indent = '  ') {
+function* serializeObject(obj, depth = 0, indent = '  ') {
   const currentIndent = indent.repeat(depth);
   const nextIndent = indent.repeat(depth + 1);
 
   if (obj instanceof Date) {
-    writeStream.write(JSON.stringify(obj.toISOString()));
-  } else if (Array.isArray(obj)) {
-    writeStream.write('[\n');
-    obj.forEach((item, index) => {
-      if (index > 0) writeStream.write(',\n');
-      writeStream.write(nextIndent);
-      serializeObject(item, writeStream, depth + 1, indent);
-    });
-    writeStream.write(`\n${currentIndent}]`);
-  } else if (typeof obj === 'object' && obj !== null) {
-    writeStream.write('{\n');
-    const keys = Object.keys(obj);
-    keys.forEach((key, index) => {
-      if (index > 0) writeStream.write(',\n');
-      writeStream.write(`${nextIndent}${JSON.stringify(key)}: `);
-      serializeObject(obj[key], writeStream, depth + 1, indent);
-    });
-    writeStream.write(`\n${currentIndent}}`);
-  } else {
-    writeFormattedValue(obj, writeStream);
+    yield JSON.stringify(obj.toISOString());
+    return;
   }
+
+  if (Array.isArray(obj)) {
+    yield '[\n';
+    for (let i = 0; i < obj.length; i++) {
+      if (i > 0) yield ',\n';
+      yield nextIndent;
+      yield* serializeObject(obj[i], depth + 1, indent);
+    }
+    yield `\n${currentIndent}]`;
+    return;
+  }
+
+  if (obj !== null && typeof obj === 'object') {
+    yield '{\n';
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (i > 0) yield ',\n';
+      yield `${nextIndent}${JSON.stringify(key)}: `;
+      yield* serializeObject(obj[key], depth + 1, indent);
+    }
+    yield `\n${currentIndent}}`;
+    return;
+  }
+
+  if (obj === null || typeof obj === 'function' || typeof obj === 'undefined') {
+    yield 'null';
+    return;
+  }
+
+  yield JSON.stringify(obj);
 }
 
-function writeLargeJsonToFile(obj: object, filePath: string) {
+
+function writeLargeJsonToFile(obj, filePath) {
   return new Promise((resolve, reject) => {
     const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
 
@@ -414,8 +416,20 @@ function writeLargeJsonToFile(obj: object, filePath: string) {
       resolve(true);
     });
 
-    serializeObject(obj, writeStream);
-    writeStream.end();
+    const generator = serializeObject(obj);
+
+    function write() {
+      let next;
+      while (!(next = generator.next()).done) {
+        if (!writeStream.write(next.value)) {
+          writeStream.once('drain', write);
+          return;
+        }
+      }
+      writeStream.end();
+    }
+
+    write();
   });
 }
 
@@ -451,15 +465,197 @@ async function compressJsonFileStreaming(inputPath: string, outputPath: string) 
   console.log(`File successfully compressed and saved to ${outputPath}`);
 }
 
+const appendJsonChunksToFile = async (chunks, filePath) => {
+  const writeStream = fs.createWriteStream(filePath, { flags: 'a', encoding: 'utf8' });
+
+  try {
+    writeStream.write('{\n');
+
+    const keys = Object.keys(chunks);
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const value = chunks[key];
+
+      // Start writing the key object
+      writeStream.write(`  "${key}": {\n`);
+
+      const { rules, ...otherProperties } = value; // Extract rules and other properties dynamically
+
+      // Write all properties dynamically, excluding rules
+      const otherKeys = Object.keys(otherProperties);
+      for (let j = 0; j < otherKeys.length; j++) {
+        const propKey = otherKeys[j];
+        const propValue = otherProperties[propKey];
+
+        // Serialize and write the property dynamically
+        writeStream.write(`    "${propKey}": ${JSON.stringify(propValue)}`);
+
+        // Add a comma unless it's the last property
+        if (j < otherKeys.length - 1 || (rules && rules.length > 0)) {
+          writeStream.write(',\n');
+        } else {
+          writeStream.write('\n');
+        }
+      }
+
+      // Write the rules key and start the array
+      // if (rules && Array.isArray(rules)) {
+      //   writeStream.write(`    "rules": [\n`);
+
+      //   for (let j = 0; j < rules.length; j++) {
+      //     const rule = rules[j];
+      //     console.log(`Processing rule ${j + 1}/${rules.length}:`, rule);
+
+      //     writeStream.write('      '); // Indentation for each rule object
+      //     const ruleGenerator = serializeObject(rule); // Serialize each rule
+
+      //     let ruleNext;
+      //     while (!(ruleNext = ruleGenerator.next()).done) {
+      //       if (!writeStream.write(ruleNext.value)) {
+      //         await new Promise(resolve => writeStream.once('drain', resolve));
+      //       }
+      //     }
+
+      //     if (j < rules.length - 1) {
+      //       writeStream.write(',\n'); // Comma between rules
+      //     } else {
+      //       writeStream.write('\n'); // No trailing comma for the last rule
+      //     }
+      //   }
+
+      //   writeStream.write('    ]'); // Close the rules array
+      // }
+
+      if (rules && Array.isArray(rules)) {
+        writeStream.write(`    "rules": [\n`);
+
+        for (let j = 0; j < rules.length; j++) {
+          const rule = rules[j];
+          // console.log(`Processing rule ${j + 1}/${rules.length}:`, rule);
+      
+          writeStream.write('      {\n'); // Start the rule object
+      
+          const { pagesAffected, ...otherRuleProperties } = rule; // Extract pagesAffected dynamically
+      
+          // Write other properties dynamically
+          const ruleKeys = Object.keys(otherRuleProperties);
+          for (let k = 0; k < ruleKeys.length; k++) {
+            const ruleKey = ruleKeys[k];
+            const ruleValue = otherRuleProperties[ruleKey];
+      
+            // Serialize and write each property dynamically
+            writeStream.write(`        "${ruleKey}": ${JSON.stringify(ruleValue)}`);
+      
+            // Add a comma unless it's the last property and no pagesAffected is present
+            if (k < ruleKeys.length - 1 || pagesAffected) {
+              writeStream.write(',\n');
+            } else {
+              writeStream.write('\n');
+            }
+          }
+      
+          // Handle pagesAffected separately if it exists
+          const splitArrayIntoChunks = (array, chunkSize) => {
+            const chunks = [];
+            for (let i = 0; i < array.length; i += chunkSize) {
+              chunks.push(array.slice(i, i + chunkSize));
+            }
+            return chunks;
+          };
+          
+          if (pagesAffected && Array.isArray(pagesAffected)) {
+            writeStream.write(`        "pagesAffected": [\n`);
+          
+            // Split pagesAffected into chunks of 10
+            const chunks = splitArrayIntoChunks(pagesAffected, 10);
+          
+            for (let c = 0; c < chunks.length; c++) {
+              const chunk = chunks[c];
+          
+              // Write the chunk array as a single JSON array
+              // writeStream.write('          [\n'); // Start chunk array
+          
+              for (let p = 0; p < chunk.length; p++) {
+                const page = chunk[p];
+          
+                writeStream.write('            '); // Indentation for each page object
+                // console.log('page 111', page)
+                const pageGenerator = serializeObject(page); // Serialize each page object
+          
+                let pageNext;
+                while (!(pageNext = pageGenerator.next()).done) {
+                  if (!writeStream.write(pageNext.value)) {
+                    await new Promise(resolve => writeStream.once('drain', resolve));
+                  }
+                }
+          
+                if (p < chunk.length - 1) {
+                  writeStream.write(',\n'); // Comma between pages in the chunk
+                } else {
+                  writeStream.write('\n'); // No trailing comma for the last page in the chunk
+                }
+              }
+          
+              // writeStream.write('          ]'); // Close chunk array
+          
+              if (c < chunks.length - 1) {
+                writeStream.write(',\n'); // Comma between chunks
+              } else {
+                writeStream.write('\n'); // No trailing comma for the last chunk
+              }
+            }
+          
+            writeStream.write('        ]'); // Close the pagesAffected array
+          }
+      
+          writeStream.write('\n      }'); // Close the rule object
+      
+          if (j < rules.length - 1) {
+            writeStream.write(',\n'); // Comma between rules
+          } else {
+            writeStream.write('\n'); // No trailing comma for the last rule
+          }
+        }
+      
+        writeStream.write('    ]'); // Close the rules array
+      }
+
+      writeStream.write('\n  }'); // Close the key object here, after processing all fields of the current key
+
+      // Add a comma between keys if not the last key
+      if (i < keys.length - 1) {
+        writeStream.write(',\n'); // Comma between top-level keys
+      } else {
+        writeStream.write('\n'); // No trailing comma after the last key
+      }
+    }
+
+    writeStream.write('}\n'); // Close the main object
+  } catch (err) {
+    console.error('Error appending JSON chunks:', err);
+    throw err;
+  } finally {
+    writeStream.end();
+  }
+};
+
+
 const writeJsonFileAndCompressedJsonFile = async (
   data: object,
   storagePath: string,
   filename: string,
+  appendChunks = false,
 ): Promise<{ jsonFilePath: string; base64FilePath: string }> => {
   try {
     consoleLogger.info(`Writing JSON to ${filename}.json`);
     const jsonFilePath = path.join(storagePath, `${filename}.json`);
-    await writeLargeJsonToFile(data, jsonFilePath);
+
+    if (appendChunks) {
+      await appendJsonChunksToFile(data, jsonFilePath);
+    } else {
+      await writeLargeJsonToFile(data, jsonFilePath);
+    }
 
     consoleLogger.info(
       `Reading ${filename}.json, gzipping and base64 encoding it into ${filename}.json.gz.b64`,
@@ -517,7 +713,7 @@ const writeJsonAndBase64Files = async (
   const { jsonFilePath: scanDataJsonFilePath, base64FilePath: scanDataBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(rest, storagePath, 'scanData');
   const { jsonFilePath: scanItemsJsonFilePath, base64FilePath: scanItemsBase64FilePath } =
-    await writeJsonFileAndCompressedJsonFile(items, storagePath, 'scanItems');
+    await writeJsonFileAndCompressedJsonFile(items, storagePath, 'scanItems', true);
 
   // scanItemsSummary
   // the below mutates the original items object, since it is expensive to clone
