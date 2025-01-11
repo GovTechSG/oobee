@@ -11,6 +11,8 @@
 
 'use strict';
 
+import { consoleLogger } from "./logs.js";
+
 const isValidXPath = expr => (
     typeof expr != 'undefined' &&
     expr.replace(/[\s-_=]/g,'') !== '' &&
@@ -52,6 +54,13 @@ const preParseXpath = expr => (
     expr.replace(/contains\s*\(\s*concat\(["']\s+["']\s*,\s*@class\s*,\s*["']\s+["']\)\s*,\s*["']\s+([a-zA-Z0-9-_]+)\s+["']\)/gi, '@class="$1"')
 );
 
+function escapeCssIdSelectors(cssSelector) {
+    return cssSelector.replace(/#([^ >]+)/g, (match, id) => {
+        // Escape special characters in the id part
+        return '#' + id.replace(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, '\\$&');
+    });
+}
+
 export const xPathToCss = expr => {
     if (!expr) {
         throw new Error('Missing XPath expression');
@@ -60,7 +69,11 @@ export const xPathToCss = expr => {
     expr = preParseXpath(expr);
 
     if (!isValidXPath(expr)) {
-        console.log("----------------------", expr);
+        consoleLogger.error(`Invalid or unsupported XPath: ${expr}`);
+        // do not throw error so that this function proceeds to convert xpath that it does not support
+        // for example, //*[@id="google_ads_iframe_/4654/dweb/imu1/homepage/landingpage/na_0"]/html/body/div[1]/a
+        // becomes #google_ads_iframe_/4654/dweb/imu1/homepage/landingpage/na_0 > html > body > div:first-of-type > div > a
+        // which is invalid because the slashes in the id selector are not escaped
         // throw new Error('Invalid or unsupported XPath: ' + expr);
     }
 
@@ -167,5 +180,7 @@ export const xPathToCss = expr => {
         xindex++;
     }
 
-    return cssSelectors.join(', ');
+    // return cssSelectors.join(', ');
+    const originalResult = cssSelectors.join(', ');
+    return escapeCssIdSelectors(originalResult);
 };
