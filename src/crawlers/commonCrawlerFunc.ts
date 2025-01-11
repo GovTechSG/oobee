@@ -8,7 +8,7 @@ import {
   RuleFlags,
   saflyIconSelector,
 } from '../constants/constants.js';
-import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
+import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
 import { customAxeConfig } from './customAxeFunctions.js';
@@ -410,6 +410,7 @@ export const runAxeScript = async ({
               oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
 
             function frameCheck(cssSelector: string): { doc: Document; remainingSelector: string } {
+              const originalCssSelector = cssSelector;
               let doc = document; // Start with the main document
               let frameSelector = ""; // To store the frame part of the selector
 
@@ -455,12 +456,14 @@ export const runAxeScript = async ({
                 doc = targetFrame.contentDocument;
               } else {
                 console.warn("Frame not found or contentDocument inaccessible.");
+                return { doc, remainingSelector: originalCssSelector };
               }
 
               return { doc, remainingSelector: cssSelector };
             }
 
             function iframeCheck(cssSelector: string): { doc: Document; remainingSelector: string } {
+              const originalCssSelector = cssSelector;
               let doc = document; // Start with the main document
               let iframeSelector = ""; // To store the iframe part of the selector
 
@@ -506,6 +509,7 @@ export const runAxeScript = async ({
                 doc = targetIframe.contentDocument;
               } else {
                 console.warn("Iframe not found or contentDocument inaccessible.");
+                return { doc, remainingSelector: originalCssSelector };
               }
 
               return { doc, remainingSelector: cssSelector };
@@ -553,7 +557,12 @@ export const runAxeScript = async ({
                 }
               }
 
-              return element ? element.outerHTML : null;
+              if (element) {
+                return element.outerHTML;
+              }
+
+              console.warn(`Unable to find element for css selector: ${cssSelector}`);
+              return null;
             }
 
             // Add oobee violations to Axe's report
@@ -581,7 +590,7 @@ export const runAxeScript = async ({
                 ],
                 all: [],
                 none: [],
-              })),
+              })).filter(item => item.html)
             };
 
             results.violations = [...results.violations, oobeeAccessibleLabelViolations];
