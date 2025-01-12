@@ -17,7 +17,7 @@
         .getElementById('categorySummary')
         .setAttribute('aria-label', `${getFormattedCategoryTitle(category)} summary`);
       selected = event.currentTarget;
-      window.currentCategory = JSON.parse(JSON.stringify(category));
+      window.currentCategory = structuredClone(category);
 
       // Ensures <category>DropdownSelector on mobile view matches
       const matchingDropdownId = category + 'DropdownSelector';
@@ -28,7 +28,7 @@
 
   function loadRulesSummary(category, searchVal) {
     const newItems = [];
-    window.filteredItems = JSON.parse(JSON.stringify(scanItems));
+    window.filteredItems = structuredClone(scanItems);
     if (document.getElementById('searchBarInput').value.trim() !== '') {
       for (let category in filteredItems) {
         handleSearch(category, searchVal, filteredItems);
