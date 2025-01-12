@@ -360,7 +360,7 @@ const cleanUpJsonFiles = async (filesToDelete: string[]) => {
   });
 };
 
-function writeFormattedValue(value, writeStream) {
+function writeFormattedValue(value: any, writeStream: fs.WriteStream) {
   if (typeof value === 'function') {
     writeStream.write('null');
   } else if (value === undefined) {
@@ -400,6 +400,54 @@ function serializeObject(obj, writeStream, depth = 0, indent = '  ') {
   }
 }
 
+// explicitly manage a stack to avoid call stack overflow via recursive calls
+function serializeObjectIterative(obj: object, writeStream: fs.WriteStream, indent = '  ') {
+  const stack: { item: object | string; depth: number; key: string; rawString: boolean }[] = [
+    { item: obj, depth: 0, key: null, rawString: false },
+  ];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const { item, depth, key, rawString } = current;
+    const currentIndent = indent.repeat(depth);
+
+    if (key !== null) {
+      writeStream.write(`${currentIndent}${JSON.stringify(key)}: `);
+    }
+
+    if (rawString) {
+      writeStream.write(`${item}`);
+    } else if (item instanceof Date) {
+      writeStream.write(JSON.stringify(item.toISOString()));
+    } else if (Array.isArray(item)) {
+      writeStream.write(`[\n`);
+      stack.push({ item: `\n${currentIndent}]`, depth, key: null, rawString: true });
+
+      for (let i = item.length - 1; i >= 0; i--) {
+        stack.push({ item: item[i], depth: depth + 1, key: null, rawString: false });
+        if (i > 0) {
+          stack.push({ item: ',\n', depth: 0, key: null, rawString: true });
+        }
+      }
+    } else if (typeof item === 'object' && item !== null) {
+      if (key === null) writeStream.write(`${currentIndent}`);
+      writeStream.write(`{\n`);
+      stack.push({ item: `\n${currentIndent}}`, depth, key: null, rawString: true });
+
+      const keys = Object.keys(item);
+      for (let i = keys.length - 1; i >= 0; i--) {
+        stack.push({ item: item[keys[i]], depth: depth + 1, key: keys[i], rawString: false });
+        if (i > 0) {
+          stack.push({ item: ',\n', depth: 0, key: null, rawString: true });
+        }
+      }
+    } else {
+      if (key === null) writeStream.write(`${currentIndent}`);
+      writeFormattedValue(item, writeStream);
+    }
+  }
+}
+
 function writeLargeJsonToFile(obj: object, filePath: string) {
   return new Promise((resolve, reject) => {
     const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
@@ -415,6 +463,25 @@ function writeLargeJsonToFile(obj: object, filePath: string) {
     });
 
     serializeObject(obj, writeStream);
+    writeStream.end();
+  });
+}
+
+function writeLargeJsonToFileIterative(obj: object, filePath: string) {
+  return new Promise((resolve, reject) => {
+    const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
+
+    writeStream.on('error', error => {
+      consoleLogger.error('Stream error:', error);
+      reject(error);
+    });
+
+    writeStream.on('finish', () => {
+      consoleLogger.info(`JSON file written successfully: ${filePath}`);
+      resolve(true);
+    });
+
+    serializeObjectIterative(obj, writeStream);
     writeStream.end();
   });
 }
@@ -459,7 +526,10 @@ const writeJsonFileAndCompressedJsonFile = async (
   try {
     consoleLogger.info(`Writing JSON to ${filename}.json`);
     const jsonFilePath = path.join(storagePath, `${filename}.json`);
-    await writeLargeJsonToFile(data, jsonFilePath);
+    // await writeLargeJsonToFile(data, jsonFilePath);
+    await writeLargeJsonToFileIterative(data, jsonFilePath);
+    // const jsonFilePathIterative = path.join(storagePath, `${filename}-iterative.json`);
+    // await writeLargeJsonToFileIterative(data, jsonFilePathIterative);
 
     consoleLogger.info(
       `Reading ${filename}.json, gzipping and base64 encoding it into ${filename}.json.gz.b64`,
