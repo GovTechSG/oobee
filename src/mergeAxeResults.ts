@@ -303,14 +303,14 @@ const writeHTML = async (
   outputStream.write(prefixData);
 
   // outputStream.write("scanData = decompressJsonObject('");
-  outputStream.write("(async () => { scanData = await decodeUnzipParse('");
+  outputStream.write("let scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse('");
   scanDetailsReadStream.pipe(outputStream, { end: false });
 
   scanDetailsReadStream.on('end', () => {
     // outputStream.write("')\n\n");
     outputStream.write("'); })();\n\n");
     // outputStream.write("(scanItems = decompressJsonObject('");
-    outputStream.write("(async () => { scanItems = await decodeUnzipParse('");
+    outputStream.write("let scanItemsPromise = (async () => { console.log('Loading scanItems...'); scanItems = await decodeUnzipParse('");
     scanItemsReadStream.pipe(outputStream, { end: false });
   });
 

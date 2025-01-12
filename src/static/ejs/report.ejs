@@ -409,9 +409,20 @@
       };
 
       document.addEventListener('DOMContentLoaded', () => {
-        initTooltips();
-        scanDataHTML();
+        scanDataPromise.then(() => {
+          console.log("scanData loaded.");
+          scanItemsPromise.then(() => {
+            console.log("scanItems loaded.");
+            initTooltips();
+            scanDataHTML();
+          }).error(e => {
+            console.error("Failed to load scanItems: ", e);
+          });
+        }).error(e => {
+          console.error("Failed to load scanData: ", e);
+        });
       });
+
     </script>
     <!-- Checks if js runs -->
     <script>
