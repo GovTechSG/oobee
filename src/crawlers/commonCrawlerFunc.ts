@@ -410,7 +410,6 @@ export const runAxeScript = async ({
               oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
 
             function framesCheck(cssSelector: string): { doc: Document; remainingSelector: string } {
-                console.log("cssSelector",cssSelector);
                 let doc = document; // Start with the main document
                 let remainingSelector = ""; // To store the last part of the selector
                 let targetIframe = null;
@@ -427,8 +426,19 @@ export const runAxeScript = async ({
                     iframeSelector = "html > " + iframeSelector;
                   }
               
+                  let frameset = null;
                   // Find the iframe using the current document context
-                   targetIframe = doc.querySelector(iframeSelector);
+                  if (doc.querySelector("frameset"))
+                  {
+                    frameset = doc.querySelector("frameset");
+                  }
+
+                  if (frameset)
+                  {
+                    doc = frameset;
+                    iframeSelector = iframeSelector.split("body >")[1].trim();
+                  }
+                  targetIframe = doc.querySelector(iframeSelector);
               
                   if (targetIframe && targetIframe.contentDocument) {
                     // Update the document to the iframe's contentDocument
