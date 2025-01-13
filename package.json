@@ -3,6 +3,7 @@
   "main": "dist/npmIndex.js",
   "version": "0.10.21",
   "type": "module",
+  "author": "Government Technology Agency <info@tech.gov.sg>",
   "dependencies": {
     "@json2csv/node": "^7.0.3",
     "@napi-rs/canvas": "^0.1.53",

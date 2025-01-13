@@ -9,7 +9,9 @@ import { fileURLToPath } from 'url';
 import { chromium } from 'playwright';
 import { createWriteStream } from 'fs';
 import { AsyncParser, ParserOptions } from '@json2csv/node';
-import { v4 as uuidv4 } from 'uuid';
+import zlib from 'zlib';
+import { Base64Encode } from 'base64-stream';
+import { pipeline } from 'stream/promises';
 import constants, { ScannerTypes } from './constants/constants.js';
 import { urlWithoutAuth } from './constants/common.js';
 import {
@@ -23,10 +25,6 @@ import {
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
-import zlib from 'zlib';
-import { Base64Encode } from 'base64-stream';
-import { pipeline } from 'stream/promises';
-import { objectToReadableStream } from './json-utils.js';
 
 export type ItemsInfo = {
   html: string;
@@ -370,7 +368,7 @@ const cleanUpJsonFiles = async (filesToDelete: string[]) => {
   });
 };
 
-function* serializeObject(obj, depth = 0, indent = '  ') {
+function* serializeObject(obj: any, depth = 0, indent = '  ') {
   const currentIndent = indent.repeat(depth);
   const nextIndent = indent.repeat(depth + 1);
 
@@ -938,7 +936,6 @@ const generateArtifacts = async (
   const intermediateDatasetsPath = `${randomToken}/datasets/${randomToken}`;
   const phAppVersion = getVersion();
   const storagePath = getStoragePath(randomToken);
-  consoleLogger.info(`scanDetails is ${JSON.stringify(scanDetails, null, 2)}`);
 
   urlScanned =
     scanType === ScannerTypes.SITEMAP || scanType === ScannerTypes.LOCALFILE
@@ -1007,7 +1004,7 @@ const generateArtifacts = async (
     // Populate boolean values for id="advancedScanOptionsSummary"
     advancedScanOptionsSummaryItems: {
       showIncludeScreenshots: [true].includes(scanDetails.isIncludeScreenshots),
-      showAllowSubdomains: [true].includes(scanDetails.isAllowSubdomains),
+      showAllowSubdomains: ['same-domain'].includes(scanDetails.isAllowSubdomains),
       showEnableCustomChecks: ['default', 'enable-wcag-aaa'].includes(
         scanDetails.isEnableCustomChecks?.[0],
       ),

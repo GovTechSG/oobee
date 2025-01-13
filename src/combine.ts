@@ -34,8 +34,6 @@ export class ViewportSettingsClass {
 }
 
 const combineRun = async (details: Data, deviceToScan: string) => {
-  // consoleLogger.info(`details is ${JSON.stringify(details, null, 2)}`);
-
   const envDetails = { ...details };
 
   const {
@@ -64,7 +62,6 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     ruleset, // Enable custom checks, Enable WCAG AAA: if checked, = 'enable-wcag-aaa')
     generateJsonFiles,
   } = envDetails;
-  consoleLogger.info(`envDetails is ${JSON.stringify(envDetails, null, 2)}`);
 
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
