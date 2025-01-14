@@ -1,21 +1,18 @@
 <footer aria-label="Report footer" id="footer" class="card">
   <div class="row mx-0">
     <div class="col-sm-6 text-sm-start">
-      <%
-        const urlScannedField = '64d49b567c3c460011feb8b5'; 
-        const encodedUrlScanned = encodeURIComponent(urlScanned);
-        const versionNumberField = '64db1f79141a46001243b77a';
-        const encodedVersionNumber = encodeURIComponent(phAppVersion);
-        const feedbackForm = `https://form.gov.sg/64d1fcde4d0bb70012010995/?${urlScannedField}=${encodedUrlScanned}&${versionNumberField}=${encodedVersionNumber}`;
-      %>
-      <a href="<%=feedbackForm%>" target="_blank">Help us improve</a>
-      <hr class="d-sm-none" />
+      <% const urlScannedField='64d49b567c3c460011feb8b5' ; const encodedUrlScanned=encodeURIComponent(urlScanned);
+        const versionNumberField='64db1f79141a46001243b77a' ; const
+        encodedVersionNumber=encodeURIComponent(phAppVersion); const
+        feedbackForm=`https://form.gov.sg/64d1fcde4d0bb70012010995/?${urlScannedField}=${encodedUrlScanned}&${versionNumberField}=${encodedVersionNumber}`;
+        %>
+        <a href="<%=feedbackForm%>" target="_blank">Help us improve</a>
+        <hr class="d-sm-none" />
     </div>
     <div class="col-sm-6 text-sm-end">
       Created by
-      <a href="https://form.gov.sg/64d1fcde4d0bb70012010995" target="_blank"
-        >GovTech Accessibility Enabling Team</a
-      >
+      <a href="https://form.gov.sg/64d1fcde4d0bb70012010995" target="_blank">GovTech Accessibility Enabling Team</a> |
+      <a href="https://go.gov.sg/oobee-report-third-party-licenses" target="_blank">Third-Party Licenses</a>
     </div>
   </div>
 </footer>

@@ -1,1401 +1,1543 @@
 <!doctype html>
 <html lang="en">
-  <head lang="en">
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Accessibility Report</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Lato:wght@400;600;700&family=Ubuntu:wght@500&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      .container-fluid {
-        width: 100%;
-        padding-right: 15px;
-        padding-left: 15px;
-        margin-right: auto;
-        margin-left: auto;
+
+<head lang="en">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Accessibility Report</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;600;700&family=Ubuntu:wght@500&display=swap"
+    rel="stylesheet" />
+  <style>
+    .container-fluid {
+      width: 100%;
+      padding-right: 15px;
+      padding-left: 15px;
+      margin-right: auto;
+      margin-left: auto;
+    }
+
+    .row {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-wrap: wrap;
+      flex-wrap: wrap;
+      margin-right: -15px;
+      margin-left: -15px;
+    }
+
+    .col-12,
+    .col-md-8,
+    .col-sm-12,
+    .col-sm-6 {
+      position: relative;
+      width: 100%;
+      padding-right: 15px;
+      padding-left: 15px;
+    }
+
+    .col-12 {
+      -ms-flex: 0 0 100%;
+      flex: 0 0 100%;
+      max-width: 100%;
+    }
+
+    @media (min-width: 768px) {
+      .col-md-8 {
+        -ms-flex: 0 0 66.666667%;
+        flex: 0 0 66.666667%;
+        max-width: 66.666667%;
       }
-      .row {
-        display: -ms-flexbox;
-        display: flex;
-        -ms-flex-wrap: wrap;
-        flex-wrap: wrap;
-        margin-right: -15px;
-        margin-left: -15px;
+
+      .col-md-6 {
+        -ms-flex: 0 0 50%;
+        flex: 0 0 50%;
+        max-width: 50%;
       }
-      .col-12,
-      .col-md-8,
-      .col-sm-12,
+
+      .col-md-4 {
+        -ms-flex: 0 0 33.333333%;
+        flex: 0 0 33.333333%;
+        max-width: 33.333333%;
+      }
+    }
+
+    @media (min-width: 576px) {
       .col-sm-6 {
-        position: relative;
-        width: 100%;
-        padding-right: 15px;
-        padding-left: 15px;
+        -ms-flex: 0 0 50%;
+        flex: 0 0 50%;
+        max-width: 50%;
       }
-      .col-12 {
+
+      .col-sm-12 {
         -ms-flex: 0 0 100%;
         flex: 0 0 100%;
         max-width: 100%;
       }
-      @media (min-width: 768px) {
-        .col-md-8 {
-          -ms-flex: 0 0 66.666667%;
-          flex: 0 0 66.666667%;
-          max-width: 66.666667%;
-        }
-        .col-md-6 {
-          -ms-flex: 0 0 50%;
-          flex: 0 0 50%;
-          max-width: 50%;
-        }
-        .col-md-4 {
-          -ms-flex: 0 0 33.333333%;
-          flex: 0 0 33.333333%;
-          max-width: 33.333333%;
-        }
-      }
-      @media (min-width: 576px) {
-        .col-sm-6 {
-          -ms-flex: 0 0 50%;
-          flex: 0 0 50%;
-          max-width: 50%;
-        }
-        .col-sm-12 {
-          -ms-flex: 0 0 100%;
-          flex: 0 0 100%;
-          max-width: 100%;
-        }
-      }
-      .pb-2 {
-        padding-bottom: 0.5rem !important;
-      }
-      .pt-2 {
-        padding-top: 0.5rem !important;
-      }
-      .pl-3 {
-        padding-left: 1rem !important;
-      }
-      .pb-4 {
-        padding-bottom: 1.5rem !important;
-      }
-      .pt-4 {
-        padding-top: 1.5rem !important;
-      }
-      .mb-0 {
-        margin-bottom: 0 !important;
-      }
-      .d-flex {
-        display: -ms-flexbox !important;
-        display: flex !important;
-      }
-      .flex-shrink-0 {
-        -ms-flex-negative: 0 !important;
-        flex-shrink: 0 !important;
-      }
-      .text-center {
-        text-align: center !important;
-      }
-      @media (min-width: 576px) {
-        .text-sm-left {
-          text-align: left !important;
-        }
-        .text-sm-right {
-          text-align: right !important;
-        }
-        .d-sm-none {
-          display: none !important;
-        }
-      }
-      .form-control {
-        display: block;
-        width: 100%;
-        height: calc(1.5em + 0.75rem + 2px);
-        padding: 0.375rem 0.75rem;
-        font-size: 1rem;
-        font-weight: 400;
-        line-height: 1.5;
-        color: #495057;
-        background-color: #fff;
-        background-clip: padding-box;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
-        transition:
-          border-color 0.15s ease-in-out,
-          box-shadow 0.15s ease-in-out;
-      }
-      .form-control-sm {
-        height: calc(1.5em + 0.5rem + 2px);
-        padding: 0.25rem 0.5rem;
-        font-size: 0.875rem;
-        line-height: 1.5;
-        border-radius: 0.2rem;
-      }
-      .tooltip {
-        position: absolute;
-        z-index: 1070;
-        display: block;
-        margin: 0;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-          'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-          'Noto Color Emoji';
-        font-style: normal;
-        font-weight: 400;
-        line-height: 1.5;
-        text-align: left;
-        text-align: start;
-        text-decoration: none;
-        text-shadow: none;
-        text-transform: none;
-        letter-spacing: normal;
-        word-break: normal;
-        word-spacing: normal;
-        white-space: normal;
-        line-break: auto;
-        font-size: 0.875rem;
-        word-wrap: break-word;
-        opacity: 0;
-      }
-      .tooltip.show {
-        opacity: 0.9;
-      }
-      .bs-tooltip-auto[x-placement^='bottom'],
-      .bs-tooltip-bottom {
-        padding: 0.4rem 0;
-      }
-      .bs-tooltip-bottom .arrow,
-      bs-tooltip-auto[x-placement^='bottom'] .arrow {
-        top: 0;
-      }
-      .bs-tooltip-auto[x-placement^='top'] .arrow,
-      .bs-tooltip-top .arrow {
-        bottom: 0;
-      }
-      .tooltip .arrow {
-        position: absolute;
-        display: block;
-        width: 0.8rem;
-        height: 0.4rem;
-      }
-      .tooltip .arrow::before {
-        position: absolute;
-        content: '';
-        border-color: transparent;
-        border-style: solid;
-      }
-      .bs-tooltip-auto[x-placement^='bottom'] .arrow::before,
-      .bs-tooltip-bottom .arrow::before {
-        bottom: 0;
-        border-width: 0 0.4rem 0.4rem;
-        border-bottom-color: #000;
-      }
-      .bs-tooltip-auto[x-placement^='top'] .arrow::before,
-      .bs-tooltip-top .arrow::before {
-        top: 0;
-        border-width: 0.4rem 0.4rem 0;
-        border-top-color: #000;
-      }
-      .bs-tooltip-auto[x-placement^='top'],
-      .bs-tooltip-top {
-        padding: 0.4rem 0;
-        padding-top: 0.4rem;
-        padding-right: 0;
-        padding-bottom: 0.4rem;
-        padding-left: 0;
-      }
-      .tooltip-inner {
-        max-width: 200px;
-        padding: 0.25rem 0.5rem;
-        color: #fff;
-        text-align: center;
-        background-color: #000;
-        border-radius: 0.25rem;
-      }
-      div.dataTables_wrapper div.dataTables_filter {
-        text-align: right;
-      }
-      div.dataTables_wrapper div.dataTables_filter label {
-        font-weight: 400;
-        white-space: nowrap;
-        text-align: left;
-      }
-      div.dataTables_wrapper div.dataTables_filter input {
-        margin-left: 0.5em;
-        display: inline-block;
-        width: auto;
-      }
-      table.dataTable {
-        clear: both;
-        margin-top: 6px !important;
-        margin-bottom: 6px !important;
-        max-width: none !important;
-        border-collapse: separate !important;
-        border-spacing: 0;
-      }
-      div.dataTables_scrollBody table {
-        border-top: none;
-        margin-top: 0 !important;
-        margin-bottom: 0 !important;
-      }
-      table.dataTable td,
-      table.dataTable th {
-        -webkit-box-sizing: content-box;
-        box-sizing: content-box;
-      }
-      div.dataTables_scrollBody table tbody tr:first-child td,
-      div.dataTables_scrollBody table tbody tr:first-child th {
-        border-top: none;
-        position: relative;
-      }
-      div.dataTables_scrollHead table.dataTable {
-        margin-bottom: 0 !important;
-      }
-      table.dataTable thead .sorting,
-      table.dataTable thead .sorting_asc,
-      table.dataTable thead .sorting_asc_disabled,
-      table.dataTable thead .sorting_desc,
-      table.dataTable thead .sorting_desc_disabled {
-        cursor: pointer;
-        position: relative;
-      }
-      table.dataTable thead > tr > td.sorting,
-      table.dataTable thead > tr > td.sorting_asc,
-      table.dataTable thead > tr > td.sorting_desc,
-      table.dataTable thead > tr > th.sorting,
-      table.dataTable thead > tr > th.sorting_asc,
-      table.dataTable thead > tr > th.sorting_desc {
-        padding-right: 30px;
-      }
-      table.dataTable thead .sorting:after,
-      table.dataTable thead .sorting:before,
-      table.dataTable thead .sorting_asc:after,
-      table.dataTable thead .sorting_asc:before,
-      table.dataTable thead .sorting_asc_disabled:after,
-      table.dataTable thead .sorting_asc_disabled:before,
-      table.dataTable thead .sorting_desc:after,
-      table.dataTable thead .sorting_desc:before,
-      table.dataTable thead .sorting_desc_disabled:after,
-      table.dataTable thead .sorting_desc_disabled:before {
-        position: absolute;
-        bottom: 0.9em;
-        display: block;
-        opacity: 0.3;
-      }
-      table.dataTable thead .sorting:before,
-      table.dataTable thead .sorting_asc:before,
-      table.dataTable thead .sorting_asc_disabled:before,
-      table.dataTable thead .sorting_desc:before,
-      table.dataTable thead .sorting_desc_disabled:before {
-        right: 1em;
-        content: '\2191';
-      }
-      table.dataTable thead .sorting:after,
-      table.dataTable thead .sorting_asc:after,
-      table.dataTable thead .sorting_asc_disabled:after,
-      table.dataTable thead .sorting_desc:after,
-      table.dataTable thead .sorting_desc_disabled:after {
-        right: 0.5em;
-        content: '\2193';
-      }
-      table.dataTable tbody td.select-checkbox:before,
-      table.dataTable tbody th.select-checkbox:before {
-        content: ' ';
-        margin-top: -6px;
-        margin-left: -11px;
-        border: 1px solid #000;
-        border-radius: 3px;
-      }
-      table.dataTable tbody td.select-checkbox:after,
-      table.dataTable tbody td.select-checkbox:before,
-      table.dataTable tbody th.select-checkbox:after,
-      table.dataTable tbody th.select-checkbox:before {
-        display: block;
-        position: absolute;
-        top: 1.2em;
-        left: 50%;
-        width: 12px;
-        height: 12px;
-        box-sizing: border-box;
-      }
-      table.dataTable tr.selected td.select-checkbox:after,
-      table.dataTable tr.selected th.select-checkbox:after {
-        content: '\2714';
-        margin-top: -11px;
-        margin-left: -4px;
-        text-align: center;
-        text-shadow:
-          1px 1px #b0bed9,
-          -1px -1px #b0bed9,
-          1px -1px #b0bed9,
-          -1px 1px #b0bed9;
-      }
-      table.dataTable tbody td.select-checkbox,
-      table.dataTable tbody th.select-checkbox {
-        position: relative;
-      }
-      div.dataTables_wrapper div.dataTables_info {
-        padding-top: 0.85em;
-        white-space: nowrap;
-      }
-      table.dataTable thead .sorting:before,
-      table.dataTable thead .sorting_asc:before,
-      table.dataTable thead .sorting_asc_disabled:before,
-      table.dataTable thead .sorting_desc:before,
-      table.dataTable thead .sorting_desc_disabled:before {
-        right: 1em;
-        content: '\2191';
-      }
-      table.dataTable thead .sorting:after,
-      table.dataTable thead .sorting_asc:after,
-      table.dataTable thead .sorting_asc_disabled:after,
-      table.dataTable thead .sorting_desc:after,
-      table.dataTable thead .sorting_desc_disabled:after {
-        right: 0.5em;
-        content: '\2193';
-      }
-      table.dataTable thead .sorting:after,
-      table.dataTable thead .sorting:before,
-      table.dataTable thead .sorting_asc:after,
-      table.dataTable thead .sorting_asc:before,
-      table.dataTable thead .sorting_asc_disabled:after,
-      table.dataTable thead .sorting_asc_disabled:before,
-      table.dataTable thead .sorting_desc:after,
-      table.dataTable thead .sorting_desc:before,
-      table.dataTable thead .sorting_desc_disabled:after,
-      table.dataTable thead .sorting_desc_disabled:before {
-        position: absolute;
-        bottom: 0.9em;
-        display: block;
-        opacity: 0.3;
-      }
-      table.dataTable thead .sorting_asc:before,
-      table.dataTable thead .sorting_desc:after {
-        opacity: 1;
-      }
-      table.dataTable thead .sorting_asc:before,
-      table.dataTable thead .sorting_desc:after {
-        opacity: 1;
-      }
-      *,
-      ::after,
-      ::before {
-        box-sizing: border-box;
-      }
-      body,
-      html {
-        font-family: Lato, sans-serif;
-        background-color: #f6f8f9;
-        color: #444;
-      }
-      body {
-        display: flex;
-        -webkit-box-orient: vertical;
-        -webkit-box-direction: normal;
-        -webkit-flex-direction: column;
-        -ms-flex-direction: column;
-        flex-direction: column;
-        -webkit-box-flex: 1;
-        -webkit-flex: 1 0 auto;
-        -ms-flex: 1 0 auto;
-        flex: 1 0 auto;
-        min-height: 100vh;
-        line-height: 1.5;
-        margin: 0;
-        text-align: left;
-      }
-      body.dark {
-        background-color: #121212 !important;
-        color: #e1e1e1;
-      }
-      h1 {
-        font-family: Ubuntu, sans-serif;
-        font-size: 28px;
-        font-weight: 700;
-        margin-top: 0;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-        line-height: 1.2;
-        color: #000;
-      }
-      body.dark h1 {
-        color: #fff;
-      }
-      p {
-        font-size: 16px;
-        margin-top: 0;
-        margin-bottom: 1rem;
-      }
-      a {
-        color: #0b02b5;
-        text-decoration: none;
-      }
-      body.dark a {
-        color: #a68fce !important;
-      }
-      a:hover {
-        color: #08017e;
-        text-decoration: none;
-      }
-      body.dark a:hover {
-        color: #cfcdfe !important;
-      }
-      svg {
-        overflow: hidden;
-        vertical-align: middle;
-      }
-      hr {
-        margin-top: 1rem;
-        margin-bottom: 1rem;
-        border: 0;
-        border-top: 1px solid rgba(0, 0, 0, 0.1);
-      }
-      body.dark hr {
-        border-color: #383838;
-      }
-      label {
-        display: inline-block;
-        margin-bottom: 0.5rem;
-      }
-      input {
-        margin: 0;
-        font-family: inherit;
-        font-size: inherit;
-        line-height: inherit;
-      }
-      .form-control:focus {
-        color: #444;
-        background-color: #fff;
-        border-color: #0b02b5;
-        box-shadow: none;
-        outline: 0;
-      }
-      .form-control-sm {
-        font-size: 16px;
-      }
-      .header {
-        background-color: #fff;
-        box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
-      }
-      body.dark .header {
-        background-color: #272727;
-      }
+    }
+
+    .pb-2 {
+      padding-bottom: 0.5rem !important;
+    }
+
+    .pt-2 {
+      padding-top: 0.5rem !important;
+    }
+
+    .pl-3 {
+      padding-left: 1rem !important;
+    }
+
+    .pb-4 {
+      padding-bottom: 1.5rem !important;
+    }
+
+    .pt-4 {
+      padding-top: 1.5rem !important;
+    }
+
+    .mb-0 {
+      margin-bottom: 0 !important;
+    }
+
+    .d-flex {
+      display: -ms-flexbox !important;
+      display: flex !important;
+    }
+
+    .flex-shrink-0 {
+      -ms-flex-negative: 0 !important;
+      flex-shrink: 0 !important;
+    }
+
+    .text-center {
+      text-align: center !important;
+    }
+
+    @media (min-width: 576px) {
+      .text-sm-left {
+        text-align: left !important;
+      }
+
+      .text-sm-right {
+        text-align: right !important;
+      }
+
+      .d-sm-none {
+        display: none !important;
+      }
+    }
+
+    .form-control {
+      display: block;
+      width: 100%;
+      height: calc(1.5em + 0.75rem + 2px);
+      padding: 0.375rem 0.75rem;
+      font-size: 1rem;
+      font-weight: 400;
+      line-height: 1.5;
+      color: #495057;
+      background-color: #fff;
+      background-clip: padding-box;
+      border: 1px solid #ced4da;
+      border-radius: 0.25rem;
+      transition:
+        border-color 0.15s ease-in-out,
+        box-shadow 0.15s ease-in-out;
+    }
+
+    .form-control-sm {
+      height: calc(1.5em + 0.5rem + 2px);
+      padding: 0.25rem 0.5rem;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      border-radius: 0.2rem;
+    }
+
+    .tooltip {
+      position: absolute;
+      z-index: 1070;
+      display: block;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+        'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+      font-style: normal;
+      font-weight: 400;
+      line-height: 1.5;
+      text-align: left;
+      text-align: start;
+      text-decoration: none;
+      text-shadow: none;
+      text-transform: none;
+      letter-spacing: normal;
+      word-break: normal;
+      word-spacing: normal;
+      white-space: normal;
+      line-break: auto;
+      font-size: 0.875rem;
+      word-wrap: break-word;
+      opacity: 0;
+    }
+
+    .tooltip.show {
+      opacity: 0.9;
+    }
+
+    .bs-tooltip-auto[x-placement^='bottom'],
+    .bs-tooltip-bottom {
+      padding: 0.4rem 0;
+    }
+
+    .bs-tooltip-bottom .arrow,
+    bs-tooltip-auto[x-placement^='bottom'] .arrow {
+      top: 0;
+    }
+
+    .bs-tooltip-auto[x-placement^='top'] .arrow,
+    .bs-tooltip-top .arrow {
+      bottom: 0;
+    }
+
+    .tooltip .arrow {
+      position: absolute;
+      display: block;
+      width: 0.8rem;
+      height: 0.4rem;
+    }
+
+    .tooltip .arrow::before {
+      position: absolute;
+      content: '';
+      border-color: transparent;
+      border-style: solid;
+    }
+
+    .bs-tooltip-auto[x-placement^='bottom'] .arrow::before,
+    .bs-tooltip-bottom .arrow::before {
+      bottom: 0;
+      border-width: 0 0.4rem 0.4rem;
+      border-bottom-color: #000;
+    }
+
+    .bs-tooltip-auto[x-placement^='top'] .arrow::before,
+    .bs-tooltip-top .arrow::before {
+      top: 0;
+      border-width: 0.4rem 0.4rem 0;
+      border-top-color: #000;
+    }
+
+    .bs-tooltip-auto[x-placement^='top'],
+    .bs-tooltip-top {
+      padding: 0.4rem 0;
+      padding-top: 0.4rem;
+      padding-right: 0;
+      padding-bottom: 0.4rem;
+      padding-left: 0;
+    }
+
+    .tooltip-inner {
+      max-width: 200px;
+      padding: 0.25rem 0.5rem;
+      color: #fff;
+      text-align: center;
+      background-color: #000;
+      border-radius: 0.25rem;
+    }
+
+    div.dataTables_wrapper div.dataTables_filter {
+      text-align: right;
+    }
+
+    div.dataTables_wrapper div.dataTables_filter label {
+      font-weight: 400;
+      white-space: nowrap;
+      text-align: left;
+    }
+
+    div.dataTables_wrapper div.dataTables_filter input {
+      margin-left: 0.5em;
+      display: inline-block;
+      width: auto;
+    }
+
+    table.dataTable {
+      clear: both;
+      margin-top: 6px !important;
+      margin-bottom: 6px !important;
+      max-width: none !important;
+      border-collapse: separate !important;
+      border-spacing: 0;
+    }
+
+    div.dataTables_scrollBody table {
+      border-top: none;
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+    }
+
+    table.dataTable td,
+    table.dataTable th {
+      -webkit-box-sizing: content-box;
+      box-sizing: content-box;
+    }
+
+    div.dataTables_scrollBody table tbody tr:first-child td,
+    div.dataTables_scrollBody table tbody tr:first-child th {
+      border-top: none;
+      position: relative;
+    }
+
+    div.dataTables_scrollHead table.dataTable {
+      margin-bottom: 0 !important;
+    }
+
+    table.dataTable thead .sorting,
+    table.dataTable thead .sorting_asc,
+    table.dataTable thead .sorting_asc_disabled,
+    table.dataTable thead .sorting_desc,
+    table.dataTable thead .sorting_desc_disabled {
+      cursor: pointer;
+      position: relative;
+    }
+
+    table.dataTable thead>tr>td.sorting,
+    table.dataTable thead>tr>td.sorting_asc,
+    table.dataTable thead>tr>td.sorting_desc,
+    table.dataTable thead>tr>th.sorting,
+    table.dataTable thead>tr>th.sorting_asc,
+    table.dataTable thead>tr>th.sorting_desc {
+      padding-right: 30px;
+    }
+
+    table.dataTable thead .sorting:after,
+    table.dataTable thead .sorting:before,
+    table.dataTable thead .sorting_asc:after,
+    table.dataTable thead .sorting_asc:before,
+    table.dataTable thead .sorting_asc_disabled:after,
+    table.dataTable thead .sorting_asc_disabled:before,
+    table.dataTable thead .sorting_desc:after,
+    table.dataTable thead .sorting_desc:before,
+    table.dataTable thead .sorting_desc_disabled:after,
+    table.dataTable thead .sorting_desc_disabled:before {
+      position: absolute;
+      bottom: 0.9em;
+      display: block;
+      opacity: 0.3;
+    }
+
+    table.dataTable thead .sorting:before,
+    table.dataTable thead .sorting_asc:before,
+    table.dataTable thead .sorting_asc_disabled:before,
+    table.dataTable thead .sorting_desc:before,
+    table.dataTable thead .sorting_desc_disabled:before {
+      right: 1em;
+      content: '\2191';
+    }
+
+    table.dataTable thead .sorting:after,
+    table.dataTable thead .sorting_asc:after,
+    table.dataTable thead .sorting_asc_disabled:after,
+    table.dataTable thead .sorting_desc:after,
+    table.dataTable thead .sorting_desc_disabled:after {
+      right: 0.5em;
+      content: '\2193';
+    }
+
+    table.dataTable tbody td.select-checkbox:before,
+    table.dataTable tbody th.select-checkbox:before {
+      content: ' ';
+      margin-top: -6px;
+      margin-left: -11px;
+      border: 1px solid #000;
+      border-radius: 3px;
+    }
+
+    table.dataTable tbody td.select-checkbox:after,
+    table.dataTable tbody td.select-checkbox:before,
+    table.dataTable tbody th.select-checkbox:after,
+    table.dataTable tbody th.select-checkbox:before {
+      display: block;
+      position: absolute;
+      top: 1.2em;
+      left: 50%;
+      width: 12px;
+      height: 12px;
+      box-sizing: border-box;
+    }
+
+    table.dataTable tr.selected td.select-checkbox:after,
+    table.dataTable tr.selected th.select-checkbox:after {
+      content: '\2714';
+      margin-top: -11px;
+      margin-left: -4px;
+      text-align: center;
+      text-shadow:
+        1px 1px #b0bed9,
+        -1px -1px #b0bed9,
+        1px -1px #b0bed9,
+        -1px 1px #b0bed9;
+    }
+
+    table.dataTable tbody td.select-checkbox,
+    table.dataTable tbody th.select-checkbox {
+      position: relative;
+    }
+
+    div.dataTables_wrapper div.dataTables_info {
+      padding-top: 0.85em;
+      white-space: nowrap;
+    }
+
+    table.dataTable thead .sorting:before,
+    table.dataTable thead .sorting_asc:before,
+    table.dataTable thead .sorting_asc_disabled:before,
+    table.dataTable thead .sorting_desc:before,
+    table.dataTable thead .sorting_desc_disabled:before {
+      right: 1em;
+      content: '\2191';
+    }
+
+    table.dataTable thead .sorting:after,
+    table.dataTable thead .sorting_asc:after,
+    table.dataTable thead .sorting_asc_disabled:after,
+    table.dataTable thead .sorting_desc:after,
+    table.dataTable thead .sorting_desc_disabled:after {
+      right: 0.5em;
+      content: '\2193';
+    }
+
+    table.dataTable thead .sorting:after,
+    table.dataTable thead .sorting:before,
+    table.dataTable thead .sorting_asc:after,
+    table.dataTable thead .sorting_asc:before,
+    table.dataTable thead .sorting_asc_disabled:after,
+    table.dataTable thead .sorting_asc_disabled:before,
+    table.dataTable thead .sorting_desc:after,
+    table.dataTable thead .sorting_desc:before,
+    table.dataTable thead .sorting_desc_disabled:after,
+    table.dataTable thead .sorting_desc_disabled:before {
+      position: absolute;
+      bottom: 0.9em;
+      display: block;
+      opacity: 0.3;
+    }
+
+    table.dataTable thead .sorting_asc:before,
+    table.dataTable thead .sorting_desc:after {
+      opacity: 1;
+    }
+
+    table.dataTable thead .sorting_asc:before,
+    table.dataTable thead .sorting_desc:after {
+      opacity: 1;
+    }
+
+    *,
+    ::after,
+    ::before {
+      box-sizing: border-box;
+    }
+
+    body,
+    html {
+      font-family: Lato, sans-serif;
+      background-color: #f6f8f9;
+      color: #444;
+    }
+
+    body {
+      display: flex;
+      -webkit-box-orient: vertical;
+      -webkit-box-direction: normal;
+      -webkit-flex-direction: column;
+      -ms-flex-direction: column;
+      flex-direction: column;
+      -webkit-box-flex: 1;
+      -webkit-flex: 1 0 auto;
+      -ms-flex: 1 0 auto;
+      flex: 1 0 auto;
+      min-height: 100vh;
+      line-height: 1.5;
+      margin: 0;
+      text-align: left;
+    }
+
+    body.dark {
+      background-color: #121212 !important;
+      color: #e1e1e1;
+    }
+
+    h1 {
+      font-family: Ubuntu, sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      line-height: 1.2;
+      color: #000;
+    }
+
+    body.dark h1 {
+      color: #fff;
+    }
+
+    p {
+      font-size: 16px;
+      margin-top: 0;
+      margin-bottom: 1rem;
+    }
+
+    a {
+      color: #0b02b5;
+      text-decoration: none;
+    }
+
+    body.dark a {
+      color: #a68fce !important;
+    }
+
+    a:hover {
+      color: #08017e;
+      text-decoration: none;
+    }
+
+    body.dark a:hover {
+      color: #cfcdfe !important;
+    }
+
+    svg {
+      overflow: hidden;
+      vertical-align: middle;
+    }
+
+    hr {
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+      border: 0;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    body.dark hr {
+      border-color: #383838;
+    }
+
+    label {
+      display: inline-block;
+      margin-bottom: 0.5rem;
+    }
+
+    input {
+      margin: 0;
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
+    }
+
+    .form-control:focus {
+      color: #444;
+      background-color: #fff;
+      border-color: #0b02b5;
+      box-shadow: none;
+      outline: 0;
+    }
+
+    .form-control-sm {
+      font-size: 16px;
+    }
+
+    .header {
+      background-color: #fff;
+      box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    body.dark .header {
+      background-color: #272727;
+    }
+
+    .header-meta {
+      text-align: right;
+    }
+
+    @media (max-width: 767px) {
       .header-meta {
-        text-align: right;
-      }
-      @media (max-width: 767px) {
-        .header-meta {
-          border-top: 1px solid #e1e7eb;
-          padding-top: 1.5rem !important;
-          margin-top: 1.5rem !important;
-        }
-      }
-      .show-ondark {
-        max-height: 0;
-        overflow: hidden;
-        padding-top: 0;
-        padding-bottom: 0;
-        border-bottom: 1px solid #e1e7eb;
-      }
-      body.dark .show-ondark {
-        max-height: 100px;
-        padding-top: 0.5rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #383838;
-        -webkit-transition: max-height 0.8s;
-        -moz-transition: max-height 0.8s;
-        transition: max-height 0.8s;
-      }
-      .main {
-        -webkit-box-flex: 1;
-        -webkit-flex: 1 0 auto;
-        -ms-flex: 1 0 auto;
-        flex: 1 0 auto;
-        width: 100%;
-      }
-      .footer {
-        -webkit-box-flex: 0;
-        -webkit-flex: none;
-        -ms-flex: none;
-        flex: none;
-        background-color: #fff;
-        box-shadow: 0 -2px 4px 0 rgba(0, 0, 0, 0.1);
-      }
-      body.dark .footer {
-        background-color: #272727;
-      }
-      #oobee-table {
-        background-color: #fff;
-        width: 100%;
-      }
-      body.dark #oobee-table {
-        background-color: #272727;
-      }
-      table.dataTable {
-        margin-top: 0 !important;
-      }
-      .dataTables_scroll {
-        box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
-        background-color: #fff;
-      }
-      body.dark .dataTables_scroll {
-        background-color: #1e1e1e;
-      }
-      tbody > tr {
-        vertical-align: top;
-      }
-      tbody > tr:hover {
-        background-color: #f0f0ff;
-      }
-      body.dark tbody > tr:hover {
-        background-color: #303033;
-      }
-      body.dark div.dataTables_wrapper div.dataTables_filter input {
-        border-color: #383838;
-        background-color: #333;
-        color: #e1e1e1;
-      }
-      th {
-        height: 47px;
-        color: #000;
-        background-color: #fff;
-        border-bottom: 2px solid #0b02b5 !important;
-        padding-left: 16px;
-        font-weight: 600;
-      }
-      body.dark th {
-        border-bottom: 2px solid #a68fce !important;
-        background-color: #272727;
-        color: #e1e1e1;
-      }
-      th.sorting_disabled {
-        padding-right: 16px;
-      }
-      td {
-        padding-top: 12px;
-        padding-bottom: 12px;
-        padding-left: 16px;
-        padding-right: 16px;
         border-top: 1px solid #e1e7eb;
-        border-bottom: 1px solid #e1e7eb;
-      }
-      body.dark td {
-        border-top: 1px solid #383838;
-        border-bottom: 1px solid #383838;
-      }
-      .dt-nowrap {
-        white-space: nowrap;
-      }
-      td.issue {
-        min-width: 400px;
-      }
-      td.element {
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        overflow: hidden;
-        max-width: 300px;
-        word-break: break-all;
-      }
-      td.element:hover {
-        overflow: visible;
-        white-space: normal;
-        height: auto;
-      }
-      th.element > span {
-        padding-left: 5px;
-        font-size: 14px;
-        font-weight: 400;
-        color: #969799;
-      }
-      td.page {
-        color: #0b02b5;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        overflow: hidden;
-        max-width: 150px;
-        word-break: break-all;
-      }
-      td.page:hover {
-        overflow: visible;
-        white-space: normal;
-        height: auto;
-      }
-      body.dark td.page {
-        color: #a68fce;
-      }
-      .wcag-clause {
-        font-size: 14px;
-      }
-      .hidden {
-        display: none;
-      }
-      .impact {
-        padding: 3px 5px;
-        color: #fff;
-        border-radius: 5px;
-        font-size: 12px;
-        font-weight: 700;
-        text-transform: uppercase;
-      }
-      body.dark .impact {
-        color: #121212;
-      }
-      .critical {
-        background-color: #d0021b;
-      }
-      body.dark .critical {
-        background-color: #d46e78;
-      }
-      .serious {
-        background-color: #fa6400;
-      }
-      body.dark .serious {
-        background-color: #f0a571;
-      }
-      .moderate {
-        background-color: #f7b500;
-      }
-      body.dark .moderate {
-        background-color: #f4d377;
-      }
-      .minor {
-        background-color: #969799;
-      }
-      body.dark .minor {
-        background-color: #c0c1c2;
-      }
-      .critical-stroke-icon {
-        stroke: #d0021b;
-      }
-      .critical-fill-icon {
-        fill: #d0021b;
-      }
-      body.dark .critical-stroke-icon {
-        stroke: #d46e78;
-      }
-      body.dark .critical-fill-icon {
-        fill: #d46e78;
-      }
-      .serious-stroke-icon {
-        stroke: #fa6400;
-      }
-      .serious-fill-icon {
-        fill: #fa6400;
-      }
-      body.dark .serious-stroke-icon {
-        stroke: #f0a571;
-      }
-      body.dark .serious-fill-icon {
-        fill: #f0a571;
-      }
-      .moderate-stroke-icon {
-        stroke: #f7b500;
-      }
-      .moderate-fill-icon {
-        fill: #f7b500;
-      }
-      body.dark .moderate-stroke-icon {
-        stroke: #f4d377;
-      }
-      body.dark .moderate-fill-icon {
-        fill: #f4d377;
-      }
-      .minor-stroke-icon {
-        stroke: #969799;
-      }
-      .minor-fill-icon {
-        fill: #969799;
-      }
-      body.dark .minor-stroke-icon {
-        stroke: #c0c1c2;
-      }
-      body.dark .minor-fill-icon {
-        fill: #c0c1c2;
-      }
-      .link-icon {
-        fill: #0b02b5;
-      }
-      .link-icon:hover {
-        fill: #08017e;
-      }
-      body.dark .link-icon {
-        fill: #a68fce;
-      }
-      body.dark .link-icon:hover {
-        fill: #cfcdfe;
-      }
-      table.dataTable tbody > tr.selected,
-      table.dataTable tbody > tr > .selected,
-      table.dataTable.display tbody > tr.even.selected > .sorting_1,
-      table.dataTable.display tbody > tr.odd.selected,
-      table.dataTable.display tbody > tr.odd.selected > .sorting_1 {
-        background-color: #f6ffed;
-      }
-      body.dark table.dataTable tbody > tr.selected,
-      body.dark table.dataTable.display tbody > tr.even.selected > .sorting_1,
-      body.dark table.dataTable.display tbody > tr.odd.selected,
-      body.dark table.dataTable.display tbody > tr.odd.selected > .sorting_1,
-      table.dataTable tbody > tr > .selected {
-        background-color: #2e352c;
-      }
-      table.dataTable.display tbody > tr.even.selected:hover > .sorting_1,
-      table.dataTable.display tbody > tr.odd.selected:hover > .sorting_1,
-      table.dataTable.display tbody > tr.selected:hover {
-        background-color: #ecffda;
-      }
-      body.dark table.dataTable.display tbody > tr.even.selected:hover > .sorting_1,
-      body.dark table.dataTable.display tbody > tr.odd.selected:hover > .sorting_1,
-      body.dark table.dataTable.display tbody > tr.selected:hover {
-        background-color: #3a4238;
-      }
-      tbody > tr:hover .checkbox-label .checkbox-style {
-        border-color: #969799;
-      }
-      body.dark tbody > tr:hover .checkbox-label .checkbox-style {
-        border-color: #e1e7eb;
-      }
-      table.dataTable tbody tr:hover td.select-checkbox:before,
-      table.dataTable tbody tr:hover th.select-checkbox:before {
-        border-color: #969799;
-      }
-      body.dark table.dataTable tbody tr:hover td.select-checkbox:before,
-      table.dataTable tbody tr:hover th.select-checkbox:before {
-        border-color: #e1e7eb;
-      }
-      table.dataTable tbody td.select-checkbox:before,
-      table.dataTable tbody th.select-checkbox:before {
-        position: absolute;
-        top: 22px;
-        height: 20px;
-        width: 20px;
-        background-color: transparent;
-        border-radius: 5px;
-        transition: all 0.3s ease-out;
-        -webkit-transition: all 0.3s ease-out;
-        -moz-transition: all 0.3s ease-out;
-        -ms-transition: all 0.3s ease-out;
-        -o-transition: all 0.3s ease-out;
-        border: 2px solid #e1e7eb;
-        cursor: pointer;
-      }
-      body.dark table.dataTable tbody td.select-checkbox:before,
-      table.dataTable tbody th.select-checkbox:before {
-        border-color: #969799;
-      }
-      table.dataTable tbody tr.selected td.select-checkbox:before,
-      table.dataTable tbody tr.selected th.select-checkbox:before {
-        background-color: #0a0;
-        color: #fff;
-        border-radius: 5px;
-        -webkit-transform: rotate(0) scale(1);
-        -ms-transform: rotate(0) scale(1);
-        transform: rotate(0) scale(1);
-        opacity: 1;
-        border: 2px solid #0a0 !important;
-      }
-      body.dark table.dataTable tbody tr.selected td.select-checkbox:before,
-      table.dataTable tbody tr.selected th.select-checkbox:before {
-        background-color: #98d490;
-        color: #121212;
-        border: 2px solid #98d490 !important;
-      }
-      table.dataTable tr.selected td.select-checkbox:after,
-      table.dataTable tr.selected th.select-checkbox:after {
-        content: '';
-        -webkit-transform: rotate(45deg) scale(1);
-        -ms-transform: rotate(45deg) scale(1);
-        transform: rotate(45deg) scale(1);
-        opacity: 1;
-        top: 29px;
-        left: 50%;
-        width: 6px;
-        height: 12px;
-        border: solid #fff;
-        border-width: 0 2px 2px 0;
-        background-color: transparent;
-        border-radius: 0;
-      }
-      body.dark table.dataTable tr.selected td.select-checkbox:after,
-      table.dataTable tr.selected th.select-checkbox:after {
-        border-color: #121212;
-      }
-      div.dataTables_wrapper div.dataTables_info {
-        visibility: hidden;
-      }
-      div.dataTables_wrapper span.select-info,
-      div.dataTables_wrapper span.select-item {
-        margin-left: 0;
-        visibility: visible;
-        float: left;
-      }
-      .toggleWrapper {
-        padding: 0 50px;
-      }
-      .toggleWrapper input {
-        position: absolute;
-        left: -99em;
-      }
-      .toggle {
-        cursor: pointer;
-        display: inline-block;
-        position: relative;
-        width: 45px;
-        height: 26px;
-        background-color: #83d8ff;
-        border-radius: 84px;
-        transition: background-color 0.2s cubic-bezier(0.445, 0.05, 0.55, 0.95);
-        margin-bottom: 0;
-        margin-top: 10px;
-      }
-      .toggle:before {
-        content: 'Light';
-        position: absolute;
-        left: -50px;
-        font-size: 18px;
-        color: #0b02b5;
-      }
-      .toggle:after {
-        content: 'Dark';
-        position: absolute;
-        right: -48px;
-        font-size: 18px;
-        color: #969799;
-      }
-      .toggle__handler {
-        display: inline-block;
-        position: relative;
-        z-index: 1;
-        top: 2px;
-        left: -21px;
-        width: 22px;
-        height: 22px;
-        background-color: #fff;
-        border-radius: 50px;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-        transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        transform: rotate(-45deg);
-        cursor: pointer;
-      }
-      .toggle__handler .crater {
-        position: absolute;
-        background-color: #e8cda5;
-        opacity: 0;
-        transition: opacity 0.2s ease-in-out;
-        border-radius: 100%;
-      }
-      .toggle__handler .crater--1 {
-        top: 9px;
-        left: 6px;
-        width: 2px;
-        height: 2px;
-      }
-      .toggle__handler .crater--2 {
-        top: 13px;
-        left: 11px;
-        width: 3px;
-        height: 3px;
-      }
-      .toggle__handler .crater--3 {
-        top: 5px;
-        left: 13px;
-        width: 4px;
-        height: 4px;
-      }
-      .star {
-        position: absolute;
-        background-color: #fff;
-        transition: all 0.3s cubic-bezier(0.445, 0.05, 0.55, 0.95);
-        border-radius: 50%;
-      }
-      .star--1 {
-        top: 6px;
-        left: 8px;
-        z-index: 0;
-        width: 30px;
-        height: 1px;
-      }
-      .star--2 {
-        top: 10px;
-        left: 15px;
-        z-index: 1;
-        width: 19px;
-        height: 1px;
-      }
-      .star--3 {
-        top: 14px;
-        left: 12px;
-        z-index: 0;
-        width: 30px;
-        height: 1px;
-      }
-      .star--4,
-      .star--5,
-      .star--6 {
-        opacity: 0;
-        transition: all 0.3s 0 cubic-bezier(0.445, 0.05, 0.55, 0.95);
-      }
-      .star--4 {
-        top: 19px;
-        left: 14px;
-        z-index: 0;
-        width: 1px;
-        height: 1px;
-        transform: translate3d(3px, 0, 0);
-      }
-      .star--5 {
-        top: 6px;
-        left: 15px;
-        z-index: 0;
-        width: 2px;
-        height: 2px;
-        transform: translate3d(3px, 0, 0);
-      }
-      .star--6 {
-        top: 16px;
-        left: 18px;
-        z-index: 0;
-        width: 1px;
-        height: 1px;
-        transform: translate3d(3px, 0, 0);
-      }
-      input:checked + .toggle {
-        background-color: #749dd6;
-      }
-      input:checked + .toggle:before {
-        color: #969799;
-      }
-      input:checked + .toggle:after {
-        color: #a68fce;
-      }
-      input:checked + .toggle .toggle__handler {
-        background-color: #ffe5b5;
-        transform: translate3d(19px, 0, 0) rotate(0);
-      }
-      input:checked + .toggle .toggle__handler .crater {
-        opacity: 1;
-      }
-      input:checked + .toggle .star--1 {
-        width: 2px;
-        height: 2px;
-      }
-      input:checked + .toggle .star--2 {
-        width: 3px;
-        height: 3px;
-        transform: translate3d(-5px, 0, 0);
-      }
-      input:checked + .toggle .star--3 {
-        width: 2px;
-        height: 2px;
-        transform: translate3d(-7px, 0, 0);
-      }
-      input:checked + .toggle .star--4,
-      input:checked + .toggle .star--5,
-      input:checked + .toggle .star--6 {
-        opacity: 1;
-        transform: translate3d(0, 0, 0);
-      }
-      input:checked + .toggle .star--4 {
-        transition: all 0.3s 0.2s cubic-bezier(0.445, 0.05, 0.55, 0.95);
-      }
-      input:checked + .toggle .star--5 {
-        transition: all 0.3s 0.3s cubic-bezier(0.445, 0.05, 0.55, 0.95);
-      }
-      input:checked + .toggle .star--6 {
-        transition: all 0.3s 0.4s cubic-bezier(0.445, 0.05, 0.55, 0.95);
-      }
-      #loader {
-        margin: 15vh auto;
-        border: 10px solid #cfcdfe;
-        border-radius: 50%;
-        border-top: 10px solid #5d30cf;
-        width: 60px;
-        height: 60px;
-        -webkit-animation: spin 2s linear infinite;
-        animation: spin 2s linear infinite;
-      }
-      body.dark #loader {
-        border: 10px solid #514865 !important;
-        border-top: 10px solid #a68fce !important;
-      }
-      @-webkit-keyframes spin {
-        0% {
-          -webkit-transform: rotate(0);
-        }
-        100% {
-          -webkit-transform: rotate(360deg);
-        }
-      }
-      @keyframes spin {
-        0% {
-          transform: rotate(0);
-        }
-        100% {
-          transform: rotate(360deg);
-        }
-      }
-      .impact-icon-size {
-        display: inline-block;
-        min-width: 16px;
-      }
-      .wcag-clause:not(:last-child):after {
-        content: ', ';
-      }
-    </style>
-  </head>
-  <body onbeforeunload="return closeWarning()" onload="load()">
-    <div class="header">
-      <div class="container-fluid">
-        <div class="row pt-4 pb-4">
-          <div class="col-md-8 col-12">
-            <div class="d-flex">
-              <svg class="flex-shrink-0" width="70px" height="70px" viewBox="0 0 60 60">
-                <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-                  <g transform="translate(-28.000000, -32.000000)">
-                    <g transform="translate(28.000000, 27.000000)">
-                      <g transform="translate(0.000000, 5.000000)">
-                        <circle fill="#533BE2" cx="30" cy="30" r="30"></circle>
-                        <path
-                          d="M28.4502649,29.642801 C28.3252903,29.5414933 28.1233305,29.5414933 27.998356,29.6424933 L27.0933986,30.3752304 C26.9688039,30.4764355 26.9688039,30.6402913 27.0937784,30.7415989 L29.6684816,32.8265056 C29.7610412,32.9014609 29.8808243,33 30.0032664,33 C30.1255819,33 30.2585336,32.9014609 30.3510932,32.8265056 L34.9061425,29.1747147 C35.0312436,29.0735096 35.0312436,28.9095512 34.9063957,28.8083461 L34.0016916,28.0757116 C33.8765904,27.9747116 33.6746306,27.9747116 33.5495294,28.0760192 L30.0097241,30.9053522 L28.4502649,29.642801 Z"
-                          fill="#FFFFFF"
-                        ></path>
-                        <path
-                          d="M30.5,35 C28.0147604,35 26,33.2092086 26,31 C26,28.7908982 28.0147604,27 30.5,27 C32.9852396,27 35,28.7908982 35,31 C35,33.2092086 32.9852396,35 30.5,35 M37.5248476,29.7923531 C36.8297901,29.8155839 36.1869369,29.4327578 35.9256839,28.8409617 C35.6735552,28.2688636 35.858003,27.5330795 36.3480544,27.1193147 C36.5094029,26.9819641 36.5289218,26.7547949 36.395408,26.5947488 C36.0434903,26.1788429 35.6399457,25.8007272 35.1957464,25.4701435 C35.0238877,25.3417854 34.7739534,25.3598776 34.6257715,25.5114665 C34.1531601,25.9954589 33.4009317,26.1522934 32.7548447,25.901037 C32.1616549,25.6706562 31.7613443,25.1209325 31.7419409,24.5238907 L31.7419409,22.1316558 C31.7419409,22.0174288 31.672181,21.9129439 31.5618819,21.861986 L29.7675292,21.0321012 C29.5513199,20.9321125 29.2972277,21.0778134 29.2972277,21.301771 L29.2972277,24.4391037 C29.2934163,25.0723298 28.8916042,25.6335084 28.2702334,25.869456 C27.6309606,26.1115057 26.8855466,25.9553135 26.4158225,25.4806349 C26.2683336,25.3312941 26.0215177,25.3129878 25.8500055,25.4383484 C25.4033807,25.7644358 24.9998362,26.1349506 24.650113,26.5396158 C24.5131342,26.6980561 24.5321911,26.930578 24.696196,27.0680357 C25.1913293,27.4823358 25.3753151,28.2266842 25.1164876,28.8018869 C24.84484,29.4002133 24.1904371,29.7777937 23.4881033,29.7406459 C23.2673896,29.7285487 23.07555,29.8782106 23.0499098,30.082042 C22.9851163,30.6012552 22.9831528,31.1252859 23.0455209,31.645998 C23.0695442,31.8473671 23.2567639,31.9969219 23.4748212,31.9901775 C24.1702252,31.967589 24.8130784,32.3496658 25.0749089,32.9421042 C25.3253051,33.5103483 25.1427053,34.2495581 24.6519609,34.6631088 C24.4903814,34.7997101 24.470516,35.0282709 24.6046074,35.1876748 C24.9573335,35.604223 25.361109,35.9830881 25.8042689,36.3121729 C25.9763586,36.440424 26.2260619,36.4215824 26.3740128,36.2707429 C26.8468552,35.7868576 27.5986216,35.6307724 28.2454016,35.8821359 C28.8485241,36.1167989 29.2786328,36.6901816 29.2972277,37.3508136 L29.2972277,37.868421 C29.2972277,37.97494 29.3621367,38.0723594 29.4650441,38.1198915 L31.3032854,38.9701166 C31.5048267,39.0632539 31.7419409,38.927402 31.7419409,38.7186461 L31.7419409,37.3600202 C31.7421719,37.3544534 31.7434423,37.3488866 31.7434423,37.3434268 C31.7268108,36.7379278 32.0894697,36.1569442 32.7295509,35.9128605 C33.3688237,35.6699543 34.1138913,35.8263606 34.5843083,36.3016816 C34.7317972,36.45038 34.9780356,36.4694357 35.1492014,36.343861 C35.5931697,36.0209853 35.9969452,35.6502563 36.3495559,35.2443065 C36.4881516,35.0849027 36.4686327,34.8532372 36.3043968,34.7151372 C35.8082241,34.2991242 35.6244692,33.5548829 35.8838742,32.9821425 C36.1548289,32.3819962 36.8091162,32.0045228 37.5116811,32.0414565 C37.7323947,32.0535536 37.9248118,31.9035706 37.9498745,31.7003815 C37.9833685,31.4346728 38,31.1674653 38,30.8995085 C38,30.6451475 37.9849855,30.3907865 37.9544944,30.1363185 C37.9304711,29.9347353 37.7430204,29.7855016 37.5248476,29.7923531 Z"
-                          fill="#FFFFFF"
-                        ></path>
-                        <path
-                          d="M29,17.4279646 C29,17.5512652 29.0705877,17.6640501 29.1820788,17.7191714 L41.4375735,23.766452 L41.4375735,35.734939 C41.4375735,35.8582397 41.5080443,35.9710245 41.6196524,36.0259147 L43.5240006,36.965288 C43.7427757,37.073335 44,36.9160602 44,36.6743123 L44,22.9825046 C44,22.5023599 43.7253625,22.063354 43.2905003,21.8489934 L29.4758825,15.0346369 C29.2571075,14.9267055 29,15.0840959 29,15.3258438 L29,17.4279646 Z"
-                          fill="#FFFFFF"
-                        ></path>
-                        <path
-                          d="M32,42.5719259 C32,42.4487411 31.9294129,42.3359565 31.8178057,42.2808354 L19.5624065,36.2335699 L19.5624065,24.2651127 C19.5624065,24.1418123 19.4919362,24.0290277 19.3803291,23.9740221 L17.4759957,23.0346512 C17.2572223,22.92672 17,23.0839944 17,23.3257418 L17,37.0173998 C17,37.4976588 17.2746354,37.9366636 17.7094942,38.1510237 L31.5241212,44.9653631 C31.7427777,45.0732943 32,44.9159043 32,44.674157 L32,42.5719259 Z"
-                          fill="#FFFFFF"
-                        ></path>
-                      </g>
+        padding-top: 1.5rem !important;
+        margin-top: 1.5rem !important;
+      }
+    }
+
+    .show-ondark {
+      max-height: 0;
+      overflow: hidden;
+      padding-top: 0;
+      padding-bottom: 0;
+      border-bottom: 1px solid #e1e7eb;
+    }
+
+    body.dark .show-ondark {
+      max-height: 100px;
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #383838;
+      -webkit-transition: max-height 0.8s;
+      -moz-transition: max-height 0.8s;
+      transition: max-height 0.8s;
+    }
+
+    .main {
+      -webkit-box-flex: 1;
+      -webkit-flex: 1 0 auto;
+      -ms-flex: 1 0 auto;
+      flex: 1 0 auto;
+      width: 100%;
+    }
+
+    .footer {
+      -webkit-box-flex: 0;
+      -webkit-flex: none;
+      -ms-flex: none;
+      flex: none;
+      background-color: #fff;
+      box-shadow: 0 -2px 4px 0 rgba(0, 0, 0, 0.1);
+    }
+
+    body.dark .footer {
+      background-color: #272727;
+    }
+
+    #oobee-table {
+      background-color: #fff;
+      width: 100%;
+    }
+
+    body.dark #oobee-table {
+      background-color: #272727;
+    }
+
+    table.dataTable {
+      margin-top: 0 !important;
+    }
+
+    .dataTables_scroll {
+      box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+      background-color: #fff;
+    }
+
+    body.dark .dataTables_scroll {
+      background-color: #1e1e1e;
+    }
+
+    tbody>tr {
+      vertical-align: top;
+    }
+
+    tbody>tr:hover {
+      background-color: #f0f0ff;
+    }
+
+    body.dark tbody>tr:hover {
+      background-color: #303033;
+    }
+
+    body.dark div.dataTables_wrapper div.dataTables_filter input {
+      border-color: #383838;
+      background-color: #333;
+      color: #e1e1e1;
+    }
+
+    th {
+      height: 47px;
+      color: #000;
+      background-color: #fff;
+      border-bottom: 2px solid #0b02b5 !important;
+      padding-left: 16px;
+      font-weight: 600;
+    }
+
+    body.dark th {
+      border-bottom: 2px solid #a68fce !important;
+      background-color: #272727;
+      color: #e1e1e1;
+    }
+
+    th.sorting_disabled {
+      padding-right: 16px;
+    }
+
+    td {
+      padding-top: 12px;
+      padding-bottom: 12px;
+      padding-left: 16px;
+      padding-right: 16px;
+      border-top: 1px solid #e1e7eb;
+      border-bottom: 1px solid #e1e7eb;
+    }
+
+    body.dark td {
+      border-top: 1px solid #383838;
+      border-bottom: 1px solid #383838;
+    }
+
+    .dt-nowrap {
+      white-space: nowrap;
+    }
+
+    td.issue {
+      min-width: 400px;
+    }
+
+    td.element {
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      max-width: 300px;
+      word-break: break-all;
+    }
+
+    td.element:hover {
+      overflow: visible;
+      white-space: normal;
+      height: auto;
+    }
+
+    th.element>span {
+      padding-left: 5px;
+      font-size: 14px;
+      font-weight: 400;
+      color: #969799;
+    }
+
+    td.page {
+      color: #0b02b5;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      max-width: 150px;
+      word-break: break-all;
+    }
+
+    td.page:hover {
+      overflow: visible;
+      white-space: normal;
+      height: auto;
+    }
+
+    body.dark td.page {
+      color: #a68fce;
+    }
+
+    .wcag-clause {
+      font-size: 14px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .impact {
+      padding: 3px 5px;
+      color: #fff;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    body.dark .impact {
+      color: #121212;
+    }
+
+    .critical {
+      background-color: #d0021b;
+    }
+
+    body.dark .critical {
+      background-color: #d46e78;
+    }
+
+    .serious {
+      background-color: #fa6400;
+    }
+
+    body.dark .serious {
+      background-color: #f0a571;
+    }
+
+    .moderate {
+      background-color: #f7b500;
+    }
+
+    body.dark .moderate {
+      background-color: #f4d377;
+    }
+
+    .minor {
+      background-color: #969799;
+    }
+
+    body.dark .minor {
+      background-color: #c0c1c2;
+    }
+
+    .critical-stroke-icon {
+      stroke: #d0021b;
+    }
+
+    .critical-fill-icon {
+      fill: #d0021b;
+    }
+
+    body.dark .critical-stroke-icon {
+      stroke: #d46e78;
+    }
+
+    body.dark .critical-fill-icon {
+      fill: #d46e78;
+    }
+
+    .serious-stroke-icon {
+      stroke: #fa6400;
+    }
+
+    .serious-fill-icon {
+      fill: #fa6400;
+    }
+
+    body.dark .serious-stroke-icon {
+      stroke: #f0a571;
+    }
+
+    body.dark .serious-fill-icon {
+      fill: #f0a571;
+    }
+
+    .moderate-stroke-icon {
+      stroke: #f7b500;
+    }
+
+    .moderate-fill-icon {
+      fill: #f7b500;
+    }
+
+    body.dark .moderate-stroke-icon {
+      stroke: #f4d377;
+    }
+
+    body.dark .moderate-fill-icon {
+      fill: #f4d377;
+    }
+
+    .minor-stroke-icon {
+      stroke: #969799;
+    }
+
+    .minor-fill-icon {
+      fill: #969799;
+    }
+
+    body.dark .minor-stroke-icon {
+      stroke: #c0c1c2;
+    }
+
+    body.dark .minor-fill-icon {
+      fill: #c0c1c2;
+    }
+
+    .link-icon {
+      fill: #0b02b5;
+    }
+
+    .link-icon:hover {
+      fill: #08017e;
+    }
+
+    body.dark .link-icon {
+      fill: #a68fce;
+    }
+
+    body.dark .link-icon:hover {
+      fill: #cfcdfe;
+    }
+
+    table.dataTable tbody>tr.selected,
+    table.dataTable tbody>tr>.selected,
+    table.dataTable.display tbody>tr.even.selected>.sorting_1,
+    table.dataTable.display tbody>tr.odd.selected,
+    table.dataTable.display tbody>tr.odd.selected>.sorting_1 {
+      background-color: #f6ffed;
+    }
+
+    body.dark table.dataTable tbody>tr.selected,
+    body.dark table.dataTable.display tbody>tr.even.selected>.sorting_1,
+    body.dark table.dataTable.display tbody>tr.odd.selected,
+    body.dark table.dataTable.display tbody>tr.odd.selected>.sorting_1,
+    table.dataTable tbody>tr>.selected {
+      background-color: #2e352c;
+    }
+
+    table.dataTable.display tbody>tr.even.selected:hover>.sorting_1,
+    table.dataTable.display tbody>tr.odd.selected:hover>.sorting_1,
+    table.dataTable.display tbody>tr.selected:hover {
+      background-color: #ecffda;
+    }
+
+    body.dark table.dataTable.display tbody>tr.even.selected:hover>.sorting_1,
+    body.dark table.dataTable.display tbody>tr.odd.selected:hover>.sorting_1,
+    body.dark table.dataTable.display tbody>tr.selected:hover {
+      background-color: #3a4238;
+    }
+
+    tbody>tr:hover .checkbox-label .checkbox-style {
+      border-color: #969799;
+    }
+
+    body.dark tbody>tr:hover .checkbox-label .checkbox-style {
+      border-color: #e1e7eb;
+    }
+
+    table.dataTable tbody tr:hover td.select-checkbox:before,
+    table.dataTable tbody tr:hover th.select-checkbox:before {
+      border-color: #969799;
+    }
+
+    body.dark table.dataTable tbody tr:hover td.select-checkbox:before,
+    table.dataTable tbody tr:hover th.select-checkbox:before {
+      border-color: #e1e7eb;
+    }
+
+    table.dataTable tbody td.select-checkbox:before,
+    table.dataTable tbody th.select-checkbox:before {
+      position: absolute;
+      top: 22px;
+      height: 20px;
+      width: 20px;
+      background-color: transparent;
+      border-radius: 5px;
+      transition: all 0.3s ease-out;
+      -webkit-transition: all 0.3s ease-out;
+      -moz-transition: all 0.3s ease-out;
+      -ms-transition: all 0.3s ease-out;
+      -o-transition: all 0.3s ease-out;
+      border: 2px solid #e1e7eb;
+      cursor: pointer;
+    }
+
+    body.dark table.dataTable tbody td.select-checkbox:before,
+    table.dataTable tbody th.select-checkbox:before {
+      border-color: #969799;
+    }
+
+    table.dataTable tbody tr.selected td.select-checkbox:before,
+    table.dataTable tbody tr.selected th.select-checkbox:before {
+      background-color: #0a0;
+      color: #fff;
+      border-radius: 5px;
+      -webkit-transform: rotate(0) scale(1);
+      -ms-transform: rotate(0) scale(1);
+      transform: rotate(0) scale(1);
+      opacity: 1;
+      border: 2px solid #0a0 !important;
+    }
+
+    body.dark table.dataTable tbody tr.selected td.select-checkbox:before,
+    table.dataTable tbody tr.selected th.select-checkbox:before {
+      background-color: #98d490;
+      color: #121212;
+      border: 2px solid #98d490 !important;
+    }
+
+    table.dataTable tr.selected td.select-checkbox:after,
+    table.dataTable tr.selected th.select-checkbox:after {
+      content: '';
+      -webkit-transform: rotate(45deg) scale(1);
+      -ms-transform: rotate(45deg) scale(1);
+      transform: rotate(45deg) scale(1);
+      opacity: 1;
+      top: 29px;
+      left: 50%;
+      width: 6px;
+      height: 12px;
+      border: solid #fff;
+      border-width: 0 2px 2px 0;
+      background-color: transparent;
+      border-radius: 0;
+    }
+
+    body.dark table.dataTable tr.selected td.select-checkbox:after,
+    table.dataTable tr.selected th.select-checkbox:after {
+      border-color: #121212;
+    }
+
+    div.dataTables_wrapper div.dataTables_info {
+      visibility: hidden;
+    }
+
+    div.dataTables_wrapper span.select-info,
+    div.dataTables_wrapper span.select-item {
+      margin-left: 0;
+      visibility: visible;
+      float: left;
+    }
+
+    .toggleWrapper {
+      padding: 0 50px;
+    }
+
+    .toggleWrapper input {
+      position: absolute;
+      left: -99em;
+    }
+
+    .toggle {
+      cursor: pointer;
+      display: inline-block;
+      position: relative;
+      width: 45px;
+      height: 26px;
+      background-color: #83d8ff;
+      border-radius: 84px;
+      transition: background-color 0.2s cubic-bezier(0.445, 0.05, 0.55, 0.95);
+      margin-bottom: 0;
+      margin-top: 10px;
+    }
+
+    .toggle:before {
+      content: 'Light';
+      position: absolute;
+      left: -50px;
+      font-size: 18px;
+      color: #0b02b5;
+    }
+
+    .toggle:after {
+      content: 'Dark';
+      position: absolute;
+      right: -48px;
+      font-size: 18px;
+      color: #969799;
+    }
+
+    .toggle__handler {
+      display: inline-block;
+      position: relative;
+      z-index: 1;
+      top: 2px;
+      left: -21px;
+      width: 22px;
+      height: 22px;
+      background-color: #fff;
+      border-radius: 50px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      transform: rotate(-45deg);
+      cursor: pointer;
+    }
+
+    .toggle__handler .crater {
+      position: absolute;
+      background-color: #e8cda5;
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+      border-radius: 100%;
+    }
+
+    .toggle__handler .crater--1 {
+      top: 9px;
+      left: 6px;
+      width: 2px;
+      height: 2px;
+    }
+
+    .toggle__handler .crater--2 {
+      top: 13px;
+      left: 11px;
+      width: 3px;
+      height: 3px;
+    }
+
+    .toggle__handler .crater--3 {
+      top: 5px;
+      left: 13px;
+      width: 4px;
+      height: 4px;
+    }
+
+    .star {
+      position: absolute;
+      background-color: #fff;
+      transition: all 0.3s cubic-bezier(0.445, 0.05, 0.55, 0.95);
+      border-radius: 50%;
+    }
+
+    .star--1 {
+      top: 6px;
+      left: 8px;
+      z-index: 0;
+      width: 30px;
+      height: 1px;
+    }
+
+    .star--2 {
+      top: 10px;
+      left: 15px;
+      z-index: 1;
+      width: 19px;
+      height: 1px;
+    }
+
+    .star--3 {
+      top: 14px;
+      left: 12px;
+      z-index: 0;
+      width: 30px;
+      height: 1px;
+    }
+
+    .star--4,
+    .star--5,
+    .star--6 {
+      opacity: 0;
+      transition: all 0.3s 0 cubic-bezier(0.445, 0.05, 0.55, 0.95);
+    }
+
+    .star--4 {
+      top: 19px;
+      left: 14px;
+      z-index: 0;
+      width: 1px;
+      height: 1px;
+      transform: translate3d(3px, 0, 0);
+    }
+
+    .star--5 {
+      top: 6px;
+      left: 15px;
+      z-index: 0;
+      width: 2px;
+      height: 2px;
+      transform: translate3d(3px, 0, 0);
+    }
+
+    .star--6 {
+      top: 16px;
+      left: 18px;
+      z-index: 0;
+      width: 1px;
+      height: 1px;
+      transform: translate3d(3px, 0, 0);
+    }
+
+    input:checked+.toggle {
+      background-color: #749dd6;
+    }
+
+    input:checked+.toggle:before {
+      color: #969799;
+    }
+
+    input:checked+.toggle:after {
+      color: #a68fce;
+    }
+
+    input:checked+.toggle .toggle__handler {
+      background-color: #ffe5b5;
+      transform: translate3d(19px, 0, 0) rotate(0);
+    }
+
+    input:checked+.toggle .toggle__handler .crater {
+      opacity: 1;
+    }
+
+    input:checked+.toggle .star--1 {
+      width: 2px;
+      height: 2px;
+    }
+
+    input:checked+.toggle .star--2 {
+      width: 3px;
+      height: 3px;
+      transform: translate3d(-5px, 0, 0);
+    }
+
+    input:checked+.toggle .star--3 {
+      width: 2px;
+      height: 2px;
+      transform: translate3d(-7px, 0, 0);
+    }
+
+    input:checked+.toggle .star--4,
+    input:checked+.toggle .star--5,
+    input:checked+.toggle .star--6 {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+
+    input:checked+.toggle .star--4 {
+      transition: all 0.3s 0.2s cubic-bezier(0.445, 0.05, 0.55, 0.95);
+    }
+
+    input:checked+.toggle .star--5 {
+      transition: all 0.3s 0.3s cubic-bezier(0.445, 0.05, 0.55, 0.95);
+    }
+
+    input:checked+.toggle .star--6 {
+      transition: all 0.3s 0.4s cubic-bezier(0.445, 0.05, 0.55, 0.95);
+    }
+
+    #loader {
+      margin: 15vh auto;
+      border: 10px solid #cfcdfe;
+      border-radius: 50%;
+      border-top: 10px solid #5d30cf;
+      width: 60px;
+      height: 60px;
+      -webkit-animation: spin 2s linear infinite;
+      animation: spin 2s linear infinite;
+    }
+
+    body.dark #loader {
+      border: 10px solid #514865 !important;
+      border-top: 10px solid #a68fce !important;
+    }
+
+    @-webkit-keyframes spin {
+      0% {
+        -webkit-transform: rotate(0);
+      }
+
+      100% {
+        -webkit-transform: rotate(360deg);
+      }
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .impact-icon-size {
+      display: inline-block;
+      min-width: 16px;
+    }
+
+    .wcag-clause:not(:last-child):after {
+      content: ', ';
+    }
+  </style>
+</head>
+
+<body onbeforeunload="return closeWarning()" onload="load()">
+  <div class="header">
+    <div class="container-fluid">
+      <div class="row pt-4 pb-4">
+        <div class="col-md-8 col-12">
+          <div class="d-flex">
+            <svg class="flex-shrink-0" width="70px" height="70px" viewBox="0 0 60 60">
+              <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                <g transform="translate(-28.000000, -32.000000)">
+                  <g transform="translate(28.000000, 27.000000)">
+                    <g transform="translate(0.000000, 5.000000)">
+                      <circle fill="#533BE2" cx="30" cy="30" r="30"></circle>
+                      <path
+                        d="M28.4502649,29.642801 C28.3252903,29.5414933 28.1233305,29.5414933 27.998356,29.6424933 L27.0933986,30.3752304 C26.9688039,30.4764355 26.9688039,30.6402913 27.0937784,30.7415989 L29.6684816,32.8265056 C29.7610412,32.9014609 29.8808243,33 30.0032664,33 C30.1255819,33 30.2585336,32.9014609 30.3510932,32.8265056 L34.9061425,29.1747147 C35.0312436,29.0735096 35.0312436,28.9095512 34.9063957,28.8083461 L34.0016916,28.0757116 C33.8765904,27.9747116 33.6746306,27.9747116 33.5495294,28.0760192 L30.0097241,30.9053522 L28.4502649,29.642801 Z"
+                        fill="#FFFFFF"></path>
+                      <path
+                        d="M30.5,35 C28.0147604,35 26,33.2092086 26,31 C26,28.7908982 28.0147604,27 30.5,27 C32.9852396,27 35,28.7908982 35,31 C35,33.2092086 32.9852396,35 30.5,35 M37.5248476,29.7923531 C36.8297901,29.8155839 36.1869369,29.4327578 35.9256839,28.8409617 C35.6735552,28.2688636 35.858003,27.5330795 36.3480544,27.1193147 C36.5094029,26.9819641 36.5289218,26.7547949 36.395408,26.5947488 C36.0434903,26.1788429 35.6399457,25.8007272 35.1957464,25.4701435 C35.0238877,25.3417854 34.7739534,25.3598776 34.6257715,25.5114665 C34.1531601,25.9954589 33.4009317,26.1522934 32.7548447,25.901037 C32.1616549,25.6706562 31.7613443,25.1209325 31.7419409,24.5238907 L31.7419409,22.1316558 C31.7419409,22.0174288 31.672181,21.9129439 31.5618819,21.861986 L29.7675292,21.0321012 C29.5513199,20.9321125 29.2972277,21.0778134 29.2972277,21.301771 L29.2972277,24.4391037 C29.2934163,25.0723298 28.8916042,25.6335084 28.2702334,25.869456 C27.6309606,26.1115057 26.8855466,25.9553135 26.4158225,25.4806349 C26.2683336,25.3312941 26.0215177,25.3129878 25.8500055,25.4383484 C25.4033807,25.7644358 24.9998362,26.1349506 24.650113,26.5396158 C24.5131342,26.6980561 24.5321911,26.930578 24.696196,27.0680357 C25.1913293,27.4823358 25.3753151,28.2266842 25.1164876,28.8018869 C24.84484,29.4002133 24.1904371,29.7777937 23.4881033,29.7406459 C23.2673896,29.7285487 23.07555,29.8782106 23.0499098,30.082042 C22.9851163,30.6012552 22.9831528,31.1252859 23.0455209,31.645998 C23.0695442,31.8473671 23.2567639,31.9969219 23.4748212,31.9901775 C24.1702252,31.967589 24.8130784,32.3496658 25.0749089,32.9421042 C25.3253051,33.5103483 25.1427053,34.2495581 24.6519609,34.6631088 C24.4903814,34.7997101 24.470516,35.0282709 24.6046074,35.1876748 C24.9573335,35.604223 25.361109,35.9830881 25.8042689,36.3121729 C25.9763586,36.440424 26.2260619,36.4215824 26.3740128,36.2707429 C26.8468552,35.7868576 27.5986216,35.6307724 28.2454016,35.8821359 C28.8485241,36.1167989 29.2786328,36.6901816 29.2972277,37.3508136 L29.2972277,37.868421 C29.2972277,37.97494 29.3621367,38.0723594 29.4650441,38.1198915 L31.3032854,38.9701166 C31.5048267,39.0632539 31.7419409,38.927402 31.7419409,38.7186461 L31.7419409,37.3600202 C31.7421719,37.3544534 31.7434423,37.3488866 31.7434423,37.3434268 C31.7268108,36.7379278 32.0894697,36.1569442 32.7295509,35.9128605 C33.3688237,35.6699543 34.1138913,35.8263606 34.5843083,36.3016816 C34.7317972,36.45038 34.9780356,36.4694357 35.1492014,36.343861 C35.5931697,36.0209853 35.9969452,35.6502563 36.3495559,35.2443065 C36.4881516,35.0849027 36.4686327,34.8532372 36.3043968,34.7151372 C35.8082241,34.2991242 35.6244692,33.5548829 35.8838742,32.9821425 C36.1548289,32.3819962 36.8091162,32.0045228 37.5116811,32.0414565 C37.7323947,32.0535536 37.9248118,31.9035706 37.9498745,31.7003815 C37.9833685,31.4346728 38,31.1674653 38,30.8995085 C38,30.6451475 37.9849855,30.3907865 37.9544944,30.1363185 C37.9304711,29.9347353 37.7430204,29.7855016 37.5248476,29.7923531 Z"
+                        fill="#FFFFFF"></path>
+                      <path
+                        d="M29,17.4279646 C29,17.5512652 29.0705877,17.6640501 29.1820788,17.7191714 L41.4375735,23.766452 L41.4375735,35.734939 C41.4375735,35.8582397 41.5080443,35.9710245 41.6196524,36.0259147 L43.5240006,36.965288 C43.7427757,37.073335 44,36.9160602 44,36.6743123 L44,22.9825046 C44,22.5023599 43.7253625,22.063354 43.2905003,21.8489934 L29.4758825,15.0346369 C29.2571075,14.9267055 29,15.0840959 29,15.3258438 L29,17.4279646 Z"
+                        fill="#FFFFFF"></path>
+                      <path
+                        d="M32,42.5719259 C32,42.4487411 31.9294129,42.3359565 31.8178057,42.2808354 L19.5624065,36.2335699 L19.5624065,24.2651127 C19.5624065,24.1418123 19.4919362,24.0290277 19.3803291,23.9740221 L17.4759957,23.0346512 C17.2572223,22.92672 17,23.0839944 17,23.3257418 L17,37.0173998 C17,37.4976588 17.2746354,37.9366636 17.7094942,38.1510237 L31.5241212,44.9653631 C31.7427777,45.0732943 32,44.9159043 32,44.674157 L32,42.5719259 Z"
+                        fill="#FFFFFF"></path>
                     </g>
                   </g>
                 </g>
-              </svg>
-              <div class="pl-3">
-                <h1>Accessibility Report</h1>
-                <p class="mb-0">
-                  Measure of compliance against GovTech-defined and WCAG 2.1 standards
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-4 col-12 header-meta">
-            <p class="mb-0">Run on 7 Jun 2021, 0:15 am<br /><strong>4 issues spotted</strong></p>
-            <div class="toggleWrapper">
-              <input type="checkbox" class="dm" id="dm" />
-              <label for="dm" class="toggle">
-                <span class="toggle__handler">
-                  <span class="crater crater--1"></span>
-                  <span class="crater crater--2"></span>
-                  <span class="crater crater--3"></span>
-                </span>
-                <span class="star star--1"></span>
-                <span class="star star--2"></span>
-                <span class="star star--3"></span>
-                <span class="star star--4"></span>
-                <span class="star star--5"></span>
-                <span class="star star--6"></span>
-              </label>
+              </g>
+            </svg>
+            <div class="pl-3">
+              <h1>Accessibility Report</h1>
+              <p class="mb-0">
+                Measure of compliance against GovTech-defined and WCAG 2.1 standards
+              </p>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-    <div class="show-ondark container-fluid">
-      <em
-        >Dark mode is an experimental feature, do
-        <a href="mailto:enquiries_HATS@tech.gov.sg">drop us an email</a> to let us know what you
-        think about it! :)</em
-      >
-    </div>
-
-    <div class="main">
-      <div id="loader"></div>
-      <div class="container-fluid">
-        <div class="row" style="visibility: hidden" id="report">
-          <div class="col-12 pt-4 pb-4">
-            <table id="oobee-table" class="display" style="width: 100%">
-              <thead>
-                <tr>
-                  <th>IMPACT</th>
-                  <th class="dt-nowrap">ISSUE</th>
-                  <th class="dt-nowrap">PAGE</th>
-                  <th class="element">HTML ELEMENT <span>Hover to view full</span></th>
-                  <th class="dt-nowrap text-center">HELP URL</th>
-                  <th class="dt-nowrap text-center">FIXED?</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <span class="impact critical"><span class="hidden">3</span>critical</span><br />
-                    <div class="impact-icon-size">disabilities</div>
-                  </td>
-                  <td class="issue">
-                    Buttons must have discernible text<br />
-                    <a class="wcag-clause" href="" target="_blank">WCAG </a>
-                  </td>
-                  <td class="page">
-                    <a
-                      href="https:&#x2F;&#x2F;www.isomer.gov.sg&#x2F;terms-of-use&#x2F;"
-                      target="_blank"
-                      >&#x2F;terms-of-use&#x2F;</a
-                    >
-                  </td>
-                  <td class="element">
-                    &lt;button class&#x3D;&#39;bp-button&#39;&gt;&lt;i class&#x3D;&#39;sgds-icon
-                    sgds-icon-mail is-size-4&#39;&gt;&lt;&#x2F;i&gt;&#x2F;button&gt;
-                  </td>
-                  <td class="text-center dt-nowrap">
-                    <a
-                      href="https:&#x2F;&#x2F;dequeuniversity.com&#x2F;rules&#x2F;axe&#x2F;4.2&#x2F;button-name?application&#x3D;oobee"
-                      target="_blank"
-                    >
-                      <svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1">
-                        <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-                          <g
-                            class="link-icon"
-                            transform="translate(-1259.000000, -254.000000)"
-                            fill-rule="nonzero"
-                          >
-                            <g transform="translate(24.000000, 184.000000)">
-                              <g transform="translate(-3.000000, 50.000000)">
-                                <g transform="translate(1238.000000, 20.000000)">
-                                  <path
-                                    d="M15,2.22044605e-14 L8,2.22044605e-14 L8,2 L12.6,2 L6.3,8.3 L7.7,9.7 L14,3.4 L14,8 L16,8 L16,1 C16,0.4 15.6,2.22044605e-14 15,2.22044605e-14 Z"
-                                    id="Path"
-                                  ></path>
-                                  <path
-                                    d="M14,16 L1,16 C0.4,16 0,15.6 0,15 L0,2 C0,1.4 0.4,1 1,1 L5,1 L5,3 L2,3 L2,14 L13,14 L13,11 L15,11 L15,15 C15,15.6 14.6,16 14,16 Z"
-                                    id="Path"
-                                  ></path>
-                                </g>
-                              </g>
-                            </g>
-                          </g>
-                        </g>
-                      </svg>
-                    </a>
-                  </td>
-                  <td class="text-center dt-nowrap"></td>
-                </tr>
-                <tr>
-                  <td>
-                    <span class="impact serious"><span class="hidden">3</span>serious</span><br />
-                    <div class="impact-icon-size">disabilities</div>
-                  </td>
-                  <td class="issue">
-                    Buttons must have discernible text<br />
-                    <a class="wcag-clause" href="" target="_blank">WCAG </a>
-                  </td>
-                  <td class="page">
-                    <a
-                      href="https:&#x2F;&#x2F;www.isomer.gov.sg&#x2F;terms-of-use&#x2F;"
-                      target="_blank"
-                      >&#x2F;terms-of-use&#x2F;</a
-                    >
-                  </td>
-                  <td class="element">
-                    &lt;button class&#x3D;&#39;bp-button&#39;&gt;&lt;i class&#x3D;&#39;sgds-icon
-                    sgds-icon-mail is-size-4&#39;&gt;&lt;&#x2F;i&gt;&#x2F;button&gt;
-                  </td>
-                  <td class="text-center dt-nowrap">
-                    <a
-                      href="https:&#x2F;&#x2F;dequeuniversity.com&#x2F;rules&#x2F;axe&#x2F;4.2&#x2F;button-name?application&#x3D;oobee"
-                      target="_blank"
-                    >
-                      <svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1">
-                        <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-                          <g
-                            class="link-icon"
-                            transform="translate(-1259.000000, -254.000000)"
-                            fill-rule="nonzero"
-                          >
-                            <g transform="translate(24.000000, 184.000000)">
-                              <g transform="translate(-3.000000, 50.000000)">
-                                <g transform="translate(1238.000000, 20.000000)">
-                                  <path
-                                    d="M15,2.22044605e-14 L8,2.22044605e-14 L8,2 L12.6,2 L6.3,8.3 L7.7,9.7 L14,3.4 L14,8 L16,8 L16,1 C16,0.4 15.6,2.22044605e-14 15,2.22044605e-14 Z"
-                                    id="Path"
-                                  ></path>
-                                  <path
-                                    d="M14,16 L1,16 C0.4,16 0,15.6 0,15 L0,2 C0,1.4 0.4,1 1,1 L5,1 L5,3 L2,3 L2,14 L13,14 L13,11 L15,11 L15,15 C15,15.6 14.6,16 14,16 Z"
-                                    id="Path"
-                                  ></path>
-                                </g>
-                              </g>
-                            </g>
-                          </g>
-                        </g>
-                      </svg>
-                    </a>
-                  </td>
-                  <td class="text-center dt-nowrap"></td>
-                </tr>
-                <tr>
-                  <td>
-                    <span class="impact minor"><span class="hidden">3</span>minor</span><br />
-                    <div class="impact-icon-size">disabilities</div>
-                  </td>
-                  <td class="issue">
-                    Buttons must have discernible text<br />
-                    <a class="wcag-clause" href="" target="_blank">WCAG </a>
-                  </td>
-                  <td class="page">
-                    <a
-                      href="https:&#x2F;&#x2F;www.isomer.gov.sg&#x2F;terms-of-use&#x2F;"
-                      target="_blank"
-                      >&#x2F;terms-of-use&#x2F;</a
-                    >
-                  </td>
-                  <td class="element">
-                    &lt;button class&#x3D;&#39;bp-button&#39;&gt;&lt;i class&#x3D;&#39;sgds-icon
-                    sgds-icon-mail is-size-4&#39;&gt;&lt;&#x2F;i&gt;&#x2F;button&gt;
-                  </td>
-                  <td class="text-center dt-nowrap">
-                    <a
-                      href="https:&#x2F;&#x2F;dequeuniversity.com&#x2F;rules&#x2F;axe&#x2F;4.2&#x2F;button-name?application&#x3D;oobee"
-                      target="_blank"
-                    >
-                      <svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1">
-                        <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-                          <g
-                            class="link-icon"
-                            transform="translate(-1259.000000, -254.000000)"
-                            fill-rule="nonzero"
-                          >
-                            <g transform="translate(24.000000, 184.000000)">
-                              <g transform="translate(-3.000000, 50.000000)">
-                                <g transform="translate(1238.000000, 20.000000)">
-                                  <path
-                                    d="M15,2.22044605e-14 L8,2.22044605e-14 L8,2 L12.6,2 L6.3,8.3 L7.7,9.7 L14,3.4 L14,8 L16,8 L16,1 C16,0.4 15.6,2.22044605e-14 15,2.22044605e-14 Z"
-                                    id="Path"
-                                  ></path>
-                                  <path
-                                    d="M14,16 L1,16 C0.4,16 0,15.6 0,15 L0,2 C0,1.4 0.4,1 1,1 L5,1 L5,3 L2,3 L2,14 L13,14 L13,11 L15,11 L15,15 C15,15.6 14.6,16 14,16 Z"
-                                    id="Path"
-                                  ></path>
-                                </g>
-                              </g>
-                            </g>
-                          </g>
-                        </g>
-                      </svg>
-                    </a>
-                  </td>
-                  <td class="text-center dt-nowrap"></td>
-                </tr>
-                <tr>
-                  <td>
-                    <span class="impact moderate"><span class="hidden">3</span>moderate</span><br />
-                    <div class="impact-icon-size">disabilities</div>
-                  </td>
-                  <td class="issue">
-                    Buttons must have discernible text<br />
-                    <a class="wcag-clause" href="" target="_blank">WCAG </a>
-                  </td>
-                  <td class="page">
-                    <a
-                      href="https:&#x2F;&#x2F;www.isomer.gov.sg&#x2F;terms-of-use&#x2F;"
-                      target="_blank"
-                      >&#x2F;terms-of-use&#x2F;</a
-                    >
-                  </td>
-                  <td class="element">
-                    &lt;button class&#x3D;&#39;bp-button&#39;&gt;&lt;i class&#x3D;&#39;sgds-icon
-                    sgds-icon-mail is-size-4&#39;&gt;&lt;&#x2F;i&gt;&#x2F;button&gt;
-                  </td>
-                  <td class="text-center dt-nowrap">
-                    <a
-                      href="https:&#x2F;&#x2F;dequeuniversity.com&#x2F;rules&#x2F;axe&#x2F;4.2&#x2F;button-name?application&#x3D;oobee"
-                      target="_blank"
-                    >
-                      <svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1">
-                        <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-                          <g
-                            class="link-icon"
-                            transform="translate(-1259.000000, -254.000000)"
-                            fill-rule="nonzero"
-                          >
-                            <g transform="translate(24.000000, 184.000000)">
-                              <g transform="translate(-3.000000, 50.000000)">
-                                <g transform="translate(1238.000000, 20.000000)">
-                                  <path
-                                    d="M15,2.22044605e-14 L8,2.22044605e-14 L8,2 L12.6,2 L6.3,8.3 L7.7,9.7 L14,3.4 L14,8 L16,8 L16,1 C16,0.4 15.6,2.22044605e-14 15,2.22044605e-14 Z"
-                                    id="Path"
-                                  ></path>
-                                  <path
-                                    d="M14,16 L1,16 C0.4,16 0,15.6 0,15 L0,2 C0,1.4 0.4,1 1,1 L5,1 L5,3 L2,3 L2,14 L13,14 L13,11 L15,11 L15,15 C15,15.6 14.6,16 14,16 Z"
-                                    id="Path"
-                                  ></path>
-                                </g>
-                              </g>
-                            </g>
-                          </g>
-                        </g>
-                      </svg>
-                    </a>
-                  </td>
-                  <td class="text-center dt-nowrap"></td>
-                </tr>
-              </tbody>
-            </table>
+        <div class="col-md-4 col-12 header-meta">
+          <p class="mb-0">Run on 7 Jun 2021, 0:15 am<br /><strong>4 issues spotted</strong></p>
+          <div class="toggleWrapper">
+            <input type="checkbox" class="dm" id="dm" />
+            <label for="dm" class="toggle">
+              <span class="toggle__handler">
+                <span class="crater crater--1"></span>
+                <span class="crater crater--2"></span>
+                <span class="crater crater--3"></span>
+              </span>
+              <span class="star star--1"></span>
+              <span class="star star--2"></span>
+              <span class="star star--3"></span>
+              <span class="star star--4"></span>
+              <span class="star star--5"></span>
+              <span class="star star--6"></span>
+            </label>
           </div>
         </div>
       </div>
     </div>
+  </div>
+  <div class="show-ondark container-fluid">
+    <em>Dark mode is an experimental feature, do
+      <a href="mailto:enquiries_HATS@tech.gov.sg">drop us an email</a> to let us know what you
+      think about it! :)</em>
+  </div>
 
-    <div class="footer">
-      <div class="container-fluid">
-        <div class="row text-center pt-2 pb-2">
-          <div class="col-sm-6 text-sm-left">
-            <a href="mailto:enquiries_HATS@tech.gov.sg">Help us improve</a>
-            <hr class="d-sm-none" />
-          </div>
-          <div class="col-sm-6 text-sm-right">
-            Created by
-            <a href="https://www.hive.gov.sg/" target="_blank"
-              >Government Digital Services Singapore</a
-            >
-          </div>
+  <div class="main">
+    <div id="loader"></div>
+    <div class="container-fluid">
+      <div class="row" style="visibility: hidden" id="report">
+        <div class="col-12 pt-4 pb-4">
+          <table id="oobee-table" class="display" style="width: 100%">
+            <thead>
+              <tr>
+                <th>IMPACT</th>
+                <th class="dt-nowrap">ISSUE</th>
+                <th class="dt-nowrap">PAGE</th>
+                <th class="element">HTML ELEMENT <span>Hover to view full</span></th>
+                <th class="dt-nowrap text-center">HELP URL</th>
+                <th class="dt-nowrap text-center">FIXED?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <span class="impact critical"><span class="hidden">3</span>critical</span><br />
+                  <div class="impact-icon-size">disabilities</div>
+                </td>
+                <td class="issue">
+                  Buttons must have discernible text<br />
+                  <a class="wcag-clause" href="" target="_blank">WCAG </a>
+                </td>
+                <td class="page">
+                  <a href="https:&#x2F;&#x2F;www.isomer.gov.sg&#x2F;terms-of-use&#x2F;"
+                    target="_blank">&#x2F;terms-of-use&#x2F;</a>
+                </td>
+                <td class="element">
+                  &lt;button class&#x3D;&#39;bp-button&#39;&gt;&lt;i class&#x3D;&#39;sgds-icon
+                  sgds-icon-mail is-size-4&#39;&gt;&lt;&#x2F;i&gt;&#x2F;button&gt;
+                </td>
+                <td class="text-center dt-nowrap">
+                  <a href="https:&#x2F;&#x2F;dequeuniversity.com&#x2F;rules&#x2F;axe&#x2F;4.2&#x2F;button-name?application&#x3D;oobee"
+                    target="_blank">
+                    <svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1">
+                      <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                        <g class="link-icon" transform="translate(-1259.000000, -254.000000)" fill-rule="nonzero">
+                          <g transform="translate(24.000000, 184.000000)">
+                            <g transform="translate(-3.000000, 50.000000)">
+                              <g transform="translate(1238.000000, 20.000000)">
+                                <path
+                                  d="M15,2.22044605e-14 L8,2.22044605e-14 L8,2 L12.6,2 L6.3,8.3 L7.7,9.7 L14,3.4 L14,8 L16,8 L16,1 C16,0.4 15.6,2.22044605e-14 15,2.22044605e-14 Z"
+                                  id="Path"></path>
+                                <path
+                                  d="M14,16 L1,16 C0.4,16 0,15.6 0,15 L0,2 C0,1.4 0.4,1 1,1 L5,1 L5,3 L2,3 L2,14 L13,14 L13,11 L15,11 L15,15 C15,15.6 14.6,16 14,16 Z"
+                                  id="Path"></path>
+                              </g>
+                            </g>
+                          </g>
+                        </g>
+                      </g>
+                    </svg>
+                  </a>
+                </td>
+                <td class="text-center dt-nowrap"></td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="impact serious"><span class="hidden">3</span>serious</span><br />
+                  <div class="impact-icon-size">disabilities</div>
+                </td>
+                <td class="issue">
+                  Buttons must have discernible text<br />
+                  <a class="wcag-clause" href="" target="_blank">WCAG </a>
+                </td>
+                <td class="page">
+                  <a href="https:&#x2F;&#x2F;www.isomer.gov.sg&#x2F;terms-of-use&#x2F;"
+                    target="_blank">&#x2F;terms-of-use&#x2F;</a>
+                </td>
+                <td class="element">
+                  &lt;button class&#x3D;&#39;bp-button&#39;&gt;&lt;i class&#x3D;&#39;sgds-icon
+                  sgds-icon-mail is-size-4&#39;&gt;&lt;&#x2F;i&gt;&#x2F;button&gt;
+                </td>
+                <td class="text-center dt-nowrap">
+                  <a href="https:&#x2F;&#x2F;dequeuniversity.com&#x2F;rules&#x2F;axe&#x2F;4.2&#x2F;button-name?application&#x3D;oobee"
+                    target="_blank">
+                    <svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1">
+                      <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                        <g class="link-icon" transform="translate(-1259.000000, -254.000000)" fill-rule="nonzero">
+                          <g transform="translate(24.000000, 184.000000)">
+                            <g transform="translate(-3.000000, 50.000000)">
+                              <g transform="translate(1238.000000, 20.000000)">
+                                <path
+                                  d="M15,2.22044605e-14 L8,2.22044605e-14 L8,2 L12.6,2 L6.3,8.3 L7.7,9.7 L14,3.4 L14,8 L16,8 L16,1 C16,0.4 15.6,2.22044605e-14 15,2.22044605e-14 Z"
+                                  id="Path"></path>
+                                <path
+                                  d="M14,16 L1,16 C0.4,16 0,15.6 0,15 L0,2 C0,1.4 0.4,1 1,1 L5,1 L5,3 L2,3 L2,14 L13,14 L13,11 L15,11 L15,15 C15,15.6 14.6,16 14,16 Z"
+                                  id="Path"></path>
+                              </g>
+                            </g>
+                          </g>
+                        </g>
+                      </g>
+                    </svg>
+                  </a>
+                </td>
+                <td class="text-center dt-nowrap"></td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="impact minor"><span class="hidden">3</span>minor</span><br />
+                  <div class="impact-icon-size">disabilities</div>
+                </td>
+                <td class="issue">
+                  Buttons must have discernible text<br />
+                  <a class="wcag-clause" href="" target="_blank">WCAG </a>
+                </td>
+                <td class="page">
+                  <a href="https:&#x2F;&#x2F;www.isomer.gov.sg&#x2F;terms-of-use&#x2F;"
+                    target="_blank">&#x2F;terms-of-use&#x2F;</a>
+                </td>
+                <td class="element">
+                  &lt;button class&#x3D;&#39;bp-button&#39;&gt;&lt;i class&#x3D;&#39;sgds-icon
+                  sgds-icon-mail is-size-4&#39;&gt;&lt;&#x2F;i&gt;&#x2F;button&gt;
+                </td>
+                <td class="text-center dt-nowrap">
+                  <a href="https:&#x2F;&#x2F;dequeuniversity.com&#x2F;rules&#x2F;axe&#x2F;4.2&#x2F;button-name?application&#x3D;oobee"
+                    target="_blank">
+                    <svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1">
+                      <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                        <g class="link-icon" transform="translate(-1259.000000, -254.000000)" fill-rule="nonzero">
+                          <g transform="translate(24.000000, 184.000000)">
+                            <g transform="translate(-3.000000, 50.000000)">
+                              <g transform="translate(1238.000000, 20.000000)">
+                                <path
+                                  d="M15,2.22044605e-14 L8,2.22044605e-14 L8,2 L12.6,2 L6.3,8.3 L7.7,9.7 L14,3.4 L14,8 L16,8 L16,1 C16,0.4 15.6,2.22044605e-14 15,2.22044605e-14 Z"
+                                  id="Path"></path>
+                                <path
+                                  d="M14,16 L1,16 C0.4,16 0,15.6 0,15 L0,2 C0,1.4 0.4,1 1,1 L5,1 L5,3 L2,3 L2,14 L13,14 L13,11 L15,11 L15,15 C15,15.6 14.6,16 14,16 Z"
+                                  id="Path"></path>
+                              </g>
+                            </g>
+                          </g>
+                        </g>
+                      </g>
+                    </svg>
+                  </a>
+                </td>
+                <td class="text-center dt-nowrap"></td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="impact moderate"><span class="hidden">3</span>moderate</span><br />
+                  <div class="impact-icon-size">disabilities</div>
+                </td>
+                <td class="issue">
+                  Buttons must have discernible text<br />
+                  <a class="wcag-clause" href="" target="_blank">WCAG </a>
+                </td>
+                <td class="page">
+                  <a href="https:&#x2F;&#x2F;www.isomer.gov.sg&#x2F;terms-of-use&#x2F;"
+                    target="_blank">&#x2F;terms-of-use&#x2F;</a>
+                </td>
+                <td class="element">
+                  &lt;button class&#x3D;&#39;bp-button&#39;&gt;&lt;i class&#x3D;&#39;sgds-icon
+                  sgds-icon-mail is-size-4&#39;&gt;&lt;&#x2F;i&gt;&#x2F;button&gt;
+                </td>
+                <td class="text-center dt-nowrap">
+                  <a href="https:&#x2F;&#x2F;dequeuniversity.com&#x2F;rules&#x2F;axe&#x2F;4.2&#x2F;button-name?application&#x3D;oobee"
+                    target="_blank">
+                    <svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1">
+                      <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                        <g class="link-icon" transform="translate(-1259.000000, -254.000000)" fill-rule="nonzero">
+                          <g transform="translate(24.000000, 184.000000)">
+                            <g transform="translate(-3.000000, 50.000000)">
+                              <g transform="translate(1238.000000, 20.000000)">
+                                <path
+                                  d="M15,2.22044605e-14 L8,2.22044605e-14 L8,2 L12.6,2 L6.3,8.3 L7.7,9.7 L14,3.4 L14,8 L16,8 L16,1 C16,0.4 15.6,2.22044605e-14 15,2.22044605e-14 Z"
+                                  id="Path"></path>
+                                <path
+                                  d="M14,16 L1,16 C0.4,16 0,15.6 0,15 L0,2 C0,1.4 0.4,1 1,1 L5,1 L5,3 L2,3 L2,14 L13,14 L13,11 L15,11 L15,15 C15,15.6 14.6,16 14,16 Z"
+                                  id="Path"></path>
+                              </g>
+                            </g>
+                          </g>
+                        </g>
+                      </g>
+                    </svg>
+                  </a>
+                </td>
+                <td class="text-center dt-nowrap"></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
+  </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.20/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.20/js/dataTables.bootstrap4.min.js"></script>
-    <script src="https://cdn.datatables.net/select/1.3.1/js/dataTables.select.min.js"></script>
-    <script>
-      function closeWarning() {}
-      $(document).ready(function () {
-        $('#oobee-table').DataTable({
-          paging: !1,
-          columnDefs: [
-            { targets: [3, 4, 5], orderable: !1 },
-            { width: 500, targets: 1 },
-            { width: 150, targets: 2 },
-            { width: 300, targets: 3 },
-            { orderable: !1, className: 'select-checkbox', targets: 5 },
-          ],
-          select: { style: 'multi', selector: 'td:last-child' },
-          language: {
-            select: { rows: { _: '%d issues fixed', 0: '0 issue fixed', 1: '1 issue fixed' } },
-            emptyTable: 'No issue found in your website.',
-          },
-          oLanguage: { sInfo: 'Showing _TOTAL_ issues' },
-          order: [[0, 'desc']],
-          scrollX: !0,
-        });
-        ((window.onbeforeunload = function (e) {
-          var t = 'Sure you want to leave?';
-          return void 0 === e && (e = window.event), e && (e.returnValue = t), t;
-        }),
+  <div class="footer">
+    <div class="container-fluid">
+      <div class="row text-center pt-2 pb-2">
+        <div class="col-sm-6 text-sm-left">
+          <a href="mailto:enquiries_HATS@tech.gov.sg">Help us improve</a>
+          <hr class="d-sm-none" />
+        </div>
+        <div class="col-sm-6 text-sm-right">
+          Created by
+          <a href="https://form.gov.sg/64d1fcde4d0bb70012010995" target="_blank">GovTech Accessibility Enabling Team</a>
+          |
+          <a href="https://go.gov.sg/oobee-report-third-party-licenses" target="_blank">Third-Party Licenses</a>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+  <script src="https://cdn.datatables.net/1.10.20/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.10.20/js/dataTables.bootstrap4.min.js"></script>
+  <script src="https://cdn.datatables.net/select/1.3.1/js/dataTables.select.min.js"></script>
+  <script>
+    function closeWarning() { }
+    $(document).ready(function () {
+      $('#oobee-table').DataTable({
+        paging: !1,
+        columnDefs: [
+          { targets: [3, 4, 5], orderable: !1 },
+          { width: 500, targets: 1 },
+          { width: 150, targets: 2 },
+          { width: 300, targets: 3 },
+          { orderable: !1, className: 'select-checkbox', targets: 5 },
+        ],
+        select: { style: 'multi', selector: 'td:last-child' },
+        language: {
+          select: { rows: { _: '%d issues fixed', 0: '0 issue fixed', 1: '1 issue fixed' } },
+          emptyTable: 'No issue found in your website.',
+        },
+        oLanguage: { sInfo: 'Showing _TOTAL_ issues' },
+        order: [[0, 'desc']],
+        scrollX: !0,
+      });
+      ((window.onbeforeunload = function (e) {
+        var t = 'Sure you want to leave?';
+        return void 0 === e && (e = window.event), e && (e.returnValue = t), t;
+      }),
         $(function () {
           $('[data-toggle="tooltip"]').tooltip();
         }),
@@ -1413,19 +1555,20 @@
           !1,
         ),
         window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
-          ? ((document.getElementById('dm').checked = !0), document.body.classList.add('dark'))
-          : document.body.classList.remove('dark');
-      });
-    </script>
-    <script>
-      var timeout;
-      function load() {
-        timeout = setTimeout(showPage, 2000);
-      }
-      function showPage() {
-        document.getElementById('loader').style.display = 'none';
-        document.getElementById('report').style.visibility = 'visible';
-      }
-    </script>
-  </body>
+        ? ((document.getElementById('dm').checked = !0), document.body.classList.add('dark'))
+        : document.body.classList.remove('dark');
+    });
+  </script>
+  <script>
+    var timeout;
+    function load() {
+      timeout = setTimeout(showPage, 2000);
+    }
+    function showPage() {
+      document.getElementById('loader').style.display = 'none';
+      document.getElementById('report').style.visibility = 'visible';
+    }
+  </script>
+</body>
+
 </html>
