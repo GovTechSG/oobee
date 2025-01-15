@@ -1,7 +1,7 @@
 # Use Node LTS alpine distribution
 FROM node:lts-alpine3.18
 
-# Install required packages, including gcompat and glibc for compatibility
+# Install required packages, including gcompat and nss for compatibility
 RUN apk add --no-cache \
     build-base \
     gcompat \
@@ -22,7 +22,7 @@ RUN apk add --no-cache \
     libxtst \
     libxi \
     libxdamage \
-    libnss \
+    nss \
     libc6-compat \
     ca-certificates
 
@@ -39,7 +39,7 @@ RUN echo $'<?xml version="1.0" encoding="UTF-8" standalone="no"?> \n\
     <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/> \n\
     <com.izforge.izpack.panels.target.TargetPanel id="install_dir"> \n\
         <installpath>/opt/verapdf</installpath> \n\
-    </com.izforge.izpack.panels.target.TargetPanel> \n\
+    <com.izforge.izpack.panels.target.TargetPanel> \n\
     <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select"> \n\
         <pack index="0" name="veraPDF GUI" selected="true"/> \n\
         <pack index="1" name="veraPDF Batch files" selected="true"/> \n\
