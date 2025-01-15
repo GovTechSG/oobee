@@ -27,8 +27,12 @@ RUN apk add --no-cache \
     ca-certificates
 
 # Install glibc for better compatibility
+# Define glibc version
 ENV GLIBC_VERSION="2.34-r0"
-RUN curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
+
+# Remove conflicting packages and install glibc
+RUN apk del --no-cache gcompat && \
+    curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
     curl -Lo /tmp/glibc-${GLIBC_VERSION}.apk https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk && \
     apk add --no-cache /tmp/glibc-${GLIBC_VERSION}.apk && \
     rm -rf /tmp/*
