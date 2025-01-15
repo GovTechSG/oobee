@@ -43,7 +43,7 @@ RUN echo $'<?xml version="1.0" encoding="UTF-8" standalone="no"?> \n\
     <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/> \n\
     <com.izforge.izpack.panels.target.TargetPanel id="install_dir"> \n\
         <installpath>/opt/verapdf</installpath> \n\
-    <com.izforge.izpack.panels.target.TargetPanel> \n\
+    </com.izforge.izpack.panels.target.TargetPanel> \n\
     <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select"> \n\
         <pack index="0" name="veraPDF GUI" selected="true"/> \n\
         <pack index="1" name="veraPDF Batch files" selected="true"/> \n\
