@@ -11,7 +11,6 @@ RUN apk add --no-cache \
     zip \
     bash \
     git \
-    chromium \
     openjdk11-jre \
     curl \
     libstdc++ \
@@ -36,16 +35,6 @@ RUN apk add --no-cache \
     libxshmfence \
     libxkbcommon \
     fontconfig
-# Install glibc for better compatibility
-# Define glibc version
-ENV GLIBC_VERSION="2.34-r0"
-
-# Remove conflicting packages and install glibc, ignoring file conflicts
-RUN apk del --no-cache gcompat && \
-    curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
-    curl -Lo /tmp/glibc-${GLIBC_VERSION}.apk https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk && \
-    apk add --no-cache --force-overwrite /tmp/glibc-${GLIBC_VERSION}.apk && \
-    rm -rf /tmp/*
 
 # Installation of VeraPDF
 RUN echo $'<?xml version="1.0" encoding="UTF-8" standalone="no"?> \n\
