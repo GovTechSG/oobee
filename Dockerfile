@@ -30,8 +30,12 @@ RUN apk add --no-cache \
     pango \
     freetype \
     harfbuzz \
-    alsa-lib
-
+    alsa-lib \
+    dbus \
+    ttf-freefont \
+    libxshmfence \
+    libxkbcommon \
+    fontconfig
 # Install glibc for better compatibility
 # Define glibc version
 ENV GLIBC_VERSION="2.34-r0"
