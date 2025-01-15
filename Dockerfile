@@ -24,7 +24,13 @@ RUN apk add --no-cache \
     libxdamage \
     nss \
     libc6-compat \
-    ca-certificates
+    ca-certificates \
+    glib \
+    gtk+3.0 \
+    pango \
+    freetype \
+    harfbuzz \
+    alsa-lib
 
 # Install glibc for better compatibility
 # Define glibc version
