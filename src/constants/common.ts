@@ -379,6 +379,7 @@ const checkUrlConnectivityWithBrowser = async (
   playwrightDeviceDetailsObject,
   isCustomFlow,
   extraHTTPHeaders,
+  isHeadless,
 ) => {
   const res = new RES();
 
@@ -401,8 +402,15 @@ const checkUrlConnectivityWithBrowser = async (
   if (data.isValid) {
     let browserContext;
 
+    let args = [];
+    if (isHeadless) {
+      args.push(['--headless=new'])
+    }
+
     try {
       browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
+        headless: isHeadless,
+        args: args,
         ...getPlaywrightLaunchOptions(browserToRun),
         ...(viewport && { viewport }),
         ...(userAgent && { userAgent }),
@@ -502,6 +510,7 @@ export const checkUrl = async (
   playwrightDeviceDetailsObject,
   isCustomFlow,
   extraHTTPHeaders,
+  isHeadless,
 ) => {
   const res = await checkUrlConnectivityWithBrowser(
     url,
@@ -510,6 +519,7 @@ export const checkUrl = async (
     playwrightDeviceDetailsObject,
     isCustomFlow,
     extraHTTPHeaders,
+    isHeadless,
   );
 
   if (

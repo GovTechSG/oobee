@@ -239,6 +239,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     updatedArgvs.playwrightDeviceDetailsObject,
     isCustomFlow,
     updatedArgvs.header,
+    updatedArgvs.headless,
   );
   switch (res.status) {
     case statuses.success.code: {
