@@ -1,8 +1,37 @@
 # Use Node LTS alpine distribution
 FROM node:lts-alpine3.18
 
-# Installation of packages for oobee and chromium
-RUN apk add build-base gcompat g++ make python3 zip bash git chromium openjdk11-jre
+# Install required packages, including gcompat and glibc for compatibility
+RUN apk add --no-cache \
+    build-base \
+    gcompat \
+    g++ \
+    make \
+    python3 \
+    zip \
+    bash \
+    git \
+    chromium \
+    openjdk11-jre \
+    curl \
+    libstdc++ \
+    libx11 \
+    libxrender \
+    libxcomposite \
+    libxrandr \
+    libxtst \
+    libxi \
+    libxdamage \
+    libnss \
+    libc6-compat \
+    ca-certificates
+
+# Install glibc for better compatibility
+ENV GLIBC_VERSION="2.34-r0"
+RUN curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
+    curl -Lo /tmp/glibc-${GLIBC_VERSION}.apk https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk && \
+    apk add --no-cache /tmp/glibc-${GLIBC_VERSION}.apk && \
+    rm -rf /tmp/*
 
 # Installation of VeraPDF
 RUN echo $'<?xml version="1.0" encoding="UTF-8" standalone="no"?> \n\
