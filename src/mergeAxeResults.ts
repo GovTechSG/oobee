@@ -625,6 +625,9 @@ const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filena
   const browser = await chromium.launch({
     headless: true,
     channel: browserChannel,
+    args: [
+      '--headless=new', // Use the new headless mode
+    ],
   });
 
   const context = await browser.newContext({

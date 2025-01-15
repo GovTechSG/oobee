@@ -1774,7 +1774,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     // Drop the --use-mock-keychain flag to allow MacOS devices
     // to use the cloned cookies.
     ignoreDefaultArgs: ['--use-mock-keychain'],
-    args: constants.launchOptionsArgs,
+    args: [
+      ...constants.launchOptionsArgs,
+      '--headless=new', // Enable the new headless mode
+    ],
     ...(channel && { channel }), // Having no channel is equivalent to "chromium"
   };
   if (proxy) {
