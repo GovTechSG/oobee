@@ -208,6 +208,9 @@ const scanInit = async (argvs: Answers): Promise<string> => {
 
   const updatedArgvs = { ...argvs };
 
+  // Cannot use data.browser and data.isHeadless as the connectivity check comes first before prepareData
+  setHeadlessMode(updatedArgvs.browserToRun, updatedArgvs.headless);
+
   // let chromeDataDir = null;
   // let edgeDataDir = null;
   // Empty string for profile directory will use incognito mode in playwright
@@ -336,8 +339,6 @@ const scanInit = async (argvs: Answers): Promise<string> => {
       process.send(JSON.stringify(randomTokenMessage));
     }
   }
-
-  setHeadlessMode(data.browser, data.isHeadless);
 
   const screenToScan = getScreenToScan(
     updatedArgvs.deviceChosen,

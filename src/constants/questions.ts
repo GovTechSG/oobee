@@ -1,6 +1,6 @@
 import { Question } from 'inquirer';
 import { Answers } from '../index.js';
-import { getUserDataTxt } from '../utils.js';
+import { getUserDataTxt, setHeadlessMode } from '../utils.js';
 import {
   checkUrl,
   deleteClonedProfiles,
@@ -79,6 +79,9 @@ const startScanQuestions = [
 
       const statuses = constants.urlCheckStatuses;
       const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(BrowserTypes.CHROME);
+
+      setHeadlessMode(browserToRun, answers.headless);
+
       const playwrightDeviceDetailsObject = getPlaywrightDeviceDetailsObject(
         answers.deviceChosen,
         answers.customDevice,

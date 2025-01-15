@@ -241,6 +241,7 @@ export const setHeadlessMode = (browser: string, isHeadless: boolean): void => {
   } else {
     process.env.CRAWLEE_HEADLESS = '0';
   }
+
 };
 
 export const setThresholdLimits = setWarnLevel => {

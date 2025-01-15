@@ -143,7 +143,7 @@ const crawlLocalFile = async (
 
   if (!isUrlPdf(request.url)) {
     const browserContext = await constants.launcher.launchPersistentContext('', {
-      headless: process.env.CRAWLEE_HEADLESS === '1',
+      headless: false,
       ...getPlaywrightLaunchOptions(browser),
       ...playwrightDeviceDetailsObject,
     });
