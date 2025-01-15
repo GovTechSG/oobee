@@ -30,11 +30,11 @@ RUN apk add --no-cache \
 # Define glibc version
 ENV GLIBC_VERSION="2.34-r0"
 
-# Remove conflicting packages and install glibc
+# Remove conflicting packages and install glibc, ignoring file conflicts
 RUN apk del --no-cache gcompat && \
     curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
     curl -Lo /tmp/glibc-${GLIBC_VERSION}.apk https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk && \
-    apk add --no-cache /tmp/glibc-${GLIBC_VERSION}.apk && \
+    apk add --no-cache --force-overwrite /tmp/glibc-${GLIBC_VERSION}.apk && \
     rm -rf /tmp/*
 
 # Installation of VeraPDF
