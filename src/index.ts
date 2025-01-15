@@ -7,7 +7,6 @@ import { EnqueueStrategy } from 'crawlee';
 import {
   getVersion,
   cleanUp,
-  setHeadlessMode,
   getUserDataTxt,
   writeToUserDataTxt,
 } from './utils.js';
@@ -111,7 +110,6 @@ const runScan = async (answers: Answers) => {
   const data: Data = await prepareData(answers);
   data.userDataDirectory = getClonedProfilesWithRandomToken(data.browser, data.randomToken);
 
-  setHeadlessMode(data.browser, data.isHeadless);
   printMessage(['Scanning website...'], messageOptions);
 
   await combineRun(data, screenToScan);

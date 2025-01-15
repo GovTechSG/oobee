@@ -50,7 +50,13 @@ const crawlIntelligentSitemap = async (
     const homeUrl = getHomeUrl(link);
     let sitemapLinkFound = false;
     let sitemapLink = '';
-    const chromiumBrowser = await chromium.launch({ headless: true, channel: 'chrome' });
+    const chromiumBrowser = await chromium.launch(
+      {
+        headless: false,
+        channel: 'chrome',
+        args: ['--headless=new', '--no-sandbox']
+      });
+
     const page = await chromiumBrowser.newPage();
     for (const path of sitemapPaths) {
       sitemapLink = homeUrl + path;

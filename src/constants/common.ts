@@ -408,6 +408,7 @@ const checkUrlConnectivityWithBrowser = async (
         ...(userAgent && { userAgent }),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
       });
+
     } catch (err) {
       printMessage([`Unable to launch browser\n${err}`], messageOptions);
       res.status = constants.urlCheckStatuses.browserError.code;
@@ -1770,15 +1771,24 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   if (browser) {
     channel = browser;
   }
+
+  // Set new headless mode as Chrome 132 does not support headless=old
+  if (process.env.CRAWLEE_HEADLESS === '1') constants.launchOptionsArgs.push('--headless=new');
+
   const options: LaunchOptions = {
     // Drop the --use-mock-keychain flag to allow MacOS devices
     // to use the cloned cookies.
-    ignoreDefaultArgs: ['--use-mock-keychain'],
+    ignoreDefaultArgs: ['--use-mock-keychain', '--headless'],
+    // necessary from Chrome 132 to use our own headless=new flag
     args: constants.launchOptionsArgs,
+    headless: false,
     ...(channel && { channel }), // Having no channel is equivalent to "chromium"
   };
+
+  // Necessary as Chrome 132 does not support headless=old
+  options.headless = false;
+
   if (proxy) {
-    options.headless = false;
     options.slowMo = 1000; // To ensure server-side rendered proxy page is loaded
   } else if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
     // edge should be in non-headless mode

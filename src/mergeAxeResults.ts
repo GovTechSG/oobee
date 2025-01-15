@@ -623,8 +623,9 @@ const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filena
   const htmlFilePath = `${storagePath}/${filename}.html`;
   const fileDestinationPath = `${storagePath}/${filename}.pdf`;
   const browser = await chromium.launch({
-    headless: true,
+    headless: false,
     channel: browserChannel,
+    args: ['--headless=new', '--no-sandbox']
   });
 
   const context = await browser.newContext({

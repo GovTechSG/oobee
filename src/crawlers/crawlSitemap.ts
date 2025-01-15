@@ -163,19 +163,19 @@ const crawlSitemap = async (
     requestList,
     preNavigationHooks: isBasicAuth
       ? [
-          async ({ page }) => {
-            await page.setExtraHTTPHeaders({
-              Authorization: authHeader,
-              ...extraHTTPHeaders,
-            });
-          },
-        ]
+        async ({ page }) => {
+          await page.setExtraHTTPHeaders({
+            Authorization: authHeader,
+            ...extraHTTPHeaders,
+          });
+        },
+      ]
       : [
-          async () => {
-            preNavigationHooks(extraHTTPHeaders);
-            // insert other code here
-          },
-        ],
+        async () => {
+          preNavigationHooks(extraHTTPHeaders);
+          // insert other code here
+        },
+      ],
     requestHandlerTimeoutSecs: 90,
     requestHandler: async ({ page, request, response, sendRequest }) => {
       await waitForPageLoaded(page, 10000);

@@ -568,31 +568,31 @@ const crawlDomain = async ({
     ],
     preNavigationHooks: isBasicAuth
       ? [
-          async ({ page, request }) => {
-            await page.setExtraHTTPHeaders({
-              Authorization: authHeader,
-              ...extraHTTPHeaders,
-            });
-            const processible = await isProcessibleUrl(request.url);
-            if (!processible) {
-              request.skipNavigation = true;
-              return null;
-            }
-          },
-        ]
+        async ({ page, request }) => {
+          await page.setExtraHTTPHeaders({
+            Authorization: authHeader,
+            ...extraHTTPHeaders,
+          });
+          const processible = await isProcessibleUrl(request.url);
+          if (!processible) {
+            request.skipNavigation = true;
+            return null;
+          }
+        },
+      ]
       : [
-          async ({ page, request }) => {
-            await page.setExtraHTTPHeaders({
-              ...extraHTTPHeaders,
-            });
+        async ({ page, request }) => {
+          await page.setExtraHTTPHeaders({
+            ...extraHTTPHeaders,
+          });
 
-            const processible = await isProcessibleUrl(request.url);
-            if (!processible) {
-              request.skipNavigation = true;
-              return null;
-            }
-          },
-        ],
+          const processible = await isProcessibleUrl(request.url);
+          if (!processible) {
+            request.skipNavigation = true;
+            return null;
+          }
+        },
+      ],
     requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
     requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
       const browserContext: BrowserContext = page.context();
