@@ -1,7 +1,9 @@
 # Use Node LTS alpine distribution
-FROM node:lts-alpine3.20
+FROM node:lts-alpine3.21
 
 # Install required packages, including gcompat and nss for compatibility
+FROM node:lts-alpine3.21
+
 RUN apk add --no-cache \
     build-base \
     g++ \
@@ -36,7 +38,12 @@ RUN apk add --no-cache \
     fontconfig \
     gcompat \
     libdrm \
-    mesa-gbm
+    mesa-gbm \
+    curl && \
+    curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
+    curl -Lo glibc-2.35.apk https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.35-r0/glibc-2.35-r0.apk && \
+    apk add --no-cache ./glibc-2.35-r0.apk && \
+    rm -f glibc-2.35-r0.apk
 
 
 # Installation of VeraPDF
