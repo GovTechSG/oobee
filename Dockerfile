@@ -1,5 +1,5 @@
 # Use Node LTS alpine distribution
-FROM node:lts-alpine3.18
+FROM node:lts-alpine3.20
 
 # Install required packages, including gcompat and nss for compatibility
 RUN apk add --no-cache \
