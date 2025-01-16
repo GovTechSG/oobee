@@ -466,8 +466,8 @@ const writeLargeScanItemsJsonToFile = async (obj: object, filePath: string) => {
         // Serialize and write the property dynamically
         writeStream.write(`    "${propKey}": ${JSON.stringify(propValue)}`);
 
-        // Add a comma unless it's the last property
-        if (j < otherKeys.length - 1 || (rules && rules.length > 0)) {
+        // Add a comma unless it's the last property or the next property is "rules"
+        if (j < otherKeys.length - 1 || (rules && rules.length > 0) || propKey === 'totalItems') {
           writeStream.write(',\n');
         } else {
           writeStream.write('\n');
