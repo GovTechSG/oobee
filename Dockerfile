@@ -39,6 +39,7 @@ RUN apk add --no-cache \
     gcompat \
     libdrm \
     mesa-gbm \
+    glib-dev \
     curl
 
  # Install glibc for better compatibility
