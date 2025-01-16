@@ -1,7 +1,7 @@
 {
   "name": "@govtechsg/oobee",
   "main": "dist/npmIndex.js",
-  "version": "0.10.21",
+  "version": "0.10.22",
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
   "dependencies": {
@@ -87,7 +87,6 @@
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --fix --report-unused-disable-directives --max-warnings 0"
   },
-  "author": "",
   "license": "MIT",
   "description": "Oobee is a customisable, automated accessibility testing tool that allows software development teams to assess whether their products are user-friendly to persons with disabilities (PWDs).",
   "repository": {
