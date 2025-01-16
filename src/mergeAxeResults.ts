@@ -441,122 +441,133 @@ function writeLargeJsonToFile(obj: object, filePath: string) {
 }
 
 const writeLargeScanItemsJsonToFile = async (obj: object, filePath: string) => {
-  const writeStream = fs.createWriteStream(filePath, { flags: 'a', encoding: 'utf8' });
+  return new Promise((resolve, reject) => {
+    const writeStream = fs.createWriteStream(filePath, { flags: 'a', encoding: 'utf8' });
 
-  try {
-    writeStream.write('{\n');
+    writeStream.on('error', error => {
+      consoleLogger.error(`Error writing object to JSON file: ${error}`);
+      reject(error);
+    });
 
-    const keys = Object.keys(obj);
+    writeStream.on('finish', () => {
+      consoleLogger.info(`JSON file written successfully: ${filePath}`);
+      resolve(true);
+    });
 
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
-      const value = obj[key];
+    try {
+      writeStream.write('{\n');
 
-      // Start writing the key object
-      writeStream.write(`  "${key}": {\n`);
+      const keys = Object.keys(obj);
 
-      const { rules, ...otherProperties } = value; // Extract rules and other properties dynamically
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const value = obj[key];
 
-      // Write all properties dynamically, excluding rules
-      const otherKeys = Object.keys(otherProperties);
-      for (let j = 0; j < otherKeys.length; j++) {
-        const propKey = otherKeys[j];
-        const propValue = otherProperties[propKey];
+        // Start writing the key object
+        writeStream.write(`  "${key}": {\n`);
 
-        // Serialize and write the property dynamically
-        writeStream.write(`    "${propKey}": ${JSON.stringify(propValue)}`);
+        const { rules, ...otherProperties } = value; // Extract rules and other properties dynamically
 
-        // Add a comma unless it's the last property
-        if (j < otherKeys.length - 1 || (rules && rules.length > 0)) {
-          writeStream.write(',\n');
-        } else {
-          writeStream.write('\n');
-        }
-      }
+        // Write all properties dynamically, excluding rules
+        const otherKeys = Object.keys(otherProperties);
+        for (let j = 0; j < otherKeys.length; j++) {
+          const propKey = otherKeys[j];
+          const propValue = otherProperties[propKey];
 
-      if (rules && Array.isArray(rules)) {
-        writeStream.write(`    "rules": [\n`);
+          // Serialize and write the property dynamically
+          writeStream.write(`    "${propKey}": ${JSON.stringify(propValue)}`);
 
-        for (let j = 0; j < rules.length; j++) {
-          const rule = rules[j];
-
-          writeStream.write('      {\n'); // Start the rule object
-
-          const { pagesAffected, ...otherRuleProperties } = rule; // Extract pagesAffected dynamically
-
-          // Write other properties dynamically
-          const ruleKeys = Object.keys(otherRuleProperties);
-          for (let k = 0; k < ruleKeys.length; k++) {
-            const ruleKey = ruleKeys[k];
-            const ruleValue = otherRuleProperties[ruleKey];
-
-            // Serialize and write each property dynamically
-            writeStream.write(`        "${ruleKey}": ${JSON.stringify(ruleValue)}`);
-
-            // Add a comma unless it's the last property and no pagesAffected is present
-            if (k < ruleKeys.length - 1 || pagesAffected) {
-              writeStream.write(',\n');
-            } else {
-              writeStream.write('\n');
-            }
+          // Add a comma unless it's the last property
+          if (j < otherKeys.length - 1 || (rules && rules.length >= 0)) {
+            writeStream.write(',\n');
+          } else {
+            writeStream.write('\n');
           }
+        }
 
-          if (pagesAffected && Array.isArray(pagesAffected)) {
-            writeStream.write(`        "pagesAffected": [\n`);
+        if (rules && Array.isArray(rules)) {
+          writeStream.write(`    "rules": [\n`);
 
-            for (let p = 0; p < pagesAffected.length; p++) {
-              const page = pagesAffected[p];
+          for (let j = 0; j < rules.length; j++) {
+            const rule = rules[j];
 
-              writeStream.write('          '); // Indentation for each page object
-              const pageGenerator = serializeObject(page, 5); // Serialize each page object
+            writeStream.write('      {\n'); // Start the rule object
 
-              let pageNext: any;
-              while (!(pageNext = pageGenerator.next()).done) {
-                if (!writeStream.write(pageNext.value)) {
-                  await new Promise(resolve => writeStream.once('drain', resolve));
+            const { pagesAffected, ...otherRuleProperties } = rule; // Extract pagesAffected dynamically
+
+            // Write other properties dynamically
+            const ruleKeys = Object.keys(otherRuleProperties);
+            for (let k = 0; k < ruleKeys.length; k++) {
+              const ruleKey = ruleKeys[k];
+              const ruleValue = otherRuleProperties[ruleKey];
+
+              // Serialize and write each property dynamically
+              writeStream.write(`        "${ruleKey}": ${JSON.stringify(ruleValue)}`);
+
+              // Add a comma unless it's the last property and no pagesAffected is present
+              if (k < ruleKeys.length - 1 || pagesAffected) {
+                writeStream.write(',\n');
+              } else {
+                writeStream.write('\n');
+              }
+            }
+
+            if (pagesAffected && Array.isArray(pagesAffected)) {
+              writeStream.write(`        "pagesAffected": [\n`);
+
+              for (let p = 0; p < pagesAffected.length; p++) {
+                const page = pagesAffected[p];
+
+                writeStream.write('          '); // Indentation for each page object
+                const pageGenerator = serializeObject(page, 5); // Serialize each page object
+
+                let pageNext: any;
+                while (!(pageNext = pageGenerator.next()).done) {
+                  if (!writeStream.write(pageNext.value)) {
+                    writeStream.once('drain', () => {});
+                  }
+                }
+
+                if (p < pagesAffected.length - 1) {
+                  writeStream.write(',\n'); // Comma between pages in the chunk
+                } else {
+                  writeStream.write('\n'); // No trailing comma for the last page in the chunk
                 }
               }
 
-              if (p < pagesAffected.length - 1) {
-                writeStream.write(',\n'); // Comma between pages in the chunk
-              } else {
-                writeStream.write('\n'); // No trailing comma for the last page in the chunk
-              }
+              writeStream.write('        ]'); // Close the pagesAffected array
             }
 
-            writeStream.write('        ]'); // Close the pagesAffected array
+            writeStream.write('\n      }'); // Close the rule object
+
+            if (j < rules.length - 1) {
+              writeStream.write(',\n'); // Comma between rules
+            } else {
+              writeStream.write('\n'); // No trailing comma for the last rule
+            }
           }
 
-          writeStream.write('\n      }'); // Close the rule object
-
-          if (j < rules.length - 1) {
-            writeStream.write(',\n'); // Comma between rules
-          } else {
-            writeStream.write('\n'); // No trailing comma for the last rule
-          }
+          writeStream.write('    ]'); // Close the rules array
         }
 
-        writeStream.write('    ]'); // Close the rules array
+        writeStream.write('\n  }'); // Close the key object here, after processing all fields of the current key
+
+        // Add a comma between keys if not the last key
+        if (i < keys.length - 1) {
+          writeStream.write(',\n'); // Comma between top-level keys
+        } else {
+          writeStream.write('\n'); // No trailing comma after the last key
+        }
       }
 
-      writeStream.write('\n  }'); // Close the key object here, after processing all fields of the current key
-
-      // Add a comma between keys if not the last key
-      if (i < keys.length - 1) {
-        writeStream.write(',\n'); // Comma between top-level keys
-      } else {
-        writeStream.write('\n'); // No trailing comma after the last key
-      }
+      writeStream.write('}\n'); // Close the main object
+      writeStream.end();
+    } catch (err) {
+      consoleLogger.error(`Error writing object to JSON file: ${err}`);
+      writeStream.end();
+      reject(err);
     }
-
-    writeStream.write('}\n'); // Close the main object
-    consoleLogger.info(`JSON file written successfully: ${filePath}`);
-  } catch (err) {
-    consoleLogger.error(`Error writing object to JSON file: ${err}`);
-    throw err;
-  } finally {
-    writeStream.end();
-  }
+  });
 };
 
 async function compressJsonFileStreaming(inputPath: string, outputPath: string) {
@@ -732,7 +743,7 @@ const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filena
   const browser = await chromium.launch({
     headless: false,
     channel: browserChannel,
-    args: ['--headless=new', '--no-sandbox']
+    args: ['--headless=new', '--no-sandbox'],
   });
 
   const context = await browser.newContext({
