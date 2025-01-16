@@ -52,7 +52,7 @@ RUN echo $'<?xml version="1.0" encoding="UTF-8" standalone="no"?> \n\
     </com.izforge.izpack.panels.packs.PacksPanel> \n\
     <com.izforge.izpack.panels.install.InstallPanel id="install"/> \n\
     <com.izforge.izpack.panels.finish.FinishPanel id="finish"/> \n\
-</AutomatedInstallation> ' >> /opt/verapdf-auto-install-docker.xml
+</AutomatedInstallation> ' > /opt/verapdf-auto-install-docker.xml
 
 RUN wget "https://github.com/GovTechSG/oobee/releases/download/cache/verapdf-installer.zip" -P /opt && \
     unzip /opt/verapdf-installer.zip -d /opt && \
