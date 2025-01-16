@@ -469,7 +469,7 @@ const crawlDomain = async ({
       launcher: constants.launcher,
       launchOptions: getPlaywrightLaunchOptions(browser),
       // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
-      userDataDir,
+      ...(process.env.CRAWLEE_HEADLESS === '0' && { userDataDir }),
     },
     retryOnBlocked: true,
     browserPoolOptions: {
