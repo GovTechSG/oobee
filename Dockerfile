@@ -1,59 +1,42 @@
-# Use Node LTS alpine distribution
-FROM node:lts-alpine3.21
+# Use Node.js LTS with Ubuntu as the base image
+FROM node:lts-bullseye
 
-# Install required packages, including gcompat and nss for compatibility
-FROM node:lts-alpine3.21
-
-RUN apk add --no-cache \
-    build-base \
+# Update system and install required dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     g++ \
-    make \
     python3 \
+    python3-pip \
     zip \
     bash \
     git \
-    openjdk11-jre \
+    openjdk-11-jre \
     curl \
-    libstdc++ \
-    libx11 \
-    libxrender \
-    libxcomposite \
-    libxrandr \
-    libxtst \
-    libxi \
-    libxdamage \
-    nss \
-    libc6-compat \
-    ca-certificates \
-    glib \
-    gtk+3.0 \
-    pango \
-    freetype \
-    harfbuzz \
-    alsa-lib \
-    dbus \
-    ttf-freefont \
-    libxshmfence \
-    libxkbcommon \
+    libnss3 \
+    libx11-6 \
+    libxrender1 \
+    libxcomposite1 \
+    libxrandr2 \
+    libxtst6 \
+    libxi6 \
+    libxdamage1 \
+    libcups2 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
+    libpango-1.0-0 \
+    libfreetype6 \
+    libxshmfence1 \
+    libxkbcommon0 \
+    libgbm-dev \
     fontconfig \
-    gcompat \
-    libdrm \
-    mesa-gbm \
-    glib-dev \
-    curl
+    fonts-liberation \
+    ca-certificates \
+    gnupg \
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
 
- # Install glibc for better compatibility
-# Define glibc version
-ENV GLIBC_VERSION="2.35-r1"
-
-# Remove conflicting packages and install glibc, ignoring file conflicts
-RUN apk del --no-cache gcompat && \
-    curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
-    curl -Lo /tmp/glibc-${GLIBC_VERSION}.apk https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk && \
-    apk add --no-cache --force-overwrite /tmp/glibc-${GLIBC_VERSION}.apk && \
-    rm -rf /tmp/*   
-
-# Installation of VeraPDF
+# Install VeraPDF
 RUN echo $'<?xml version="1.0" encoding="UTF-8" standalone="no"?> \n\
 <AutomatedInstallation langpack="eng"> \n\
     <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/> \n\
@@ -71,39 +54,40 @@ RUN echo $'<?xml version="1.0" encoding="UTF-8" standalone="no"?> \n\
     <com.izforge.izpack.panels.finish.FinishPanel id="finish"/> \n\
 </AutomatedInstallation> ' >> /opt/verapdf-auto-install-docker.xml
 
-RUN wget "https://github.com/GovTechSG/oobee/releases/download/cache/verapdf-installer.zip" -P /opt
-RUN unzip /opt/verapdf-installer.zip -d /opt
-RUN latest_version=$(ls -d /opt/verapdf-greenfield-* | sort -V | tail -n 1) && [ -n "$latest_version" ] && \
-    "$latest_version/verapdf-install" "/opt/verapdf-auto-install-docker.xml"
-RUN rm -rf /opt/verapdf-installer.zip /opt/verapdf-greenfield-*
+RUN wget "https://github.com/GovTechSG/oobee/releases/download/cache/verapdf-installer.zip" -P /opt && \
+    unzip /opt/verapdf-installer.zip -d /opt && \
+    latest_version=$(ls -d /opt/verapdf-greenfield-* | sort -V | tail -n 1) && [ -n "$latest_version" ] && \
+    "$latest_version/verapdf-install" "/opt/verapdf-auto-install-docker.xml" && \
+    rm -rf /opt/verapdf-installer.zip /opt/verapdf-greenfield-*
 
-# Set oobee directory
-WORKDIR /app
-
-# Copy package.json to working directory, perform npm install before copying the remaining files
-COPY package*.json ./
-
-# Environment variables for node and Playwright
-ENV NODE_ENV=production
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
-ENV PLAYWRIGHT_BROWSERS_PATH="/opt/ms-playwright"
+# Set VeraPDF in PATH
 ENV PATH="/opt/verapdf:${PATH}"
 
-# Install dependencies
+# Set working directory
+WORKDIR /app
+
+# Copy package.json and install dependencies
+COPY package*.json ./
+
+# Set Playwright environment variables
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
+ENV PLAYWRIGHT_BROWSERS_PATH="/opt/ms-playwright"
+
+# Install Node.js dependencies
 RUN npm install --force --omit=dev
 
 # Install Playwright browsers
 RUN npx playwright install chromium webkit
 
-# Add non-privileged user
-RUN addgroup -S oobee && adduser -S -G oobee oobee
-RUN chown -R oobee:oobee ./
+# Add a non-privileged user
+RUN groupadd -r oobee && useradd -r -g oobee oobee && \
+    chown -R oobee:oobee /app
 
-# Run everything after as non-privileged user.
+# Switch to the non-privileged user
 USER oobee
 
-# Copy application and support files
+# Copy the rest of the application
 COPY . .
 
-# Compile TypeScript
-RUN npm run build || true  # true exits with code 0 - temp workaround until errors are resolved
+# Compile TypeScript (if necessary)
+RUN npm run build || true  # Temporarily ignore build errors
