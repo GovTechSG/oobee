@@ -4,7 +4,6 @@ FROM node:lts-alpine3.21
 # Install required packages, including gcompat and nss for compatibility
 RUN apk add --no-cache \
     build-base \
-    gcompat \
     g++ \
     make \
     python3 \
@@ -35,6 +34,15 @@ RUN apk add --no-cache \
     libxshmfence \
     libxkbcommon \
     fontconfig
+
+# Install glibc for better compatibility
+# Define glibc version
+ENV GLIBC_VERSION="2.35-r1"
+# Remove conflicting packages and install glibc, ignoring file conflicts
+RUN curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
+    curl -Lo /tmp/glibc-${GLIBC_VERSION}.apk https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk && \
+    apk add --no-cache --force-overwrite /tmp/glibc-${GLIBC_VERSION}.apk && \
+    rm -rf /tmp/*
 
 # Installation of VeraPDF
 RUN echo $'<?xml version="1.0" encoding="UTF-8" standalone="no"?> \n\
