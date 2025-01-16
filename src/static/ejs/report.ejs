@@ -17,8 +17,7 @@
       href="data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M23.5 6C11.7707 6 10 11.1369 10 19.23V28.77C10 36.8631 11.7707 42 23.5 42C35.2293 42 37 36.8631 37 28.77V19.23C37 11.1369 35.2293 6 23.5 6ZM25.4903 14.5985V35.0562H21.5097V12.9438H27.8925L25.4903 14.5985Z' fill='%239021A6'/%3E%3C/svg%3E
       "
     />
-    <!-- Include pako for gzip decompression/compression -->
-    <%- include('partials/scripts/pako') %>
+    <%- include('partials/scripts/decodeUnzipParse') %>
     <%- include('partials/styles/bootstrap') %> <%- include('partials/styles/highlightjs') %> <%-
     include('partials/styles/styles') %>
   </head>
@@ -410,9 +409,20 @@
       };
 
       document.addEventListener('DOMContentLoaded', () => {
-        initTooltips();
-        scanDataHTML();
+        scanDataPromise.then(() => {
+          console.log("scanData loaded.");
+          scanItemsPromise.then(() => {
+            console.log("scanItems loaded.");
+            initTooltips();
+            scanDataHTML();
+          }).error(e => {
+            console.error("Failed to load scanItems: ", e);
+          });
+        }).error(e => {
+          console.error("Failed to load scanData: ", e);
+        });
       });
+
     </script>
     <!-- Checks if js runs -->
     <script>

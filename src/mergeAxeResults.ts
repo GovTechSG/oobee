@@ -54,6 +54,12 @@ export type RuleInfo = {
   helpUrl: string;
 };
 
+type Category = {
+  description: string;
+  totalItems: number;
+  rules: RuleInfo[];
+};
+
 type AllIssues = {
   storagePath: string;
   oobeeAi: {
@@ -77,10 +83,10 @@ type AllIssues = {
   customFlowLabel: string;
   phAppVersion: string;
   items: {
-    mustFix: { description: string; totalItems: number; rules: RuleInfo[] };
-    goodToFix: { description: string; totalItems: number; rules: RuleInfo[] };
-    needsReview: { description: string; totalItems: number; rules: RuleInfo[] };
-    passed: { description: string; totalItems: number; rules: RuleInfo[] };
+    mustFix: Category;
+    goodToFix: Category;
+    needsReview: Category;
+    passed: Category;
   };
   cypressScanAboutMetadata: string;
   wcagLinks: { [key: string]: string };
@@ -220,49 +226,6 @@ const compileHtmlWithEJS = async (
   const headIndex = htmlContent.indexOf('</head>');
   const injectScript = `
   <script>
-
-      /**
-       * Streams through a Base64-encoded, gzipped JSON string and returns the parsed object.
-       *
-       * @param {string} base64Gzipped - A Base64-encoded, gzipped JSON string.
-       * @param {number} [chunkSize=65536] - Size of each chunk in characters.
-       * @returns {Object} The decompressed JSON object.
-       */
-      function decompressJsonObject(base64Gzipped, chunkSize = 65536) {
-        // Create an Inflate (pako) instance for streaming decompression
-        const inflator = new pako.Inflate({ to: "string" });
-
-        let offset = 0;
-        const totalLength = base64Gzipped.length;
-
-        // Feed data in chunks
-        while (offset < totalLength) {
-          const chunk = base64Gzipped.slice(offset, offset + chunkSize);
-          offset += chunkSize;
-
-          // Base64 decode the current chunk to a binary string
-          const binaryString = atob(chunk);
-
-          // Convert the binary string to a Uint8Array
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-
-          // Push data to the inflator
-          const isLastChunk = offset >= totalLength;
-          inflator.push(bytes, isLastChunk);
-        }
-
-        // Check for any errors
-        if (inflator.err) {
-          throw new Error("Pako inflate error: " + inflator.msg);
-        }
-
-        // inflator.result is the decompressed string
-        const decompressedString = inflator.result;
-        return JSON.parse(decompressedString);
-      }
     // IMPORTANT! DO NOT REMOVE ME: Decode the encoded data
 
   </script>
@@ -343,12 +306,19 @@ const writeHTML = async (
 
   outputStream.write(prefixData);
 
-  outputStream.write("scanData = decompressJsonObject('");
+  // outputStream.write("scanData = decompressJsonObject('");
+  outputStream.write(
+    "let scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse('",
+  );
   scanDetailsReadStream.pipe(outputStream, { end: false });
 
   scanDetailsReadStream.on('end', () => {
-    outputStream.write("')\n\n");
-    outputStream.write("scanItems = decompressJsonObject('");
+    // outputStream.write("')\n\n");
+    outputStream.write("'); })();\n\n");
+    // outputStream.write("(scanItems = decompressJsonObject('");
+    outputStream.write(
+      "let scanItemsPromise = (async () => { console.log('Loading scanItems...'); scanItems = await decodeUnzipParse('",
+    );
     scanItemsReadStream.pipe(outputStream, { end: false });
   });
 
@@ -358,7 +328,8 @@ const writeHTML = async (
   });
 
   scanItemsReadStream.on('end', () => {
-    outputStream.write("')\n\n");
+    // outputStream.write("')\n\n");
+    outputStream.write("'); })();\n\n");
     outputStream.write(suffixData);
     outputStream.end();
   });
@@ -397,44 +368,45 @@ const cleanUpJsonFiles = async (filesToDelete: string[]) => {
   });
 };
 
-function writeFormattedValue(value, writeStream) {
-  if (typeof value === 'function') {
-    writeStream.write('null');
-  } else if (value === undefined) {
-    writeStream.write('null');
-  } else if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') {
-    writeStream.write(JSON.stringify(value));
-  } else if (value === null) {
-    writeStream.write('null');
-  }
-}
-
-function serializeObject(obj, writeStream, depth = 0, indent = '  ') {
+function* serializeObject(obj: any, depth = 0, indent = '  ') {
   const currentIndent = indent.repeat(depth);
   const nextIndent = indent.repeat(depth + 1);
 
   if (obj instanceof Date) {
-    writeStream.write(JSON.stringify(obj.toISOString()));
-  } else if (Array.isArray(obj)) {
-    writeStream.write('[\n');
-    obj.forEach((item, index) => {
-      if (index > 0) writeStream.write(',\n');
-      writeStream.write(nextIndent);
-      serializeObject(item, writeStream, depth + 1, indent);
-    });
-    writeStream.write(`\n${currentIndent}]`);
-  } else if (typeof obj === 'object' && obj !== null) {
-    writeStream.write('{\n');
-    const keys = Object.keys(obj);
-    keys.forEach((key, index) => {
-      if (index > 0) writeStream.write(',\n');
-      writeStream.write(`${nextIndent}${JSON.stringify(key)}: `);
-      serializeObject(obj[key], writeStream, depth + 1, indent);
-    });
-    writeStream.write(`\n${currentIndent}}`);
-  } else {
-    writeFormattedValue(obj, writeStream);
+    yield JSON.stringify(obj.toISOString());
+    return;
   }
+
+  if (Array.isArray(obj)) {
+    yield '[\n';
+    for (let i = 0; i < obj.length; i++) {
+      if (i > 0) yield ',\n';
+      yield nextIndent;
+      yield* serializeObject(obj[i], depth + 1, indent);
+    }
+    yield `\n${currentIndent}]`;
+    return;
+  }
+
+  if (obj !== null && typeof obj === 'object') {
+    yield '{\n';
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (i > 0) yield ',\n';
+      yield `${nextIndent}${JSON.stringify(key)}: `;
+      yield* serializeObject(obj[key], depth + 1, indent);
+    }
+    yield `\n${currentIndent}}`;
+    return;
+  }
+
+  if (obj === null || typeof obj === 'function' || typeof obj === 'undefined') {
+    yield 'null';
+    return;
+  }
+
+  yield JSON.stringify(obj);
 }
 
 function writeLargeJsonToFile(obj: object, filePath: string) {
@@ -451,10 +423,141 @@ function writeLargeJsonToFile(obj: object, filePath: string) {
       resolve(true);
     });
 
-    serializeObject(obj, writeStream);
-    writeStream.end();
+    const generator = serializeObject(obj);
+
+    function write() {
+      let next: any;
+      while (!(next = generator.next()).done) {
+        if (!writeStream.write(next.value)) {
+          writeStream.once('drain', write);
+          return;
+        }
+      }
+      writeStream.end();
+    }
+
+    write();
   });
 }
+
+const writeLargeScanItemsJsonToFile = async (obj: object, filePath: string) => {
+  const writeStream = fs.createWriteStream(filePath, { flags: 'a', encoding: 'utf8' });
+
+  try {
+    writeStream.write('{\n');
+
+    const keys = Object.keys(obj);
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const value = obj[key];
+
+      // Start writing the key object
+      writeStream.write(`  "${key}": {\n`);
+
+      const { rules, ...otherProperties } = value; // Extract rules and other properties dynamically
+
+      // Write all properties dynamically, excluding rules
+      const otherKeys = Object.keys(otherProperties);
+      for (let j = 0; j < otherKeys.length; j++) {
+        const propKey = otherKeys[j];
+        const propValue = otherProperties[propKey];
+
+        // Serialize and write the property dynamically
+        writeStream.write(`    "${propKey}": ${JSON.stringify(propValue)}`);
+
+        // Add a comma unless it's the last property
+        if (j < otherKeys.length - 1 || (rules && rules.length > 0)) {
+          writeStream.write(',\n');
+        } else {
+          writeStream.write('\n');
+        }
+      }
+
+      if (rules && Array.isArray(rules)) {
+        writeStream.write(`    "rules": [\n`);
+
+        for (let j = 0; j < rules.length; j++) {
+          const rule = rules[j];
+
+          writeStream.write('      {\n'); // Start the rule object
+
+          const { pagesAffected, ...otherRuleProperties } = rule; // Extract pagesAffected dynamically
+
+          // Write other properties dynamically
+          const ruleKeys = Object.keys(otherRuleProperties);
+          for (let k = 0; k < ruleKeys.length; k++) {
+            const ruleKey = ruleKeys[k];
+            const ruleValue = otherRuleProperties[ruleKey];
+
+            // Serialize and write each property dynamically
+            writeStream.write(`        "${ruleKey}": ${JSON.stringify(ruleValue)}`);
+
+            // Add a comma unless it's the last property and no pagesAffected is present
+            if (k < ruleKeys.length - 1 || pagesAffected) {
+              writeStream.write(',\n');
+            } else {
+              writeStream.write('\n');
+            }
+          }
+
+          if (pagesAffected && Array.isArray(pagesAffected)) {
+            writeStream.write(`        "pagesAffected": [\n`);
+
+            for (let p = 0; p < pagesAffected.length; p++) {
+              const page = pagesAffected[p];
+
+              writeStream.write('          '); // Indentation for each page object
+              const pageGenerator = serializeObject(page, 5); // Serialize each page object
+
+              let pageNext: any;
+              while (!(pageNext = pageGenerator.next()).done) {
+                if (!writeStream.write(pageNext.value)) {
+                  await new Promise(resolve => writeStream.once('drain', resolve));
+                }
+              }
+
+              if (p < pagesAffected.length - 1) {
+                writeStream.write(',\n'); // Comma between pages in the chunk
+              } else {
+                writeStream.write('\n'); // No trailing comma for the last page in the chunk
+              }
+            }
+
+            writeStream.write('        ]'); // Close the pagesAffected array
+          }
+
+          writeStream.write('\n      }'); // Close the rule object
+
+          if (j < rules.length - 1) {
+            writeStream.write(',\n'); // Comma between rules
+          } else {
+            writeStream.write('\n'); // No trailing comma for the last rule
+          }
+        }
+
+        writeStream.write('    ]'); // Close the rules array
+      }
+
+      writeStream.write('\n  }'); // Close the key object here, after processing all fields of the current key
+
+      // Add a comma between keys if not the last key
+      if (i < keys.length - 1) {
+        writeStream.write(',\n'); // Comma between top-level keys
+      } else {
+        writeStream.write('\n'); // No trailing comma after the last key
+      }
+    }
+
+    writeStream.write('}\n'); // Close the main object
+    consoleLogger.info(`JSON file written successfully: ${filePath}`);
+  } catch (err) {
+    consoleLogger.error(`Error writing object to JSON file: ${err}`);
+    throw err;
+  } finally {
+    writeStream.end();
+  }
+};
 
 async function compressJsonFileStreaming(inputPath: string, outputPath: string) {
   // Create the read and write streams
@@ -481,7 +584,11 @@ const writeJsonFileAndCompressedJsonFile = async (
   try {
     consoleLogger.info(`Writing JSON to ${filename}.json`);
     const jsonFilePath = path.join(storagePath, `${filename}.json`);
-    await writeLargeJsonToFile(data, jsonFilePath);
+    if (filename === 'scanItems') {
+      await writeLargeScanItemsJsonToFile(data, jsonFilePath);
+    } else {
+      await writeLargeJsonToFile(data, jsonFilePath);
+    }
 
     consoleLogger.info(
       `Reading ${filename}.json, gzipping and base64 encoding it into ${filename}.json.gz.b64`,
