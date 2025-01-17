@@ -1779,8 +1779,6 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     channel = browser;
   }
 
-  console.log('CHANNEL ', channel);
-
   // Set new headless mode as Chrome 132 does not support headless=old
   if (process.env.CRAWLEE_HEADLESS === '1') constants.launchOptionsArgs.push('--headless=new');
 
