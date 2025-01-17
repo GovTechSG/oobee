@@ -47,5 +47,8 @@ RUN chown -R purple:purple /app
 # Install any app dependencies for your application
 # RUN npm ci --omit=dev
 
+# For oobee to be run from present working directory, comment out as necessary
+WORKDIR /app/oobee
+
 # Run everything after as non-privileged user.
 USER purple
