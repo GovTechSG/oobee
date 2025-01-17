@@ -934,6 +934,7 @@ const getTopTenIssues = (allIssues) => {
 
       rulesWithCounts.push({
         category,
+        ruleId: rule.rule,
         description: rule.description,
         axeImpact: rule.axeImpact,
         conformance: aLevel,
@@ -1107,10 +1108,10 @@ const generateArtifacts = async (
     customFlowLabel,
     phAppVersion,
     items: {
-      mustFix: { description: itemTypeDescription.mustFix, totalItems: 0, totalRuleIssues: 0, rules: []},
-      goodToFix: { description: itemTypeDescription.goodToFix, totalItems: 0, totalRuleIssues: 0, rules: []},
-      needsReview: { description: itemTypeDescription.needsReview, totalItems: 0, totalRuleIssues: 0, rules: []},
-      passed: { description: itemTypeDescription.passed, totalItems: 0, totalRuleIssues: 0, rules: []},
+      mustFix: { description: itemTypeDescription.mustFix, totalItems: 0, totalRuleIssues: 0, rules: [] },
+      goodToFix: { description: itemTypeDescription.goodToFix, totalItems: 0, totalRuleIssues: 0, rules: [] },
+      needsReview: { description: itemTypeDescription.needsReview, totalItems: 0, totalRuleIssues: 0, rules: [] },
+      passed: { description: itemTypeDescription.passed, totalItems: 0, totalRuleIssues: 0, rules: [] },
     },
     cypressScanAboutMetadata,
     wcagLinks: constants.wcagLinks,
