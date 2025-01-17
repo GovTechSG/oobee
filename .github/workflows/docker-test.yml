@@ -36,7 +36,7 @@ jobs:
         run: |
           docker exec oobee-container cat logs/*/*.txt || true
       - name: Copy Results from Docker Container
-        run: docker cp oobee-container:/app/results ./results
+        run: docker cp oobee-container:/app/oobee/results ./results
 
       - name: Zip Results
         run: zip -r results.zip ./results

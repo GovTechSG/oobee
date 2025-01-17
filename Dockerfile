@@ -1,60 +1,54 @@
-# Use Node LTS alpine distribution
-FROM node:lts-alpine3.18
+# Use Microsoft Playwright image as base image
+# Node version is v20.16.0
+FROM mcr.microsoft.com/playwright:v1.46.0-noble
 
-# Installation of packages for oobee and chromium
-RUN apk add build-base gcompat g++ make python3 zip bash git chromium openjdk11-jre
+# Installation of packages for oobee and runner
+RUN apt-get update && apt-get install -y zip git
 
-# Installation of VeraPDF
-RUN echo $'<?xml version="1.0" encoding="UTF-8" standalone="no"?> \n\
-<AutomatedInstallation langpack="eng"> \n\
-    <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/> \n\
-    <com.izforge.izpack.panels.target.TargetPanel id="install_dir"> \n\
-        <installpath>/opt/verapdf</installpath> \n\
-    </com.izforge.izpack.panels.target.TargetPanel> \n\
-    <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select"> \n\
-        <pack index="0" name="veraPDF GUI" selected="true"/> \n\
-        <pack index="1" name="veraPDF Batch files" selected="true"/> \n\
-        <pack index="2" name="veraPDF Validation model" selected="false"/> \n\
-        <pack index="3" name="veraPDF Documentation" selected="false"/> \n\
-        <pack index="4" name="veraPDF Sample Plugins" selected="false"/> \n\
-    </com.izforge.izpack.panels.packs.PacksPanel> \n\
-    <com.izforge.izpack.panels.install.InstallPanel id="install"/> \n\
-    <com.izforge.izpack.panels.finish.FinishPanel id="finish"/> \n\
-</AutomatedInstallation> ' >> /opt/verapdf-auto-install-docker.xml
+WORKDIR /app/oobee
 
-RUN wget "https://github.com/GovTechSG/oobee/releases/download/cache/verapdf-installer.zip" -P /opt
-RUN unzip /opt/verapdf-installer.zip -d /opt
-RUN latest_version=$(ls -d /opt/verapdf-greenfield-* | sort -V | tail -n 1) && [ -n "$latest_version" ] && \
-    "$latest_version/verapdf-install" "/opt/verapdf-auto-install-docker.xml"
-RUN rm -rf /opt/verapdf-installer.zip /opt/verapdf-greenfield-*
+# Clone oobee repository
+# RUN git clone --branch master https://github.com/GovTechSG/oobee.git /app/oobee
 
-# Set oobee directory
-WORKDIR /app
-
-# Copy package.json to working directory, perform npm install before copying the remaining files
-COPY package*.json ./
+# OR Copy oobee files from local directory
+COPY . .
 
 # Environment variables for node and Playwright
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
-ENV PLAYWRIGHT_BROWSERS_PATH="/opt/ms-playwright"
-ENV PATH="/opt/verapdf:${PATH}"
 
-# Install dependencies
-RUN npm install --force --omit=dev
+# Install oobee dependencies
+RUN npm ci --omit=dev
+
+# Compile TypeScript for oobee
+RUN npm run build || true # true exits with code 0 - workaround for TS errors
 
 # Install Playwright browsers
-RUN npx playwright install chromium webkit
+RUN npx playwright install chromium
 
 # Add non-privileged user
-RUN addgroup -S oobee && adduser -S -G oobee oobee
-RUN chown -R oobee:oobee ./
+# Create a group named "purple"
+RUN groupadd -r purple
+
+# Create a user named "purple" and assign it to the group "purple"
+RUN useradd -r -g purple purple
+
+# Create a dedicated directory for the "purple" user and set permissions
+RUN mkdir -p /home/purple && chown -R purple:purple /home/purple
+
+WORKDIR /app
+
+# Set the ownership of the oobee directory to the user "purple"
+RUN chown -R purple:purple /app
+
+# Copy any application and support files
+# COPY . .
+
+# Install any app dependencies for your application
+# RUN npm ci --omit=dev
+
+# For oobee to be run from present working directory, comment out as necessary
+WORKDIR /app/oobee
 
 # Run everything after as non-privileged user.
-USER oobee
-
-# Copy application and support files
-COPY . .
-
-# Compile TypeScript
-RUN npm run build || true  # true exits with code 0 - temp workaround until errors are resolved
+USER purple
