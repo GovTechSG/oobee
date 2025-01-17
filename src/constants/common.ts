@@ -402,13 +402,18 @@ const checkUrlConnectivityWithBrowser = async (
     let browserContext;
 
     try {
+      const launchOptions = getPlaywrightLaunchOptions(browserToRun);
+
+      // Temporarily add headless=new for this session
+      const connectivityCheckLaunchArgs = [...launchOptions.args];
+      connectivityCheckLaunchArgs.push('--headless=new');
+
       browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
-        ...getPlaywrightLaunchOptions(browserToRun),
+        ...connectivityCheckLaunchArgs,
         ...(viewport && { viewport }),
         ...(userAgent && { userAgent }),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
       });
-
     } catch (err) {
       printMessage([`Unable to launch browser\n${err}`], messageOptions);
       res.status = constants.urlCheckStatuses.browserError.code;
