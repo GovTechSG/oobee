@@ -57,6 +57,7 @@ export type RuleInfo = {
 type Category = {
   description: string;
   totalItems: number;
+  totalRuleIssues: number;
   rules: RuleInfo[];
 };
 
@@ -79,6 +80,8 @@ type AllIssues = {
   totalPagesNotScanned: number;
   totalItems: number;
   topFiveMostIssues: Array<any>;
+  topTenPagesWithMostIssues: Array<any>;
+  topTenIssues: Array<any>;
   wcagViolations: string[];
   customFlowLabel: string;
   phAppVersion: string;
@@ -694,10 +697,39 @@ const writeJsonAndBase64Files = async (
       page.items = [];
     });
   });
+
+  items.mustFix.totalRuleIssues = items.mustFix.rules.length;
+  items.goodToFix.totalRuleIssues = items.goodToFix.rules.length;
+  items.needsReview.totalRuleIssues = items.needsReview.rules.length;
+  items.passed.totalRuleIssues = items.passed.rules.length;
+
+  const {
+    pagesScanned,
+    topTenPagesWithMostIssues,
+    pagesNotScanned,
+    wcagLinks,
+    wcagPassPercentage,
+    totalPagesScanned,
+    totalPagesNotScanned,
+    topTenIssues,
+  } = rest;
+
+  const summaryItems = {
+    ...items,
+    pagesScanned,
+    topTenPagesWithMostIssues,
+    pagesNotScanned,
+    wcagLinks,
+    wcagPassPercentage,
+    totalPagesScanned,
+    totalPagesNotScanned,
+    topTenIssues,
+  };
+
   const {
     jsonFilePath: scanItemsSummaryJsonFilePath,
     base64FilePath: scanItemsSummaryBase64FilePath,
-  } = await writeJsonFileAndCompressedJsonFile(items, storagePath, 'scanItemsSummary');
+  } = await writeJsonFileAndCompressedJsonFile(summaryItems, storagePath, 'scanItemsSummary');
 
   return {
     scanDataJsonFilePath,
@@ -799,7 +831,7 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   Object.keys(pageResults.goodToFix.rules).forEach(k => totalIssuesInPage.add(k));
   Object.keys(pageResults.needsReview.rules).forEach(k => totalIssuesInPage.add(k));
 
-  allIssues.topFiveMostIssues.push({ url, pageTitle, totalIssues: totalIssuesInPage.size });
+  allIssues.topFiveMostIssues.push({ url, pageTitle, totalIssues: totalIssuesInPage.size, totalOccurrences: 0 });
 
   ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
     if (!pageResults[category]) return;
@@ -881,9 +913,48 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   });
 };
 
+const getTopTenIssues = (allIssues) => {
+  const categories = ['mustFix', 'goodToFix'];
+  const rulesWithCounts = [];
+
+  const conformanceLevels = {
+    wcag2a: 'A',
+    wcag2aa: 'AA',
+    wcag21aa: 'AA',
+    wcag22aa: 'AA',
+    wcag2aaa: 'AAA',
+  };
+
+  categories.forEach((category) => {
+    const rules = allIssues.items[category]?.rules || [];
+
+    rules.forEach((rule) => {
+      const wcagLevel = rule.conformance[0];
+      const aLevel = conformanceLevels[wcagLevel] || wcagLevel;
+
+      rulesWithCounts.push({
+        category,
+        description: rule.description,
+        axeImpact: rule.axeImpact,
+        conformance: aLevel,
+        totalItems: rule.totalItems,
+      });
+    });
+  });
+
+  rulesWithCounts.sort((a, b) => b.totalItems - a.totalItems);
+
+  return rulesWithCounts.slice(0, 10);
+};
+
 const flattenAndSortResults = (allIssues: AllIssues, isCustomFlow: boolean) => {
+  const urlOccurrencesMap = new Map<string, number>();
+
   ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
     allIssues.totalItems += allIssues.items[category].totalItems;
+
+    if (category === 'passed') return;
+
     allIssues.items[category].rules = Object.entries(allIssues.items[category].rules)
       .map(ruleEntry => {
         const [rule, ruleInfo] = ruleEntry as [string, RuleInfo];
@@ -891,9 +962,17 @@ const flattenAndSortResults = (allIssues: AllIssues, isCustomFlow: boolean) => {
           .map(pageEntry => {
             if (isCustomFlow) {
               const [pageIndex, pageInfo] = pageEntry as unknown as [number, PageInfo];
+              urlOccurrencesMap.set(
+                pageInfo.url!,
+                (urlOccurrencesMap.get(pageInfo.url!) || 0) + pageInfo.items.length
+              );
               return { pageIndex, ...pageInfo };
             }
             const [url, pageInfo] = pageEntry as unknown as [string, PageInfo];
+            urlOccurrencesMap.set(
+              url,
+              (urlOccurrencesMap.get(url) || 0) + pageInfo.items.length
+            );
             return { url, ...pageInfo };
           })
           .sort((page1, page2) => page2.items.length - page1.items.length);
@@ -901,8 +980,19 @@ const flattenAndSortResults = (allIssues: AllIssues, isCustomFlow: boolean) => {
       })
       .sort((rule1, rule2) => rule2.totalItems - rule1.totalItems);
   });
+
+  const updateIssuesWithOccurrences = (issuesList: Array<any>) => {
+    issuesList.forEach(issue => {
+      issue.totalOccurrences = urlOccurrencesMap.get(issue.url) || 0;
+    });
+  };
+
   allIssues.topFiveMostIssues.sort((page1, page2) => page2.totalIssues - page1.totalIssues);
   allIssues.topFiveMostIssues = allIssues.topFiveMostIssues.slice(0, 5);
+  allIssues.topTenPagesWithMostIssues = allIssues.topFiveMostIssues.slice(0, 10);
+  updateIssuesWithOccurrences(allIssues.topTenPagesWithMostIssues);
+  const topTenIssues = getTopTenIssues(allIssues);
+  allIssues.topTenIssues = topTenIssues;
 };
 
 const createRuleIdJson = allIssues => {
@@ -1011,14 +1101,16 @@ const generateArtifacts = async (
     totalPagesNotScanned: pagesNotScanned.length,
     totalItems: 0,
     topFiveMostIssues: [],
+    topTenPagesWithMostIssues: [],
+    topTenIssues: [],
     wcagViolations: [],
     customFlowLabel,
     phAppVersion,
     items: {
-      mustFix: { description: itemTypeDescription.mustFix, totalItems: 0, rules: [] },
-      goodToFix: { description: itemTypeDescription.goodToFix, totalItems: 0, rules: [] },
-      needsReview: { description: itemTypeDescription.needsReview, totalItems: 0, rules: [] },
-      passed: { description: itemTypeDescription.passed, totalItems: 0, rules: [] },
+      mustFix: { description: itemTypeDescription.mustFix, totalItems: 0, totalRuleIssues: 0, rules: []},
+      goodToFix: { description: itemTypeDescription.goodToFix, totalItems: 0, totalRuleIssues: 0, rules: []},
+      needsReview: { description: itemTypeDescription.needsReview, totalItems: 0, totalRuleIssues: 0, rules: []},
+      passed: { description: itemTypeDescription.passed, totalItems: 0, totalRuleIssues: 0, rules: []},
     },
     cypressScanAboutMetadata,
     wcagLinks: constants.wcagLinks,
