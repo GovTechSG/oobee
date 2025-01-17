@@ -402,14 +402,16 @@ const checkUrlConnectivityWithBrowser = async (
     let browserContext;
 
     try {
+      // Temporary browserContextLaunchOptions to force headless mode during connectivity check
+      // If a user selects cli options h=no, the connectivity check should still proceed in headless
       const launchOptions = getPlaywrightLaunchOptions(browserToRun);
-
-      // Temporarily add headless=new for this session
-      const connectivityCheckLaunchArgs = [...launchOptions.args];
-      connectivityCheckLaunchArgs.push('--headless=new');
+      const browserContextLaunchOptions = {
+        ...launchOptions,
+        args: [...launchOptions.args, '--headless=new'],
+      };
 
       browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
-        ...connectivityCheckLaunchArgs,
+        ...browserContextLaunchOptions,
         ...(viewport && { viewport }),
         ...(userAgent && { userAgent }),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
@@ -1776,6 +1778,8 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   if (browser) {
     channel = browser;
   }
+
+  console.log('CHANNEL ', channel);
 
   // Set new headless mode as Chrome 132 does not support headless=old
   if (process.env.CRAWLEE_HEADLESS === '1') constants.launchOptionsArgs.push('--headless=new');
