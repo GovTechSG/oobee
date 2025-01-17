@@ -8,10 +8,10 @@ RUN apt-get update && apt-get install -y zip git
 WORKDIR /app/oobee
 
 # Clone oobee repository
-RUN git clone --branch master https://github.com/GovTechSG/oobee.git /app/oobee
+# RUN git clone --branch master https://github.com/GovTechSG/oobee.git /app/oobee
 
 # OR Copy oobee files from local directory
-# COPY . .
+COPY . .
 
 # Environment variables for node and Playwright
 ENV NODE_ENV=production
