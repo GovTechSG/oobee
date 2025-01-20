@@ -499,7 +499,13 @@ const writeLargeScanItemsJsonToFile = async (obj: object, filePath: string) => {
 
         // Write other properties
         Object.entries(otherProperties).forEach(([propKey, propValue], j) => {
-          queueWrite(`    "${propKey}": ${JSON.stringify(propValue)}`);
+          const propValueString =
+            propValue === null ||
+            typeof propValue === 'function' ||
+            typeof propValue === 'undefined'
+              ? 'null'
+              : JSON.stringify(propValue);
+          queueWrite(`    "${propKey}": ${propValueString}`);
           if (j < Object.keys(otherProperties).length - 1 || (rules && rules.length >= 0)) {
             queueWrite(',\n');
           } else {
@@ -515,7 +521,13 @@ const writeLargeScanItemsJsonToFile = async (obj: object, filePath: string) => {
             const { pagesAffected, ...otherRuleProperties } = rule;
 
             Object.entries(otherRuleProperties).forEach(([ruleKey, ruleValue], k) => {
-              queueWrite(`        "${ruleKey}": ${JSON.stringify(ruleValue)}`);
+              const ruleValueString =
+                ruleValue === null ||
+                typeof ruleValue === 'function' ||
+                typeof ruleValue === 'undefined'
+                  ? 'null'
+                  : JSON.stringify(ruleValue);
+              queueWrite(`        "${ruleKey}": ${ruleValueString}`);
               if (k < Object.keys(otherRuleProperties).length - 1 || pagesAffected) {
                 queueWrite(',\n');
               } else {
