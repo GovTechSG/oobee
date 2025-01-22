@@ -1,6 +1,6 @@
 # Use Microsoft Playwright image as base image
 # Node version is v20.16.0
-FROM mcr.microsoft.com/playwright:v1.46.0-noble
+FROM mcr.microsoft.com/playwright:v1.49.1-jammy
 
 # Installation of packages for oobee and runner
 RUN apt-get update && apt-get install -y zip git
