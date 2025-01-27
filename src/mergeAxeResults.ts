@@ -13,7 +13,7 @@ import zlib from 'zlib';
 import { Base64Encode } from 'base64-stream';
 import { pipeline } from 'stream/promises';
 import constants, { ScannerTypes } from './constants/constants.js';
-import { urlWithoutAuth } from './constants/common.js';
+import { urlWithoutAuth, prepareData } from './constants/common.js';
 import {
   createScreenshotsFolder,
   getStoragePath,
@@ -71,6 +71,7 @@ type AllIssues = {
   endTime: Date;
   urlScanned: string;
   scanType: string;
+  deviceChosen: string;
   formatAboutStartTime: (dateString: any) => string;
   isCustomFlow: boolean;
   viewport: string;
@@ -147,7 +148,7 @@ const writeCsv = async (allIssues, storagePath) => {
         return compareCategory === 0 ? a[1].rule.localeCompare(b[1].rule) : compareCategory;
       });
   };
-  // seems to go into
+
   const flattenRule = catAndRule => {
     const [severity, rule] = catAndRule;
     const results = [];
@@ -166,6 +167,7 @@ const writeCsv = async (allIssues, storagePath) => {
     pagesAffected.sort((a, b) => a.url.localeCompare(b.url));
     // format clauses as a string
     const wcagConformance = clausesArr.join(',');
+
     pagesAffected.forEach(affectedPage => {
       const { url, items } = affectedPage;
       items.forEach(item => {
@@ -185,12 +187,16 @@ const writeCsv = async (allIssues, storagePath) => {
           axeImpact,
           xpath,
           learnMore,
+          deviceChosen: allIssues.deviceChosen,
+          customFlowLabel: allIssues.customFlowLabel || '',
+          scanCompletedAt: allIssues.endTime.toISOString()
         });
       });
     });
     if (results.length === 0) return {};
     return results;
   };
+
   const opts: ParserOptions<any, any> = {
     transforms: [getRulesByCategory, flattenRule],
     fields: [
@@ -204,9 +210,13 @@ const writeCsv = async (allIssues, storagePath) => {
       'axeImpact',
       'xpath',
       'learnMore',
+      'deviceChosen',
+      'customFlowLabel',
+      'scanCompletedAt'
     ],
     includeEmptyRows: true,
   };
+
   const parser = new AsyncParser(opts);
   parser.parse(allIssues).pipe(csvOutput);
 };
@@ -501,8 +511,8 @@ const writeLargeScanItemsJsonToFile = async (obj: object, filePath: string) => {
         Object.entries(otherProperties).forEach(([propKey, propValue], j) => {
           const propValueString =
             propValue === null ||
-            typeof propValue === 'function' ||
-            typeof propValue === 'undefined'
+              typeof propValue === 'function' ||
+              typeof propValue === 'undefined'
               ? 'null'
               : JSON.stringify(propValue);
           queueWrite(`    "${propKey}": ${propValueString}`);
@@ -523,8 +533,8 @@ const writeLargeScanItemsJsonToFile = async (obj: object, filePath: string) => {
             Object.entries(otherRuleProperties).forEach(([ruleKey, ruleValue], k) => {
               const ruleValueString =
                 ruleValue === null ||
-                typeof ruleValue === 'function' ||
-                typeof ruleValue === 'undefined'
+                  typeof ruleValue === 'function' ||
+                  typeof ruleValue === 'undefined'
                   ? 'null'
                   : JSON.stringify(ruleValue);
               queueWrite(`        "${ruleKey}": ${ruleValueString}`);
@@ -1105,6 +1115,7 @@ const generateArtifacts = async (
     endTime: scanDetails.endTime ? scanDetails.endTime : new Date(),
     urlScanned,
     scanType,
+    deviceChosen: scanDetails.deviceChosen || 'Desktop',
     formatAboutStartTime,
     isCustomFlow,
     viewport,
