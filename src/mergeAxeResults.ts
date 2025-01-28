@@ -172,7 +172,7 @@ const writeCsv = async (allIssues, storagePath) => {
       const { url, items } = affectedPage;
       items.forEach(item => {
         const { html, page, message, xpath } = item;
-        const howToFix = message.replace(/(\r\n|\n|\r)/g, ' '); // remove newlines
+        const howToFix = message.replace(/(\r\n|\n|\r)/g, '\\n'); // preserve newlines as \n
         const violation = html || formatPageViolation(page); // page is a number, not a string
         const context = violation.replace(/(\r\n|\n|\r)/g, ''); // remove newlines
 
@@ -853,7 +853,12 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   Object.keys(pageResults.goodToFix.rules).forEach(k => totalIssuesInPage.add(k));
   Object.keys(pageResults.needsReview.rules).forEach(k => totalIssuesInPage.add(k));
 
-  allIssues.topFiveMostIssues.push({ url, pageTitle, totalIssues: totalIssuesInPage.size, totalOccurrences: 0 });
+  allIssues.topFiveMostIssues.push({
+    url,
+    pageTitle,
+    totalIssues: totalIssuesInPage.size,
+    totalOccurrences: 0,
+  });
 
   ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
     if (!pageResults[category]) return;
@@ -935,7 +940,7 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   });
 };
 
-const getTopTenIssues = (allIssues) => {
+const getTopTenIssues = allIssues => {
   const categories = ['mustFix', 'goodToFix'];
   const rulesWithCounts = [];
 
@@ -947,10 +952,10 @@ const getTopTenIssues = (allIssues) => {
     wcag2aaa: 'AAA',
   };
 
-  categories.forEach((category) => {
+  categories.forEach(category => {
     const rules = allIssues.items[category]?.rules || [];
 
-    rules.forEach((rule) => {
+    rules.forEach(rule => {
       const wcagLevel = rule.conformance[0];
       const aLevel = conformanceLevels[wcagLevel] || wcagLevel;
 
@@ -987,15 +992,12 @@ const flattenAndSortResults = (allIssues: AllIssues, isCustomFlow: boolean) => {
               const [pageIndex, pageInfo] = pageEntry as unknown as [number, PageInfo];
               urlOccurrencesMap.set(
                 pageInfo.url!,
-                (urlOccurrencesMap.get(pageInfo.url!) || 0) + pageInfo.items.length
+                (urlOccurrencesMap.get(pageInfo.url!) || 0) + pageInfo.items.length,
               );
               return { pageIndex, ...pageInfo };
             }
             const [url, pageInfo] = pageEntry as unknown as [string, PageInfo];
-            urlOccurrencesMap.set(
-              url,
-              (urlOccurrencesMap.get(url) || 0) + pageInfo.items.length
-            );
+            urlOccurrencesMap.set(url, (urlOccurrencesMap.get(url) || 0) + pageInfo.items.length);
             return { url, ...pageInfo };
           })
           .sort((page1, page2) => page2.items.length - page1.items.length);
@@ -1131,10 +1133,30 @@ const generateArtifacts = async (
     customFlowLabel,
     phAppVersion,
     items: {
-      mustFix: { description: itemTypeDescription.mustFix, totalItems: 0, totalRuleIssues: 0, rules: [] },
-      goodToFix: { description: itemTypeDescription.goodToFix, totalItems: 0, totalRuleIssues: 0, rules: [] },
-      needsReview: { description: itemTypeDescription.needsReview, totalItems: 0, totalRuleIssues: 0, rules: [] },
-      passed: { description: itemTypeDescription.passed, totalItems: 0, totalRuleIssues: 0, rules: [] },
+      mustFix: {
+        description: itemTypeDescription.mustFix,
+        totalItems: 0,
+        totalRuleIssues: 0,
+        rules: [],
+      },
+      goodToFix: {
+        description: itemTypeDescription.goodToFix,
+        totalItems: 0,
+        totalRuleIssues: 0,
+        rules: [],
+      },
+      needsReview: {
+        description: itemTypeDescription.needsReview,
+        totalItems: 0,
+        totalRuleIssues: 0,
+        rules: [],
+      },
+      passed: {
+        description: itemTypeDescription.passed,
+        totalItems: 0,
+        totalRuleIssues: 0,
+        rules: [],
+      },
     },
     cypressScanAboutMetadata,
     wcagLinks: constants.wcagLinks,
