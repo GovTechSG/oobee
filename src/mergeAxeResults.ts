@@ -177,6 +177,9 @@ const writeCsv = async (allIssues, storagePath) => {
         const context = violation.replace(/(\r\n|\n|\r)/g, ''); // remove newlines
 
         results.push({
+          customFlowLabel: allIssues.customFlowLabel || '',
+          deviceChosen: allIssues.deviceChosen,
+          scanCompletedAt: allIssues.endTime.toISOString(),
           severity,
           issueId,
           issueDescription,
@@ -187,9 +190,6 @@ const writeCsv = async (allIssues, storagePath) => {
           axeImpact,
           xpath,
           learnMore,
-          deviceChosen: allIssues.deviceChosen,
-          customFlowLabel: allIssues.customFlowLabel || '',
-          scanCompletedAt: allIssues.endTime.toISOString()
         });
       });
     });
@@ -200,6 +200,9 @@ const writeCsv = async (allIssues, storagePath) => {
   const opts: ParserOptions<any, any> = {
     transforms: [getRulesByCategory, flattenRule],
     fields: [
+      'customFlowLabel',
+      'deviceChosen',
+      'scanCompletedAt',
       'severity',
       'issueId',
       'issueDescription',
@@ -210,9 +213,6 @@ const writeCsv = async (allIssues, storagePath) => {
       'axeImpact',
       'xpath',
       'learnMore',
-      'deviceChosen',
-      'customFlowLabel',
-      'scanCompletedAt'
     ],
     includeEmptyRows: true,
   };
