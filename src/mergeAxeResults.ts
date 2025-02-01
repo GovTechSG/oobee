@@ -966,8 +966,6 @@ const flattenAndSortResults = (allIssues: AllIssues, isCustomFlow: boolean) => {
   ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
     allIssues.totalItems += allIssues.items[category].totalItems;
 
-    if (category === 'passed') return;
-
     allIssues.items[category].rules = Object.entries(allIssues.items[category].rules)
       .map(ruleEntry => {
         const [rule, ruleInfo] = ruleEntry as [string, RuleInfo];
