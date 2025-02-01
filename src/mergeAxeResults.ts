@@ -221,7 +221,8 @@ const compileHtmlWithEJS = async (
   const template = ejs.compile(ejsString, {
     filename: path.join(dirname, './static/ejs/report.ejs'),
   });
-  const html = template(allIssues);
+
+  const html = template({...allIssues, storagePath: JSON.stringify(storagePath)});
   await fs.writeFile(htmlFilePath, html);
 
   let htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
