@@ -211,63 +211,67 @@ export const runAxeScript = async ({
   const browserContext: BrowserContext = page.context();
   const requestUrl = page.url();
 
-  // Checking for DOM mutations before proceeding to scan
-  await page.evaluate(() => {
-    return new Promise(resolve => {
-      let timeout: NodeJS.Timeout;
-      let mutationCount = 0;
-      const MAX_MUTATIONS = 100;
-      const MAX_SAME_MUTATION_LIMIT = 10;
-      const mutationHash = {};
+  try {
+    // Checking for DOM mutations before proceeding to scan
+    await page.evaluate(() => {
+      return new Promise(resolve => {
+        let timeout: NodeJS.Timeout;
+        let mutationCount = 0;
+        const MAX_MUTATIONS = 100;
+        const MAX_SAME_MUTATION_LIMIT = 10;
+        const mutationHash = {};
 
-      const observer = new MutationObserver(mutationsList => {
-        clearTimeout(timeout);
+        const observer = new MutationObserver(mutationsList => {
+          clearTimeout(timeout);
 
-        mutationCount += 1;
+          mutationCount += 1;
 
-        if (mutationCount > MAX_MUTATIONS) {
-          observer.disconnect();
-          resolve('Too many mutations detected');
-        }
-
-        // To handle scenario where DOM elements are constantly changing and unable to exit
-        mutationsList.forEach(mutation => {
-          let mutationKey: string;
-
-          if (mutation.target instanceof Element) {
-            Array.from(mutation.target.attributes).forEach(attr => {
-              mutationKey = `${mutation.target.nodeName}-${attr.name}`;
-
-              if (mutationKey) {
-                if (!mutationHash[mutationKey]) {
-                  mutationHash[mutationKey] = 1;
-                } else {
-                  mutationHash[mutationKey] += 1;
-                }
-
-                if (mutationHash[mutationKey] >= MAX_SAME_MUTATION_LIMIT) {
-                  observer.disconnect();
-                  resolve(`Repeated mutation detected for ${mutationKey}`);
-                }
-              }
-            });
+          if (mutationCount > MAX_MUTATIONS) {
+            observer.disconnect();
+            resolve('Too many mutations detected');
           }
+
+          // To handle scenario where DOM elements are constantly changing and unable to exit
+          mutationsList.forEach(mutation => {
+            let mutationKey: string;
+
+            if (mutation.target instanceof Element) {
+              Array.from(mutation.target.attributes).forEach(attr => {
+                mutationKey = `${mutation.target.nodeName}-${attr.name}`;
+
+                if (mutationKey) {
+                  if (!mutationHash[mutationKey]) {
+                    mutationHash[mutationKey] = 1;
+                  } else {
+                    mutationHash[mutationKey] += 1;
+                  }
+
+                  if (mutationHash[mutationKey] >= MAX_SAME_MUTATION_LIMIT) {
+                    observer.disconnect();
+                    resolve(`Repeated mutation detected for ${mutationKey}`);
+                  }
+                }
+              });
+            }
+          });
+
+          timeout = setTimeout(() => {
+            observer.disconnect();
+            resolve('DOM stabilized after mutations.');
+          }, 1000);
         });
 
         timeout = setTimeout(() => {
           observer.disconnect();
-          resolve('DOM stabilized after mutations.');
+          resolve('No mutations detected, exit from idle state');
         }, 1000);
+
+        observer.observe(document, { childList: true, subtree: true, attributes: true });
       });
-
-      timeout = setTimeout(() => {
-        observer.disconnect();
-        resolve('No mutations detected, exit from idle state');
-      }, 1000);
-
-      observer.observe(document, { childList: true, subtree: true, attributes: true });
     });
-  });
+  } catch (e) {
+    silentLogger.warn(`Error while checking for DOM mutations: ${e}`);
+  }
 
   page.on('console', msg => {
     const type = msg.type();
@@ -569,7 +573,7 @@ export const runAxeScript = async ({
   try {
     pageTitle = await page.evaluate(() => document.title);
   } catch (e) {
-    silentLogger.info(`Error while getting page title: ${e}`);
+    silentLogger.warn(`Error while getting page title: ${e}`);
     if (page.isClosed()) {
       silentLogger.info(`Page was closed for ${requestUrl}, creating new page`);
       page = await browserContext.newPage();
