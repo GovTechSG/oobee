@@ -1,7 +1,7 @@
 import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
-import { Page } from 'playwright';
 import { xPathToCss } from '../xPathToCss.js';
+import { BrowserContext, Page } from 'playwright';
 import {
   axeScript,
   guiInfoStatusTypes,
@@ -208,6 +208,9 @@ export const runAxeScript = async ({
   selectors?: string[];
   ruleset?: RuleFlags[];
 }) => {
+  const browserContext: BrowserContext = page.context();
+  const requestUrl = page.url();
+
   // Checking for DOM mutations before proceeding to scan
   await page.evaluate(() => {
     return new Promise(resolve => {
@@ -562,7 +565,18 @@ export const runAxeScript = async ({
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
   }
 
-  const pageTitle = await page.evaluate(() => document.title);
+  let pageTitle = null;
+  try {
+    pageTitle = await page.evaluate(() => document.title);
+  } catch (e) {
+    silentLogger.info(`Error while getting page title: ${e}`);
+    if (page.isClosed()) {
+      silentLogger.info(`Page was closed for ${requestUrl}, creating new page`);
+      page = await browserContext.newPage();
+      await page.goto(requestUrl, { waitUntil: 'domcontentloaded' });
+      pageTitle = await page.evaluate(() => document.title);
+    }
+  }
 
   return filterAxeResults(results, pageTitle, customFlowDetails);
 };
