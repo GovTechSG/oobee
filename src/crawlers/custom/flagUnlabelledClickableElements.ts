@@ -752,7 +752,7 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
             
     
              // Skip flagging if <a> has an accessible label or all children are accessible
-            if (linkHasAccessibleLabel || hasAllChildrenAccessible(element)) {
+            if (linkHasAccessibleLabel || hasChildNotANewInteractWithAccessibleText(element)) {
                 customConsoleWarn("Hyperlink has an accessible label, skipping flagging.");
                 return false;
             }
