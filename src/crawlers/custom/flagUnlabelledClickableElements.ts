@@ -649,7 +649,13 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
                 ancestor = ancestor.parentElement;
                 depth++;
             }
-    
+            
+            if (hasAccessibleLabel(element) || isAccessibleText(getTextContent(element)) || hasChildWithAccessibleText(element)) 
+            {
+                customConsoleWarn("Not Flagging clickable div or span with pointer cursor with accessible text.");
+                return false;
+            }
+
             // If no interactive ancestor with accessible label is found, flag the element
             customConsoleWarn("Flagging clickable div or span with pointer cursor and no accessible text.");
             return true;
