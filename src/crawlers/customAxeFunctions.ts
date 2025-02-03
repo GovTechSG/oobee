@@ -56,7 +56,7 @@ export const customAxeConfig: Spec = {
       // selector: '*', // to be set with the checker function output xpaths converted to css selectors
       enabled: true,
       any: ['oobee-accessible-label'],
-      tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
+      tags: ['wcag2a', 'wcag211', 'wcag412'],
       metadata: {
         description: 'Ensures clickable elements have an accessible label.',
         help: 'Clickable elements must have accessible labels.',

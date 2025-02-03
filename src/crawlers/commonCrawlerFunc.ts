@@ -511,7 +511,7 @@ export const runAxeScript = async ({
             const oobeeAccessibleLabelViolations = {
               id: 'oobee-accessible-label',
               impact: 'serious' as ImpactValue,
-              tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
+              tags: ['wcag2a', 'wcag211', 'wcag412'],
               description: 'Ensures clickable elements have an accessible label.',
               help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
               helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
