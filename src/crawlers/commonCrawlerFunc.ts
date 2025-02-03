@@ -416,12 +416,9 @@ export const runAxeScript = async ({
             const escapedCssSelectors =
               oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
 
-            function framesCheck(cssSelector: string): {
-              doc: Document;
-              remainingSelector: string;
-            } {
+            function framesCheck(cssSelector: string): { doc: Document; remainingSelector: string } {
               let doc = document; // Start with the main document
-              let remainingSelector = ''; // To store the last part of the selector
+              let remainingSelector = ""; // To store the last part of the selector
               let targetIframe = null;
 
               // Split the selector into parts at "> html"
@@ -432,18 +429,18 @@ export const runAxeScript = async ({
 
                 // Add back '> html' to the current part
                 if (i > 0) {
-                  iframeSelector = `html > ${iframeSelector}`;
+                  iframeSelector = "html > " + iframeSelector;
                 }
 
                 let frameset = null;
                 // Find the iframe using the current document context
-                if (doc.querySelector('frameset')) {
-                  frameset = doc.querySelector('frameset');
+                if (doc.querySelector("frameset")) {
+                  frameset = doc.querySelector("frameset");
                 }
 
                 if (frameset) {
                   doc = frameset;
-                  iframeSelector = iframeSelector.split('body >')[1].trim();
+                  iframeSelector = iframeSelector.split("body >")[1].trim();
                 }
                 targetIframe = doc.querySelector(iframeSelector);
 
@@ -451,9 +448,7 @@ export const runAxeScript = async ({
                   // Update the document to the iframe's contentDocument
                   doc = targetIframe.contentDocument;
                 } else {
-                  console.warn(
-                    `Iframe not found or contentDocument inaccessible for selector: ${iframeSelector}`,
-                  );
+                  console.warn(`Iframe not found or contentDocument inaccessible for selector: ${iframeSelector}`);
                   return { doc, remainingSelector: cssSelector }; // Return original selector if iframe not found
                 }
               }
@@ -462,10 +457,11 @@ export const runAxeScript = async ({
               remainingSelector = diffParts[diffParts.length - 1].trim();
 
               // Remove any leading '>' combinators from remainingSelector
-              remainingSelector = `html${remainingSelector}`;
+              remainingSelector = "html" + remainingSelector;
 
               return { doc, remainingSelector };
             }
+
 
             function findElementByCssSelector(cssSelector: string): string | null {
               let doc = document;
@@ -473,7 +469,7 @@ export const runAxeScript = async ({
               // Check if the selector includes 'frame' or 'iframe' and update doc and selector
 
               if (/\s*>\s*html\s*/.test(cssSelector)) {
-                const inFrames = framesCheck(cssSelector);
+                let inFrames = framesCheck(cssSelector)
                 doc = inFrames.doc;
                 cssSelector = inFrames.remainingSelector;
               }
@@ -515,30 +511,28 @@ export const runAxeScript = async ({
             const oobeeAccessibleLabelViolations = {
               id: 'oobee-accessible-label',
               impact: 'serious' as ImpactValue,
-              tags: ['wcag2a', 'wcag211', 'wcag412'],
+              tags: ['wcag2a', 'wcag211', 'wcag243', 'wcag412'],
               description: 'Ensures clickable elements have an accessible label.',
               help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
               helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
-              nodes: escapedCssSelectors
-                .map(cssSelector => ({
-                  html: findElementByCssSelector(cssSelector),
-                  target: [cssSelector],
-                  impact: 'serious' as ImpactValue,
-                  failureSummary:
-                    'Fix any of the following:\n  The clickable element does not have an accessible label.',
-                  any: [
-                    {
-                      id: 'oobee-accessible-label',
-                      data: null,
-                      relatedNodes: [],
-                      impact: 'serious',
-                      message: 'The clickable element does not have an accessible label.',
-                    },
-                  ],
-                  all: [],
-                  none: [],
-                }))
-                .filter(item => item.html),
+              nodes: escapedCssSelectors.map(cssSelector => ({
+                html: findElementByCssSelector(cssSelector),
+                target: [cssSelector],
+                impact: 'serious' as ImpactValue,
+                failureSummary:
+                  'Fix any of the following:\n  The clickable element does not have an accessible label.',
+                any: [
+                  {
+                    id: 'oobee-accessible-label',
+                    data: null,
+                    relatedNodes: [],
+                    impact: 'serious',
+                    message: 'The clickable element does not have an accessible label.',
+                  },
+                ],
+                all: [],
+                none: [],
+              })).filter(item => item.html)
             };
 
             results.violations = [...results.violations, oobeeAccessibleLabelViolations];

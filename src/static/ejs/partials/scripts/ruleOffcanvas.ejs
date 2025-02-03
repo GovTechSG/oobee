@@ -1,7 +1,7 @@
-<%# functions used to populate content in the rule offcanvas that appears when an item in the category summary is
-  clicked %>
+<%# functions used to populate content in the rule offcanvas that appears when an item in the
+category summary is clicked %>
 
-  <script>
+<script>
     let currentComboboxOptionIndex = 0;
     let isListenerAttached = false;
     let options;
@@ -27,6 +27,7 @@
         wcag224: 'https://www.w3.org/TR/WCAG21/#interruptions',
         wcag241: 'https://www.w3.org/TR/WCAG22/#bypass-blocks',
         wcag242: 'https://www.w3.org/TR/WCAG22/#page-titled',
+        wcag243: 'https://www.w3.org/TR/WCAG22/#focus-order',
         wcag244: 'https://www.w3.org/TR/WCAG22/#link-purpose-in-context',
         wcag249: 'https://www.w3.org/TR/WCAG21/#link-purpose-link-only',
         wcag258: 'https://www.w3.org/TR/WCAG22/#target-size-minimum',
@@ -44,7 +45,8 @@
         const [wcagSection, subSection, ...sectionItem] = conformanceList[i].slice(4); // slice to get rid of 'wcag';
         const formattedConformanceNumber = `${wcagSection}.${subSection}.${sectionItem.join('')}`;
         links.push(
-          `<a href="${wcagConformanceUrls[conformanceList[i]]
+          `<a href="${
+            wcagConformanceUrls[conformanceList[i]]
           }" target="_blank">WCAG ${formattedConformanceNumber}</a>`,
         );
       }
@@ -93,9 +95,10 @@
             ${aLevel ? spanForSr : ""}
             ${aLevel ? aLevel : bestPracIcon}
           </div>
-          ${!aLevel
-            ? `<span>Best practice</span>`
-            : generateWcagConformanceLinks(selectedRule.conformance)
+          ${
+            !aLevel
+              ? `<span>Best practice</span>`
+              : generateWcagConformanceLinks(selectedRule.conformance)
           }
         </div>
       `),
@@ -121,11 +124,12 @@
 
           // Create button / combobox option for each category based on availableCategories
           const element = createElementFromString(`
-            <button id="${category}OffCanvasButtonSelector" aria-label="${getFormattedCategoryTitle(category)}, ${ruleInCategory.totalItems
-            } ${ruleInCategory.totalItems === 1 ? 'occurrence' : 'occurrences'}" class="${category} category-selector">
+            <button id="${category}OffCanvasButtonSelector" aria-label="${getFormattedCategoryTitle(category)}, ${
+              ruleInCategory.totalItems
+              } ${ruleInCategory.totalItems === 1 ? 'occurrence' : 'occurrences'}" class="${category} category-selector">
               <span class="d-flex align-items-center category-name">${getFormattedCategoryTitle(
-              category,
-            )}</span>
+                category,
+              )}</span>
               <span class="category-information">${ruleInCategory.totalItems} ${ruleInCategory.totalItems === 1 ? 'occurrence' : 'occurrences'}</span>
             </button>
           `);
@@ -236,118 +240,118 @@
           }
         }
 
-        function updateExpandedRuleDropdownToggleContainer(dropdownOccurrencesString) {
+        function updateExpandedRuleDropdownToggleContainer(dropdownOccurrencesString){
           document.getElementById('expandedRuleDropdownToggleContainer').classList.replace(expandedRuleDropdownToggleContainer.classList[0], event.currentTarget.classList[0]);
           document.getElementById('expandedRuleDropdownToggleCategoryTitle').innerText = event.currentTarget.children[0].innerText.replace(/\n/g, '')
           document.getElementById('expandedRuleDropdownToggleCategoryInfo').innerText = dropdownOccurrencesString
         }
       });
       //  START Script expandedRuleDropdownCategorySelector
-      const offCanvasComboboxElements = {
-        button: document.getElementById('expandedRuleIssueTypeComboBox'),
-        wrapper: document.getElementById('expandedRuleIssueTypeComboBoxWrapper'),
-        dropdown: document.getElementById('expandedRuleIssueTypeListbox'),
-      };
+  const offCanvasComboboxElements = {
+    button: document.getElementById('expandedRuleIssueTypeComboBox'),
+    wrapper: document.getElementById('expandedRuleIssueTypeComboBoxWrapper'),
+    dropdown: document.getElementById('expandedRuleIssueTypeListbox'),
+  };
 
-      function toggleOffCanvasCombobox() {
-        document.getElementById('expandedRuleIssueTypeListbox').classList.toggle('active');
-        isOffCanvasComboboxOpen = !isOffCanvasComboboxOpen;
-        document.getElementById('expandedRuleIssueTypeComboBox').setAttribute('aria-expanded', isOffCanvasComboboxOpen.toString());
+  function toggleOffCanvasCombobox() {
+  document.getElementById('expandedRuleIssueTypeListbox').classList.toggle('active');
+    isOffCanvasComboboxOpen = !isOffCanvasComboboxOpen;
+    document.getElementById('expandedRuleIssueTypeComboBox').setAttribute('aria-expanded', isOffCanvasComboboxOpen.toString());
 
-        if (isOffCanvasComboboxOpen) {
-          document.getElementById('expandedRuleIssueTypeComboBox').setAttribute('aria-activedescendant', 'expandedRuleIssueTypeListbox');
-        }
+    if (isOffCanvasComboboxOpen) {
+      document.getElementById('expandedRuleIssueTypeComboBox').setAttribute('aria-activedescendant', 'expandedRuleIssueTypeListbox');
+    }
+  }
+
+  const handleKeyPressInOffCanvas = event => {
+      const { key } = event;
+      const openKeys = ['ArrowDown', 'ArrowUp', 'Enter', ' '];
+
+      if (!isOffCanvasComboboxOpen && openKeys.includes(key)) {
+      toggleOffCanvasCombobox();
+      focusCurrentOption();
+    } else if (isOffCanvasComboboxOpen) {
+      switch (key) {
+        case 'Escape':
+          event.preventDefault();
+          toggleOffCanvasCombobox();
+          break;
+          case 'ArrowDown':
+          moveFocusDown();
+          break;
+          case 'ArrowUp':
+          moveFocusUp();
+          break;
+          case 'Enter':
+          case ' ':
+          const selectedComboboxRule = focusCurrentOption();
+          document.getElementById(`${selectedComboboxRule}ExpandedRuleDropdownSelector`).click();
+          break;
+        case 'Tab':
+          toggleOffCanvasCombobox();
+          break;
+        default:
+          break;
+      }
+    }
+    };
+
+  const handleOffCanvasComboboxInteraction = event => {
+      const isClickInsideButton = offCanvasComboboxElements.button.contains(event.target);
+      const isClickInsideDropdown = offCanvasComboboxElements.dropdown.contains(event.target);
+
+      if (isClickInsideButton || (!isClickInsideDropdown && isOffCanvasComboboxOpen)) {
+        toggleOffCanvasCombobox();
       }
 
-      const handleKeyPressInOffCanvas = event => {
-        const { key } = event;
-        const openKeys = ['ArrowDown', 'ArrowUp', 'Enter', ' '];
+      const clickedOffCanvasComboboxElement = event.target.closest('[role="option"]');
 
-        if (!isOffCanvasComboboxOpen && openKeys.includes(key)) {
-          toggleOffCanvasCombobox();
-          focusCurrentOption();
-        } else if (isOffCanvasComboboxOpen) {
-          switch (key) {
-            case 'Escape':
-              event.preventDefault();
-              toggleOffCanvasCombobox();
-              break;
-            case 'ArrowDown':
-              moveFocusDown();
-              break;
-            case 'ArrowUp':
-              moveFocusUp();
-              break;
-            case 'Enter':
-            case ' ':
-              const selectedComboboxRule = focusCurrentOption();
-              document.getElementById(`${selectedComboboxRule}ExpandedRuleDropdownSelector`).click();
-              break;
-            case 'Tab':
-              toggleOffCanvasCombobox();
-              break;
-            default:
-              break;
-          }
-        }
-      };
-
-      const handleOffCanvasComboboxInteraction = event => {
-        const isClickInsideButton = offCanvasComboboxElements.button.contains(event.target);
-        const isClickInsideDropdown = offCanvasComboboxElements.dropdown.contains(event.target);
-
-        if (isClickInsideButton || (!isClickInsideDropdown && isOffCanvasComboboxOpen)) {
-          toggleOffCanvasCombobox();
-        }
-
-        const clickedOffCanvasComboboxElement = event.target.closest('[role="option"]');
-
-        let clickedOffCanvasComboboxOption = null;
-        if (clickedOffCanvasComboboxElement && offCanvasComboboxElements.dropdown.contains(clickedOffCanvasComboboxElement)) {
-          clickedOffCanvasComboboxOption = clickedOffCanvasComboboxElement;
-        }
-
-        if (clickedOffCanvasComboboxOption) {
-          toggleOffCanvasCombobox();
-        }
-
-      };
-
-      const moveFocusDown = () => {
-        if (currentComboboxOptionIndex < document.getElementById('expandedRuleIssueTypeListbox').querySelectorAll('[role="option"]').length - 1) {
-          currentComboboxOptionIndex++;
-        } else {
-          currentComboboxOptionIndex = 0;
-        }
-        focusCurrentOption();
-      };
-
-      const moveFocusUp = () => {
-        if (currentComboboxOptionIndex > 0) {
-          currentComboboxOptionIndex--;
-        } else {
-          currentComboboxOptionIndex = document.getElementById('expandedRuleIssueTypeListbox').querySelectorAll('[role="option"]').length - 1;
-        }
-        focusCurrentOption();
-      };
-
-      const focusCurrentOption = () => {
-        const currentComboboxOption = document.getElementById('expandedRuleIssueTypeListbox').querySelectorAll('[role="option"]')[currentComboboxOptionIndex];
-
-        currentComboboxOption.focus();
-
-        currentComboboxOption.scrollIntoView({
-          block: 'nearest',
-        });
-        return currentComboboxOption.classList[0];
-      };
-
-      if (!isListenerAttached) {
-        offCanvasComboboxElements.wrapper.addEventListener('keydown', handleKeyPressInOffCanvas);
-        document.addEventListener('click', handleOffCanvasComboboxInteraction);
-        isListenerAttached = true;
+      let clickedOffCanvasComboboxOption = null;
+      if (clickedOffCanvasComboboxElement && offCanvasComboboxElements.dropdown.contains(clickedOffCanvasComboboxElement)) {
+        clickedOffCanvasComboboxOption = clickedOffCanvasComboboxElement;
       }
-      // END Script expandedRuleDropdownCategorySelector
+
+      if (clickedOffCanvasComboboxOption) {
+        toggleOffCanvasCombobox();
+      }
+
+    };
+
+    const moveFocusDown = () => {
+      if (currentComboboxOptionIndex < document.getElementById('expandedRuleIssueTypeListbox').querySelectorAll('[role="option"]').length - 1) {
+        currentComboboxOptionIndex++;
+      } else {
+        currentComboboxOptionIndex = 0;
+      }
+      focusCurrentOption();
+    };
+
+    const moveFocusUp = () => {
+      if (currentComboboxOptionIndex > 0) {
+        currentComboboxOptionIndex--;
+      } else {
+        currentComboboxOptionIndex = document.getElementById('expandedRuleIssueTypeListbox').querySelectorAll('[role="option"]').length - 1;
+      }
+      focusCurrentOption();
+    };
+
+    const focusCurrentOption = () => {
+      const currentComboboxOption = document.getElementById('expandedRuleIssueTypeListbox').querySelectorAll('[role="option"]')[currentComboboxOptionIndex];
+
+      currentComboboxOption.focus();
+
+      currentComboboxOption.scrollIntoView({
+        block: 'nearest',
+      });
+      return currentComboboxOption.classList[0];
+    };
+
+    if (!isListenerAttached) {
+      offCanvasComboboxElements.wrapper.addEventListener('keydown', handleKeyPressInOffCanvas);
+      document.addEventListener('click', handleOffCanvasComboboxInteraction);
+      isListenerAttached = true;
+    }
+    // END Script expandedRuleDropdownCategorySelector
     }
 
     function removeSelectedClass() {
@@ -361,7 +365,7 @@
 
     function buildExpandedRuleCategoryContent(category, ruleInCategory) {
       const contentContainer = document.getElementById('expandedRuleCategoryContent');
-      const isCustomFlow = <% - isCustomFlow -%>;
+      const isCustomFlow = <%- isCustomFlow -%>;
 
       if (category === 'passed') {
         contentContainer.innerHTML = `You may find the list of passed HTML elements in <a href='./passed_items.json' target='_blank'>passed_items.json.txt</a>.`;
@@ -400,16 +404,16 @@
                 </div>
                 <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
                   <div class="accordion-body p-3">
-                    ${isCustomFlow
-            ?
-            `
+                    ${ isCustomFlow
+                      ?
+                      `
                         <div class="custom-flow-screenshot-container">
                           <img alt="Screenshot of ${page.url}" src="${page.pageImagePath}" class="custom-flow-screenshot"/>
                           <div><a href="${page.url}" target="_blank">${page.url}</a></div>
                         </div>
                       `
-            : `<a href="${page.url}" target="_blank">${page.url}</a>`
-          }
+                      : `<a href="${page.url}" target="_blank">${page.url}</a>`
+                    }
                     <div class="page-accordion-content-title">
                       <span>${getFormattedCategoryTitle(category)} elements</span>
                       <span class="page-items-count">${pageItemsCount}</span>
@@ -422,53 +426,54 @@
         `);
 
         if (normalMode) {
-          accordion.querySelector('button').addEventListener('click', function (event) {
+          accordion.querySelector('button').addEventListener('click', function(event) {
             var accordionBody = accordion.querySelector(".accordion-body");
-
+  
             // So that It does not keep adding
-            if (!accordionBody.querySelector(".unbulleted-list")) {
-              buildExpandedRuleCategoryContentAccordian(accordionId, category, ruleInCategory, page, index);
-
-              this.setAttribute('data-bs-target', '#' + accordionId + "-content");
-
+            if (!accordionBody.querySelector(".unbulleted-list"))
+            {
+              buildExpandedRuleCategoryContentAccordian(accordionId,category,ruleInCategory,page,index);
+  
+              this.setAttribute('data-bs-target', '#' + accordionId+"-content");
+  
               // Remove the event listener temporarily
               this.removeEventListener('click', arguments.callee);
-
+  
               // Programmatically trigger a click on the button to open the accordion
               this.click();
             }
           });
 
-          accordion.querySelector('button').addEventListener('click', function (event) {
+          accordion.querySelector('button').addEventListener('click', function(event) {
             // Set data attributes
             this.setAttribute('data-bs-toggle', 'collapse');
             this.setAttribute('data-bs-target', '#' + accordionId + "-content");
             this.setAttribute('aria-expanded', 'false');
             this.setAttribute('aria-controls', accordionId + "-content");
-
+  
             // Initialize  the Collapse plugin on the button element
             var collapse = new bootstrap.Collapse(this, {
               toggle: false // Set to true if you want to toggle the collapsed state on initialization
             });
-
+  
             // Remove the event listener temporarily
             this.removeEventListener('click', arguments.callee);
-
+  
             // Programmatically trigger a click on the button to open the accordion
             setTimeout(() => { // Delaying to ensure the content is added before triggering the click
-              this.click();
+                this.click();
             }, 0);
-
+  
           })
         }
 
         if (isCustomFlow) {
           const customScreenshotElem = accordion.getElementsByClassName(`custom-flow-screenshot`)[0];
-          customScreenshotElem.onerror = function (event) {
+          customScreenshotElem.onerror = function(event) {
             this.onerror = null;
             this.remove();
           }
-          customScreenshotElem.onclick = function (event) {
+          customScreenshotElem.onclick = function(event) {
             event.preventDefault();
             openLightbox(this.src, page.pageTitle, page.url);
           }
@@ -519,12 +524,14 @@
       }
     }
 
-    function buildExpandedRuleCategoryContentAccordian(accordionId, ruleInCategory) {
+    function buildExpandedRuleCategoryContentAccordian(accordionId, ruleInCategory)
+    {
       console.log('Accordion ID:', accordionId);
-      console.log('ruleInCategory', JSON.stringify(ruleInCategory))
+      console.log('ruleInCategory',JSON.stringify(ruleInCategory))
     }
 
-    function buildExpandedRuleCategoryContentAccordian(accordionId, category, ruleInCategory, page, index) {
+    function buildExpandedRuleCategoryContentAccordian(accordionId,category,ruleInCategory,page,index)
+    {
       var accordionAIId = `${ruleInCategory.rule}-${category}-accordion-AI-${index}`;
       var buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-${index}`;
       var errorAIId = `${ruleInCategory.rule}-${category}-error-AI-${index}`;
@@ -532,27 +539,27 @@
 
 
       const accordionBody = accordion.getElementsByClassName('accordion-body')[0];
-      const elementCardsList = createElementFromString('<ul class="unbulleted-list"></ul>');
+        const elementCardsList = createElementFromString('<ul class="unbulleted-list"></ul>');
 
-      page.items.forEach(async (item, index) => {
-        const accordionDivToAppendAI = `${accordionAIId}-${index}`;
-        const buttonDivForAiFeedback = `${buttonAIId}-${index}`;
-        const aiErrorDiv = `${errorAIId}-${index}`;
-        let itemCard;
-        const isPurpleAiRule = oobeeAiRules.includes(ruleInCategory.rule);
-        let oobeeAiQueryLabel;
-        if (isPurpleAiRule) {
-          oobeeAiQueryLabel = await checkPurpleAiQueryLabel(ruleInCategory.rule, item.html);
-        }
+        page.items.forEach(async (item, index) => {
+          const accordionDivToAppendAI = `${accordionAIId}-${index}`;
+          const buttonDivForAiFeedback = `${buttonAIId}-${index}`;
+          const aiErrorDiv = `${errorAIId}-${index}`;
+          let itemCard;
+          const isPurpleAiRule = oobeeAiRules.includes(ruleInCategory.rule);
+          let oobeeAiQueryLabel;
+          if (isPurpleAiRule) {
+            oobeeAiQueryLabel = await checkPurpleAiQueryLabel(ruleInCategory.rule, item.html);
+          }
 
-        itemCard = createElementFromString(`
+          itemCard = createElementFromString(`
             <li>
               <div class="card mt-3">
                 ${item.displayNeedsReview ? `<div class="needsReview">This occurrence might be a false positive that needs to be verified by a human.</div>` : ``}
                 <div class="p-3">
                   ${item.screenshotPath
-            ?
-            `
+                    ?
+                  `
                   <div class="hide-on-img-error">
                     <div class="d-flex justify-content-between g-one">
                       <div class="fw-bold">Screenshot</div>
@@ -566,11 +573,11 @@
                     <hr/>
                   </div>
                   `
-            : ``
-          }
-                  ${item.xpath
-            ?
-            `
+                    : ``
+                  }
+                  ${ item.xpath
+                    ?
+                    `
                     <div class="d-flex justify-content-between g-one">
                       <div class="fw-bold">Path</div>
                       <div class="page-item-card-section-content">
@@ -592,28 +599,30 @@
                     </div>
                     <hr/>
                     `
-            : ``
-          }
+                    :``
+                  }
                   <div class="d-flex justify-content-between g-one">
-                    ${item.html
-            ? `
+                    ${
+                      item.html
+                        ? `
                         <div class="fw-bold">HTML element</div>
                         <pre class="page-item-card-section-content">
                           <code class="language-html">
                             ${htmlEscapeString(item.html)}
                           </code>
                         </pre>`
-            : `
+                        : `
                         <div class="fw-bold">Location</div>
                         <div class="page-item-card-section-content">
                             ${item.page > 0 ? `Page ${item.page}` : 'Document'}
                         </div>`
-          }
+                    }
                   </div>
                   <hr />
                   <div class="d-flex justify-content-between g-one">
-                    <div class="fw-bold page-item-card-section-title">${item.displayNeedsReview ? 'Details' : 'How to fix'
-          }</div>
+                    <div class="fw-bold page-item-card-section-title">${
+                      item.displayNeedsReview ? 'Details' : 'How to fix'
+                    }</div>
                     <div class="page-item-card-section-content">
                       ${generateItemMessageElement(item.displayNeedsReview, item.message)}
                     </div>
@@ -624,7 +633,7 @@
                     <div class="fw-bold page-item-card-section-title">AI suggestion</div>
                     <div id="${accordionDivToAppendAI}" class="page-item-card-section-content">
                       ${oobeeAiQueryLabel.hasNetworkError ?
-              `<button
+                        `<button
                           id=${buttonDivForAiFeedback}
                           class="aiGenerateResponseButton"
                           onClick="handleOfflinePurpleAi(
@@ -637,8 +646,8 @@
                             Generate response
                           </button>
                           <div id=${aiErrorDiv}></div>` :
-              (oobeeAiQueryLabel.label ?
-                `<button
+                          (oobeeAiQueryLabel.label ?
+                            `<button
                             id=${buttonDivForAiFeedback}
                             class="aiGenerateResponseButton"
                             onClick="getPurpleAiAnswer(
@@ -651,48 +660,48 @@
                               Generate response
                             </button>
                             <div id=${aiErrorDiv}></div>` :
-                `<span class="processAI">
+                            `<span class="processAI">
                               Processing AI suggestions, please check back later.
                             </span>`
-              )
-            }
+                          )
+                        }
                     </div>
                   </div>` : ``
-          }
+                  }
                 </div>
               </div>
             <li>
           `);
-        elementCardsList.appendChild(itemCard);
+          elementCardsList.appendChild(itemCard);
 
-        const copyButtonElem = itemCard.getElementsByClassName('copy-button')[0];
-        const copyTooltipItem = new bootstrap.Tooltip(copyButtonElem);
-        const textToCopy = createElementFromString(`<textarea>${item.xpath}</textarea>`)
-        copyButtonElem.onclick = event => {
-          textToCopy.select();
-          // Copy the text inside the text field
-          navigator.clipboard.writeText(textToCopy.value);
+          const copyButtonElem = itemCard.getElementsByClassName('copy-button')[0];
+          const copyTooltipItem = new bootstrap.Tooltip(copyButtonElem);
+          const textToCopy = createElementFromString(`<textarea>${item.xpath}</textarea>`)
+          copyButtonElem.onclick = event => {
+            textToCopy.select();
+            // Copy the text inside the text field
+            navigator.clipboard.writeText(textToCopy.value);
 
-          copyButtonElem.setAttribute('data-bs-original-title', 'Copied');
-          copyTooltipItem.update();
-          copyTooltipItem.show();
-
-          setTimeout(() => {
-            copyButtonElem.setAttribute('data-bs-original-title', 'Copy');
+            copyButtonElem.setAttribute('data-bs-original-title', 'Copied');
             copyTooltipItem.update();
-          }, 1500)
-        };
-        copyButtonElem.onmousedown = event => {
-          event.preventDefault();
-        }
+            copyTooltipItem.show();
 
-        hljs.configure({
-          ignoreUnescapedHTML: true
+            setTimeout(() => {
+              copyButtonElem.setAttribute('data-bs-original-title', 'Copy');
+              copyTooltipItem.update();
+            }, 1500)
+          };
+          copyButtonElem.onmousedown = event => {
+            event.preventDefault();
+          }
+
+          hljs.configure({
+            ignoreUnescapedHTML: true
+          });
+          hljs.highlightAll();
         });
-        hljs.highlightAll();
-      });
 
-      accordionBody.appendChild(elementCardsList);
+        accordionBody.appendChild(elementCardsList);
 
     }
 
@@ -788,9 +797,9 @@
       'aria-conditional-attr': '<p class="rule-desc-text">\nUsing ARIA attributes on elements where they are not expected can result in unpredictable behavior for assistive technologies. This can lead to a poor user experience for people with disabilities who rely on these technologies. It is important to follow the ARIA specification to ensure that assistive technologies can properly interpret and communicate the intended meaning of the content.\n</p>',
       'aria-deprecated-role': '<p class="rule-desc-text">\nUsing deprecated WAI-ARIA roles is bad for accessibility. They will not be recognized or correctly processed by screen readers and other assistive technologies. Using these means not everyone will be able to access essential information.\n</p>',
       'aria-prohibited-attr': '<p class="rule-desc-text">\nUsing ARIA attributes in roles where they are prohibited can mean that important information is not communicated to users of assistive technologies. assistive technologies may also attempt to compensate for the issue, resulting in inconsistent and confusing behavior of these tools.\n</p>',
-      'target-size': '<p>\n Touch targets must have sufficient size and spacing in order to "be easily activated without accidentally activating an adjacent target." When touch targets are too small or too close together, it becomes difficult for users to activate them.\n</p>',
-      'oobee-confusing-alt-text': '<p>\n Alt text should be clear and concise. It should relay informative content / function of the image. If the alt text is too long or confusing, it can be difficult for screen reader users to understand the image.\n</p>',
-      'oobee-accessible-label': '<p>\n Unlabelled clickable elements are inaccessible because it prevents screen readers from effectively conveying the purpose of the element. This causes challenges for screen reader users to navigate and understand the webpage. Clickable elements should also be made focusable by screen readers unless deliberately excluded (e.g. decorative or functionally redundant).\n</p>',
-      'oobee-grading-text-contents': '<p>\n Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.\n</p>',
+      'target-size' : '<p>\n Touch targets must have sufficient size and spacing in order to "be easily activated without accidentally activating an adjacent target." When touch targets are too small or too close together, it becomes difficult for users to activate them.\n</p>',
+      'oobee-confusing-alt-text' : '<p>\n Alt text should be clear and concise. It should relay informative content / function of the image. If the alt text is too long or confusing, it can be difficult for screen reader users to understand the image.\n</p>',
+      'oobee-accessible-label' : '<p>\n Unlabelled clickable elements are inaccessible because it prevents screen readers from effectively conveying the purpose of the element. This causes challenges for screen reader users to navigate and understand the webpage. Clickable elements should also be made focusable by screen readers unless deliberately excluded (e.g. decorative or functionally redundant).\n</p>',
+      'oobee-grading-text-contents' : '<p>\n Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.\n</p>',
     };
-  </script>
+</script>
