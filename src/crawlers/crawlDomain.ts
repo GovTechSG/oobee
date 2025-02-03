@@ -496,7 +496,7 @@ const crawlDomain = async ({
           return new Promise(resolve => {
             let timeout;
             let mutationCount = 0;
-            const MAX_MUTATIONS = 100;
+            const MAX_MUTATIONS = 250;
             const MAX_SAME_MUTATION_LIMIT = 10;
             const mutationHash = {};
 
