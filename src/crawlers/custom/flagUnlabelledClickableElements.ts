@@ -404,38 +404,41 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       return rect.width < 1 || rect.height < 1;
     }
 
-    function getTextContent(element: Element|ChildNode) {
+    function getTextContent(element: Element | ChildNode): string {
       if (element.nodeType === Node.TEXT_NODE) {
-          return element.nodeValue.trim(); // Return the text directly if it's a TEXT_NODE
+          return element.nodeValue?.trim() ?? ''; // Return the text directly if it's a TEXT_NODE
       }
   
+      let textContent = '';
+  
       for (const node of element.childNodes) {
-        if (node.nodeType === Node.TEXT_NODE) {
-            return node.nodeValue?.trim(); // Return the first valid text
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-            // Type assertion: node is an Element
-            const elementNode = node as Element;
-    
-            // If it's an SVG and has a <title> tag inside it, we want to grab that text
-            if (elementNode.tagName.toLowerCase() === 'svg') {
-                const titleElement = elementNode.querySelector('title');
-                if (titleElement && isVisibleFocusAble(elementNode)) {
-                    return titleElement.textContent?.trim();
-                }
-            }
-    
-            // Recursively check child elements if it's an element node
-            if (isVisibleFocusAble(elementNode)) {
-                const childText = getTextContent(elementNode);
-                if (childText) {
-                    return childText; // Stop and return the first valid text found
-                }
-            }
-        }
+          if (node.nodeType === Node.TEXT_NODE) {
+              textContent += node.nodeValue?.trim() ?? ''; // Append text content from text nodes
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+              // Type assertion: node is an Element
+              const elementNode = node as Element;
+  
+              // If it's an SVG and has a <title> tag inside it, we want to grab that text
+              if (elementNode.tagName.toLowerCase() === 'svg') {
+                  const titleElement = elementNode.querySelector('title');
+                  if (titleElement && isVisibleFocusAble(elementNode)) {
+                      return titleElement.textContent?.trim() ?? ''; // Return the title text if valid
+                  }
+              }
+  
+              // Recursively check child elements if it's an element node
+              if (isVisibleFocusAble(elementNode)) {
+                  const childText = getTextContent(elementNode);
+                  if (childText) {
+                      textContent += childText; // Append valid child text
+                  }
+              }
+          }
       }
-    
-      return ''; // Return empty string if no valid text is found
+  
+      return textContent.trim(); // Return the combined text content
     }
+  
 
     function shouldFlagElement(element: HTMLElement, allowNonClickableFlagging: boolean) {
       if (isElementTooSmall(element))
