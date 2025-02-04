@@ -101,7 +101,7 @@
         const scategoryList = document.getElementById('categorySelector');
 
         Object.keys(scanItems).forEach(category => {
-          if (category !== 'passed') {
+          if (["mustFix", "goodToFix", "needsReview"].includes(category)) { // skip other keys like pagesScanned, etc
             const categoryData = scanItems[category];
             const listItem = document.createElement('div');
             listItem.className = 'col-md-4 px-2';
@@ -170,12 +170,10 @@
             spanInfo.id = `${category}ItemsInformation`;
             spanInfo.className = 'category-information';
 
-            if (category !== 'passed' && categoryData.totalItems !== 0) {
+            if (categoryData.totalItems !== 0) {
               spanInfo.textContent = `${categoryData.rules.length} ${categoryData.rules.length === 1 ? 'issue' : 'issues'} / ${categoryData.totalItems} ${categoryData.totalItems === 1 ? 'occurrence' : 'occurrences'}`;
-            } else if (category !== 'passed' && categoryData.totalItems === 0) {
+            } else if (categoryData.totalItems === 0) {
               spanInfo.textContent = `0 issues`;
-            } else {
-              spanInfo.textContent = `${categoryData.totalItems} ${categoryData.totalItems === 1 ? 'occurrence' : 'occurrences'}`;
             }
 
             button.appendChild(divFlex);
@@ -188,7 +186,8 @@
         const categoryList = document.getElementById('issueTypeListbox');
 
         Object.keys(scanItems).forEach(category => {
-          if (category !== 'passed') {
+          if (["mustFix", "goodToFix", "needsReview"].includes(category)) { // skip other keys like pagesScanned, etc
+
             const categoryData = scanItems[category];
             const rulesLength = categoryData.rules ? categoryData.rules.length : 0;
 
@@ -207,12 +206,10 @@
             spanInfo.id = `${category}ItemsInformation`;
             spanInfo.className = 'category-information';
 
-            if (category !== 'passed' && categoryData.totalItems !== 0) {
+            if (categoryData.totalItems !== 0) {
               spanInfo.textContent = `(${categoryData.rules.length} ${categoryData.rules.length === 1 ? 'issue' : 'issues'})`;
-            } else if (category !== 'passed' && categoryData.totalItems === 0) {
+            } else if (categoryData.totalItems === 0) {
               spanInfo.textContent = `(0 issues)`;
-            } else {
-              spanInfo.textContent = `(${categoryData.totalItems} ${categoryData.totalItems === 1 ? 'occurrence' : 'occurrences'})`;
             }
 
             listItem.appendChild(spanTitle);
