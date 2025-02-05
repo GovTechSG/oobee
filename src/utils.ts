@@ -193,7 +193,7 @@ export const cleanUp = async pathToDelete => {
 export const getWcagPassPercentage = (wcagViolations: string[]): string => {
 
   // These AAA rules should not be counted as WCAG Pass Percentage only contains A and AA
-  const wcagAAA = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5'];
+  const wcagAAA = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5', 'WCAG 3.2.5'];
 
   const filteredWcagLinks = Object.keys(constants.wcagLinks).filter(key => !wcagAAA.includes(key));
   const filteredWcagViolations = wcagViolations.filter(violation => !wcagAAA.includes(violation));

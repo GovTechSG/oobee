@@ -2,11 +2,7 @@
   <main aria-label="Report main content" class="d-flex flex-column flex-grow-1">
     <div class="row m-0 py-4 px-3 d-flex" style="flex-wrap: nowrap">
       <div id="aboutScanDiv" class="pe-md-2 d-flex" style="flex: 1; flex-basis: 300px">
-        <div
-          id="scanabout-compliance-card"
-          class="card h-100"
-          style="width: -webkit-fill-available"
-        >
+        <div id="scanabout-compliance-card" class="card h-100" style="width: -webkit-fill-available">
           <div class="card-body"><%- include("components/summaryScanAbout") %></div>
         </div>
       </div>
@@ -16,36 +12,21 @@
             <h2>Scan results</h2>
             <div class="d-flex justify-content-between align-items-center">
               <span class="fw-bold"> WCAG (A & AA) Passes </span>
-              <span aria-label="Pass percentage" class="ms-2"><%= wcagPassPercentage %>% of automated checks</span>
+              <span aria-label="Pass percentage" class="ms-2">
+                <%= wcagPassPercentage %>% of automated checks
+              </span>
             </div>
             <div class="wcag-compliance-passes-bar mb-5 d-flex">
-              <svg
-                width="500"
-                role="none"
-                height="6"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style="display: flex; width: 100%; position: absolute"
-              >
-                <rect
-                  width="100%"
-                  height="10"
-                  rx="3"
-                  fill="#E7ECEE"
-                  style="justify-content: left"
-                ></rect>
-                <rect
-                  width="<%= wcagPassPercentage %>%"
-                  height="6"
-                  rx="3"
-                  fill="#9021a6"
-                  style=""
-                ></rect>
+              <svg width="500" role="none" height="6" fill="none" xmlns="http://www.w3.org/2000/svg"
+                style="display: flex; width: 100%; position: absolute">
+                <rect width="100%" height="10" rx="3" fill="#E7ECEE" style="justify-content: left"></rect>
+                <rect width="<%= wcagPassPercentage %>%" height="6" rx="3" fill="#9021a6" style=""></rect>
               </svg>
             </div>
             <ul class="unbulleted-list">
-              <% Object.keys(items).forEach((category) => { %> <%-
-              include("components/summaryScanResults", { category: category }) %> <% }) %>
+              <% Object.keys(items).forEach((category)=> { %> <%- include("components/summaryScanResults", { category:
+                  category }) %>
+                  <% }) %>
             </ul>
           </div>
         </div>
@@ -55,18 +36,10 @@
       <h2 class="mb-2">Summary of issues:</h2>
       <p>
         Only a subset of
-        <a
-          href="https://www.w3.org/WAI/WCAG21/quickref/?currentsidebar=%23col_customize&versions=2.1&levels=aaa"
-          target="_blank"
-          >WCAG 2.1</a
-        >
+        <a href="https://www.w3.org/WAI/WCAG22/quickref/?versions=2.2" target=" _blank">WCAG 2.2</a>
         (Conformance Level A & AA) Success Criteria can be automatically checked so
-        <a
-          aria-label="Manual testing guide"
-          href="http://go.gov.sg/oobee-manual-testing"
-          target="_blank"
-          >manual testing</a
-        >
+        <a aria-label="Manual testing guide" href="http://go.gov.sg/oobee-manual-testing" target="_blank">manual
+          testing</a>
         is still required. For more details, please refer to the HTML report.
       </p>
     </div>
