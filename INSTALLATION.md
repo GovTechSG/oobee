@@ -6,7 +6,7 @@ Oobee (CLI) is provided as a portable distribution which minimises installation 
 
 Oobee is a customisable, automated accessibility testing tool that allows software development teams to find and fix accessibility problems to improve persons with disabilities (PWDs) access to digital services.
 
-Oobee (CLI) allows software engineers to run Oobee as part of their software development environment as the command line, as well as [integrate it into their CI/CD pipleline](https://github.com/GovTechSG/oobee/blob/master/INTEGRATION.md).
+Oobee (CLI) allows software engineers to run Oobee as part of their software development environment as the command line, as well as [integrate it into their CI/CD pipleline](INTEGRATION.md).
 
 ## System Requirements
 
