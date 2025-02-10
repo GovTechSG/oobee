@@ -1,7 +1,7 @@
 {
   "name": "@govtechsg/oobee",
   "main": "dist/npmIndex.js",
-  "version": "0.10.28",
+  "version": "0.10.29",
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
   "dependencies": {
@@ -23,7 +23,7 @@
     "mime-types": "^2.1.35",
     "minimatch": "^9.0.3",
     "pdfjs-dist": "github:veraPDF/pdfjs-dist#v4.4.168-taggedPdf-0.1.20",
-    "playwright": "1.49.1",
+    "playwright": "1.50.1",
     "prettier": "^3.1.0",
     "print-message": "^3.0.1",
     "safe-regex": "^2.1.1",
