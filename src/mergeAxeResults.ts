@@ -221,6 +221,27 @@ const writeCsv = async (allIssues, storagePath) => {
 
   const parser = new AsyncParser(opts);
   parser.parse(allIssues).pipe(csvOutput);
+
+  // Add pagesNotScanned to the CSV
+  allIssues.pagesNotScanned?.forEach(page => {
+    const skippedPage = {
+      customFlowLabel: allIssues.customFlowLabel || '',
+      deviceChosen: allIssues.deviceChosen || '',
+      scanCompletedAt: allIssues.endTime ? allIssues.endTime.toISOString() : '',
+      severity: 'skipped',
+      issueId: 'error-pages-skipped',
+      issueDescription: 'Page was skipped during the scan',
+      wcagConformance: '',
+      url: page.url || '',
+      pageTitle: page.pageTitle || 'No page title',
+      context: '',
+      howToFix: '',
+      axeImpact: '',
+      xpath: '',
+      learnMore: '',
+    };
+    csvOutput.write(`${Object.values(skippedPage).join(',')}\n`);
+  });
 };
 
 const compileHtmlWithEJS = async (
@@ -234,7 +255,7 @@ const compileHtmlWithEJS = async (
     filename: path.join(dirname, './static/ejs/report.ejs'),
   });
 
-  const html = template({...allIssues, storagePath: JSON.stringify(storagePath)});
+  const html = template({ ...allIssues, storagePath: JSON.stringify(storagePath) });
   await fs.writeFile(htmlFilePath, html);
 
   let htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
