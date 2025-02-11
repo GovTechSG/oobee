@@ -1,7 +1,7 @@
 import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
-import { xPathToCss } from '../xPathToCss.js';
 import { BrowserContext, Page } from 'playwright';
+import { xPathToCss } from '../xPathToCss.js';
 import {
   axeScript,
   guiInfoStatusTypes,
@@ -357,24 +357,28 @@ export const runAxeScript = async ({
                 return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
               },
             },
-            {
-              ...customAxeConfig.checks[2],
-              evaluate: (_node: HTMLElement) => {
-                if (gradingReadabilityFlag === '') {
-                  return true; // Pass if no readability issues
-                }
-                // Dynamically update the grading messages
-                const gradingCheck = customAxeConfig.checks.find(
-                  check => check.id === 'oobee-grading-text-contents',
-                );
-                if (gradingCheck) {
-                  gradingCheck.metadata.messages.incomplete = `The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ${gradingReadabilityFlag
-                    }.\nThe target passing score is above 50, indicating content readable by university students and lower grade levels.\nA higher score reflects better readability.`;
-                }
+            ...(enableWcagAaa
+              ? [
+                {
+                  ...customAxeConfig.checks[2],
+                  evaluate: (_node: HTMLElement) => {
+                    if (gradingReadabilityFlag === '') {
+                      return true; // Pass if no readability issues
+                    }
+                    // Dynamically update the grading messages
+                    const gradingCheck = customAxeConfig.checks.find(
+                      check => check.id === 'oobee-grading-text-contents',
+                    );
+                    if (gradingCheck) {
+                      gradingCheck.metadata.messages.incomplete = `The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ${gradingReadabilityFlag
+                        }.\nThe target passing score is above 50, indicating content readable by university students and lower grade levels.\nA higher score reflects better readability.`;
+                    }
 
-                // Fail if readability issues are detected
-              },
-            },
+                    // Fail if readability issues are detected
+                  },
+                },
+              ]
+              : []),
           ],
           rules: customAxeConfig.rules
             .filter(rule => (disableOobee ? !rule.id.startsWith('oobee') : true))
@@ -416,9 +420,12 @@ export const runAxeScript = async ({
             const escapedCssSelectors =
               oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
 
-            function framesCheck(cssSelector: string): { doc: Document; remainingSelector: string } {
+            function framesCheck(cssSelector: string): {
+              doc: Document;
+              remainingSelector: string;
+            } {
               let doc = document; // Start with the main document
-              let remainingSelector = ""; // To store the last part of the selector
+              let remainingSelector = ''; // To store the last part of the selector
               let targetIframe = null;
 
               // Split the selector into parts at "> html"
@@ -429,18 +436,18 @@ export const runAxeScript = async ({
 
                 // Add back '> html' to the current part
                 if (i > 0) {
-                  iframeSelector = "html > " + iframeSelector;
+                  iframeSelector = `html > ${iframeSelector}`;
                 }
 
                 let frameset = null;
                 // Find the iframe using the current document context
-                if (doc.querySelector("frameset")) {
-                  frameset = doc.querySelector("frameset");
+                if (doc.querySelector('frameset')) {
+                  frameset = doc.querySelector('frameset');
                 }
 
                 if (frameset) {
                   doc = frameset;
-                  iframeSelector = iframeSelector.split("body >")[1].trim();
+                  iframeSelector = iframeSelector.split('body >')[1].trim();
                 }
                 targetIframe = doc.querySelector(iframeSelector);
 
@@ -448,7 +455,9 @@ export const runAxeScript = async ({
                   // Update the document to the iframe's contentDocument
                   doc = targetIframe.contentDocument;
                 } else {
-                  console.warn(`Iframe not found or contentDocument inaccessible for selector: ${iframeSelector}`);
+                  console.warn(
+                    `Iframe not found or contentDocument inaccessible for selector: ${iframeSelector}`,
+                  );
                   return { doc, remainingSelector: cssSelector }; // Return original selector if iframe not found
                 }
               }
@@ -457,11 +466,10 @@ export const runAxeScript = async ({
               remainingSelector = diffParts[diffParts.length - 1].trim();
 
               // Remove any leading '>' combinators from remainingSelector
-              remainingSelector = "html" + remainingSelector;
+              remainingSelector = `html${remainingSelector}`;
 
               return { doc, remainingSelector };
             }
-
 
             function findElementByCssSelector(cssSelector: string): string | null {
               let doc = document;
@@ -469,7 +477,7 @@ export const runAxeScript = async ({
               // Check if the selector includes 'frame' or 'iframe' and update doc and selector
 
               if (/\s*>\s*html\s*/.test(cssSelector)) {
-                let inFrames = framesCheck(cssSelector)
+                const inFrames = framesCheck(cssSelector);
                 doc = inFrames.doc;
                 cssSelector = inFrames.remainingSelector;
               }
@@ -515,24 +523,26 @@ export const runAxeScript = async ({
               description: 'Ensures clickable elements have an accessible label.',
               help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
               helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
-              nodes: escapedCssSelectors.map(cssSelector => ({
-                html: findElementByCssSelector(cssSelector),
-                target: [cssSelector],
-                impact: 'serious' as ImpactValue,
-                failureSummary:
-                  'Fix any of the following:\n  The clickable element does not have an accessible label.',
-                any: [
-                  {
-                    id: 'oobee-accessible-label',
-                    data: null,
-                    relatedNodes: [],
-                    impact: 'serious',
-                    message: 'The clickable element does not have an accessible label.',
-                  },
-                ],
-                all: [],
-                none: [],
-              })).filter(item => item.html)
+              nodes: escapedCssSelectors
+                .map(cssSelector => ({
+                  html: findElementByCssSelector(cssSelector),
+                  target: [cssSelector],
+                  impact: 'serious' as ImpactValue,
+                  failureSummary:
+                    'Fix any of the following:\n  The clickable element does not have an accessible label.',
+                  any: [
+                    {
+                      id: 'oobee-accessible-label',
+                      data: null,
+                      relatedNodes: [],
+                      impact: 'serious',
+                      message: 'The clickable element does not have an accessible label.',
+                    },
+                  ],
+                  all: [],
+                  none: [],
+                }))
+                .filter(item => item.html),
             };
 
             results.violations = [...results.violations, oobeeAccessibleLabelViolations];

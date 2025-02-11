@@ -68,7 +68,7 @@ export const customAxeConfig: Spec = {
       selector: 'html',
       enabled: true,
       any: ['oobee-grading-text-contents'],
-      tags: ['wcag2a', 'wcag315'],
+      tags: ['wcag2aaa', 'wcag315'],
       metadata: {
         description:
           'Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.',
