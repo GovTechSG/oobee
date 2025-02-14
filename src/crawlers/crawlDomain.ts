@@ -40,8 +40,7 @@ import {
 import { silentLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 
-const isBlacklisted = (url: string) => {
-  const blacklistedPatterns = getBlackListedPatterns(null);
+const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
     return false;
   }
@@ -122,7 +121,7 @@ const crawlDomain = async ({
   const isScanPdfs = ['all', 'pdf-only'].includes(fileTypes);
   const { maxConcurrency } = constants;
   const { playwrightDeviceDetailsObject } = viewportSettings;
-  const isBlacklistedUrl = isBlacklisted(url);
+  const isBlacklistedUrl = isBlacklisted(url, blacklistedPatterns);
 
   const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
@@ -315,7 +314,7 @@ const crawlDomain = async ({
 
     const isExcluded = (newPageUrl: string): boolean => {
       const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
-      const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl);
+      const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl, blacklistedPatterns);
       const isNotFollowStrategy: boolean = !isFollowStrategy(newPageUrl, initialPageUrl, strategy);
       return isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
     };
@@ -615,7 +614,7 @@ const crawlDomain = async ({
           actualUrl = page.url();
         }
 
-        if (isBlacklisted(actualUrl) || (isUrlPdf(actualUrl) && !isScanPdfs)) {
+        if (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs)) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: actualUrl,
