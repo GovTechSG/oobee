@@ -88,6 +88,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   const scanDetails = {
     startTime: new Date(),
     endTime: new Date(),
+    deviceChosen,
     crawlType: type,
     requestUrl: finalUrl,
     urlsCrawled: new UrlsCrawled(),

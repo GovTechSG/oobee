@@ -54,6 +54,16 @@ Returns an instance of Oobee
   - Include additional information in the Scan About section of the report by passing in a JSON object.
 - `zip` (optional)
   - Name of the generated zip of Oobee results at the end of scan. Defaults to "oobee-scan-results".
+- `deviceChosen` (optional)
+  - Name of the device to scan on. Example: `iPhone 13 Pro Max`
+- `strategy` (optional)
+  - The EnqueueStrategy to use. Options: `all`, `same-hostname`, `same-domain`, `same-origin`
+- `ruleset` (optional)
+  - The array of rulesets to use. Options: `default`, `disable-oobee`, `enable-wcag-aaa`
+- `specifiedMaxConcurrency` (optional)
+  - The maximum number of concurrent requests to be made. Defaults to 10.
+- `followRobots` (optional)
+  - Whether to follow robots.txt. Defaults to true.
 
 #### Oobee Instance
 
@@ -176,17 +186,22 @@ Create <code>cypress.config.js</code> with the following contents, and change yo
     // name of the generated zip of the results at the end of scan
     const resultsZipName = "oobee-scan-results"
 
-    const oobeeA11y = await oobeeA11yInit(
-        "https://govtechsg.github.io", // initial url to start scan
-        "Demo Cypress Scan", // label for test
-        "Your Name",
-        "email@domain.com",
-        true, // include screenshots of affected elements in the report
-        viewportSettings,
-        thresholds,
-        scanAboutMetadata,
-        resultsZipName
-    );
+    const oobeeA11y = await oobeeA11yInit({
+      entryUrl: "https://govtechsg.github.io", // initial url to start scan
+      testLabel: "Demo Cypress Scan", // label for test
+      name: "Your Name",
+      email: "email@domain.com",
+      includeScreenshots: true, // include screenshots of affected elements in the report
+      viewportSettings,
+      thresholds: { mustFix: undefined, goodToFix: undefined },
+      scanAboutMetadata: undefined,
+      zip: resultsZipName,
+      deviceChosen: "",
+      strategy: undefined,
+      ruleset: ["enable-wcag-aaa", "disable-oobee"],
+      specifiedMaxConcurrency: undefined,
+      followRobots: undefined,
+    });
 
     export default defineConfig({
         taskTimeout: 120000, // need to extend as screenshot function requires some time
@@ -244,7 +259,7 @@ Create <code>cypress/e2e/spec.cy.js</code> with the following contents:
     describe("template spec", () => {
         it("should run oobee A11y", () => {
             cy.visit(
-                "https://govtechsg.github.io/purple-banner-embeds/oobee-integrated-scan-example.htm"
+                "https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm"
             );
             cy.injectPurpleA11yScripts();
             cy.runPurpleA11yScan();

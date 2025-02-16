@@ -34,14 +34,15 @@ export type ItemsInfo = {
   displayNeedsReview?: boolean;
 };
 
-type PageInfo = {
-  items: ItemsInfo[];
+export type PageInfo = {
+  items?: ItemsInfo[];
   itemsCount?: number;
   pageTitle: string;
-  url?: string;
+  url: string;
+  actualUrl?: string;
   pageImagePath?: string;
   pageIndex?: number;
-  metadata: string;
+  metadata?: string;
 };
 
 export type RuleInfo = {
@@ -74,9 +75,8 @@ type AllIssues = {
   deviceChosen: string;
   formatAboutStartTime: (dateString: any) => string;
   isCustomFlow: boolean;
-  viewport: string;
   pagesScanned: PageInfo[];
-  pagesNotScanned: PageInfo[];
+  pagesNotScanned: string[];
   totalPagesScanned: number;
   totalPagesNotScanned: number;
   totalItems: number;
@@ -92,7 +92,10 @@ type AllIssues = {
     needsReview: Category;
     passed: Category;
   };
-  cypressScanAboutMetadata: string;
+  cypressScanAboutMetadata: {
+    browser?: string;
+    viewport?: { width: number; height: number };
+  };
   wcagLinks: { [key: string]: string };
   [key: string]: any;
   advancedScanOptionsSummaryItems: { [key: string]: boolean };
@@ -1087,7 +1090,7 @@ const createRuleIdJson = allIssues => {
   return compiledRuleJson;
 };
 
-const moveElemScreenshots = (randomToken, storagePath) => {
+const moveElemScreenshots = (randomToken: string, storagePath: string) => {
   const currentScreenshotsPath = `${randomToken}/elemScreenshots`;
   const resultsScreenshotsPath = `${storagePath}/elemScreenshots`;
   if (fs.existsSync(currentScreenshotsPath)) {
@@ -1096,16 +1099,29 @@ const moveElemScreenshots = (randomToken, storagePath) => {
 };
 
 const generateArtifacts = async (
-  randomToken,
-  urlScanned,
-  scanType,
-  viewport,
-  pagesScanned,
-  pagesNotScanned,
-  customFlowLabel,
-  cypressScanAboutMetadata,
-  scanDetails,
-  zip = undefined, // optional
+  randomToken: string,
+  urlScanned: string,
+  scanType: ScannerTypes,
+  viewport: string,
+  pagesScanned: PageInfo[],
+  pagesNotScanned: string[],
+  customFlowLabel: string,
+  cypressScanAboutMetadata: {
+    browser?: string;
+    viewport: { width: number; height: number };
+  },
+  scanDetails: {
+    startTime: Date;
+    endTime: Date;
+    deviceChosen: string;
+    isIncludeScreenshots: boolean;
+    isAllowSubdomains: string;
+    isEnableCustomChecks: string[];
+    isEnableWcagAaa: string[];
+    isSlowScanMode: number;
+    isAdhereRobots: boolean;
+  },
+  zip: string = undefined, // optional
   generateJsonFiles = false,
 ) => {
   const intermediateDatasetsPath = `${randomToken}/datasets/${randomToken}`;
@@ -1117,7 +1133,7 @@ const generateArtifacts = async (
       ? urlScanned
       : urlWithoutAuth(urlScanned);
 
-  const formatAboutStartTime = dateString => {
+  const formatAboutStartTime = (dateString: string) => {
     const utcStartTimeDate = new Date(dateString);
     const formattedStartTime = utcStartTimeDate.toLocaleTimeString('en-GB', {
       year: 'numeric',

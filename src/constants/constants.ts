@@ -7,6 +7,7 @@ import os from 'os';
 import { spawnSync, execSync } from 'child_process';
 import { chromium } from 'playwright';
 import { silentLogger } from '../logs.js';
+import { PageInfo } from '../mergeAxeResults.js';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -177,13 +178,14 @@ export const basicAuthRegex = /^.*\/\/.*:.*@.*$/i;
 export const axeScript = path.join(dirname, '../../node_modules/axe-core/axe.min.js');
 export class UrlsCrawled {
   toScan: string[] = [];
-  scanned: { url: string; actualUrl: string; pageTitle: string }[] = [];
+  // scanned: { url: string; actualUrl: string; pageTitle: string }[] = [];
+  scanned: PageInfo[] = [];
   invalid: string[] = [];
   scannedRedirects: { fromUrl: string; toUrl: string }[] = [];
   notScannedRedirects: { fromUrl: string; toUrl: string }[] = [];
   outOfDomain: string[] = [];
   blacklisted: string[] = [];
-  error: { url: string }[] = [];
+  error: string[] = [];
   exceededRequests: string[] = [];
   forbidden: string[] = [];
   userExcluded: string[] = [];
