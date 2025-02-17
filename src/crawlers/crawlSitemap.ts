@@ -265,7 +265,7 @@ const crawlSitemap = async (
           pageTitle: request.url,
           actualUrl: actualUrl,
         });
-        
+
         guiInfoLog(guiInfoStatusTypes.SKIPPED, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
@@ -300,16 +300,16 @@ const crawlSitemap = async (
           urlScanned: request.url,
         });
 
-        const isRedirected = !areLinksEqual(request.loadedUrl, request.url);
+        const isRedirected = !areLinksEqual(page.url(), request.url);
         if (isRedirected) {
           const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-            item => (item.actualUrl || item.url.href) === request.loadedUrl,
+            item => (item.actualUrl || item.url.href) === page,
           );
 
           if (isLoadedUrlInCrawledUrls) {
             urlsCrawled.notScannedRedirects.push({
               fromUrl: request.url,
-              toUrl: request.loadedUrl, // i.e. actualUrl
+              toUrl: actualUrl, // i.e. actualUrl
             });
             return;
           }
@@ -317,16 +317,16 @@ const crawlSitemap = async (
           urlsCrawled.scanned.push({
             url: urlWithoutAuth(request.url),
             pageTitle: results.pageTitle,
-            actualUrl: request.loadedUrl, // i.e. actualUrl
+            actualUrl: actualUrl, // i.e. actualUrl
           });
 
           urlsCrawled.scannedRedirects.push({
             fromUrl: urlWithoutAuth(request.url),
-            toUrl: request.loadedUrl, // i.e. actualUrl
+            toUrl: actualUrl,
           });
 
           results.url = request.url;
-          results.actualUrl = request.loadedUrl;
+          results.actualUrl = actualUrl;
         } else {
           urlsCrawled.scanned.push({
             url: urlWithoutAuth(request.url),

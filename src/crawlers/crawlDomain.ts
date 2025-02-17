@@ -608,7 +608,7 @@ const crawlDomain = async ({
         }
 
         await waitForPageLoaded(page, 10000);
-        let actualUrl = request.url;
+        let actualUrl = page.url() || request.loadedUrl || request.url;
 
         if (page.url() !== 'about:blank') {
           actualUrl = page.url();
@@ -714,18 +714,18 @@ const crawlDomain = async ({
 
         if (isScanHtml) {
           // For deduplication, if the URL is redirected, we want to store the original URL and the redirected URL (actualUrl)
-          const isRedirected = !areLinksEqual(request.loadedUrl, request.url);
+          const isRedirected = !areLinksEqual(actualUrl, request.url);
 
           // check if redirected link is following strategy (same-domain/same-hostname)
           const isLoadedUrlFollowStrategy = isFollowStrategy(
-            request.loadedUrl,
+            actualUrl,
             request.url,
             strategy,
           );
           if (isRedirected && !isLoadedUrlFollowStrategy) {
             urlsCrawled.notScannedRedirects.push({
               fromUrl: request.url,
-              toUrl: request.loadedUrl, // i.e. actualUrl
+              toUrl: actualUrl, // i.e. actualUrl
             });
             return;
           }
@@ -734,13 +734,13 @@ const crawlDomain = async ({
 
           if (isRedirected) {
             const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-              item => (item.actualUrl || item.url) === request.loadedUrl,
+              item => (item.actualUrl || item.url) === actualUrl,
             );
 
             if (isLoadedUrlInCrawledUrls) {
               urlsCrawled.notScannedRedirects.push({
                 fromUrl: request.url,
-                toUrl: request.loadedUrl, // i.e. actualUrl
+                toUrl: actualUrl, // i.e. actualUrl
               });
               return;
             }
@@ -755,16 +755,16 @@ const crawlDomain = async ({
               urlsCrawled.scanned.push({
                 url: urlWithoutAuth(request.url),
                 pageTitle: results.pageTitle,
-                actualUrl: request.loadedUrl, // i.e. actualUrl
+                actualUrl: actualUrl, // i.e. actualUrl
               });
 
               urlsCrawled.scannedRedirects.push({
                 fromUrl: urlWithoutAuth(request.url),
-                toUrl: request.loadedUrl, // i.e. actualUrl
+                toUrl: actualUrl, // i.e. actualUrl
               });
 
               results.url = request.url;
-              results.actualUrl = request.loadedUrl;
+              results.actualUrl = actualUrl;
               await dataset.pushData(results);
             }
           } else {
