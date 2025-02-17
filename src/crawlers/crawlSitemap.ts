@@ -260,7 +260,11 @@ const crawlSitemap = async (
 
 
       if (blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
-        urlsCrawled.userExcluded.push(request.url);
+        urlsCrawled.blacklisted.push(request.url);
+        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+          numScanned: urlsCrawled.scanned.length,
+          urlScanned: request.url,
+        });
         return;
       }
 
