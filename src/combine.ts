@@ -240,6 +240,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         pagesNotScanned.length,
         metadata,
       );
+    } else {
+      printMessage([`No pages were scanned.`], alertMessageOptions);
     }
   } else {
     printMessage([`No pages were scanned.`], alertMessageOptions);
