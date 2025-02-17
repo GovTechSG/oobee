@@ -125,14 +125,6 @@ const crawlDomain = async ({
 
   const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
-  if (isBlacklistedUrl) {
-    guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-      numScanned: urlsCrawled.scanned.length,
-      urlScanned: url,
-    });
-    return;
-  }
-
   // Boolean to omit axe scan for basic auth URL
   let isBasicAuth = false;
   let authHeader = '';
@@ -614,7 +606,7 @@ const crawlDomain = async ({
           actualUrl = page.url();
         }
 
-        if (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs)) {
+        if (!isFollowStrategy(url, actualUrl, strategy) && (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: actualUrl,
@@ -683,7 +675,7 @@ const crawlDomain = async ({
           return;
         }
 
-        if (blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
+        if (!isFollowStrategy(url, actualUrl, strategy) && blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
           urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,

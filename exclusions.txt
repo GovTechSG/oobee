@@ -1,2 +1,3 @@
 \.*login.singpass.gov.sg\.*
 \.*auth.singpass.gov.sg\.*
+\.*form.gov.sg\.*
