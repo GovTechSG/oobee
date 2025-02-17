@@ -265,8 +265,7 @@ const crawlSitemap = async (
           pageTitle: request.url,
           actualUrl: actualUrl,
         });
-
-        console.log("What's the URL ", request.url);
+        
         guiInfoLog(guiInfoStatusTypes.SKIPPED, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
