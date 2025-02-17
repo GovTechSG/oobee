@@ -161,21 +161,56 @@ const crawlSitemap = async (
       ],
     },
     requestList,
+    postNavigationHooks: [
+      async ({ page, request }) => {
+        try {
+          // Wait for some quiet period in the DOM
+          await page.evaluate(() => {
+            return new Promise((resolve) => {
+              let timeout;
+              const observer = new MutationObserver(() => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                  observer.disconnect();
+                  resolve('DOM stabilized after mutations.');
+                }, 1000);
+              });
+
+              timeout = setTimeout(() => {
+                observer.disconnect();
+                resolve('No mutations detected, exit from idle state');
+              }, 1000);
+
+              observer.observe(document, { childList: true, subtree: true, attributes: true });
+            });
+          });
+        } catch (err) {
+          // “Execution context was destroyed”
+          if (err.message.includes('was destroyed')) {
+            // The page probably navigated or closed itself. You can safely ignore or handle it gracefully.
+            return;
+          }
+          // Otherwise, rethrow unknown errors
+          throw err;
+        }
+      },
+    ],
+
     preNavigationHooks: isBasicAuth
       ? [
-          async ({ page }) => {
-            await page.setExtraHTTPHeaders({
-              Authorization: authHeader,
-              ...extraHTTPHeaders,
-            });
-          },
-        ]
+        async ({ page }) => {
+          await page.setExtraHTTPHeaders({
+            Authorization: authHeader,
+            ...extraHTTPHeaders,
+          });
+        },
+      ]
       : [
-          async () => {
-            preNavigationHooks(extraHTTPHeaders);
-            // insert other code here
-          },
-        ],
+        async () => {
+          preNavigationHooks(extraHTTPHeaders);
+          // insert other code here
+        },
+      ],
     requestHandlerTimeoutSecs: 90,
     requestHandler: async ({ page, request, response, sendRequest }) => {
       await waitForPageLoaded(page, 10000);
