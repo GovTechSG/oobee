@@ -186,7 +186,7 @@ export class UrlsCrawled {
   error: { url: string }[] = [];
   exceededRequests: string[] = [];
   forbidden: string[] = [];
-  userExcluded: string[] = [];
+  userExcluded: { url: string; actualUrl: string; pageTitle: string }[] = [];
   everything: string[] = [];
 
   constructor(urlsCrawled?: Partial<UrlsCrawled>) {

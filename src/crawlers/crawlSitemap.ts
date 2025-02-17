@@ -260,7 +260,13 @@ const crawlSitemap = async (
 
 
       if (blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
-        urlsCrawled.blacklisted.push(request.url);
+        urlsCrawled.userExcluded.push({
+          url: request.url,
+          pageTitle: request.url,
+          actualUrl: actualUrl,
+        });
+
+        console.log("What's the URL ", request.url);
         guiInfoLog(guiInfoStatusTypes.SKIPPED, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,

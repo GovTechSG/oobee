@@ -210,6 +210,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         ...urlsCrawledObj.error,
         ...urlsCrawledObj.invalid,
         ...urlsCrawledObj.forbidden,
+        ...urlsCrawledObj.userExcluded,
       ];
       const basicFormHTMLSnippet = await generateArtifacts(
         randomToken,

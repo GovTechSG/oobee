@@ -684,7 +684,12 @@ const crawlDomain = async ({
         }
 
         if (blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
-          urlsCrawled.userExcluded.push(request.url);
+          urlsCrawled.userExcluded.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl,
+          });
+
           await enqueueProcess(page, enqueueLinks, browserContext);
           return;
         }
