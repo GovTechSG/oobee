@@ -226,7 +226,7 @@ const crawlSitemap = async (
         request.url = currentUrl.href;
       }
 
-      const actualUrl = request.loadedUrl || request.url;
+      const actualUrl = page.url() || request.loadedUrl || request.url;
 
       if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) {
         crawler.autoscaledPool.abort();
@@ -257,6 +257,7 @@ const crawlSitemap = async (
 
       const contentType = response.headers()['content-type'];
       const status = response.status();
+
 
       if (blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
         urlsCrawled.userExcluded.push(request.url);
