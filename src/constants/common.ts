@@ -1823,8 +1823,64 @@ export const waitForPageLoaded = async (page, timeout = 10000) => {
     page.waitForLoadState('load'),
     page.waitForLoadState('networkidle'),
     new Promise(resolve => setTimeout(resolve, timeout)),
+    page.evaluate(() => {
+      return new Promise(resolve => {
+        // Skip mutation check if the document is a PDF
+        if (document.contentType === 'application/pdf') {
+          resolve('Skipping DOM mutation check for PDF documents.');
+          return;
+        }
+
+        let timeout;
+        let mutationCount = 0;
+        const MAX_MUTATIONS = 250;
+        const MAX_SAME_MUTATION_LIMIT = 10;
+        const mutationHash = {};
+
+        const observer = new MutationObserver(mutationsList => {
+          clearTimeout(timeout);
+
+          mutationCount += 1;
+
+          if (mutationCount > MAX_MUTATIONS) {
+            observer.disconnect();
+            resolve('Too many mutations detected');
+          }
+
+          mutationsList.forEach(mutation => {
+            if (mutation.target instanceof Element) {
+              Array.from(mutation.target.attributes).forEach(attr => {
+                const mutationKey = `${mutation.target.nodeName}-${attr.name}`;
+
+                if (mutationKey) {
+                  mutationHash[mutationKey] = (mutationHash[mutationKey] || 0) + 1;
+
+                  if (mutationHash[mutationKey] >= MAX_SAME_MUTATION_LIMIT) {
+                    observer.disconnect();
+                    resolve(`Repeated mutation detected for ${mutationKey}`);
+                  }
+                }
+              });
+            }
+          });
+
+          timeout = setTimeout(() => {
+            observer.disconnect();
+            resolve('DOM stabilized after mutations.');
+          }, 1000);
+        });
+
+        timeout = setTimeout(() => {
+          observer.disconnect();
+          resolve('No mutations detected, exit from idle state');
+        }, 1000);
+
+        observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+      });
+    }),
   ]);
 };
+
 
 function isValidHttpUrl(urlString) {
   const pattern = /^(http|https):\/\/[^ "]+$/;
