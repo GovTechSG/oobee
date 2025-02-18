@@ -1819,32 +1819,33 @@ export const urlWithoutAuth = (url: string): string => {
 };
 
 export const waitForPageLoaded = async (page, timeout = 10000) => {
+  const OBSERVER_TIMEOUT = timeout; // Ensure observer timeout does not exceed the main timeout
+
   return Promise.race([
-    page.waitForLoadState('load'),
-    page.waitForLoadState('networkidle'),
-    new Promise(resolve => setTimeout(resolve, timeout)),
-    page.evaluate(() => {
-      return new Promise(resolve => {
-        // Skip mutation check if the document is a PDF
+    page.waitForLoadState('load'), // Ensure page load completes
+    page.waitForLoadState('networkidle'), // Wait for network requests to settle
+    new Promise(resolve => setTimeout(resolve, timeout)), // Hard timeout as a fallback
+    page.evaluate((OBSERVER_TIMEOUT) => {
+      return new Promise((resolve) => {
+        // Skip mutation check for PDFs
         if (document.contentType === 'application/pdf') {
-          resolve('Skipping DOM mutation check for PDF documents.');
+          resolve('Skipping DOM mutation check for PDF.');
           return;
         }
 
         let timeout;
         let mutationCount = 0;
-        const MAX_MUTATIONS = 250;
-        const MAX_SAME_MUTATION_LIMIT = 10;
+        const MAX_MUTATIONS = 250; // Limit max mutations
         const mutationHash = {};
 
         const observer = new MutationObserver(mutationsList => {
           clearTimeout(timeout);
 
-          mutationCount += 1;
-
+          mutationCount++;
           if (mutationCount > MAX_MUTATIONS) {
             observer.disconnect();
-            resolve('Too many mutations detected');
+            resolve('Too many mutations detected, exiting.');
+            return;
           }
 
           mutationsList.forEach(mutation => {
@@ -1855,29 +1856,31 @@ export const waitForPageLoaded = async (page, timeout = 10000) => {
                 if (mutationKey) {
                   mutationHash[mutationKey] = (mutationHash[mutationKey] || 0) + 1;
 
-                  if (mutationHash[mutationKey] >= MAX_SAME_MUTATION_LIMIT) {
+                  if (mutationHash[mutationKey] >= 10) {
                     observer.disconnect();
-                    resolve(`Repeated mutation detected for ${mutationKey}`);
+                    resolve(`Repeated mutation detected for ${mutationKey}, exiting.`);
                   }
                 }
               });
             }
           });
 
+          // If no mutations occur for 1 second, resolve
           timeout = setTimeout(() => {
             observer.disconnect();
             resolve('DOM stabilized after mutations.');
           }, 1000);
         });
 
+        // Final timeout to avoid infinite waiting
         timeout = setTimeout(() => {
           observer.disconnect();
-          resolve('No mutations detected, exit from idle state');
-        }, 1000);
+          resolve('Observer timeout reached, exiting.');
+        }, OBSERVER_TIMEOUT);
 
         observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
       });
-    }),
+    }, OBSERVER_TIMEOUT), // Pass OBSERVER_TIMEOUT dynamically to the browser context
   ]);
 };
 
