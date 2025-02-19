@@ -178,14 +178,14 @@ export const axeScript = path.join(dirname, '../../node_modules/axe-core/axe.min
 export class UrlsCrawled {
   toScan: string[] = [];
   scanned: { url: string; actualUrl: string; pageTitle: string }[] = [];
-  invalid: string[] = [];
+  invalid: { url: string; actualUrl: string; pageTitle: string }[] = [];
   scannedRedirects: { fromUrl: string; toUrl: string }[] = [];
   notScannedRedirects: { fromUrl: string; toUrl: string }[] = [];
   outOfDomain: string[] = [];
-  blacklisted: string[] = [];
+  blacklisted: { url: string; actualUrl: string; pageTitle: string }[] = [];
   error: { url: string }[] = [];
   exceededRequests: string[] = [];
-  forbidden: string[] = [];
+  forbidden: { url: string; actualUrl: string; pageTitle: string }[] = [];
   userExcluded: { url: string; actualUrl: string; pageTitle: string }[] = [];
   everything: string[] = [];
 

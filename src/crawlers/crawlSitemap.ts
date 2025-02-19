@@ -250,7 +250,12 @@ const crawlSitemap = async (
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.blacklisted.push(request.url);
+          urlsCrawled.blacklisted.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl, // i.e. actualUrl
+          });
+
           return;
         }
         // pushes download promise into pdfDownloads
@@ -297,7 +302,12 @@ const crawlSitemap = async (
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
-        urlsCrawled.invalid.push(request.url);
+        urlsCrawled.invalid.push({
+          url: request.url,
+          pageTitle: request.url,
+          actualUrl: actualUrl, // i.e. actualUrl
+        });
+
         return;
       }
 
