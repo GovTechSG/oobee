@@ -88,7 +88,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   const scanDetails = {
     startTime: new Date(),
     endTime: new Date(),
-    deviceChosen,
+    deviceChosen: deviceToScan,
     crawlType: type,
     requestUrl: finalUrl,
     urlsCrawled: new UrlsCrawled(),
@@ -98,7 +98,6 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     isEnableWcagAaa: envDetails.ruleset,
     isSlowScanMode: envDetails.specifiedMaxConcurrency,
     isAdhereRobots: envDetails.followRobots,
-    deviceChosen: deviceToScan,
   };
 
   const viewportSettings: ViewportSettingsClass = new ViewportSettingsClass(

@@ -182,9 +182,9 @@ export class UrlsCrawled {
   invalid: { url: string; actualUrl: string; pageTitle: string }[] = [];
   scannedRedirects: { fromUrl: string; toUrl: string }[] = [];
   notScannedRedirects: { fromUrl: string; toUrl: string }[] = [];
-  outOfDomain: { url: string; actualUrl: string; pageTitle: string }[] = [];
+  outOfDomain: string[] = [];
   blacklisted: { url: string; actualUrl: string; pageTitle: string }[] = [];
-  error: { url: string; actualUrl: string; pageTitle: string }[] = [];
+  error: { url: string }[] = [];
   exceededRequests: string[] = [];
   forbidden: { url: string; actualUrl: string; pageTitle: string }[] = [];
   userExcluded: { url: string; actualUrl: string; pageTitle: string }[] = [];
