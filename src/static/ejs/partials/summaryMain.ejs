@@ -13,14 +13,15 @@
             <div class="d-flex justify-content-between align-items-center">
               <span class="fw-bold"> WCAG (A & AA) Passes </span>
               <span aria-label="Pass percentage" class="ms-2">
-                <%= wcagPassPercentage %>% of automated checks
+                <%= wcagPassPercentage.passPercentageAA %>% of automated checks
               </span>
             </div>
             <div class="wcag-compliance-passes-bar mb-5 d-flex">
               <svg width="500" role="none" height="6" fill="none" xmlns="http://www.w3.org/2000/svg"
                 style="display: flex; width: 100%; position: absolute">
                 <rect width="100%" height="10" rx="3" fill="#E7ECEE" style="justify-content: left"></rect>
-                <rect width="<%= wcagPassPercentage %>%" height="6" rx="3" fill="#9021a6" style=""></rect>
+                <rect width="<%= wcagPassPercentage.passPercentageAA %>%" height="6" rx="3" fill="#9021a6" style="">
+                </rect>
               </svg>
             </div>
             <ul class="unbulleted-list">

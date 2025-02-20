@@ -190,19 +190,23 @@ export const cleanUp = async pathToDelete => {
 //     timeZoneName: "longGeneric",
 //   });
 
-export const getWcagPassPercentage = (wcagViolations: string[]): string => {
+export const getWcagPassPercentage = (wcagViolations: string[]): { passPercentageAA: string; totalWcagChecksAA: number; wcagViolationsAA: number } => {
 
   // These AAA rules should not be counted as WCAG Pass Percentage only contains A and AA
   const wcagAAA = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5', 'WCAG 3.2.5'];
 
   const filteredWcagLinks = Object.keys(constants.wcagLinks).filter(key => !wcagAAA.includes(key));
   const filteredWcagViolations = wcagViolations.filter(violation => !wcagAAA.includes(violation));
-  const totalChecks = filteredWcagLinks.length;
+  const totalChecksAA = filteredWcagLinks.length;
 
-  const passedChecks = totalChecks - filteredWcagViolations.length;
-  const passPercentage = (passedChecks / totalChecks) * 100;
+  const passedChecks = totalChecksAA - filteredWcagViolations.length;
+  const passPercentageAA = (passedChecks / totalChecksAA) * 100;
 
-  return passPercentage.toFixed(2); // toFixed returns a string, which is correct here
+  return {
+    passPercentageAA: passPercentageAA.toFixed(2), // toFixed returns a string, which is correct here
+    totalWcagChecksAA: totalChecksAA,
+    wcagViolationsAA: filteredWcagViolations.length,
+  };
 };
 
 export const getFormattedTime = inputDate => {
