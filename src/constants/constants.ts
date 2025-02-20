@@ -178,17 +178,16 @@ export const basicAuthRegex = /^.*\/\/.*:.*@.*$/i;
 export const axeScript = path.join(dirname, '../../node_modules/axe-core/axe.min.js');
 export class UrlsCrawled {
   toScan: string[] = [];
-  // scanned: { url: string; actualUrl: string; pageTitle: string }[] = [];
-  scanned: PageInfo[] = [];
-  invalid: string[] = [];
+  scanned: { url: string; actualUrl: string; pageTitle: string }[] = [];
+  invalid: { url: string; actualUrl: string; pageTitle: string }[] = [];
   scannedRedirects: { fromUrl: string; toUrl: string }[] = [];
   notScannedRedirects: { fromUrl: string; toUrl: string }[] = [];
-  outOfDomain: string[] = [];
-  blacklisted: string[] = [];
-  error: string[] = [];
+  outOfDomain: { url: string; actualUrl: string; pageTitle: string }[] = [];
+  blacklisted: { url: string; actualUrl: string; pageTitle: string }[] = [];
+  error: { url: string; actualUrl: string; pageTitle: string }[] = [];
   exceededRequests: string[] = [];
-  forbidden: string[] = [];
-  userExcluded: string[] = [];
+  forbidden: { url: string; actualUrl: string; pageTitle: string }[] = [];
+  userExcluded: { url: string; actualUrl: string; pageTitle: string }[] = [];
   everything: string[] = [];
 
   constructor(urlsCrawled?: Partial<UrlsCrawled>) {

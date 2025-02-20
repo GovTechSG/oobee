@@ -40,8 +40,7 @@ import {
 import { silentLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 
-const isBlacklisted = (url: string) => {
-  const blacklistedPatterns = getBlackListedPatterns(null);
+const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
     return false;
   }
@@ -122,17 +121,9 @@ const crawlDomain = async ({
   const isScanPdfs = ['all', 'pdf-only'].includes(fileTypes);
   const { maxConcurrency } = constants;
   const { playwrightDeviceDetailsObject } = viewportSettings;
-  const isBlacklistedUrl = isBlacklisted(url);
+  const isBlacklistedUrl = isBlacklisted(url, blacklistedPatterns);
 
   const httpsAgent = new https.Agent({ rejectUnauthorized: false });
-
-  if (isBlacklistedUrl) {
-    guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-      numScanned: urlsCrawled.scanned.length,
-      urlScanned: url,
-    });
-    return;
-  }
 
   // Boolean to omit axe scan for basic auth URL
   let isBasicAuth = false;
@@ -315,7 +306,7 @@ const crawlDomain = async ({
 
     const isExcluded = (newPageUrl: string): boolean => {
       const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
-      const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl);
+      const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl, blacklistedPatterns);
       const isNotFollowStrategy: boolean = !isFollowStrategy(newPageUrl, initialPageUrl, strategy);
       return isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
     };
@@ -609,13 +600,13 @@ const crawlDomain = async ({
         }
 
         await waitForPageLoaded(page, 10000);
-        let actualUrl = request.url;
+        let actualUrl = page.url() || request.loadedUrl || request.url;
 
         if (page.url() !== 'about:blank') {
           actualUrl = page.url();
         }
 
-        if (isBlacklisted(actualUrl) || (isUrlPdf(actualUrl) && !isScanPdfs)) {
+        if (!isFollowStrategy(url, actualUrl, strategy) && (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: actualUrl,
@@ -647,7 +638,12 @@ const crawlDomain = async ({
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
-            urlsCrawled.blacklisted.push(request.url);
+            urlsCrawled.blacklisted.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: actualUrl, // i.e. actualUrl
+            });
+
             return;
           }
           const { pdfFileName, url } = handlePdfDownload(
@@ -671,7 +667,12 @@ const crawlDomain = async ({
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.blacklisted.push(request.url);
+          urlsCrawled.blacklisted.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl, // i.e. actualUrl
+          });
+
           return;
         }
 
@@ -680,12 +681,22 @@ const crawlDomain = async ({
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.blacklisted.push(request.url);
+          urlsCrawled.blacklisted.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl, // i.e. actualUrl
+          });
+
           return;
         }
 
-        if (blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
-          urlsCrawled.userExcluded.push(request.url);
+        if (!isFollowStrategy(url, actualUrl, strategy) && blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
+          urlsCrawled.userExcluded.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl,
+          });
+
           await enqueueProcess(page, enqueueLinks, browserContext);
           return;
         }
@@ -695,7 +706,12 @@ const crawlDomain = async ({
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.forbidden.push(request.url);
+          urlsCrawled.forbidden.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl, // i.e. actualUrl
+          });
+
           return;
         }
 
@@ -704,24 +720,29 @@ const crawlDomain = async ({
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.invalid.push(request.url);
+          urlsCrawled.invalid.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl, // i.e. actualUrl
+          });
+
           return;
         }
 
         if (isScanHtml) {
           // For deduplication, if the URL is redirected, we want to store the original URL and the redirected URL (actualUrl)
-          const isRedirected = !areLinksEqual(request.loadedUrl, request.url);
+          const isRedirected = !areLinksEqual(actualUrl, request.url);
 
           // check if redirected link is following strategy (same-domain/same-hostname)
           const isLoadedUrlFollowStrategy = isFollowStrategy(
-            request.loadedUrl,
+            actualUrl,
             request.url,
             strategy,
           );
           if (isRedirected && !isLoadedUrlFollowStrategy) {
             urlsCrawled.notScannedRedirects.push({
               fromUrl: request.url,
-              toUrl: request.loadedUrl, // i.e. actualUrl
+              toUrl: actualUrl, // i.e. actualUrl
             });
             return;
           }
@@ -730,13 +751,13 @@ const crawlDomain = async ({
 
           if (isRedirected) {
             const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-              item => (item.actualUrl || item.url) === request.loadedUrl,
+              item => (item.actualUrl || item.url) === actualUrl,
             );
 
             if (isLoadedUrlInCrawledUrls) {
               urlsCrawled.notScannedRedirects.push({
                 fromUrl: request.url,
-                toUrl: request.loadedUrl, // i.e. actualUrl
+                toUrl: actualUrl, // i.e. actualUrl
               });
               return;
             }
@@ -751,16 +772,16 @@ const crawlDomain = async ({
               urlsCrawled.scanned.push({
                 url: urlWithoutAuth(request.url),
                 pageTitle: results.pageTitle,
-                actualUrl: request.loadedUrl, // i.e. actualUrl
+                actualUrl: actualUrl, // i.e. actualUrl
               });
 
               urlsCrawled.scannedRedirects.push({
                 fromUrl: urlWithoutAuth(request.url),
-                toUrl: request.loadedUrl, // i.e. actualUrl
+                toUrl: actualUrl, // i.e. actualUrl
               });
 
               results.url = request.url;
-              results.actualUrl = request.loadedUrl;
+              results.actualUrl = actualUrl;
               await dataset.pushData(results);
             }
           } else {
@@ -783,7 +804,12 @@ const crawlDomain = async ({
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.blacklisted.push(request.url);
+          urlsCrawled.blacklisted.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl, // i.e. actualUrl
+          });
+
         }
 
         if (followRobots) await getUrlsFromRobotsTxt(request.url, browser);

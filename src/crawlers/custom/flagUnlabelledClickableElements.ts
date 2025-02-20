@@ -874,7 +874,6 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
     }
 
     function flagElements() {
-      console.time('Accessibility Check Time');
 
       const currentFlaggedElementsByDocument: Record<string, HTMLElement[]> = {}; // Temporary object to hold current flagged elements
 
@@ -1014,7 +1013,6 @@ export const flagUnlabelledClickableElements = async (page: Page) => {
       previousFlaggedXPathsByDocument = { ...flaggedXPathsByDocument };
 
       cleanupFlaggedElements();
-      console.timeEnd('Accessibility Check Time');
       return previousAllFlaggedElementsXPaths;
     }
 

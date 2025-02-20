@@ -18,7 +18,7 @@ import {
   waitForPageLoaded,
   isFilePath,
 } from '../constants/common.js';
-import { areLinksEqual, isWhitelistedContentType } from '../utils.js';
+import { areLinksEqual, isWhitelistedContentType, isFollowStrategy } from '../utils.js';
 import { handlePdfDownload, runPdfScan, mapPdfScanResults } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
 
@@ -161,21 +161,67 @@ const crawlSitemap = async (
       ],
     },
     requestList,
+    postNavigationHooks: [
+      async ({ page, request }) => {
+        try {
+          // Wait for a quiet period in the DOM, but with safeguards
+          await page.evaluate(() => {
+            return new Promise((resolve) => {
+              let timeout;
+              let mutationCount = 0;
+              const MAX_MUTATIONS = 250; // Prevent infinite mutations
+              const OBSERVER_TIMEOUT = 5000; // Hard timeout to exit
+
+              const observer = new MutationObserver(() => {
+                clearTimeout(timeout);
+
+                mutationCount++;
+                if (mutationCount > MAX_MUTATIONS) {
+                  observer.disconnect();
+                  resolve('Too many mutations detected, exiting.');
+                  return;
+                }
+
+                timeout = setTimeout(() => {
+                  observer.disconnect();
+                  resolve('DOM stabilized after mutations.');
+                }, 1000);
+              });
+
+              timeout = setTimeout(() => {
+                observer.disconnect();
+                resolve('Observer timeout reached, exiting.');
+              }, OBSERVER_TIMEOUT); // Ensure the observer stops after X seconds
+
+              observer.observe(document.documentElement, { childList: true, subtree: true });
+
+            });
+          });
+        } catch (err) {
+          // Handle page navigation errors gracefully
+          if (err.message.includes('was destroyed')) {
+            return; // Page navigated or closed, no need to handle
+          }
+          throw err; // Rethrow unknown errors
+        }
+      },
+    ],
+
     preNavigationHooks: isBasicAuth
       ? [
-          async ({ page }) => {
-            await page.setExtraHTTPHeaders({
-              Authorization: authHeader,
-              ...extraHTTPHeaders,
-            });
-          },
-        ]
+        async ({ page }) => {
+          await page.setExtraHTTPHeaders({
+            Authorization: authHeader,
+            ...extraHTTPHeaders,
+          });
+        },
+      ]
       : [
-          async () => {
-            preNavigationHooks(extraHTTPHeaders);
-            // insert other code here
-          },
-        ],
+        async () => {
+          preNavigationHooks(extraHTTPHeaders);
+          // insert other code here
+        },
+      ],
     requestHandlerTimeoutSecs: 90,
     requestHandler: async ({ page, request, response, sendRequest }) => {
       await waitForPageLoaded(page, 10000);
@@ -191,7 +237,7 @@ const crawlSitemap = async (
         request.url = currentUrl.href;
       }
 
-      const actualUrl = request.loadedUrl || request.url;
+      const actualUrl = page.url() || request.loadedUrl || request.url;
 
       if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) {
         crawler.autoscaledPool.abort();
@@ -204,7 +250,12 @@ const crawlSitemap = async (
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.blacklisted.push(request.url);
+          urlsCrawled.blacklisted.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl, // i.e. actualUrl
+          });
+
           return;
         }
         // pushes download promise into pdfDownloads
@@ -223,8 +274,17 @@ const crawlSitemap = async (
       const contentType = response.headers()['content-type'];
       const status = response.status();
 
-      if (blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
-        urlsCrawled.userExcluded.push(request.url);
+      if (blacklistedPatterns && !isFollowStrategy(actualUrl, request.url, "same-hostname") && isSkippedUrl(actualUrl, blacklistedPatterns)) {
+        urlsCrawled.userExcluded.push({
+          url: request.url,
+          pageTitle: request.url,
+          actualUrl: actualUrl,
+        });
+
+        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+          numScanned: urlsCrawled.scanned.length,
+          urlScanned: request.url,
+        });
         return;
       }
 
@@ -242,7 +302,12 @@ const crawlSitemap = async (
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
-        urlsCrawled.invalid.push(request.url);
+        urlsCrawled.invalid.push({
+          url: request.url,
+          pageTitle: request.url,
+          actualUrl: actualUrl, // i.e. actualUrl
+        });
+
         return;
       }
 
@@ -255,16 +320,16 @@ const crawlSitemap = async (
           urlScanned: request.url,
         });
 
-        const isRedirected = !areLinksEqual(request.loadedUrl, request.url);
+        const isRedirected = !areLinksEqual(page.url(), request.url);
         if (isRedirected) {
           const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-            item => (item.actualUrl || item.url.href) === request.loadedUrl,
+            item => (item.actualUrl || item.url.href) === page,
           );
 
           if (isLoadedUrlInCrawledUrls) {
             urlsCrawled.notScannedRedirects.push({
               fromUrl: request.url,
-              toUrl: request.loadedUrl, // i.e. actualUrl
+              toUrl: actualUrl, // i.e. actualUrl
             });
             return;
           }
@@ -272,16 +337,16 @@ const crawlSitemap = async (
           urlsCrawled.scanned.push({
             url: urlWithoutAuth(request.url),
             pageTitle: results.pageTitle,
-            actualUrl: request.loadedUrl, // i.e. actualUrl
+            actualUrl: actualUrl, // i.e. actualUrl
           });
 
           urlsCrawled.scannedRedirects.push({
             fromUrl: urlWithoutAuth(request.url),
-            toUrl: request.loadedUrl, // i.e. actualUrl
+            toUrl: actualUrl,
           });
 
           results.url = request.url;
-          results.actualUrl = request.loadedUrl;
+          results.actualUrl = actualUrl;
         } else {
           urlsCrawled.scanned.push({
             url: urlWithoutAuth(request.url),

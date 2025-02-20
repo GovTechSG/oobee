@@ -98,6 +98,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     isEnableWcagAaa: envDetails.ruleset,
     isSlowScanMode: envDetails.specifiedMaxConcurrency,
     isAdhereRobots: envDetails.followRobots,
+    deviceChosen: deviceToScan,
   };
 
   const viewportSettings: ViewportSettingsClass = new ViewportSettingsClass(
@@ -210,6 +211,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         ...urlsCrawledObj.error,
         ...urlsCrawledObj.invalid,
         ...urlsCrawledObj.forbidden,
+        ...urlsCrawledObj.userExcluded,
       ];
       const basicFormHTMLSnippet = await generateArtifacts(
         randomToken,
@@ -240,6 +242,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         pagesNotScanned.length,
         metadata,
       );
+    } else {
+      printMessage([`No pages were scanned.`], alertMessageOptions);
     }
   } else {
     printMessage([`No pages were scanned.`], alertMessageOptions);

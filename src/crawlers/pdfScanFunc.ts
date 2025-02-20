@@ -295,7 +295,11 @@ export const handlePdfDownload = (
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.invalid.push(url);
+          urlsCrawled.invalid.push({
+            url: request.url,
+            pageTitle: url,
+            actualUrl: url, // i.e. actualUrl
+          });
         }
         resolve();
       });

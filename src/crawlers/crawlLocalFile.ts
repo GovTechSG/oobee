@@ -153,6 +153,8 @@ const crawlLocalFile = async (
     await page.goto(request.url);
     const results = await runAxeScript({ includeScreenshots, page, randomToken });
 
+    const actualUrl = page.url() || request.loadedUrl || request.url;
+
     guiInfoLog(guiInfoStatusTypes.SCANNED, {
       numScanned: urlsCrawled.scanned.length,
       urlScanned: request.url,
@@ -161,16 +163,16 @@ const crawlLocalFile = async (
     urlsCrawled.scanned.push({
       url: request.url,
       pageTitle: results.pageTitle,
-      actualUrl: request.loadedUrl, // i.e. actualUrl
+      actualUrl: actualUrl, // i.e. actualUrl
     });
 
     urlsCrawled.scannedRedirects.push({
       fromUrl: request.url,
-      toUrl: request.loadedUrl, // i.e. actualUrl
+      toUrl: actualUrl, // i.e. actualUrl
     });
 
     results.url = request.url;
-    // results.actualUrl = request.loadedUrl;
+    results.actualUrl = actualUrl;
 
     await dataset.pushData(results);
   } else {

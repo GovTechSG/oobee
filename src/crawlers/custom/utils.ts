@@ -152,7 +152,12 @@ export const processPage = async (page, processPageParams) => {
       window.confirm('Page has been excluded, would you still like to proceed with the scan?'),
     );
     if (!continueScan) {
-      urlsCrawled.userExcluded.push(pageUrl);
+      urlsCrawled.userExcluded.push({
+        url: pageUrl,
+        pageTitle: pageUrl,
+        actualUrl: pageUrl,
+      });
+
       return;
     }
   }
@@ -396,7 +401,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   // eslint-disable-next-line no-underscore-dangle
   const pageId = page._guid;
 
-  page.on('dialog', () => {});
+  page.on('dialog', () => { });
 
   const pageClosePromise = new Promise(resolve => {
     page.on('close', () => {
