@@ -288,6 +288,8 @@ export const init = async ({
       const pagesNotScanned = [
         ...scanDetails.urlsCrawled.error,
         ...scanDetails.urlsCrawled.invalid,
+        ...scanDetails.urlsCrawled.forbidden,
+        ...scanDetails.urlsCrawled.userExcluded,
       ];
       const updatedScanAboutMetadata = {
         viewport: {
