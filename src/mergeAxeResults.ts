@@ -13,7 +13,7 @@ import zlib from 'zlib';
 import { Base64Encode } from 'base64-stream';
 import { pipeline } from 'stream/promises';
 import constants, { ScannerTypes } from './constants/constants.js';
-import { urlWithoutAuth, prepareData } from './constants/common.js';
+import { urlWithoutAuth } from './constants/common.js';
 import {
   createScreenshotsFolder,
   getStoragePath,
@@ -37,7 +37,7 @@ export type ItemsInfo = {
 export type PageInfo = {
   items?: ItemsInfo[];
   itemsCount?: number;
-  pageTitle: string;
+  pageTitle?: string;
   url: string;
   actualUrl?: string;
   pageImagePath?: string;
@@ -76,7 +76,7 @@ type AllIssues = {
   formatAboutStartTime: (dateString: any) => string;
   isCustomFlow: boolean;
   pagesScanned: PageInfo[];
-  pagesNotScanned: string[];
+  pagesNotScanned: PageInfo[];
   totalPagesScanned: number;
   totalPagesNotScanned: number;
   totalItems: number;
@@ -1104,7 +1104,7 @@ const generateArtifacts = async (
   scanType: ScannerTypes,
   viewport: string,
   pagesScanned: PageInfo[],
-  pagesNotScanned: string[],
+  pagesNotScanned: PageInfo[],
   customFlowLabel: string,
   cypressScanAboutMetadata: {
     browser?: string;

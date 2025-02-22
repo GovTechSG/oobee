@@ -1,7 +1,6 @@
 import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
 import { BrowserContext, Page } from 'playwright';
-import { xPathToCss } from '../xPathToCss.js';
 import {
   axeScript,
   guiInfoStatusTypes,
@@ -11,16 +10,15 @@ import {
 import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
-import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
-import {
-  escapeCSSSelector,
-  evaluateAltText,
-  findElementByCssSelector,
-  framesCheck,
-  getAxeConfiguration,
-} from './customAxeFunctions.js';
+import { evaluateAltText } from './custom/evaluateAltText.js';
+import { escapeCssSelector } from './custom/escapeCssSelector.js';
+import { framesCheck } from './custom/framesCheck.js';
+import { findElementByCssSelector } from './custom/findElementByCssSelector.js';
+import { getAxeConfiguration } from './custom/getAxeConfiguration.js';
+import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
+import { xPathToCss } from './custom/xPathToCss.js';
 
 // types
 interface AxeResultsWithScreenshot extends AxeResults {
@@ -289,21 +287,6 @@ export const runAxeScript = async ({
   });
 
   const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
-  const oobeeAccessibleLabelFlaggedXpaths = disableOobee
-    ? []
-    : (await flagUnlabelledClickableElements(page)).map(item => item.xpath);
-  const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
-    .map(xpath => {
-      try {
-        const cssSelector = xPathToCss(xpath);
-        return cssSelector;
-      } catch (e) {
-        console.error('Error converting XPath to CSS: ', xpath, e);
-        return '';
-      }
-    })
-    .filter(item => item !== '');
-
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
 
   const gradingReadabilityFlag = await extractAndGradeText(page); // Ensure flag is obtained before proceeding
@@ -316,24 +299,41 @@ export const runAxeScript = async ({
       saflyIconSelector,
       disableOobee,
       enableWcagAaa,
-      oobeeAccessibleLabelFlaggedCssSelectors,
       gradingReadabilityFlag,
       evaluateAltTextFunctionString,
-      escapeCSSSelectorFunctionString,
+      escapeCssSelectorFunctionString,
       framesCheckFunctionString,
       findElementByCssSelectorFunctionString,
       getAxeConfigurationFunctionString,
+      flagUnlabelledClickableElementsFunctionString,
+      xPathToCssFunctionString,
     }) => {
       try {
         // Load functions into the browser context
         eval(evaluateAltTextFunctionString);
-        eval(escapeCSSSelectorFunctionString);
+        eval(escapeCssSelectorFunctionString);
         eval(framesCheckFunctionString);
         eval(findElementByCssSelectorFunctionString);
+        eval(flagUnlabelledClickableElementsFunctionString);
+        eval(xPathToCssFunctionString);
         eval(getAxeConfigurationFunctionString);
-
         // remove so that axe does not scan
         document.querySelector(saflyIconSelector)?.remove();
+
+        const oobeeAccessibleLabelFlaggedXpaths = disableOobee
+          ? []
+          : (await flagUnlabelledClickableElements()).map(item => item.xpath);
+        const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
+          .map(xpath => {
+            try {
+              const cssSelector = xPathToCss(xpath);
+              return cssSelector;
+            } catch (e) {
+              console.error('Error converting XPath to CSS: ', xpath, e);
+              return '';
+            }
+          })
+          .filter(item => item !== '');
 
         const axeConfig = getAxeConfiguration({
           enableWcagAaa,
@@ -356,7 +356,7 @@ export const runAxeScript = async ({
             }
             // handle css id selectors that start with a digit
             const escapedCssSelectors =
-              oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
+              oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCssSelector);
 
             // Add oobee violations to Axe's report
             const oobeeAccessibleLabelViolations = {
@@ -405,13 +405,15 @@ export const runAxeScript = async ({
       saflyIconSelector,
       disableOobee,
       enableWcagAaa,
-      oobeeAccessibleLabelFlaggedCssSelectors,
       gradingReadabilityFlag,
       evaluateAltTextFunctionString: evaluateAltText.toString(),
-      escapeCSSSelectorFunctionString: escapeCSSSelector.toString(),
+      escapeCssSelectorFunctionString: escapeCssSelector.toString(),
       framesCheckFunctionString: framesCheck.toString(),
       findElementByCssSelectorFunctionString: findElementByCssSelector.toString(),
       getAxeConfigurationFunctionString: getAxeConfiguration.toString(),
+      flagUnlabelledClickableElementsFunctionString:
+        flagUnlabelledClickableElements.toString(),
+      xPathToCssFunctionString: xPathToCss.toString(),
     },
   );
 

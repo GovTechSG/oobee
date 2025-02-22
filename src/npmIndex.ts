@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import printMessage from 'print-message';
-import axe from 'axe-core';
+import axe, { ImpactValue } from 'axe-core';
 import { fileURLToPath } from 'url';
 import { EnqueueStrategy } from 'crawlee';
 import constants, { BrowserTypes, RuleFlags, ScannerTypes } from './constants/constants.js';
@@ -18,7 +18,13 @@ import generateArtifacts from './mergeAxeResults.js';
 import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
-import { evaluateAltText, getAxeConfiguration } from './crawlers/customAxeFunctions.js';
+import { evaluateAltText } from './crawlers/custom/evaluateAltText.js';
+import { escapeCssSelector } from './crawlers/custom/escapeCssSelector.js';
+import { framesCheck } from './crawlers/custom/framesCheck.js';
+import { findElementByCssSelector } from './crawlers/custom/findElementByCssSelector.js';
+import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
+import { flagUnlabelledClickableElements } from './crawlers/custom/flagUnlabelledClickableElements.js';
+import { xPathToCss } from './crawlers/custom/xPathToCss.js';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -127,17 +133,84 @@ export const init = async ({
       'utf-8',
     );
     async function runA11yScan(elementsToScan = []) {
+      const oobeeAccessibleLabelFlaggedXpaths = disableOobee
+        ? []
+        : (await flagUnlabelledClickableElements()).map(item => item.xpath);
+      const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
+        .map(xpath => {
+          try {
+            const cssSelector = xPathToCss(xpath);
+            return cssSelector;
+          } catch (e) {
+            console.error('Error converting XPath to CSS: ', xpath, e);
+            return '';
+          }
+        })
+        .filter(item => item !== '');
+
       axe.configure(getAxeConfiguration({ disableOobee, enableWcagAaa, gradingReadabilityFlag }));
       const axeScanResults = await axe.run(elementsToScan, {
         resultTypes: ['violations', 'passes', 'incomplete'],
       });
+
+      // add custom Oobee violations
+      if (!disableOobee) {
+        // handle css id selectors that start with a digit
+        const escapedCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCssSelector);
+
+        // Add oobee violations to Axe's report
+        const oobeeAccessibleLabelViolations = {
+          id: 'oobee-accessible-label',
+          impact: 'serious' as ImpactValue,
+          tags: ['wcag2a', 'wcag211', 'wcag412'],
+          description: 'Ensures clickable elements have an accessible label.',
+          help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
+          helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
+          nodes: escapedCssSelectors
+            .map(cssSelector => ({
+              html: findElementByCssSelector(cssSelector),
+              target: [cssSelector],
+              impact: 'serious' as ImpactValue,
+              failureSummary:
+                'Fix any of the following:\n  The clickable element does not have an accessible label.',
+              any: [
+                {
+                  id: 'oobee-accessible-label',
+                  data: null,
+                  relatedNodes: [],
+                  impact: 'serious',
+                  message: 'The clickable element does not have an accessible label.',
+                },
+              ],
+              all: [],
+              none: [],
+            }))
+            .filter(item => item.html),
+        };
+
+        axeScanResults.violations = [...axeScanResults.violations, oobeeAccessibleLabelViolations];
+      }
+
       return {
         pageUrl: window.location.href,
         pageTitle: document.title,
         axeScanResults,
       };
     }
-    return `${axeScript} ${evaluateAltText.toString()} ${getAxeConfiguration.toString()} ${runA11yScan.toString()} disableOobee=${disableOobee}; enableWcagAaa=${enableWcagAaa}; gradingReadabilityFlag="${gradingReadabilityFlag}"`;
+    return `
+      ${axeScript}
+      ${evaluateAltText.toString()}
+      ${escapeCssSelector.toString()}
+      ${framesCheck.toString()}
+      ${findElementByCssSelector.toString()}
+      ${flagUnlabelledClickableElements.toString()}
+      ${xPathToCss.toString()}
+      ${getAxeConfiguration.toString()}
+      ${runA11yScan.toString()}
+      disableOobee=${disableOobee};
+      enableWcagAaa=${enableWcagAaa};
+      gradingReadabilityFlag="${gradingReadabilityFlag}"
+    `;
   };
 
   const pushScanResults = async (res, metadata, elementsToClick) => {
