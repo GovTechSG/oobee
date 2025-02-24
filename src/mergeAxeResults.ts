@@ -1052,8 +1052,8 @@ const flattenAndSortResults = (allIssues: AllIssues, isCustomFlow: boolean) => {
   };
 
   allIssues.topFiveMostIssues.sort((page1, page2) => page2.totalIssues - page1.totalIssues);
-  allIssues.topFiveMostIssues = allIssues.topFiveMostIssues.slice(0, 5);
   allIssues.topTenPagesWithMostIssues = allIssues.topFiveMostIssues.slice(0, 10);
+  allIssues.topFiveMostIssues = allIssues.topFiveMostIssues.slice(0, 5);
   updateIssuesWithOccurrences(allIssues.topTenPagesWithMostIssues);
   const topTenIssues = getTopTenIssues(allIssues);
   allIssues.topTenIssues = topTenIssues;
