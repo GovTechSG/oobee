@@ -767,9 +767,7 @@ const writeJsonAndBase64Files = async (
   items.passed.totalRuleIssues = items.passed.rules.length;
 
   const {
-    pagesScanned,
     topTenPagesWithMostIssues,
-    pagesNotScanned,
     wcagLinks,
     wcagPassPercentage,
     totalPagesScanned,
