@@ -778,10 +778,19 @@ const writeJsonAndBase64Files = async (
   } = rest;
 
   const summaryItems = {
-    ...items,
-    pagesScanned,
+    mustFix: {
+      totalItems: items.mustFix.totalItems,
+      totalRuleIssues: items.mustFix.totalRuleIssues,
+    },
+    goodToFix: {
+      totalItems: items.goodToFix.totalItems,
+      totalRuleIssues: items.goodToFix.totalRuleIssues,
+    },
+    needsReview: {
+      totalItems: items.needsReview.totalItems,
+      totalRuleIssues: items.needsReview.totalRuleIssues,
+    },
     topTenPagesWithMostIssues,
-    pagesNotScanned,
     wcagLinks,
     wcagPassPercentage,
     totalPagesScanned,
