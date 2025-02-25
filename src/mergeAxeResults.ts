@@ -725,6 +725,8 @@ const writeJsonAndBase64Files = async (
   scanItemsBase64FilePath: string;
   scanItemsSummaryJsonFilePath: string;
   scanItemsSummaryBase64FilePath: string;
+  scanItemsMiniReportJsonFilePath: string;
+  scanItemsMiniReportBase64FilePath: string;
   scanDataJsonFileSize: number;
   scanItemsJsonFileSize: number;
 }> => {
@@ -767,13 +769,32 @@ const writeJsonAndBase64Files = async (
   items.passed.totalRuleIssues = items.passed.rules.length;
 
   const {
+    pagesScanned,
     topTenPagesWithMostIssues,
+    pagesNotScanned,
     wcagLinks,
     wcagPassPercentage,
     totalPagesScanned,
     totalPagesNotScanned,
     topTenIssues,
   } = rest;
+
+  const summaryItemsMini = {
+    ...items,
+    pagesScanned,
+    topTenPagesWithMostIssues,
+    pagesNotScanned,
+    wcagLinks,
+    wcagPassPercentage,
+    totalPagesScanned,
+    totalPagesNotScanned,
+    topTenIssues,
+  };
+
+  const {
+    jsonFilePath: scanItemsMiniReportJsonFilePath,
+    base64FilePath: scanItemsMiniReportBase64FilePath,
+  } = await writeJsonFileAndCompressedJsonFile(summaryItemsMini, storagePath, 'scanItemsSummaryMiniReport');
 
   const summaryItems = {
     mustFix: {
@@ -808,6 +829,8 @@ const writeJsonAndBase64Files = async (
     scanItemsBase64FilePath,
     scanItemsSummaryJsonFilePath,
     scanItemsSummaryBase64FilePath,
+    scanItemsMiniReportJsonFilePath,
+    scanItemsMiniReportBase64FilePath,
     scanDataJsonFileSize: fs.statSync(scanDataJsonFilePath).size,
     scanItemsJsonFileSize: fs.statSync(scanItemsJsonFilePath).size,
   };
@@ -1300,6 +1323,8 @@ const generateArtifacts = async (
     scanItemsBase64FilePath,
     scanItemsSummaryJsonFilePath,
     scanItemsSummaryBase64FilePath,
+    scanItemsMiniReportJsonFilePath,
+    scanItemsMiniReportBase64FilePath,
     scanDataJsonFileSize,
     scanItemsJsonFileSize,
   } = await writeJsonAndBase64Files(allIssues, storagePath);
@@ -1313,12 +1338,14 @@ const generateArtifacts = async (
     storagePath,
   );
   await writeSummaryHTML(allIssues, storagePath);
+
+  console.log("BIG ", resultsTooBig);
   await writeHTML(
     allIssues,
     storagePath,
     'report',
     scanDataBase64FilePath,
-    resultsTooBig ? scanItemsSummaryBase64FilePath : scanItemsBase64FilePath,
+    resultsTooBig ? scanItemsMiniReportBase64FilePath : scanItemsBase64FilePath,
   );
 
   if (!generateJsonFiles) {
