@@ -779,16 +779,16 @@ const writeJsonAndBase64Files = async (
 
   const summaryItems = {
     mustFix: {
-      totalItems: items.mustFix.totalItems,
-      totalRuleIssues: items.mustFix.totalRuleIssues,
+      totalItems: items.mustFix?.totalItems || 0,
+      totalRuleIssues: items.mustFix?.totalRuleIssues || 0,
     },
     goodToFix: {
-      totalItems: items.goodToFix.totalItems,
-      totalRuleIssues: items.goodToFix.totalRuleIssues,
+      totalItems: items.goodToFix?.totalItems || 0,
+      totalRuleIssues: items.goodToFix?.totalRuleIssues || 0,
     },
     needsReview: {
-      totalItems: items.needsReview.totalItems,
-      totalRuleIssues: items.needsReview.totalRuleIssues,
+      totalItems: items.needsReview?.totalItems || 0,
+      totalRuleIssues: items.needsReview?.totalRuleIssues || 0,
     },
     topTenPagesWithMostIssues,
     wcagLinks,
