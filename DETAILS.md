@@ -18,7 +18,7 @@ Details of each issue and severity rating provided by the current scan engine.
 
 In Oobee, issues are grouped into one of three categories:
 - **Must Fix** issues includes WCAG A & AA success criteria (excluding those requiring review). 
-- **Good To Fix** issues includes all *best practice* rules that do not necessarily conform to WCAG success criterion but are industry accepted practices that improve the user experience. Level AAA issues are reported in Good To Fix.
+- **Good To Fix** issues includes WCAG Level AAA success criteria issues and all best practice rules that do not necessarily conform to WCAG success criterion but are industry accepted practices that improve the user experience.
 - **Manual Review Required Required** occurrences could potentially be false positive, requiring human validation for accuracy.
 
 Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ruleset flag to enable AAA rules.
