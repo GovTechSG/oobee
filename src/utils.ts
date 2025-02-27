@@ -190,22 +190,41 @@ export const cleanUp = async pathToDelete => {
 //     timeZoneName: "longGeneric",
 //   });
 
-export const getWcagPassPercentage = (wcagViolations: string[]): { passPercentageAA: string; totalWcagChecksAA: number; totalWcagViolationsAA: number } => {
+export const getWcagPassPercentage = (
+  wcagViolations: string[],
+  showEnableWcagAaa: boolean
+): {
+  passPercentageAA: string;
+  totalWcagChecksAA: number;
+  totalWcagViolationsAA: number;
+  passPercentageAAandAAA: string;
+  totalWcagChecksAAandAAA: number;
+  totalWcagViolationsAAandAAA: number;
+} => {
 
   // These AAA rules should not be counted as WCAG Pass Percentage only contains A and AA
-  const wcagAAA = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5', 'WCAG 3.2.5'];
+  const wcagAAALinks = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5', 'WCAG 3.2.5'];
+  const wcagAAA = ['wcag146', 'wcag224', 'wcag249', 'wcag315', 'wcag325'];
+  
+  const wcagLinksAAandAAA = constants.wcagLinks;
+  
+  const wcagViolationsAAandAAA = showEnableWcagAaa ? wcagViolations.length : null;
+  const totalChecksAAandAAA = showEnableWcagAaa ? Object.keys(wcagLinksAAandAAA).length : null;
+  const passedChecksAAandAAA = showEnableWcagAaa ? totalChecksAAandAAA - wcagViolationsAAandAAA : null;
+  const passPercentageAAandAAA = showEnableWcagAaa ? (totalChecksAAandAAA === 0 ? 0 : (passedChecksAAandAAA / totalChecksAAandAAA) * 100) : null;
 
-  const filteredWcagLinks = Object.keys(constants.wcagLinks).filter(key => !wcagAAA.includes(key));
-  const filteredWcagViolations = wcagViolations.filter(violation => !wcagAAA.includes(violation));
-  const totalChecksAA = filteredWcagLinks.length;
-
-  const passedChecks = totalChecksAA - filteredWcagViolations.length;
-  const passPercentageAA = (passedChecks / totalChecksAA) * 100;
+  const wcagViolationsAA = wcagViolations.filter(violation => !wcagAAA.includes(violation)).length;
+  const totalChecksAA = Object.keys(wcagLinksAAandAAA).filter(key => !wcagAAALinks.includes(key)).length;
+  const passedChecksAA = totalChecksAA - wcagViolationsAA;
+  const passPercentageAA = totalChecksAA === 0 ? 0 : (passedChecksAA / totalChecksAA) * 100;
 
   return {
     passPercentageAA: passPercentageAA.toFixed(2), // toFixed returns a string, which is correct here
     totalWcagChecksAA: totalChecksAA,
-    totalWcagViolationsAA: filteredWcagViolations.length,
+    totalWcagViolationsAA: wcagViolationsAA,
+    passPercentageAAandAAA: passPercentageAAandAAA ? passPercentageAAandAAA.toFixed(2) : null, // toFixed returns a string, which is correct here
+    totalWcagChecksAAandAAA: totalChecksAAandAAA,
+    totalWcagViolationsAAandAAA: wcagViolationsAAandAAA,
   };
 };
 

@@ -1264,7 +1264,7 @@ const generateArtifacts = async (
     '',
     `Must Fix: ${allIssues.items.mustFix.rules.length} ${Object.keys(allIssues.items.mustFix.rules).length === 1 ? 'issue' : 'issues'} / ${allIssues.items.mustFix.totalItems} ${allIssues.items.mustFix.totalItems === 1 ? 'occurrence' : 'occurrences'}`,
     `Good to Fix: ${allIssues.items.goodToFix.rules.length} ${Object.keys(allIssues.items.goodToFix.rules).length === 1 ? 'issue' : 'issues'} / ${allIssues.items.goodToFix.totalItems} ${allIssues.items.goodToFix.totalItems === 1 ? 'occurrence' : 'occurrences'}`,
-    `Needs Review: ${allIssues.items.needsReview.rules.length} ${Object.keys(allIssues.items.needsReview.rules).length === 1 ? 'issue' : 'issues'} / ${allIssues.items.needsReview.totalItems} ${allIssues.items.needsReview.totalItems === 1 ? 'occurrence' : 'occurrences'}`,
+    `Manual Review Required: ${allIssues.items.needsReview.rules.length} ${Object.keys(allIssues.items.needsReview.rules).length === 1 ? 'issue' : 'issues'} / ${allIssues.items.needsReview.totalItems} ${allIssues.items.needsReview.totalItems === 1 ? 'occurrence' : 'occurrences'}`,
     `Passed: ${allIssues.items.passed.totalItems} ${allIssues.items.passed.totalItems === 1 ? 'occurrence' : 'occurrences'}`,
   ]);
 
@@ -1274,7 +1274,7 @@ const generateArtifacts = async (
     createScreenshotsFolder(randomToken);
   }
 
-  allIssues.wcagPassPercentage = getWcagPassPercentage(allIssues.wcagViolations);
+  allIssues.wcagPassPercentage = getWcagPassPercentage(allIssues.wcagViolations, allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa);
   consoleLogger.info(
     `advancedScanOptionsSummaryItems is ${allIssues.advancedScanOptionsSummaryItems}`,
   );
@@ -1339,7 +1339,6 @@ const generateArtifacts = async (
   );
   await writeSummaryHTML(allIssues, storagePath);
 
-  console.log("BIG ", resultsTooBig);
   await writeHTML(
     allIssues,
     storagePath,

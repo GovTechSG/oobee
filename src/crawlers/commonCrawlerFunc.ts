@@ -138,9 +138,15 @@ export const filterAxeResults = (
 
     nodes.forEach(node => {
       const { impact } = node;
+      const hasWcag2a = conformance.includes('wcag2a');
+      const hasWcag2aa = conformance.includes('wcag2aa');
+      const hasWcag2aaa = conformance.includes('wcag2aaa');
+
       if (displayNeedsReview) {
         addTo(needsReview, node);
-      } else if (impact === 'critical' || impact === 'serious') {
+      } else if (hasWcag2aaa) {
+        addTo(goodToFix, node);
+      } else if (hasWcag2a || hasWcag2aa) {
         addTo(mustFix, node);
       } else {
         addTo(goodToFix, node);
