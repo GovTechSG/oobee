@@ -58,6 +58,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | WCAG 3.2.5  | AAA   |          | Yes         |              |
 | WCAG 3.3.2  | A     | Yes      |             |              |
 | WCAG 4.1.2  | A     | Yes      |             |              |
+| Best Practice|      |          | Yes         |              |
 
 ### Summary
 | Level | Count |
