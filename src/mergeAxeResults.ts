@@ -1339,7 +1339,6 @@ const generateArtifacts = async (
   );
   await writeSummaryHTML(allIssues, storagePath);
 
-  console.log("BIG ", resultsTooBig);
   await writeHTML(
     allIssues,
     storagePath,
