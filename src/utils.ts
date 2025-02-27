@@ -203,8 +203,9 @@ export const getWcagPassPercentage = (
 } => {
 
   // These AAA rules should not be counted as WCAG Pass Percentage only contains A and AA
-  const wcagAAA = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5', 'WCAG 3.2.5'];
-
+  const wcagAAALinks = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5', 'WCAG 3.2.5'];
+  const wcagAAA = ['wcag146', 'wcag224', 'wcag249', 'wcag315', 'wcag325'];
+  
   const wcagLinksAAandAAA = constants.wcagLinks;
   
   const wcagViolationsAAandAAA = showEnableWcagAaa ? wcagViolations.length : null;
@@ -213,7 +214,7 @@ export const getWcagPassPercentage = (
   const passPercentageAAandAAA = showEnableWcagAaa ? (totalChecksAAandAAA === 0 ? 0 : (passedChecksAAandAAA / totalChecksAAandAAA) * 100) : null;
 
   const wcagViolationsAA = wcagViolations.filter(violation => !wcagAAA.includes(violation)).length;
-  const totalChecksAA = Object.keys(wcagLinksAAandAAA).filter(key => !wcagAAA.includes(key)).length;
+  const totalChecksAA = Object.keys(wcagLinksAAandAAA).filter(key => !wcagAAALinks.includes(key)).length;
   const passedChecksAA = totalChecksAA - wcagViolationsAA;
   const passPercentageAA = totalChecksAA === 0 ? 0 : (passedChecksAA / totalChecksAA) * 100;
 
