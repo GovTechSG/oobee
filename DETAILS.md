@@ -77,7 +77,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | aria-braille-equivalent     | Ensure aria-braillelabel and aria-brailleroledescription have a non-braille equivalent                                                                | Must Fix    | WCAG 4.1.2             |
 | aria-command-name           | Ensures every ARIA button, link and menuitem has an accessible name                                                                                   | Must Fix    | WCAG 4.1.2             |
 | aria-conditional-attr       | Ensures ARIA attributes are used as described in the specification of the element's role                                                              | Must Fix    | WCAG 4.1.2             |
-| aria-deprecated-role        | Ensures elements do not use deprecated roles                                                                                                          | Good To Fix | WCAG 4.1.2             |
+| aria-deprecated-role        | Ensures elements do not use deprecated roles                                                                                                          | Must Fix    | WCAG 4.1.2             |
 | aria-hidden-body            | Ensures aria-hidden="true" is not present on the document body.                                                                                       | Must Fix    | WCAG 4.1.2             |
 | aria-hidden-focus           | Ensures aria-hidden elements are not focusable nor contain focusable elements                                                                         | Must Fix    | WCAG 4.1.2             |
 | aria-input-field-name       | Ensures every ARIA input field has an accessible name                                                                                                 | Must Fix    | WCAG 4.1.2             |
@@ -105,7 +105,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | frame-title                 | Ensures `<iframe>` and `<frame>` elements have an accessible name                                                                                     | Must Fix    | WCAG 4.1.2             |
 | html-has-lang               | Ensures every HTML document has a lang attribute                                                                                                      | Must Fix    | WCAG 3.1.1             |
 | html-lang-valid             | Ensures the lang attribute of the `<html>` element has a valid value                                                                                  | Must Fix    | WCAG 3.1.1             |
-| html-xml-lang-mismatch      | Ensure that HTML elements with both valid lang and xml:lang attributes agree on the base language of the page                                         | Good to Fix | WCAG 3.1.1             |
+| html-xml-lang-mismatch      | Ensure that HTML elements with both valid lang and xml:lang attributes agree on the base language of the page                                         | Must Fix    | WCAG 3.1.1             |
 | image-alt                   | Ensures `<img>` elements have alternate text or a role of none or presentation                                                                        | Must Fix    | WCAG 1.1.1             |
 | input-button-name           | Ensures input buttons have discernible text                                                                                                           | Must Fix    | WCAG 4.1.2             |
 | input-image-alt             | Ensures `<input type="image">` elements have alternate text                                                                                           | Must Fix    | WCAG 1.1.1, WCAG 4.1.2 |
@@ -117,12 +117,12 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | marquee                     | Ensures `<marquee>` elements are not used                                                                                                             | Must Fix    | WCAG 2.2.2             |
 | meta-refresh                | Ensures `<meta http-equiv="refresh">` is not used for delayed refresh                                                                                 | Must Fix    | WCAG 2.2.1             |
 | nested-interactive          | Ensures interactive controls are not nested as they are not always announced by screen readers or can cause focus problems for assistive technologies | Must Fix    | WCAG 4.1.2             |
-| no-autoplay-audio           | Ensures `<video>` or `<audio>` elements do not autoplay audio for more than 3 seconds without a control mechanism to stop or mute the audio           | Good to Fix | WCAG 1.4.2             |
+| no-autoplay-audio           | Ensures `<video>` or `<audio>` elements do not autoplay audio for more than 3 seconds without a control mechanism to stop or mute the audio           | Must Fix    | WCAG 1.4.2             |
 | object-alt                  | Ensures `<object>` elements have alternate text                                                                                                       | Must Fix    | WCAG 1.1.1             |
 | role-img-alt                | Ensures [role="img"] elements have alternate text                                                                                                     | Must Fix    | WCAG 1.1.1             |
 | scrollable-region-focusable | Ensure elements that have scrollable content are accessible by keyboard                                                                               | Must Fix    | WCAG 2.1.1             |
 | select-name                 | Ensures select element has an accessible name                                                                                                         | Must Fix    | WCAG 4.1.2             |
-| server-side-image-map       | Ensures that server-side image maps are not used                                                                                                      | Good to Fix | WCAG 2.1.1             |
+| server-side-image-map       | Ensures that server-side image maps are not used                                                                                                      | Must Fix    | WCAG 2.1.1             |
 | svg-img-alt                 | Ensures `<svg>` elements with an img, graphics-document or graphics-symbol role have an accessible text                                               | Must Fix    | WCAG 1.1.1             |
 | td-headers-attr             | Ensure that each cell in a table that uses the headers attribute refers only to other cells in that table                                             | Must Fix    | WCAG 1.3.1             |
 | th-has-data-cells           | Ensure that `<th>` elements and elements with role=columnheader/rowheader have data cells they describe                                               | Must Fix    | WCAG 1.3.1             |
@@ -155,7 +155,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 
 | Issue ID                     | Issue Description                                                                                                | Severity    | Conformance            |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------- |
-| color-contrast-enhanced      | Ensure the contrast between foreground and background colors meets WCAG 2 AAA enhanced contrast ratio thresholds | Must Fix    | WCAG 1.4.6             |
+| color-contrast-enhanced      | Ensure the contrast between foreground and background colors meets WCAG 2 AAA enhanced contrast ratio thresholds | Good to Fix | WCAG 1.4.6             |
 | identical-links-same-purpose | Ensure that links with the same accessible name serve a similar purpose                                          | Good to Fix | WCAG 2.4.9             |
 | meta-refresh-no-exceptions   | Ensure <meta http-equiv="refresh"> is not used for delayed refresh                                               | Good to Fix | WCAG 2.2.4, WCAG 3.2.5 |
 | oobee-grading-text-contents               | Text content should be clear and plain to ensure that it is easily understood.                                                                                                              | Manual Review Required Required    | WCAG 3.1.5             |
@@ -164,17 +164,17 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 
 | Issue ID                            | Issue Description                                                                                                                              | Severity    |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| accesskeys                          | Ensures every accesskey attribute value is unique                                                                                              | Must Fix    |
+| accesskeys                          | Ensures every accesskey attribute value is unique                                                                                              | Good to Fix |
 | aria-allowed-role                   | Ensures role attribute has an appropriate value for the element                                                                                | Good to Fix |
-| aria-dialog-name                    | Ensures every ARIA dialog and alertdialog node has an accessible name                                                                          | Must Fix    |
-| aria-text                           | Ensures role="text" is used on elements with no focusable descendants                                                                          | Must Fix    |
-| aria-treeitem-name                  | Ensures every ARIA treeitem node has an accessible name                                                                                        | Must Fix    |
+| aria-dialog-name                    | Ensures every ARIA dialog and alertdialog node has an accessible name                                                                          | Good to Fix |
+| aria-text                           | Ensures role="text" is used on elements with no focusable descendants                                                                          | Good to Fix |
+| aria-treeitem-name                  | Ensures every ARIA treeitem node has an accessible name                                                                                        | Good to Fix |
 | empty-heading                       | Ensures headings have discernible text                                                                                                         | Good to Fix |
 | empty-table-header                  | Ensures table headers have discernible text                                                                                                    | Good to Fix |
-| frame-tested                        | Ensures `<iframe>` and `<frame>` elements contain the axe-core script                                                                          | Must Fix    |
+| frame-tested                        | Ensures `<iframe>` and `<frame>` elements contain the axe-core script                                                                          | Good to Fix |
 | heading-order                       | Ensures the order of headings is semantically correct                                                                                          | Good to Fix |
 | image-redundant-alt                 | Ensure image alternative is not repeated as text                                                                                               | Good to Fix |
-| label-title-only                    | Ensures that every form element has a visible label and is not solely labeled using hidden labels, or the title or aria-describedby attributes | Must Fix    |
+| label-title-only                    | Ensures that every form element has a visible label and is not solely labeled using hidden labels, or the title or aria-describedby attributes | Good to Fix |
 | landmark-banner-is-top-level        | Ensures the banner landmark is at top level                                                                                                    | Good to Fix |
 | landmark-complementary-is-top-level | Ensures the complementary landmark or aside is at top level                                                                                    | Good to Fix |
 | landmark-contentinfo-is-top-level   | Ensures the contentinfo landmark is at top level                                                                                               | Good to Fix |
@@ -190,5 +190,5 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | region                              | Ensures all page content is contained by landmarks                                                                                             | Good to Fix |
 | scope-attr-valid                    | Ensures the scope attribute is used correctly on tables                                                                                        | Good to Fix |
 | skip-link                           | Ensure all skip links have a focusable target                                                                                                  | Good to Fix |
-| tabindex                            | Ensures tabindex attribute values are not greater than 0                                                                                       | Must Fix    |
+| tabindex                            | Ensures tabindex attribute values are not greater than 0                                                                                       | Good to Fix |
 | table-duplicate-name                | Ensure the `<caption>` element does not contain the same text as the summary attribute                                                         | Good to Fix |
