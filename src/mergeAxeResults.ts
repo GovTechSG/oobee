@@ -1274,7 +1274,7 @@ const generateArtifacts = async (
     createScreenshotsFolder(randomToken);
   }
 
-  allIssues.wcagPassPercentage = getWcagPassPercentage(allIssues.wcagViolations);
+  allIssues.wcagPassPercentage = getWcagPassPercentage(allIssues.wcagViolations, allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa);
   consoleLogger.info(
     `advancedScanOptionsSummaryItems is ${allIssues.advancedScanOptionsSummaryItems}`,
   );
