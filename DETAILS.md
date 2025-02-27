@@ -14,12 +14,12 @@ Details of each issue and severity rating provided by the current scan engine.
 
 ## Conformance Covered
 
-#### Definitions of Conformance Level, Must Fix, Good To Fix, Manual Review Required
+#### Definitions of Conformance Level, Must Fix, Good To Fix, Manual Review Required Required
 
 In Oobee, issues are grouped into one of three categories:
 - **Must Fix** issues includes WCAG A & AA success criteria (excluding those requiring review). 
 - **Good To Fix** issues includes all *best practice* rules that do not necessarily conform to WCAG success criterion but are industry accepted practices that improve the user experience. Level AAA issues are reported in Good To Fix.
-- **Manual Review Required** occurrences could potentially be false positive, requiring human validation for accuracy.
+- **Manual Review Required Required** occurrences could potentially be false positive, requiring human validation for accuracy.
 
 Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ruleset flag to enable AAA rules.
 
@@ -31,7 +31,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 
 #### Breakdown of WCAG Clauses and Best Practice
 
-| Conformance | Level | Must Fix | Good to Fix | Exclusive to Manual Review Required |
+| Conformance | Level | Must Fix | Good to Fix | Exclusive to Manual Review Required Required |
 |-------------|-------|----------|-------------|--------------|
 | WCAG 1.1.1  | A     | Yes      |             |              |
 | WCAG 1.2.2  | A     | Yes      |             |              |
@@ -157,7 +157,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | color-contrast-enhanced      | Ensure the contrast between foreground and background colors meets WCAG 2 AAA enhanced contrast ratio thresholds | Must Fix    | WCAG 1.4.6             |
 | identical-links-same-purpose | Ensure that links with the same accessible name serve a similar purpose                                          | Good to Fix | WCAG 2.4.9             |
 | meta-refresh-no-exceptions   | Ensure <meta http-equiv="refresh"> is not used for delayed refresh                                               | Good to Fix | WCAG 2.2.4, WCAG 3.2.5 |
-| oobee-grading-text-contents               | Text content should be clear and plain to ensure that it is easily understood.                                                                                                              | Manual Review Required    | WCAG 3.1.5             |
+| oobee-grading-text-contents               | Text content should be clear and plain to ensure that it is easily understood.                                                                                                              | Manual Review Required Required    | WCAG 3.1.5             |
 
 ## Best Practice
 

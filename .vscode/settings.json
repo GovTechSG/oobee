@@ -6,5 +6,5 @@
     "javascript",
     "typescript",
   ],
-  "editor.formatOnSave": true,
+  "editor.formatOnSave": false,
 }
