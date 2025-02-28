@@ -47,7 +47,7 @@
       // Scan DATA FUNCTION TO REPLACE NA
       const scanDataWCAGCompliance = () => {
         const passPecentage = document.getElementById('passPercentage');
-        passPecentage.innerHTML = scanData.wcagPassPercentage.passPercentageAA + '% of automated checks';
+        passPecentage.innerHTML = (scanData.wcagPassPercentage.totalWcagChecksAA - scanData.wcagPassPercentage.totalWcagViolationsAA) + ' / ' + scanData.wcagPassPercentage.totalWcagChecksAA + ' of automated checks';
         const wcagBarProgess = document.getElementById('wcag-compliance-passes-bar-progress');
         wcagBarProgess.style.width = `${scanData.wcagPassPercentage.passPercentageAA}%`; // Set this to your desired width
 

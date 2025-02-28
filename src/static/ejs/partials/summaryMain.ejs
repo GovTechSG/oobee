@@ -13,7 +13,7 @@
             <div class="d-flex justify-content-between align-items-center">
               <span class="fw-bold"> WCAG (A & AA) Passes </span>
               <span aria-label="Pass percentage" class="ms-2">
-                <%= wcagPassPercentage.passPercentageAA %>% of automated checks
+                <%= wcagPassPercentage.totalWcagChecksAA - wcagPassPercentage.totalWcagViolationsAA  %> /  <%= wcagPassPercentage.totalWcagChecksAA %> of automated checks
               </span>
             </div>
             <div class="wcag-compliance-passes-bar mb-5 d-flex">
