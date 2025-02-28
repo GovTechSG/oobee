@@ -31,7 +31,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 
 #### Breakdown of WCAG Clauses and Best Practice
 
-| Conformance | Level | Must Fix | Good to Fix | Exclusive to Manual Review Required Required |
+| Conformance | Level | Must Fix | Good to Fix | Exclusive to Manual Review Required |
 |-------------|-------|----------|-------------|--------------|
 | WCAG 1.1.1  | A     | Yes      |             |              |
 | WCAG 1.2.2  | A     | Yes      |             |              |
@@ -60,7 +60,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | WCAG 4.1.2  | A     | Yes      |             |              |
 | Best Practice|      |          | Yes         |              |
 
-### Summary
+### Summary of WCAG Clauses Supported
 | Level | Count |
 |-------|-------|
 | A     | 15    |
