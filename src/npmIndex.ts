@@ -25,6 +25,8 @@ import { findElementByCssSelector } from './crawlers/custom/findElementByCssSele
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 import { flagUnlabelledClickableElements } from './crawlers/custom/flagUnlabelledClickableElements.js';
 import { xPathToCss } from './crawlers/custom/xPathToCss.js';
+import { extractText } from './crawlers/custom/extractText.js';
+import { gradeReadability } from './crawlers/custom/gradeReadability.js';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -72,24 +74,6 @@ export const init = async ({
 
   const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
-  const gradingReadabilityFlag = '';
-  // TODO: make this work. Doesn't work now coz we don't have access to "page" object
-  // const gradingReadabilityFlag = await extractAndGradeText(page); // Ensure flag is obtained before proceeding
-
-  // const oobeeAccessibleLabelFlaggedXpaths = disableOobee
-  //   ? []
-  //   : (await flagUnlabelledClickableElements(page)).map(item => item.xpath);
-  // const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
-  //   .map(xpath => {
-  //     try {
-  //       const cssSelector = xPathToCss(xpath);
-  //       return cssSelector;
-  //     } catch (e) {
-  //       console.error('Error converting XPath to CSS: ', xpath, e);
-  //       return '';
-  //     }
-  //   })
-  //   .filter(item => item !== '');
 
   // max numbers of mustFix/goodToFix occurrences before test returns a fail
   const { mustFix: mustFixThreshold, goodToFix: goodToFixThreshold } = thresholds;
@@ -132,7 +116,7 @@ export const init = async ({
       path.join(dirname, '../node_modules/axe-core/axe.min.js'),
       'utf-8',
     );
-    async function runA11yScan(elementsToScan = []) {
+    async function runA11yScan(elementsToScan = [], gradingReadabilityFlag = '') {
       const oobeeAccessibleLabelFlaggedXpaths = disableOobee
         ? []
         : (await flagUnlabelledClickableElements()).map(item => item.xpath);
@@ -207,9 +191,9 @@ export const init = async ({
       ${xPathToCss.toString()}
       ${getAxeConfiguration.toString()}
       ${runA11yScan.toString()}
+      ${extractText.toString()}
       disableOobee=${disableOobee};
       enableWcagAaa=${enableWcagAaa};
-      gradingReadabilityFlag="${gradingReadabilityFlag}"
     `;
   };
 
@@ -356,6 +340,7 @@ export const init = async ({
 
   return {
     getScripts,
+    gradeReadability,
     pushScanResults,
     terminate,
     scanDetails,

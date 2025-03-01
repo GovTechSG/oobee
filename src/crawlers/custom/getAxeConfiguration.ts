@@ -47,7 +47,7 @@ export function getAxeConfiguration({
               impact: 'moderate' as ImpactValue,
               messages: {
                 pass: 'The text content is easy to understand.',
-                fail: 'The text content is potentially difficult to undersatnd.',
+                fail: 'The text content is potentially difficult to understand.',
                 incomplete: `The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ${gradingReadabilityFlag
                   }.\nThe target passing score is above 50, indicating content readable by university students and lower grade levels.\nA higher score reflects better readability.`,
               },

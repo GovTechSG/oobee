@@ -198,7 +198,7 @@ Create <code>cypress.config.js</code> with the following contents, and change yo
       zip: resultsZipName,
       deviceChosen: "",
       strategy: undefined,
-      ruleset: ["enable-wcag-aaa", "disable-oobee"],
+      ruleset: ["enable-wcag-aaa"], // add "disable-oobee" to disable Oobee custom checks
       specifiedMaxConcurrency: undefined,
       followRobots: undefined,
     });
@@ -212,6 +212,9 @@ Create <code>cypress.config.js</code> with the following contents, and change yo
                 on("task", {
                     getPurpleA11yScripts() {
                         return oobeeA11y.getScripts();
+                    },
+                    gradeReadability(sentences: string[]): string {
+                        return oobeeA11y.gradeReadability(sentences);
                     },
                     async pushPurpleA11yScanResults({res, metadata, elementsToClick}) {
                         return await oobeeA11y.pushScanResults(res, metadata, elementsToClick);
@@ -244,8 +247,26 @@ Create a sub-folder and file <code>cypress/support/e2e.js</code> with the follow
     Cypress.Commands.add("runPurpleA11yScan", (items={}) => {
         cy.window().then(async (win) => {
             const { elementsToScan, elementsToClick, metadata } = items;
-            const res = await win.runA11yScan(elementsToScan);
-            cy.task("pushPurpleA11yScanResults", {res, metadata, elementsToClick}).then((count) => { return count });
+
+            // extract text from the page for readability grading
+            const sentences = win.extractText();
+            // run readability grading separately as it cannot be done within the browser context
+            cy.task("gradeReadability", sentences).then(
+                async (gradingReadabilityFlag: string) => {
+                    // passing the grading flag to runA11yScan to inject violation as needed
+                    const res = await win.runA11yScan(
+                        elementsToScan,
+                        gradingReadabilityFlag,
+                    );
+                    cy.task("pushPurpleA11yScanResults", {
+                        res,
+                        metadata,
+                        elementsToClick,
+                    }).then((count) => {
+                         return count;
+                    });
+                },
+            );
             cy.task("finishPurpleA11yTestCase"); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
         });
     });
