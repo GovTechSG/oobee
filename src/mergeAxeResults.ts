@@ -240,7 +240,7 @@ const writeCsv = async (allIssues, storagePath) => {
           issueDescription: 'Page was skipped during the scan',
           wcagConformance: '',
           url: page.url || '',
-          pageTitle: '',
+          pageTitle: 'Error',
           context: '',
           howToFix: '',
           axeImpact: '',
