@@ -1,9 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import printMessage from 'print-message';
-import axe from 'axe-core';
+import axe, { ImpactValue } from 'axe-core';
 import { fileURLToPath } from 'url';
-import constants, { BrowserTypes } from './constants/constants.js';
+import { EnqueueStrategy } from 'crawlee';
+import constants, { BrowserTypes, RuleFlags, ScannerTypes } from './constants/constants.js';
 import {
   deleteClonedProfiles,
   getBrowserToRun,
@@ -17,27 +18,62 @@ import generateArtifacts from './mergeAxeResults.js';
 import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
+import { evaluateAltText } from './crawlers/custom/evaluateAltText.js';
+import { escapeCssSelector } from './crawlers/custom/escapeCssSelector.js';
+import { framesCheck } from './crawlers/custom/framesCheck.js';
+import { findElementByCssSelector } from './crawlers/custom/findElementByCssSelector.js';
+import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
+import { flagUnlabelledClickableElements } from './crawlers/custom/flagUnlabelledClickableElements.js';
+import { xPathToCss } from './crawlers/custom/xPathToCss.js';
+import { extractText } from './crawlers/custom/extractText.js';
+import { gradeReadability } from './crawlers/custom/gradeReadability.js';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
-export const init = async (
+export const init = async ({
   entryUrl,
   testLabel,
-  name = 'Your Name',
-  email = 'email@domain.com',
+  name,
+  email,
   includeScreenshots = false,
   viewportSettings = { width: 1000, height: 660 }, // cypress' default viewport settings
   thresholds = { mustFix: undefined, goodToFix: undefined },
   scanAboutMetadata = undefined,
-  zip = undefined,
-) => {
+  zip = 'oobee-scan-results',
+  deviceChosen,
+  strategy = EnqueueStrategy.All,
+  ruleset = [RuleFlags.DEFAULT],
+  specifiedMaxConcurrency = 25,
+  followRobots = false,
+}: {
+  entryUrl: string;
+  testLabel: string;
+  name: string;
+  email: string;
+  includeScreenshots?: boolean;
+  viewportSettings?: { width: number; height: number };
+  thresholds?: { mustFix: number; goodToFix: number };
+  scanAboutMetadata?: {
+    browser?: string;
+    viewport?: { width: number; height: number };
+  };
+  zip?: string;
+  deviceChosen?: string;
+  strategy?: EnqueueStrategy;
+  ruleset?: RuleFlags[];
+  specifiedMaxConcurrency?: number;
+  followRobots?: boolean;
+}) => {
   console.log('Starting Oobee');
 
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
   const domain = new URL(entryUrl).hostname;
   const sanitisedLabel = testLabel ? `_${testLabel.replaceAll(' ', '_')}` : '';
   const randomToken = `${date}_${time}${sanitisedLabel}_${domain}`;
+
+  const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
+  const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
 
   // max numbers of mustFix/goodToFix occurrences before test returns a fail
   const { mustFix: mustFixThreshold, goodToFix: goodToFixThreshold } = thresholds;
@@ -47,9 +83,16 @@ export const init = async (
   const scanDetails = {
     startTime: new Date(),
     endTime: new Date(),
-    crawlType: 'Custom',
+    deviceChosen,
+    crawlType: ScannerTypes.CUSTOM,
     requestUrl: entryUrl,
     urlsCrawled: { ...constants.urlsCrawledObj },
+    isIncludeScreenshots: includeScreenshots,
+    isAllowSubdomains: strategy,
+    isEnableCustomChecks: ruleset,
+    isEnableWcagAaa: ruleset,
+    isSlowScanMode: specifiedMaxConcurrency,
+    isAdhereRobots: followRobots,
   };
 
   const urlsCrawled = { ...constants.urlsCrawledObj };
@@ -73,66 +116,85 @@ export const init = async (
       path.join(dirname, '../node_modules/axe-core/axe.min.js'),
       'utf-8',
     );
-    async function runA11yScan(elementsToScan = []) {
-      axe.configure({
-        branding: {
-          application: 'oobee',
-        },
-        // Add custom img alt text check
-        checks: [
-          {
-            id: 'oobee-confusing-alt-text',
-            evaluate(node: HTMLElement) {
-              const altText = node.getAttribute('alt');
-              const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
+    async function runA11yScan(elementsToScan = [], gradingReadabilityFlag = '') {
+      const oobeeAccessibleLabelFlaggedXpaths = disableOobee
+        ? []
+        : (await flagUnlabelledClickableElements()).map(item => item.xpath);
+      const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
+        .map(xpath => {
+          try {
+            const cssSelector = xPathToCss(xpath);
+            return cssSelector;
+          } catch (e) {
+            console.error('Error converting XPath to CSS: ', xpath, e);
+            return '';
+          }
+        })
+        .filter(item => item !== '');
 
-              if (altText) {
-                const trimmedAltText = altText.trim().toLowerCase();
-                // Check if the alt text exactly matches one of the confusingTexts
-                if (confusingTexts.some(text => text === trimmedAltText)) {
-                  return false; // Fail the check if the alt text is confusing or not useful
-                }
-              }
-
-              return true; // Pass the check if the alt text seems appropriate
-            },
-            metadata: {
-              impact: 'serious', // Set the severity to serious
-              messages: {
-                pass: 'The image alt text is probably useful',
-                fail: "The image alt text set as 'img', 'image', 'picture', 'photo', or 'graphic' is confusing or not useful",
-              },
-            },
-          },
-        ],
-        rules: [
-          { id: 'target-size', enabled: true },
-          {
-            id: 'oobee-confusing-alt-text',
-            selector: 'img[alt]',
-            enabled: true,
-            any: ['oobee-confusing-alt-text'],
-            all: [],
-            none: [],
-            tags: ['wcag2a', 'wcag111'],
-            metadata: {
-              description: 'Ensures image alt text is clear and useful',
-              help: 'Image alt text must not be vague or unhelpful',
-              helpUrl: 'https://www.deque.com/blog/great-alt-text-introduction/',
-            },
-          },
-        ],
-      });
+      axe.configure(getAxeConfiguration({ disableOobee, enableWcagAaa, gradingReadabilityFlag }));
       const axeScanResults = await axe.run(elementsToScan, {
         resultTypes: ['violations', 'passes', 'incomplete'],
       });
+
+      // add custom Oobee violations
+      if (!disableOobee) {
+        // handle css id selectors that start with a digit
+        const escapedCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCssSelector);
+
+        // Add oobee violations to Axe's report
+        const oobeeAccessibleLabelViolations = {
+          id: 'oobee-accessible-label',
+          impact: 'serious' as ImpactValue,
+          tags: ['wcag2a', 'wcag211', 'wcag412'],
+          description: 'Ensures clickable elements have an accessible label.',
+          help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
+          helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
+          nodes: escapedCssSelectors
+            .map(cssSelector => ({
+              html: findElementByCssSelector(cssSelector),
+              target: [cssSelector],
+              impact: 'serious' as ImpactValue,
+              failureSummary:
+                'Fix any of the following:\n  The clickable element does not have an accessible label.',
+              any: [
+                {
+                  id: 'oobee-accessible-label',
+                  data: null,
+                  relatedNodes: [],
+                  impact: 'serious',
+                  message: 'The clickable element does not have an accessible label.',
+                },
+              ],
+              all: [],
+              none: [],
+            }))
+            .filter(item => item.html),
+        };
+
+        axeScanResults.violations = [...axeScanResults.violations, oobeeAccessibleLabelViolations];
+      }
+
       return {
         pageUrl: window.location.href,
         pageTitle: document.title,
         axeScanResults,
       };
     }
-    return `${axeScript} ${runA11yScan.toString()}`;
+    return `
+      ${axeScript}
+      ${evaluateAltText.toString()}
+      ${escapeCssSelector.toString()}
+      ${framesCheck.toString()}
+      ${findElementByCssSelector.toString()}
+      ${flagUnlabelledClickableElements.toString()}
+      ${xPathToCss.toString()}
+      ${getAxeConfiguration.toString()}
+      ${runA11yScan.toString()}
+      ${extractText.toString()}
+      disableOobee=${disableOobee};
+      enableWcagAaa=${enableWcagAaa};
+    `;
   };
 
   const pushScanResults = async (res, metadata, elementsToClick) => {
@@ -142,7 +204,7 @@ export const init = async (
       const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(BrowserTypes.CHROME);
       const browserContext = await constants.launcher.launchPersistentContext(
         clonedBrowserDataDir,
-        { viewport: scanAboutMetadata.viewport, ...getPlaywrightLaunchOptions(browserToRun) },
+        { viewport: viewportSettings, ...getPlaywrightLaunchOptions(browserToRun) },
       );
       const page = await browserContext.newPage();
       await page.goto(res.pageUrl);
@@ -210,16 +272,21 @@ export const init = async (
       const pagesNotScanned = [
         ...scanDetails.urlsCrawled.error,
         ...scanDetails.urlsCrawled.invalid,
+        ...scanDetails.urlsCrawled.forbidden,
+        ...scanDetails.urlsCrawled.userExcluded,
       ];
       const updatedScanAboutMetadata = {
-        viewport: `${viewportSettings.width} x ${viewportSettings.height}`,
+        viewport: {
+          width: viewportSettings.width,
+          height: viewportSettings.height,
+        },
         ...scanAboutMetadata,
       };
       const basicFormHTMLSnippet = await generateArtifacts(
         randomToken,
         scanDetails.requestUrl,
         scanDetails.crawlType,
-        updatedScanAboutMetadata.viewport,
+        deviceChosen,
         scanDetails.urlsCrawled.scanned,
         pagesNotScanned,
         testLabel,
@@ -273,6 +340,7 @@ export const init = async (
 
   return {
     getScripts,
+    gradeReadability,
     pushScanResults,
     terminate,
     scanDetails,

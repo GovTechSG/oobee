@@ -47,8 +47,6 @@ export async function extractAndGradeText(page: Page): Promise<string> {
     const result =
       readabilityScore === 0 || readabilityScore > 50 ? '' : readabilityScore.toString(); // Convert readabilityScore to string
 
-    const pageUrl = await page.url(); // Get the page URL
-
     return result;
   } catch (error) {
     console.error('Error extracting and grading text:', error);
