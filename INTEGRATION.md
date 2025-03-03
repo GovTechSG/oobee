@@ -30,7 +30,7 @@ In order to use this functionality, the testing framework must support:
 
 ### API Reference
 
-#### `async oobeeA11yInit(entryUrl, testLabel, name, email, includeScreenshots, viewportSettings, thresholds, scanAboutMetadata)`
+#### `async oobeeA11yInit({entryUrl, testLabel, name, email, includeScreenshots, viewportSettings, thresholds, scanAboutMetadata, zip, deviceChosen, strategy, ruleset, specifiedMaxConcurrency, followRobots})`
 
 Returns an instance of Oobee
 
@@ -61,9 +61,9 @@ Returns an instance of Oobee
 - `ruleset` (optional)
   - The array of rulesets to use. Options: `default`, `disable-oobee`, `enable-wcag-aaa`
 - `specifiedMaxConcurrency` (optional)
-  - The maximum number of concurrent requests to be made. Defaults to 10.
+  - The maximum number of concurrent requests to be made. Defaults to 25.
 - `followRobots` (optional)
-  - Whether to follow robots.txt. Defaults to true.
+  - Whether to follow robots.txt. Defaults to false.
 
 #### Oobee Instance
 
@@ -88,14 +88,15 @@ Unique identifier for the scan instance
 
 `getScripts()`
 
-Get the axe-core script to be injected into the browser
+Get the axe-core script to be injected into the browser, along with other custom Oobee scripts
 
-- `runA11yScan(elementsToScan)`
+- `runA11yScan(elementsToScan, gradingReadabilityFlag)`
   Runs axe scan on the current page.
 
   Parameter(s):
 
   - `elementsToScan`: Specifies which element should and which should not be tested
+  - `gradingReadabilityFlag`: This is the readability score as a string. If it is non-empty, a readability violation will be added.
 
   Returns:
 
@@ -213,7 +214,7 @@ Create <code>cypress.config.js</code> with the following contents, and change yo
                     getPurpleA11yScripts() {
                         return oobeeA11y.getScripts();
                     },
-                    gradeReadability(sentences: string[]): string {
+                    gradeReadability(sentences) {
                         return oobeeA11y.gradeReadability(sentences);
                     },
                     async pushPurpleA11yScanResults({res, metadata, elementsToClick}) {
@@ -252,7 +253,7 @@ Create a sub-folder and file <code>cypress/support/e2e.js</code> with the follow
             const sentences = win.extractText();
             // run readability grading separately as it cannot be done within the browser context
             cy.task("gradeReadability", sentences).then(
-                async (gradingReadabilityFlag: string) => {
+                async (gradingReadabilityFlag) => {
                     // passing the grading flag to runA11yScan to inject violation as needed
                     const res = await win.runA11yScan(
                         elementsToScan,
@@ -374,17 +375,22 @@ Create <code>cypress.config.ts</code> with the following contents, and change yo
     // name of the generated zip of the results at the end of scan
     const resultsZipName: string = "oobee-scan-results"
 
-    const oobeeA11y = await oobeeA11yInit(
+    const oobeeA11y = await oobeeA11yInit({
         "https://govtechsg.github.io", // initial url to start scan
         "Demo Cypress Scan", // label for test
         "Your Name",
         "email@domain.com",
         true, // include screenshots of affected elements in the report
         viewportSettings,
-        thresholds,
-        scanAboutMetadata,
-        resultsZipName
-    );
+        thresholds: { mustFix: undefined, goodToFix: undefined },
+        scanAboutMetadata: undefined,
+        zip: resultsZipName,
+        deviceChosen: "",
+        strategy: undefined,
+        ruleset: ["enable-wcag-aaa"], // add "disable-oobee" to disable Oobee custom checks
+        specifiedMaxConcurrency: undefined,
+        followRobots: undefined,
+    });
 
     export default defineConfig({
         taskTimeout: 120000, // need to extend as screenshot function requires some time
@@ -395,6 +401,9 @@ Create <code>cypress.config.ts</code> with the following contents, and change yo
                 on("task", {
                     getPurpleA11yScripts(): string {
                         return oobeeA11y.getScripts();
+                    },
+                    gradeReadability(sentences: string[]): string {
+                        return oobeeA11y.gradeReadability(sentences);
                     },
                     async pushPurpleA11yScanResults({res, metadata, elementsToClick}: { res: any, metadata: any, elementsToClick: any[] }): Promise<{ mustFix: number, goodToFix: number }> {
                         return await oobeeA11y.pushScanResults(res, metadata, elementsToClick);
@@ -429,8 +438,26 @@ Create a sub-folder and file <code>src/cypress/support/e2e.ts</code> with the fo
     Cypress.Commands.add("runPurpleA11yScan", (items={}) => {
         cy.window().then(async (win) => {
             const { elementsToScan, elementsToClick, metadata } = items;
-            const res = await win.runA11yScan(elementsToScan);
-            cy.task("pushPurpleA11yScanResults", {res, metadata, elementsToClick}).then((count) => { return count });
+
+            // extract text from the page for readability grading
+            const sentences = win.extractText();
+            // run readability grading separately as it cannot be done within the browser context
+            cy.task("gradeReadability", sentences).then(
+                async (gradingReadabilityFlag: string) => {
+                    // passing the grading flag to runA11yScan to inject violation as needed
+                    const res = await win.runA11yScan(
+                        elementsToScan,
+                        gradingReadabilityFlag,
+                    );
+                    cy.task("pushPurpleA11yScanResults", {
+                        res,
+                        metadata,
+                        elementsToClick,
+                    }).then((count) => {
+                         return count;
+                    });
+                },
+            );
             cy.task("finishPurpleA11yTestCase"); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
         });
     });
@@ -479,6 +506,7 @@ declare namespace Cypress {
 
 interface Window {
   runA11yScan: (elementsToScan?: string[]) => Promise<any>;
+  extractText: () => string[];
 }
 ```
 
@@ -511,6 +539,7 @@ On your project's root folder, create a Playwright test file <code>oobeeA11y-pla
 
     import { chromium } from "playwright";
     import oobeeA11yInit from "@govtechsg/oobee";
+    import { extractText } from "@govtechsg/oobee/dist/crawlers/custom/extractText.js";
 
     // viewport used in tests to optimise screenshots
     const viewportSettings = { width: 1920, height: 1040 };
@@ -519,16 +548,22 @@ On your project's root folder, create a Playwright test file <code>oobeeA11y-pla
     // additional information to include in the "Scan About" section of the report
     const scanAboutMetadata = { browser: 'Chrome (Desktop)' };
 
-    const oobeeA11y = await oobeeA11yInit(
-        "https://govtechsg.github.io", // initial url to start scan
-        "Demo Playwright Scan", // label for test
-        "Your Name",
-        "email@domain.com",
-        true, // include screenshots of affected elements in the report
+    const oobeeA11y = await oobeeA11yInit({
+        entryUrl: "https://govtechsg.github.io", // initial url to start scan
+        testLabel: "Demo Cypress Scan", // label for test
+        name: "Your Name",
+        email: "email@domain.com",
+        includeScreenshots: true, // include screenshots of affected elements in the report
         viewportSettings,
-        thresholds,
-        scanAboutMetadata,
-    );
+        thresholds: { mustFix: undefined, goodToFix: undefined },
+        scanAboutMetadata: undefined,
+        zip: resultsZipName,
+        deviceChosen: "",
+        strategy: undefined,
+        ruleset: ["enable-wcag-aaa"],
+        specifiedMaxConcurrency: undefined,
+        followRobots: undefined,
+    });
 
     (async () => {
         const browser = await chromium.launch({
@@ -537,18 +572,22 @@ On your project's root folder, create a Playwright test file <code>oobeeA11y-pla
         const context = await browser.newContext();
         const page = await context.newPage();
 
-        const runPurpleA11yScan = async (elementsToScan) => {
+        const runPurpleA11yScan = async (elementsToScan, gradingReadabilityFlag) => {
             const scanRes = await page.evaluate(
-                async elementsToScan => await runA11yScan(elementsToScan),
-                elementsToScan,
+                async ({ elementsToScan, gradingReadabilityFlag }) => await runA11yScan(elementsToScan, gradingReadabilityFlag),
+                { elementsToScan, gradingReadabilityFlag },
             );
             await oobeeA11y.pushScanResults(scanRes);
             oobeeA11y.testThresholds(); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
         };
 
-        await page.goto('https://govtechsg.github.io/purple-banner-embeds/oobee-integrated-scan-example.htm');
+        await page.goto('https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm');
         await page.evaluate(oobeeA11y.getScripts());
-        await runPurpleA11yScan();
+
+        const sentences = await page.evaluate(() => extractText());
+        const gradingReadabilityFlag = await oobeeA11y.gradeReadability(sentences);
+
+        await runPurpleA11yScan([], gradingReadabilityFlag);;
 
         await page.getByRole('button', { name: 'Click Me' }).click();
         // Run a scan on <input> and <button> elements
@@ -602,8 +641,12 @@ Create a sub-folder and Playwright test file <code>src/oobeeA11y-playwright-demo
 
     import { Browser, BrowserContext, Page, chromium } from "playwright";
     import oobeeA11yInit from "@govtechsg/oobee";
+    import { extractText } from "@govtechsg/oobee/dist/crawlers/custom/extractText.js";
 
-    declare const runA11yScan: (elementsToScan?: string[]) => Promise<any>;
+    declare const runA11yScan: (
+        elementsToScan?: string[],
+        gradingReadabilityFlag?: string,
+    ) => Promise<any>;
 
     interface ViewportSettings {
         width: number;
@@ -626,16 +669,22 @@ Create a sub-folder and Playwright test file <code>src/oobeeA11y-playwright-demo
     // additional information to include in the "Scan About" section of the report
     const scanAboutMetadata: ScanAboutMetadata = { browser: 'Chrome (Desktop)' };
 
-    const oobeeA11y = await oobeeA11yInit(
-        "https://govtechsg.github.io", // initial url to start scan
-        "Demo Playwright Scan", // label for test
-        "Your Name",
-        "email@domain.com",
-        true, // include screenshots of affected elements in the report
+    const oobeeA11y = await oobeeA11yInit({
+        entryUrl: "https://govtechsg.github.io", // initial url to start scan
+        testLabel: "Demo Cypress Scan", // label for test
+        name: "Your Name",
+        email: "email@domain.com",
+        includeScreenshots: true, // include screenshots of affected elements in the report
         viewportSettings,
-        thresholds,
-        scanAboutMetadata,
-    );
+        thresholds: { mustFix: undefined, goodToFix: undefined },
+        scanAboutMetadata: undefined,
+        zip: resultsZipName,
+        deviceChosen: "",
+        strategy: undefined,
+        ruleset: ["enable-wcag-aaa"],
+        specifiedMaxConcurrency: undefined,
+        followRobots: undefined,
+    });
 
     (async () => {
         const browser: Browser = await chromium.launch({
@@ -644,18 +693,22 @@ Create a sub-folder and Playwright test file <code>src/oobeeA11y-playwright-demo
         const context: BrowserContext = await browser.newContext();
         const page: Page = await context.newPage();
 
-        const runPurpleA11yScan = async (elementsToScan?: string[]) => {
+        const runPurpleA11yScan = async (elementsToScan?: string[], gradingReadabilityFlag?: string) => {
             const scanRes = await page.evaluate(
-                async elementsToScan => await runA11yScan(elementsToScan),
-                elementsToScan,
+                async ({ elementsToScan, gradingReadabilityFlag }) => await runA11yScan(elementsToScan, gradingReadabilityFlag),
+                { elementsToScan, gradingReadabilityFlag },
             );
             await oobeeA11y.pushScanResults(scanRes);
             oobeeA11y.testThresholds(); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
         };
 
-        await page.goto('https://govtechsg.github.io/purple-banner-embeds/oobee-integrated-scan-example.htm');
+        await page.goto('https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm');
         await page.evaluate(oobeeA11y.getScripts());
-        await runPurpleA11yScan();
+
+        const sentences = await page.evaluate(() => extractText());
+        const gradingReadabilityFlag = await oobeeA11y.gradeReadability(sentences);
+
+        await runPurpleA11yScan([], gradingReadabilityFlag);
 
         await page.getByRole('button', { name: 'Click Me' }).click();
         // Run a scan on <input> and <button> elements
