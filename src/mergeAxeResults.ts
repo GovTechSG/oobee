@@ -161,13 +161,6 @@ const writeCsv = async (allIssues, storagePath) => {
       helpUrl: learnMore,
     } = rule;
 
-    // we want the wcag2a,... inside so this is commmented out
-    /*
-    const clausesArr = conformance.filter(
-      clause => !['wcag2a', 'wcag2aa', 'wcag2aaa'].includes(clause),
-    );
-    */
-
      // format clauses as a string
      const wcagConformance = conformance.join(',');
 

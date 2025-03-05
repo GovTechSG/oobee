@@ -87,16 +87,16 @@ export const filterAxeResults = (
 
     // handle rare cases where conformance level is not the first element
     const levels = ['wcag2a', 'wcag2aa', 'wcag2aaa'];
-    if (conformance[0] !== 'best-practice' && !levels.includes(conformance[0])) {
+    const wcagRegex = /^wcag\d[a-z]*$/;
+    const hasWcagLevel = conformance.some(tag => wcagRegex.test(tag));if (conformance[0] !== 'best-practice' && !conformance[0].startsWith('wcag')) {
       conformance.sort((a, b) => {
-        if (levels.includes(a)) {
-          return -1;
-        }
-        if (levels.includes(b)) {
-          return 1;
-        }
-
-        return 0;
+      if (a.startsWith('wcag') && !b.startsWith('wcag')) {
+        return -1;
+      }
+      if (!a.startsWith('wcag') && b.startsWith('wcag')) {
+        return 1;
+      }
+      return 0;
       });
     }
 
