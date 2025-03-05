@@ -1013,6 +1013,8 @@ const getTopTenIssues = allIssues => {
   const categories = ['mustFix', 'goodToFix'];
   const rulesWithCounts = [];
 
+  // This is no longer required and shall not be maintained in future
+  /*
   const conformanceLevels = {
     wcag2a: 'A',
     wcag2aa: 'AA',
@@ -1020,20 +1022,24 @@ const getTopTenIssues = allIssues => {
     wcag22aa: 'AA',
     wcag2aaa: 'AAA',
   };
+  */
 
   categories.forEach(category => {
     const rules = allIssues.items[category]?.rules || [];
 
     rules.forEach(rule => {
+      // This is not needed anymore since we want to have the clause number too
+      /*
       const wcagLevel = rule.conformance[0];
       const aLevel = conformanceLevels[wcagLevel] || wcagLevel;
+      */
 
       rulesWithCounts.push({
         category,
         ruleId: rule.rule,
         description: rule.description,
         axeImpact: rule.axeImpact,
-        conformance: aLevel,
+        conformance: rule.conformance,
         totalItems: rule.totalItems,
       });
     });
