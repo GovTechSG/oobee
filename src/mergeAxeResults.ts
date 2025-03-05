@@ -725,6 +725,8 @@ const writeJsonAndBase64Files = async (
   scanItemsSummaryBase64FilePath: string;
   scanItemsMiniReportJsonFilePath: string;
   scanItemsMiniReportBase64FilePath: string;
+  scanIssuesSummaryJsonFilePath: string;
+  scanIssuesSummaryBase64FilePath: string;
   scanDataJsonFileSize: number;
   scanItemsJsonFileSize: number;
 }> => {
@@ -819,8 +821,35 @@ const writeJsonAndBase64Files = async (
     jsonFilePath: scanItemsSummaryJsonFilePath,
     base64FilePath: scanItemsSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(summaryItems, storagePath, 'scanItemsSummary');
+  
+  const scanIssuesSummary = {
+    mustFix: allIssues.items.mustFix.rules.map(rule => ({
+      issueId: rule.rule,
+      issueDescription: rule.description,
+      occurrencesCount: rule.totalItems,
+      uniquePagesAffectedCount: rule.pagesAffected.length,
+      wcagConformance: rule.conformance,
+    })),
+    goodToFix: allIssues.items.goodToFix.rules.map(rule => ({
+      issueId: rule.rule,
+      issueDescription: rule.description,
+      occurrencesCount: rule.totalItems,
+      uniquePagesAffectedCount: rule.pagesAffected.length,
+      wcagConformance: rule.conformance,
+    })),
+    needsReview: allIssues.items.needsReview.rules.map(rule => ({
+      issueId: rule.rule,
+      issueDescription: rule.description,
+      occurrencesCount: rule.totalItems,
+      uniquePagesAffectedCount: rule.pagesAffected.length,
+      wcagConformance: rule.conformance,
+    })),
+  };
 
-  return {
+  const { jsonFilePath: scanIssuesSummaryJsonFilePath, base64FilePath: scanIssuesSummaryBase64FilePath } =
+    await writeJsonFileAndCompressedJsonFile(scanIssuesSummary, storagePath, 'scanIssuesSummary');
+  
+    return {
     scanDataJsonFilePath,
     scanDataBase64FilePath,
     scanItemsJsonFilePath,
@@ -829,6 +858,8 @@ const writeJsonAndBase64Files = async (
     scanItemsSummaryBase64FilePath,
     scanItemsMiniReportJsonFilePath,
     scanItemsMiniReportBase64FilePath,
+    scanIssuesSummaryJsonFilePath,
+    scanIssuesSummaryBase64FilePath,
     scanDataJsonFileSize: fs.statSync(scanDataJsonFilePath).size,
     scanItemsJsonFileSize: fs.statSync(scanItemsJsonFilePath).size,
   };
@@ -1329,6 +1360,8 @@ const generateArtifacts = async (
     scanItemsSummaryBase64FilePath,
     scanItemsMiniReportJsonFilePath,
     scanItemsMiniReportBase64FilePath,
+    scanIssuesSummaryJsonFilePath,
+    scanIssuesSummaryBase64FilePath,
     scanDataJsonFileSize,
     scanItemsJsonFileSize,
   } = await writeJsonAndBase64Files(allIssues, storagePath);
@@ -1361,6 +1394,8 @@ const generateArtifacts = async (
       scanItemsSummaryBase64FilePath,
       scanItemsMiniReportJsonFilePath,
       scanItemsMiniReportBase64FilePath,
+      scanIssuesSummaryJsonFilePath,
+      scanIssuesSummaryBase64FilePath,
     ]);
   }
 
