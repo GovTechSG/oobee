@@ -140,12 +140,10 @@ export const filterAxeResults = (
       const { impact } = node;
       const hasWcagA = conformance.some(tag => /^wcag\d*a$/.test(tag));
       const hasWcagAA = conformance.some(tag => /^wcag\d*aa$/.test(tag));
-      const hasWcagAAA = conformance.some(tag => /^wcag\d*aaa$/.test(tag));
+      // const hasWcagAAA = conformance.some(tag => /^wcag\d*aaa$/.test(tag));
 
       if (displayNeedsReview) {
         addTo(needsReview, node);
-      } else if (hasWcagAAA) {
-        addTo(goodToFix, node);
       } else if (hasWcagA || hasWcagAA) {
         addTo(mustFix, node);
       } else {
