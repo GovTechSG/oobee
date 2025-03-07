@@ -727,6 +727,10 @@ const writeJsonAndBase64Files = async (
   scanItemsMiniReportBase64FilePath: string;
   scanIssuesSummaryJsonFilePath: string;
   scanIssuesSummaryBase64FilePath: string;
+  scanPagesDetailJsonFilePath: string;
+  scanPagesDetailBase64FilePath: string;
+  scanPagesSummaryJsonFilePath: string;
+  scanPagesSummaryBase64FilePath: string;
   scanDataJsonFileSize: number;
   scanItemsJsonFileSize: number;
 }> => {
@@ -849,7 +853,132 @@ const writeJsonAndBase64Files = async (
   const { jsonFilePath: scanIssuesSummaryJsonFilePath, base64FilePath: scanIssuesSummaryBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(scanIssuesSummary, storagePath, 'scanIssuesSummary');
   
+  // --- Scan Pages Summary and Scan Summary
+
+  // Define which categories map to which occurrence property
+  const failCategories = ["mustFix", "goodToFix"]; // => occurrencesFailed
+  const reviewCategories = ["needsReview"];        // => occurrencesNeedsReview
+  const passCategories = ["passed"];               // => occurrencesPassed
+
+  type RuleData = {
+    ruleId: string;
+    wagConformance: string[];
+    occurrencesFailed: number;
+    occurrencesNeedsReview: number;
+    occurrencesPassed: number;
+  };
+
+  type PageData = {
+    pageTitle: string;
+    url: string;
+    totalOccurrencesFailed: number;
+    totalOccurrencesNeedsReview: number;
+    totalOccurrencesPassed: number;
+    typesOfIssues: Record<string, RuleData>;
+  };
+
+  const pagesMap: Record<string, PageData> = {};
+
+  // 1. Build pagesMap by iterating over items
+  Object.entries(allIssues.items).forEach(([categoryName, categoryData]) => {
+    if (!categoryData?.rules) return; // no rules? skip
+
+    categoryData.rules.forEach((rule) => {
+      const { rule: ruleId, conformance = [] } = rule;
+      rule.pagesAffected.forEach((p) => {
+        const { url, pageTitle, itemsCount = 0 } = p;
+
+        // Ensure the page is in pagesMap
+        if (!pagesMap[url]) {
+          pagesMap[url] = {
+            pageTitle,
+            url,
+            totalOccurrencesFailed: 0,
+            totalOccurrencesNeedsReview: 0,
+            totalOccurrencesPassed: 0,
+            typesOfIssues: {},
+          };
+        }
+
+        // Ensure the rule is in the page
+        if (!pagesMap[url].typesOfIssues[ruleId]) {
+          pagesMap[url].typesOfIssues[ruleId] = {
+            ruleId,
+            wagConformance: conformance,
+            occurrencesFailed: 0,
+            occurrencesNeedsReview: 0,
+            occurrencesPassed: 0,
+          };
+        }
+
+        // Increment occurrence counts
+        if (failCategories.includes(categoryName)) {
+          pagesMap[url].typesOfIssues[ruleId].occurrencesFailed += itemsCount;
+          pagesMap[url].totalOccurrencesFailed += itemsCount;
+        } else if (reviewCategories.includes(categoryName)) {
+          pagesMap[url].typesOfIssues[ruleId].occurrencesNeedsReview += itemsCount;
+          pagesMap[url].totalOccurrencesNeedsReview += itemsCount;
+        } else if (passCategories.includes(categoryName)) {
+          pagesMap[url].typesOfIssues[ruleId].occurrencesPassed += itemsCount;
+          pagesMap[url].totalOccurrencesPassed += itemsCount;
+        }
+      });
+    });
+  });
+
+  // 2. Convert pagesMap into arrays for final objects
+  const pagesAffected = Object.values(pagesMap).map((page) => {
+    const typesOfIssuesArray = Object.values(page.typesOfIssues);
+
+    // Only count rules that have at least 1 failure
+    const failedRuleCount = typesOfIssuesArray.filter(
+      (r) => r.occurrencesFailed > 0
+    ).length;
+
     return {
+      pageTitle: page.pageTitle,
+      url: page.url,
+      totalOccurrencesFailed: page.totalOccurrencesFailed,
+      totalOccurrencesNeedsReview: page.totalOccurrencesNeedsReview,
+      totalOccurrencesPassed: page.totalOccurrencesPassed,
+      // typesOfIssuesCount should only count failed issues
+      typesOfIssuesCount: failedRuleCount,
+      typesOfIssues: typesOfIssuesArray,
+    };
+  });
+
+  // 3. Compute scanned/ skipped counts
+  const scannedPagesCount = pagesAffected.length;
+  const skippedPagesCount = Array.isArray(allIssues.pagesNotScanned)
+    ? allIssues.pagesNotScanned.length
+    : 0;
+
+  // 4. Build scanPagesDetail (detailed version with typesOfIssues)
+  const scanPagesDetail = {
+    pagesAffected,
+    scannedPagesCount,
+    skippedPagesCount,
+  };
+
+  // 5. Build scanPagesSummary (same info but WITHOUT `typesOfIssues`)
+  const pagesSummary = pagesAffected.map(({ typesOfIssues, ...rest }) => rest);
+
+  const scanPagesSummary = {
+    pagesAffected: pagesSummary,
+    scannedPagesCount,
+    skippedPagesCount,
+  };
+
+  // [Optional] console.log(JSON.stringify(scanPagesDetail, null, 2));
+  // [Optional] console.log(JSON.stringify(scanPagesSummary, null, 2));
+
+  const { jsonFilePath: scanPagesDetailJsonFilePath, base64FilePath: scanPagesDetailBase64FilePath } =
+  await writeJsonFileAndCompressedJsonFile(scanPagesDetail, storagePath, 'scanPagesDetail');
+
+  const { jsonFilePath: scanPagesSummaryJsonFilePath, base64FilePath: scanPagesSummaryBase64FilePath } =
+  await writeJsonFileAndCompressedJsonFile(scanPagesSummary, storagePath, 'scanPagesSummary');
+
+  return {
     scanDataJsonFilePath,
     scanDataBase64FilePath,
     scanItemsJsonFilePath,
@@ -860,6 +989,10 @@ const writeJsonAndBase64Files = async (
     scanItemsMiniReportBase64FilePath,
     scanIssuesSummaryJsonFilePath,
     scanIssuesSummaryBase64FilePath,
+    scanPagesDetailJsonFilePath,
+    scanPagesDetailBase64FilePath,
+    scanPagesSummaryJsonFilePath,
+    scanPagesSummaryBase64FilePath,
     scanDataJsonFileSize: fs.statSync(scanDataJsonFilePath).size,
     scanItemsJsonFileSize: fs.statSync(scanItemsJsonFilePath).size,
   };
@@ -1362,6 +1495,10 @@ const generateArtifacts = async (
     scanItemsMiniReportBase64FilePath,
     scanIssuesSummaryJsonFilePath,
     scanIssuesSummaryBase64FilePath,
+    scanPagesDetailJsonFilePath,
+    scanPagesDetailBase64FilePath,
+    scanPagesSummaryJsonFilePath,
+    scanPagesSummaryBase64FilePath,
     scanDataJsonFileSize,
     scanItemsJsonFileSize,
   } = await writeJsonAndBase64Files(allIssues, storagePath);
