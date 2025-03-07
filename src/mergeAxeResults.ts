@@ -826,6 +826,7 @@ const writeJsonAndBase64Files = async (
     base64FilePath: scanItemsSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(summaryItems, storagePath, 'scanItemsSummary');
   
+  // ----- DO NOT MODIFY THIS BLOCK ----- //
   const scanIssuesSummary = {
     mustFix: allIssues.items.mustFix.rules.map(rule => ({
       issueId: rule.rule,
@@ -852,18 +853,21 @@ const writeJsonAndBase64Files = async (
 
   const { jsonFilePath: scanIssuesSummaryJsonFilePath, base64FilePath: scanIssuesSummaryBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(scanIssuesSummary, storagePath, 'scanIssuesSummary');
-  
-  // --- Scan Pages Summary and Scan Summary
+  // ----- DO NOT MODIFY THE ABOVE BLOCK ----- //
+
+  // --- Scan Pages Summary and Scan Summary ---
 
   // Define which categories map to which occurrence property
-  const failCategories = ["mustFix", "goodToFix"]; // => occurrencesFailed
-  const reviewCategories = ["needsReview"];        // => occurrencesNeedsReview
-  const passCategories = ["passed"];               // => occurrencesPassed
+  const mustFixCategory = "mustFix";      // => occurrencesMustFix
+  const goodToFixCategory = "goodToFix";  // => occurrencesGoodToFix
+  const needsReviewCategory = "needsReview"; // => occurrencesNeedsReview
+  const passedCategory = "passed";           // => occurrencesPassed
 
   type RuleData = {
     ruleId: string;
     wagConformance: string[];
-    occurrencesFailed: number;
+    occurrencesMustFix: number;
+    occurrencesGoodToFix: number;
     occurrencesNeedsReview: number;
     occurrencesPassed: number;
   };
@@ -871,20 +875,24 @@ const writeJsonAndBase64Files = async (
   type PageData = {
     pageTitle: string;
     url: string;
-    totalOccurrencesFailed: number;
+    // Renamed/added fields
+    totalOccurrencesFailedIncludingNeedsReview: number;
+    totalOccurrencesFailedExcludingNeedsReview: number;
     totalOccurrencesNeedsReview: number;
     totalOccurrencesPassed: number;
     typesOfIssues: Record<string, RuleData>;
   };
 
+  // We'll accumulate pages in a map keyed by URL
   const pagesMap: Record<string, PageData> = {};
 
-  // 1. Build pagesMap by iterating over items
+  // 1. Build pagesMap by iterating over each category in allIssues.items
   Object.entries(allIssues.items).forEach(([categoryName, categoryData]) => {
-    if (!categoryData?.rules) return; // no rules? skip
+    if (!categoryData?.rules) return; // no rules in this category? skip
 
     categoryData.rules.forEach((rule) => {
       const { rule: ruleId, conformance = [] } = rule;
+
       rule.pagesAffected.forEach((p) => {
         const { url, pageTitle, itemsCount = 0 } = p;
 
@@ -893,32 +901,40 @@ const writeJsonAndBase64Files = async (
           pagesMap[url] = {
             pageTitle,
             url,
-            totalOccurrencesFailed: 0,
+            totalOccurrencesFailedIncludingNeedsReview: 0,
+            totalOccurrencesFailedExcludingNeedsReview: 0,
             totalOccurrencesNeedsReview: 0,
             totalOccurrencesPassed: 0,
             typesOfIssues: {},
           };
         }
 
-        // Ensure the rule is in the page
+        // Ensure the rule is present for this page
         if (!pagesMap[url].typesOfIssues[ruleId]) {
           pagesMap[url].typesOfIssues[ruleId] = {
             ruleId,
             wagConformance: conformance,
-            occurrencesFailed: 0,
+            occurrencesMustFix: 0,
+            occurrencesGoodToFix: 0,
             occurrencesNeedsReview: 0,
             occurrencesPassed: 0,
           };
         }
 
-        // Increment occurrence counts
-        if (failCategories.includes(categoryName)) {
-          pagesMap[url].typesOfIssues[ruleId].occurrencesFailed += itemsCount;
-          pagesMap[url].totalOccurrencesFailed += itemsCount;
-        } else if (reviewCategories.includes(categoryName)) {
+        // Depending on the category, increment the relevant occurrence counts
+        if (categoryName === mustFixCategory) {
+          pagesMap[url].typesOfIssues[ruleId].occurrencesMustFix += itemsCount;
+          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
+          pagesMap[url].totalOccurrencesFailedExcludingNeedsReview += itemsCount;
+        } else if (categoryName === goodToFixCategory) {
+          pagesMap[url].typesOfIssues[ruleId].occurrencesGoodToFix += itemsCount;
+          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
+          pagesMap[url].totalOccurrencesFailedExcludingNeedsReview += itemsCount;
+        } else if (categoryName === needsReviewCategory) {
           pagesMap[url].typesOfIssues[ruleId].occurrencesNeedsReview += itemsCount;
+          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
           pagesMap[url].totalOccurrencesNeedsReview += itemsCount;
-        } else if (passCategories.includes(categoryName)) {
+        } else if (categoryName === passedCategory) {
           pagesMap[url].typesOfIssues[ruleId].occurrencesPassed += itemsCount;
           pagesMap[url].totalOccurrencesPassed += itemsCount;
         }
@@ -926,23 +942,35 @@ const writeJsonAndBase64Files = async (
     });
   });
 
-  // 2. Convert pagesMap into arrays for final objects
+  // 2. Convert pagesMap into final arrays
   const pagesAffected = Object.values(pagesMap).map((page) => {
     const typesOfIssuesArray = Object.values(page.typesOfIssues);
 
-    // Only count rules that have at least 1 failure
+    // typesOfIssuesCount: number of rules with at least 1 mustFix OR goodToFix
     const failedRuleCount = typesOfIssuesArray.filter(
-      (r) => r.occurrencesFailed > 0
+      (r) => r.occurrencesMustFix > 0 || r.occurrencesGoodToFix > 0
     ).length;
+
+    // typesOfIssuesExcludingNeedsReviewCount: same logic 
+    // (counts only mustFix or goodToFix, ignoring "needsReview" and "passed")
+    const typesOfIssuesExcludingNeedsReviewCount = failedRuleCount;
+
+    // If totalOccurrencesFailedExcludingNeedsReview is zero,
+    // it means all failures for this page come solely from "needsReview"
+    const occurrencesExclusiveToNeedsReview =
+      page.totalOccurrencesFailedExcludingNeedsReview === 0;
 
     return {
       pageTitle: page.pageTitle,
       url: page.url,
-      totalOccurrencesFailed: page.totalOccurrencesFailed,
+      // Renamed & added fields
+      totalOccurrencesFailedIncludingNeedsReview: page.totalOccurrencesFailedIncludingNeedsReview,
+      totalOccurrencesFailedExcludingNeedsReview: page.totalOccurrencesFailedExcludingNeedsReview,
       totalOccurrencesNeedsReview: page.totalOccurrencesNeedsReview,
       totalOccurrencesPassed: page.totalOccurrencesPassed,
-      // typesOfIssuesCount should only count failed issues
+      occurrencesExclusiveToNeedsReview,
       typesOfIssuesCount: failedRuleCount,
+      typesOfIssuesExcludingNeedsReviewCount,
       typesOfIssues: typesOfIssuesArray,
     };
   });
@@ -953,7 +981,7 @@ const writeJsonAndBase64Files = async (
     ? allIssues.pagesNotScanned.length
     : 0;
 
-  // 4. Build scanPagesDetail (detailed version with typesOfIssues)
+  // 4. Build scanPagesDetail (detailed version with full typesOfIssues)
   const scanPagesDetail = {
     pagesAffected,
     scannedPagesCount,
@@ -961,6 +989,7 @@ const writeJsonAndBase64Files = async (
   };
 
   // 5. Build scanPagesSummary (same info but WITHOUT `typesOfIssues`)
+  //    i.e., we remove the entire `typesOfIssues` array from each page
   const pagesSummary = pagesAffected.map(({ typesOfIssues, ...rest }) => rest);
 
   const scanPagesSummary = {
@@ -969,14 +998,13 @@ const writeJsonAndBase64Files = async (
     skippedPagesCount,
   };
 
-  // [Optional] console.log(JSON.stringify(scanPagesDetail, null, 2));
-  // [Optional] console.log(JSON.stringify(scanPagesSummary, null, 2));
-
+  // Write out the detailed and summary JSON files
   const { jsonFilePath: scanPagesDetailJsonFilePath, base64FilePath: scanPagesDetailBase64FilePath } =
-  await writeJsonFileAndCompressedJsonFile(scanPagesDetail, storagePath, 'scanPagesDetail');
+    await writeJsonFileAndCompressedJsonFile(scanPagesDetail, storagePath, 'scanPagesDetail');
 
   const { jsonFilePath: scanPagesSummaryJsonFilePath, base64FilePath: scanPagesSummaryBase64FilePath } =
-  await writeJsonFileAndCompressedJsonFile(scanPagesSummary, storagePath, 'scanPagesSummary');
+    await writeJsonFileAndCompressedJsonFile(scanPagesSummary, storagePath, 'scanPagesSummary');
+
 
   return {
     scanDataJsonFilePath,
@@ -1533,6 +1561,10 @@ const generateArtifacts = async (
       scanItemsMiniReportBase64FilePath,
       scanIssuesSummaryJsonFilePath,
       scanIssuesSummaryBase64FilePath,
+      scanPagesDetailJsonFilePath,
+      scanPagesDetailBase64FilePath,
+      scanPagesSummaryJsonFilePath,
+      scanPagesSummaryBase64FilePath,
     ]);
   }
 
