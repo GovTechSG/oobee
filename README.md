@@ -80,6 +80,21 @@ export PATH="<location of verapdf>:$PATH"
 verapdf --version
 ```
 
+#### Environment variables (Optional)
+| Variable Name | Description | Default |
+| ------------- | ----------- | ------- |
+| OOBEE_VERBOSE | When set to `true`, log output goes to console | `false` |
+| RUNNING_FROM_PH_GUI | Legacy, replaced by RUNNING_FROM_PH_GUI | `false` |
+| WARN_LEVEL | Only used in tests. |  |
+
+#### Environment variables used internally (Do not set)
+Do not set these environment variables or behaviour might change unexpectedly.
+| Variable Name | Description |
+| ------------- | ----------- |
+| CRAWLEE_LOG_LEVEL | https://crawlee.dev/docs/guides/configuration#crawlee_log_level |
+| CRAWLEE_STORAGE_DIR | https://crawlee.dev/docs/guides/configuration#crawlee_storage_dir |
+| CRAWLEE_HEADLESS | https://crawlee.dev/docs/guides/configuration#crawlee_headless |
+
 #### Facing issues?
 
 Please refer to [Troubleshooting section](#troubleshooting) for more information.
