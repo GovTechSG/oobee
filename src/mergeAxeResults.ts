@@ -826,7 +826,6 @@ const writeJsonAndBase64Files = async (
     base64FilePath: scanItemsSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(summaryItems, storagePath, 'scanItemsSummary');
   
-  // ----- DO NOT MODIFY THIS BLOCK ----- //
   const scanIssuesSummary = {
     mustFix: allIssues.items.mustFix.rules.map(rule => ({
       issueId: rule.rule,
@@ -853,7 +852,6 @@ const writeJsonAndBase64Files = async (
 
   const { jsonFilePath: scanIssuesSummaryJsonFilePath, base64FilePath: scanIssuesSummaryBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(scanIssuesSummary, storagePath, 'scanIssuesSummary');
-  // ----- DO NOT MODIFY THE ABOVE BLOCK ----- //
 
   // --- Scan Pages Summary and Scan Summary ---
 
@@ -875,7 +873,6 @@ const writeJsonAndBase64Files = async (
   type PageData = {
     pageTitle: string;
     url: string;
-    // Renamed/added fields
     totalOccurrencesFailedIncludingNeedsReview: number;
     totalOccurrencesFailedExcludingNeedsReview: number;
     totalOccurrencesNeedsReview: number;
@@ -951,7 +948,7 @@ const writeJsonAndBase64Files = async (
       (r) => r.occurrencesMustFix > 0 || r.occurrencesGoodToFix > 0
     ).length;
 
-    // typesOfIssuesExcludingNeedsReviewCount: same logic 
+    // We use the same logic for excluding needsReview: 
     // (counts only mustFix or goodToFix, ignoring "needsReview" and "passed")
     const typesOfIssuesExcludingNeedsReviewCount = failedRuleCount;
 
@@ -985,16 +982,23 @@ const writeJsonAndBase64Files = async (
   const scanPagesDetail = {
     pagesAffected,
     scannedPagesCount,
+    // [Add pagesNotScanned BEFORE skippedPagesCount]
+    pagesNotScanned: Array.isArray(allIssues.pagesNotScanned)
+      ? allIssues.pagesNotScanned
+      : [],
     skippedPagesCount,
   };
 
   // 5. Build scanPagesSummary (same info but WITHOUT `typesOfIssues`)
-  //    i.e., we remove the entire `typesOfIssues` array from each page
   const pagesSummary = pagesAffected.map(({ typesOfIssues, ...rest }) => rest);
 
   const scanPagesSummary = {
     pagesAffected: pagesSummary,
     scannedPagesCount,
+    // [Add pagesNotScanned BEFORE skippedPagesCount]
+    pagesNotScanned: Array.isArray(allIssues.pagesNotScanned)
+      ? allIssues.pagesNotScanned
+      : [],
     skippedPagesCount,
   };
 
@@ -1004,7 +1008,6 @@ const writeJsonAndBase64Files = async (
 
   const { jsonFilePath: scanPagesSummaryJsonFilePath, base64FilePath: scanPagesSummaryBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(scanPagesSummary, storagePath, 'scanPagesSummary');
-
 
   return {
     scanDataJsonFilePath,
