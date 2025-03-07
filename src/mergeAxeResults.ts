@@ -1742,13 +1742,7 @@ const generateArtifacts = async (
         `Results directory is at ${storagePath}`,
       ];
 
-      if (process.env.REPORT_BREAKDOWN === '1') {
-        messageToDisplay.push(
-          'Reports have been further broken down according to their respective impact level.',
-        );
-      }
-
-      if (process.send && process.env.OOBEE_VERBOSE && process.env.REPORT_BREAKDOWN != '1') {
+      if (process.send && process.env.OOBEE_VERBOSE) {
         const zipFileNameMessage = {
           type: 'zipFileName',
           payload: `${constants.cliZipFileName}`,

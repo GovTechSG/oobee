@@ -333,10 +333,3 @@ To obtain the JSON files, you need to base64-decode the file followed by gunzip.
   },
 };
 
-export const configureReportSetting = (isEnabled: boolean): void => {
-  if (isEnabled) {
-    process.env.REPORT_BREAKDOWN = '1';
-  } else {
-    process.env.REPORT_BREAKDOWN = '0';
-  }
-};
