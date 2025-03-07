@@ -161,11 +161,11 @@ const writeCsv = async (allIssues, storagePath) => {
       helpUrl: learnMore,
     } = rule;
 
-     // format clauses as a string
-     const wcagConformance = conformance.join(',');
+    // format clauses as a string
+    const wcagConformance = conformance.join(',');
 
     pagesAffected.sort((a, b) => a.url.localeCompare(b.url));
-   
+
     pagesAffected.forEach(affectedPage => {
       const { url, items } = affectedPage;
       items.forEach(item => {
@@ -825,7 +825,9 @@ const writeJsonAndBase64Files = async (
     jsonFilePath: scanItemsSummaryJsonFilePath,
     base64FilePath: scanItemsSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(summaryItems, storagePath, 'scanItemsSummary');
-  
+
+  // --- Scan Issues Summary ---
+  // 1. Build scanIssuesSummary object (now including "passed")
   const scanIssuesSummary = {
     mustFix: allIssues.items.mustFix.rules.map(rule => ({
       issueId: rule.rule,
@@ -848,12 +850,25 @@ const writeJsonAndBase64Files = async (
       uniquePagesAffectedCount: rule.pagesAffected.length,
       wcagConformance: rule.conformance,
     })),
+    passed: allIssues.items.passed.rules.map(rule => ({
+      issueId: rule.rule,
+      issueDescription: rule.description,
+      occurrencesCount: rule.totalItems,
+      uniquePagesAffectedCount: rule.pagesAffected.length,
+      wcagConformance: rule.conformance,
+    })),
   };
 
+  // 2. Write the scanIssuesSummary JSON and base64 files
   const { jsonFilePath: scanIssuesSummaryJsonFilePath, base64FilePath: scanIssuesSummaryBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(scanIssuesSummary, storagePath, 'scanIssuesSummary');
 
-  // --- Scan Pages Summary and Scan Summary ---
+  // --- Scan Pages Summary and Scan Pages Detail ---
+
+  // 1) Gather your "scanned" pages from allIssues
+  const allScannedPages = Array.isArray(allIssues.pagesScanned)
+    ? allIssues.pagesScanned
+    : [];
 
   // Define which categories map to which occurrence property
   const mustFixCategory = "mustFix";      // => occurrencesMustFix
@@ -873,17 +888,18 @@ const writeJsonAndBase64Files = async (
   type PageData = {
     pageTitle: string;
     url: string;
-    totalOccurrencesFailedIncludingNeedsReview: number;
-    totalOccurrencesFailedExcludingNeedsReview: number;
-    totalOccurrencesNeedsReview: number;
-    totalOccurrencesPassed: number;
+    // Summaries
+    totalOccurrencesFailedIncludingNeedsReview: number; // mustFix + goodToFix + needsReview
+    totalOccurrencesFailedExcludingNeedsReview: number; // mustFix + goodToFix
+    totalOccurrencesNeedsReview: number;                // needsReview
+    totalOccurrencesPassed: number;                     // passed only
     typesOfIssues: Record<string, RuleData>;
   };
 
-  // We'll accumulate pages in a map keyed by URL
+  // 2) We'll accumulate pages in a map keyed by URL
   const pagesMap: Record<string, PageData> = {};
 
-  // 1. Build pagesMap by iterating over each category in allIssues.items
+  // 3) Build pagesMap by iterating over each category in allIssues.items
   Object.entries(allIssues.items).forEach(([categoryName, categoryData]) => {
     if (!categoryData?.rules) return; // no rules in this category? skip
 
@@ -939,70 +955,134 @@ const writeJsonAndBase64Files = async (
     });
   });
 
-  // 2. Convert pagesMap into final arrays
-  const pagesAffected = Object.values(pagesMap).map((page) => {
+  // 4) Separate scanned pages into “affected” vs. “notAffected”
+  //    - "affected" => totalOccurrencesFailedIncludingNeedsReview > 0
+  //    - "notAffected" => totalOccurrencesFailedIncludingNeedsReview = 0 (only passed issues)
+  //                       or pages that never appeared in pagesMap at all
+
+  const pagesInMap = Object.values(pagesMap); // All pages that have some record in pagesMap
+  const pagesInMapUrls = new Set(Object.keys(pagesMap));
+
+  // (a) Pages that appear in pagesMap BUT have only passed (no mustFix/goodToFix/needsReview)
+  const pagesAllPassed = pagesInMap.filter(
+    (p) => p.totalOccurrencesFailedIncludingNeedsReview === 0
+  );
+
+  // (b) Pages that do NOT appear in pagesMap at all => scanned but no items found
+  //     (This can happen if a page had 0 occurrences across all categories.)
+  const pagesNoEntries = allScannedPages
+    .filter((sp) => !pagesInMapUrls.has(sp.url))
+    .map((sp) => ({
+      // We'll create a PageData with everything zeroed out
+      pageTitle: sp.pageTitle,
+      url: sp.url,
+      totalOccurrencesFailedIncludingNeedsReview: 0,
+      totalOccurrencesFailedExcludingNeedsReview: 0,
+      totalOccurrencesNeedsReview: 0,
+      totalOccurrencesPassed: 0,
+      typesOfIssues: {},
+    }));
+
+  // Combine these into "notAffected"
+  const pagesNotAffectedRaw = [...pagesAllPassed, ...pagesNoEntries];
+
+  // "affected" pages => have at least 1 mustFix/goodToFix/needsReview
+  const pagesAffectedRaw = pagesInMap.filter(
+    (p) => p.totalOccurrencesFailedIncludingNeedsReview > 0
+  );
+
+  // 5) Transform both arrays to final shapes
+
+  function transformPageData(page: PageData) {
     const typesOfIssuesArray = Object.values(page.typesOfIssues);
 
-    // typesOfIssuesCount: number of rules with at least 1 mustFix OR goodToFix
+    // Summaries
+    const mustFixSum = typesOfIssuesArray.reduce(
+      (acc, r) => acc + r.occurrencesMustFix,
+      0
+    );
+    const goodToFixSum = typesOfIssuesArray.reduce(
+      (acc, r) => acc + r.occurrencesGoodToFix,
+      0
+    );
+    const needsReviewSum = typesOfIssuesArray.reduce(
+      (acc, r) => acc + r.occurrencesNeedsReview,
+      0
+    );
+
+    // Build categoriesPresent based on these sums
+    const categoriesPresent: string[] = [];
+    if (mustFixSum > 0) categoriesPresent.push("mustFix");
+    if (goodToFixSum > 0) categoriesPresent.push("goodToFix");
+    if (needsReviewSum > 0) categoriesPresent.push("needsReview");
+
+    // Count how many rules have mustFix or goodToFix
     const failedRuleCount = typesOfIssuesArray.filter(
       (r) => r.occurrencesMustFix > 0 || r.occurrencesGoodToFix > 0
     ).length;
 
-    // We use the same logic for excluding needsReview: 
-    // (counts only mustFix or goodToFix, ignoring "needsReview" and "passed")
     const typesOfIssuesExcludingNeedsReviewCount = failedRuleCount;
-
-    // If totalOccurrencesFailedExcludingNeedsReview is zero,
-    // it means all failures for this page come solely from "needsReview"
     const occurrencesExclusiveToNeedsReview =
-      page.totalOccurrencesFailedExcludingNeedsReview === 0;
+      page.totalOccurrencesFailedExcludingNeedsReview === 0 &&
+      page.totalOccurrencesFailedIncludingNeedsReview > 0;
 
     return {
       pageTitle: page.pageTitle,
       url: page.url,
-      // Renamed & added fields
-      totalOccurrencesFailedIncludingNeedsReview: page.totalOccurrencesFailedIncludingNeedsReview,
-      totalOccurrencesFailedExcludingNeedsReview: page.totalOccurrencesFailedExcludingNeedsReview,
+      totalOccurrencesFailedIncludingNeedsReview:
+        page.totalOccurrencesFailedIncludingNeedsReview,
+      totalOccurrencesFailedExcludingNeedsReview:
+        page.totalOccurrencesFailedExcludingNeedsReview,
       totalOccurrencesNeedsReview: page.totalOccurrencesNeedsReview,
       totalOccurrencesPassed: page.totalOccurrencesPassed,
       occurrencesExclusiveToNeedsReview,
       typesOfIssuesCount: failedRuleCount,
       typesOfIssuesExcludingNeedsReviewCount,
+      categoriesPresent,
       typesOfIssues: typesOfIssuesArray,
     };
-  });
+  }
 
-  // 3. Compute scanned/ skipped counts
-  const scannedPagesCount = pagesAffected.length;
-  const skippedPagesCount = Array.isArray(allIssues.pagesNotScanned)
+  const pagesAffected = pagesAffectedRaw.map(transformPageData);
+  const pagesNotAffected = pagesNotAffectedRaw.map(transformPageData);
+
+  // 6) Compute scanned/ skipped counts
+  const scannedPagesCount = pagesAffected.length + pagesNotAffected.length;
+  const pagesNotScannedCount = Array.isArray(allIssues.pagesNotScanned)
     ? allIssues.pagesNotScanned.length
     : 0;
 
-  // 4. Build scanPagesDetail (detailed version with full typesOfIssues)
+  // 7) Build scanPagesDetail (keeping full typesOfIssues)
   const scanPagesDetail = {
     pagesAffected,
+    pagesNotAffected,  // these pages are scanned but have no "fail/review" issues
     scannedPagesCount,
-    // [Add pagesNotScanned BEFORE skippedPagesCount]
     pagesNotScanned: Array.isArray(allIssues.pagesNotScanned)
       ? allIssues.pagesNotScanned
       : [],
-    skippedPagesCount,
+    pagesNotScannedCount,
   };
 
-  // 5. Build scanPagesSummary (same info but WITHOUT `typesOfIssues`)
-  const pagesSummary = pagesAffected.map(({ typesOfIssues, ...rest }) => rest);
+  // 8) Build scanPagesSummary (remove “typesOfIssues” from both groups, but keep other fields)
+  function stripTypesOfIssues(page: ReturnType<typeof transformPageData>) {
+    const { typesOfIssues, ...rest } = page;
+    return rest;
+  }
+
+  const summaryPagesAffected = pagesAffected.map(stripTypesOfIssues);
+  const summaryPagesNotAffected = pagesNotAffected.map(stripTypesOfIssues);
 
   const scanPagesSummary = {
-    pagesAffected: pagesSummary,
+    pagesAffected: summaryPagesAffected,
+    pagesNotAffected: summaryPagesNotAffected,
     scannedPagesCount,
-    // [Add pagesNotScanned BEFORE skippedPagesCount]
     pagesNotScanned: Array.isArray(allIssues.pagesNotScanned)
       ? allIssues.pagesNotScanned
       : [],
-    skippedPagesCount,
+    pagesNotScannedCount,
   };
 
-  // Write out the detailed and summary JSON files
+  // 9) Write out the detail and summary JSON files
   const { jsonFilePath: scanPagesDetailJsonFilePath, base64FilePath: scanPagesDetailBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(scanPagesDetail, storagePath, 'scanPagesDetail');
 
@@ -1124,7 +1204,7 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
     totalOccurrences: 0,
   });
 
-  ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
+  ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
     if (!pageResults[category]) return;
 
     const { totalItems, rules } = pageResults[category];
