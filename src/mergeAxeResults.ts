@@ -1236,7 +1236,7 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
     totalOccurrences: 0,
   });
 
-  ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
+  ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
     if (!pageResults[category]) return;
 
     const { totalItems, rules } = pageResults[category];
@@ -1358,47 +1358,70 @@ const getTopTenIssues = allIssues => {
 };
 
 const flattenAndSortResults = (allIssues: AllIssues, isCustomFlow: boolean) => {
+  // Create a map that will sum items only from mustFix, goodToFix, and needsReview.
   const urlOccurrencesMap = new Map<string, number>();
 
-  ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
+  // Iterate over all categories; update the map only if the category is not "passed"
+  ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach((category) => {
+    // Accumulate totalItems regardless of category.
     allIssues.totalItems += allIssues.items[category].totalItems;
 
     allIssues.items[category].rules = Object.entries(allIssues.items[category].rules)
-      .map(ruleEntry => {
+      .map((ruleEntry) => {
         const [rule, ruleInfo] = ruleEntry as [string, RuleInfo];
         ruleInfo.pagesAffected = Object.entries(ruleInfo.pagesAffected)
-          .map(pageEntry => {
+          .map((pageEntry) => {
             if (isCustomFlow) {
               const [pageIndex, pageInfo] = pageEntry as unknown as [number, PageInfo];
-              urlOccurrencesMap.set(
-                pageInfo.url!,
-                (urlOccurrencesMap.get(pageInfo.url!) || 0) + pageInfo.items.length,
-              );
+              // Only update the occurrences map if not passed.
+              if (category !== 'passed') {
+                urlOccurrencesMap.set(
+                  pageInfo.url!,
+                  (urlOccurrencesMap.get(pageInfo.url!) || 0) + pageInfo.items.length
+                );
+              }
               return { pageIndex, ...pageInfo };
+            } else {
+              const [url, pageInfo] = pageEntry as unknown as [string, PageInfo];
+              if (category !== 'passed') {
+                urlOccurrencesMap.set(
+                  url,
+                  (urlOccurrencesMap.get(url) || 0) + pageInfo.items.length
+                );
+              }
+              return { url, ...pageInfo };
             }
-            const [url, pageInfo] = pageEntry as unknown as [string, PageInfo];
-            urlOccurrencesMap.set(url, (urlOccurrencesMap.get(url) || 0) + pageInfo.items.length);
-            return { url, ...pageInfo };
           })
+          // Sort pages so that those with the most items come first
           .sort((page1, page2) => page2.items.length - page1.items.length);
         return { rule, ...ruleInfo };
       })
+      // Sort the rules by totalItems (descending)
       .sort((rule1, rule2) => rule2.totalItems - rule1.totalItems);
   });
 
-  const updateIssuesWithOccurrences = (issuesList: Array<any>) => {
-    issuesList.forEach(issue => {
-      issue.totalOccurrences = urlOccurrencesMap.get(issue.url) || 0;
-    });
-  };
-
-  allIssues.topFiveMostIssues.sort((page1, page2) => page2.totalIssues - page1.totalIssues);
+  // Sort top pages (assumes topFiveMostIssues is already populated)
+  allIssues.topFiveMostIssues.sort((p1, p2) => p2.totalIssues - p1.totalIssues);
   allIssues.topTenPagesWithMostIssues = allIssues.topFiveMostIssues.slice(0, 10);
   allIssues.topFiveMostIssues = allIssues.topFiveMostIssues.slice(0, 5);
-  updateIssuesWithOccurrences(allIssues.topTenPagesWithMostIssues);
+
+  // Update each issue in topTenPagesWithMostIssues with the computed occurrences,
+  // excluding passed items.
+  updateIssuesWithOccurrences(allIssues.topTenPagesWithMostIssues, urlOccurrencesMap);
+
+  // Get and assign the topTenIssues (using your existing helper)
   const topTenIssues = getTopTenIssues(allIssues);
   allIssues.topTenIssues = topTenIssues;
 };
+
+// Helper: Update totalOccurrences for each issue using our urlOccurrencesMap.
+// For pages that have only passed items, the map will return undefined, so default to 0.
+function updateIssuesWithOccurrences(issuesList: any[], urlOccurrencesMap: Map<string, number>) {
+  issuesList.forEach((issue) => {
+    issue.totalOccurrences = urlOccurrencesMap.get(issue.url) || 0;
+  });
+}
+
 
 const createRuleIdJson = allIssues => {
   const compiledRuleJson = {};
