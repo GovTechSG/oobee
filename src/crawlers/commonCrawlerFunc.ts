@@ -1,7 +1,6 @@
 import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
 import { BrowserContext, Page } from 'playwright';
-import { xPathToCss } from '../xPathToCss.js';
 import {
   axeScript,
   guiInfoStatusTypes,
@@ -11,10 +10,15 @@ import {
 import { guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
-import { customAxeConfig } from './customAxeFunctions.js';
-import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
+import { evaluateAltText } from './custom/evaluateAltText.js';
+import { escapeCssSelector } from './custom/escapeCssSelector.js';
+import { framesCheck } from './custom/framesCheck.js';
+import { findElementByCssSelector } from './custom/findElementByCssSelector.js';
+import { getAxeConfiguration } from './custom/getAxeConfiguration.js';
+import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
+import { xPathToCss } from './custom/xPathToCss.js';
 
 // types
 interface AxeResultsWithScreenshot extends AxeResults {
@@ -287,21 +291,6 @@ export const runAxeScript = async ({
   });
 
   const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
-  const oobeeAccessibleLabelFlaggedXpaths = disableOobee
-    ? []
-    : (await flagUnlabelledClickableElements(page)).map(item => item.xpath);
-  const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
-    .map(xpath => {
-      try {
-        const cssSelector = xPathToCss(xpath);
-        return cssSelector;
-      } catch (e) {
-        console.error('Error converting XPath to CSS: ', xpath, e);
-        return '';
-      }
-    })
-    .filter(item => item !== '');
-
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
 
   const gradingReadabilityFlag = await extractAndGradeText(page); // Ensure flag is obtained before proceeding
@@ -312,102 +301,51 @@ export const runAxeScript = async ({
     async ({
       selectors,
       saflyIconSelector,
-      customAxeConfig,
       disableOobee,
       enableWcagAaa,
-      oobeeAccessibleLabelFlaggedCssSelectors,
       gradingReadabilityFlag,
+      evaluateAltTextFunctionString,
+      escapeCssSelectorFunctionString,
+      framesCheckFunctionString,
+      findElementByCssSelectorFunctionString,
+      getAxeConfigurationFunctionString,
+      flagUnlabelledClickableElementsFunctionString,
+      xPathToCssFunctionString,
     }) => {
       try {
-        const evaluateAltText = (node: Element) => {
-          const altText = node.getAttribute('alt');
-          const confusingTexts = ['img', 'image', 'picture', 'photo', 'graphic'];
-
-          if (altText) {
-            const trimmedAltText = altText.trim().toLowerCase();
-            if (confusingTexts.includes(trimmedAltText)) {
-              return false;
-            }
-          }
-          return true;
-        };
-
-        // for css id selectors starting with a digit, escape it with the unicode character e.g. #123 -> #\31 23
-        const escapeCSSSelector = (selector: string) => {
-          try {
-            return selector.replace(
-              /([#\.])(\d)/g,
-              (_match, prefix, digit) => `${prefix}\\3${digit} `,
-            );
-          } catch (e) {
-            console.error(`error escaping css selector: ${selector}`, e);
-            return selector;
-          }
-        };
-
+        // Load functions into the browser context
+        eval(evaluateAltTextFunctionString);
+        eval(escapeCssSelectorFunctionString);
+        eval(framesCheckFunctionString);
+        eval(findElementByCssSelectorFunctionString);
+        eval(flagUnlabelledClickableElementsFunctionString);
+        eval(xPathToCssFunctionString);
+        eval(getAxeConfigurationFunctionString);
         // remove so that axe does not scan
         document.querySelector(saflyIconSelector)?.remove();
 
-        axe.configure({
-          branding: customAxeConfig.branding,
-          checks: [
-            {
-              ...customAxeConfig.checks[0],
-              evaluate: evaluateAltText,
-            },
-            {
-              ...customAxeConfig.checks[1],
-              evaluate: (node: HTMLElement) => {
-                return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
-              },
-            },
-            ...(enableWcagAaa
-              ? [
-                {
-                  ...customAxeConfig.checks[2],
-                  evaluate: (_node: HTMLElement) => {
-                    if (gradingReadabilityFlag === '') {
-                      return true; // Pass if no readability issues
-                    }
-                    // Dynamically update the grading messages
-                    const gradingCheck = customAxeConfig.checks.find(
-                      check => check.id === 'oobee-grading-text-contents',
-                    );
-                    if (gradingCheck) {
-                      gradingCheck.metadata.messages.incomplete = `The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ${gradingReadabilityFlag
-                        }.\nThe target passing score is above 50, indicating content readable by university students and lower grade levels.\nA higher score reflects better readability.`;
-                    }
+        const oobeeAccessibleLabelFlaggedXpaths = disableOobee
+          ? []
+          : (await flagUnlabelledClickableElements()).map(item => item.xpath);
+        const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
+          .map(xpath => {
+            try {
+              const cssSelector = xPathToCss(xpath);
+              return cssSelector;
+            } catch (e) {
+              console.error('Error converting XPath to CSS: ', xpath, e);
+              return '';
+            }
+          })
+          .filter(item => item !== '');
 
-                    // Fail if readability issues are detected
-                  },
-                },
-              ]
-              : []),
-          ],
-          rules: customAxeConfig.rules
-            .filter(rule => (disableOobee ? !rule.id.startsWith('oobee') : true))
-            .concat(
-              enableWcagAaa
-                ? [
-                  {
-                    id: 'color-contrast-enhanced',
-                    enabled: true,
-                    tags: ['wcag2aaa', 'wcag146'],
-                  },
-                  {
-                    id: 'identical-links-same-purpose',
-                    enabled: true,
-                    tags: ['wcag2aaa', 'wcag249'],
-                  },
-                  {
-                    id: 'meta-refresh-no-exceptions',
-                    enabled: true,
-                    tags: ['wcag2aaa', 'wcag224', 'wcag325'],
-                  },
-                ]
-                : [],
-            ),
+        const axeConfig = getAxeConfiguration({
+          enableWcagAaa,
+          gradingReadabilityFlag,
+          disableOobee,
         });
+
+        axe.configure(axeConfig);
 
         // removed needsReview condition
         const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
@@ -422,102 +360,7 @@ export const runAxeScript = async ({
             }
             // handle css id selectors that start with a digit
             const escapedCssSelectors =
-              oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCSSSelector);
-
-            function framesCheck(cssSelector: string): {
-              doc: Document;
-              remainingSelector: string;
-            } {
-              let doc = document; // Start with the main document
-              let remainingSelector = ''; // To store the last part of the selector
-              let targetIframe = null;
-
-              // Split the selector into parts at "> html"
-              const diffParts = cssSelector.split(/\s*>\s*html\s*/);
-
-              for (let i = 0; i < diffParts.length - 1; i++) {
-                let iframeSelector = `${diffParts[i].trim()}`;
-
-                // Add back '> html' to the current part
-                if (i > 0) {
-                  iframeSelector = `html > ${iframeSelector}`;
-                }
-
-                let frameset = null;
-                // Find the iframe using the current document context
-                if (doc.querySelector('frameset')) {
-                  frameset = doc.querySelector('frameset');
-                }
-
-                if (frameset) {
-                  doc = frameset;
-                  iframeSelector = iframeSelector.split('body >')[1].trim();
-                }
-                targetIframe = doc.querySelector(iframeSelector);
-
-                if (targetIframe && targetIframe.contentDocument) {
-                  // Update the document to the iframe's contentDocument
-                  doc = targetIframe.contentDocument;
-                } else {
-                  console.warn(
-                    `Iframe not found or contentDocument inaccessible for selector: ${iframeSelector}`,
-                  );
-                  return { doc, remainingSelector: cssSelector }; // Return original selector if iframe not found
-                }
-              }
-
-              // The last part is the remaining CSS selector
-              remainingSelector = diffParts[diffParts.length - 1].trim();
-
-              // Remove any leading '>' combinators from remainingSelector
-              remainingSelector = `html${remainingSelector}`;
-
-              return { doc, remainingSelector };
-            }
-
-            function findElementByCssSelector(cssSelector: string): string | null {
-              let doc = document;
-
-              // Check if the selector includes 'frame' or 'iframe' and update doc and selector
-
-              if (/\s*>\s*html\s*/.test(cssSelector)) {
-                const inFrames = framesCheck(cssSelector);
-                doc = inFrames.doc;
-                cssSelector = inFrames.remainingSelector;
-              }
-
-              // Query the element in the document (including inside frames)
-              let element = doc.querySelector(cssSelector);
-
-              // Handle Shadow DOM if the element is not found
-              if (!element) {
-                const shadowRoots = [];
-                const allElements = document.querySelectorAll('*');
-
-                // Look for elements with shadow roots
-                allElements.forEach(el => {
-                  if (el.shadowRoot) {
-                    shadowRoots.push(el.shadowRoot);
-                  }
-                });
-
-                // Search inside each shadow root for the element
-                for (const shadowRoot of shadowRoots) {
-                  const shadowElement = shadowRoot.querySelector(cssSelector);
-                  if (shadowElement) {
-                    element = shadowElement; // Found the element inside shadow DOM
-                    break;
-                  }
-                }
-              }
-
-              if (element) {
-                return element.outerHTML;
-              }
-
-              console.warn(`Unable to find element for css selector: ${cssSelector}`);
-              return null;
-            }
+              oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCssSelector);
 
             // Add oobee violations to Axe's report
             const oobeeAccessibleLabelViolations = {
@@ -564,11 +407,17 @@ export const runAxeScript = async ({
     {
       selectors,
       saflyIconSelector,
-      customAxeConfig,
       disableOobee,
       enableWcagAaa,
-      oobeeAccessibleLabelFlaggedCssSelectors,
       gradingReadabilityFlag,
+      evaluateAltTextFunctionString: evaluateAltText.toString(),
+      escapeCssSelectorFunctionString: escapeCssSelector.toString(),
+      framesCheckFunctionString: framesCheck.toString(),
+      findElementByCssSelectorFunctionString: findElementByCssSelector.toString(),
+      getAxeConfigurationFunctionString: getAxeConfiguration.toString(),
+      flagUnlabelledClickableElementsFunctionString:
+        flagUnlabelledClickableElements.toString(),
+      xPathToCssFunctionString: xPathToCss.toString(),
     },
   );
 
