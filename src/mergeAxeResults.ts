@@ -826,44 +826,60 @@ const writeJsonAndBase64Files = async (
     base64FilePath: scanItemsSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(summaryItems, storagePath, 'scanItemsSummary');
 
-  // --- Scan Issues Summary ---
-  // 1. Build scanIssuesSummary object (now including "passed")
+  // 1) SORT the rules in each category of allIssues.items by totalItems (descending)
+  //    before building scanIssuesSummary
+  if (allIssues.items.mustFix?.rules) {
+    allIssues.items.mustFix.rules.sort((a, b) => b.totalItems - a.totalItems);
+  }
+  if (allIssues.items.goodToFix?.rules) {
+    allIssues.items.goodToFix.rules.sort((a, b) => b.totalItems - a.totalItems);
+  }
+  if (allIssues.items.needsReview?.rules) {
+    allIssues.items.needsReview.rules.sort((a, b) => b.totalItems - a.totalItems);
+  }
+  if (allIssues.items.passed?.rules) {
+    allIssues.items.passed.rules.sort((a, b) => b.totalItems - a.totalItems);
+  }
+
+  // 2) Build the scanIssuesSummary object AFTER rules are sorted
   const scanIssuesSummary = {
     mustFix: allIssues.items.mustFix.rules.map(rule => ({
       issueId: rule.rule,
       issueDescription: rule.description,
-      occurrencesCount: rule.totalItems,
+      occurrencesCount: rule.totalItems,  // typically "failed" for mustFix
       uniquePagesAffectedCount: rule.pagesAffected.length,
       wcagConformance: rule.conformance,
     })),
     goodToFix: allIssues.items.goodToFix.rules.map(rule => ({
       issueId: rule.rule,
       issueDescription: rule.description,
-      occurrencesCount: rule.totalItems,
+      occurrencesCount: rule.totalItems,  // typically "failed" for goodToFix
       uniquePagesAffectedCount: rule.pagesAffected.length,
       wcagConformance: rule.conformance,
     })),
     needsReview: allIssues.items.needsReview.rules.map(rule => ({
       issueId: rule.rule,
       issueDescription: rule.description,
-      occurrencesCount: rule.totalItems,
+      occurrencesCount: rule.totalItems,  // typically "failed" for needsReview
       uniquePagesAffectedCount: rule.pagesAffected.length,
       wcagConformance: rule.conformance,
     })),
     passed: allIssues.items.passed.rules.map(rule => ({
       issueId: rule.rule,
       issueDescription: rule.description,
-      occurrencesCount: rule.totalItems,
+      occurrencesCount: rule.totalItems,  // usually "passed" occurrences
       uniquePagesAffectedCount: rule.pagesAffected.length,
       wcagConformance: rule.conformance,
     })),
   };
 
-  // 2. Write the scanIssuesSummary JSON and base64 files
+  // 3) Write out scanIssuesSummary
   const { jsonFilePath: scanIssuesSummaryJsonFilePath, base64FilePath: scanIssuesSummaryBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(scanIssuesSummary, storagePath, 'scanIssuesSummary');
 
+  // -----------------------------------------------------------------------------
   // --- Scan Pages Summary and Scan Pages Detail ---
+  // -----------------------------------------------------------------------------
 
   // 1) Gather your "scanned" pages from allIssues
   const allScannedPages = Array.isArray(allIssues.pagesScanned)
@@ -1046,13 +1062,17 @@ const writeJsonAndBase64Files = async (
   const pagesAffected = pagesAffectedRaw.map(transformPageData);
   const pagesNotAffected = pagesNotAffectedRaw.map(transformPageData);
 
-  // 6) Compute scanned/ skipped counts
+  // 6) SORT pages by typesOfIssuesCount (descending) for both arrays
+  pagesAffected.sort((a, b) => b.typesOfIssuesCount - a.typesOfIssuesCount);
+  pagesNotAffected.sort((a, b) => b.typesOfIssuesCount - a.typesOfIssuesCount);
+
+  // 7) Compute scanned/ skipped counts
   const scannedPagesCount = pagesAffected.length + pagesNotAffected.length;
   const pagesNotScannedCount = Array.isArray(allIssues.pagesNotScanned)
     ? allIssues.pagesNotScanned.length
     : 0;
 
-  // 7) Build scanPagesDetail (keeping full typesOfIssues)
+  // 8) Build scanPagesDetail (keeping full typesOfIssues)
   const scanPagesDetail = {
     pagesAffected,
     pagesNotAffected,  // these pages are scanned but have no "fail/review" issues
@@ -1063,7 +1083,7 @@ const writeJsonAndBase64Files = async (
     pagesNotScannedCount,
   };
 
-  // 8) Build scanPagesSummary (remove “typesOfIssues” from both groups, but keep other fields)
+  // 9) Build scanPagesSummary (remove “typesOfIssues” from both groups, but keep other fields)
   function stripTypesOfIssues(page: ReturnType<typeof transformPageData>) {
     const { typesOfIssues, ...rest } = page;
     return rest;
@@ -1082,12 +1102,24 @@ const writeJsonAndBase64Files = async (
     pagesNotScannedCount,
   };
 
-  // 9) Write out the detail and summary JSON files
-  const { jsonFilePath: scanPagesDetailJsonFilePath, base64FilePath: scanPagesDetailBase64FilePath } =
-    await writeJsonFileAndCompressedJsonFile(scanPagesDetail, storagePath, 'scanPagesDetail');
+  // 10) Write out the detail and summary JSON files
+  const {
+    jsonFilePath: scanPagesDetailJsonFilePath,
+    base64FilePath: scanPagesDetailBase64FilePath
+  } = await writeJsonFileAndCompressedJsonFile(
+    scanPagesDetail,
+    storagePath,
+    'scanPagesDetail'
+  );
 
-  const { jsonFilePath: scanPagesSummaryJsonFilePath, base64FilePath: scanPagesSummaryBase64FilePath } =
-    await writeJsonFileAndCompressedJsonFile(scanPagesSummary, storagePath, 'scanPagesSummary');
+  const {
+    jsonFilePath: scanPagesSummaryJsonFilePath,
+    base64FilePath: scanPagesSummaryBase64FilePath
+  } = await writeJsonFileAndCompressedJsonFile(
+    scanPagesSummary,
+    storagePath,
+    'scanPagesSummary'
+  );
 
   return {
     scanDataJsonFilePath,
