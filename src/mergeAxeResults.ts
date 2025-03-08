@@ -48,6 +48,7 @@ export type PageInfo = {
 export type RuleInfo = {
   totalItems: number;
   pagesAffected: PageInfo[];
+  pagesAffectedCount: number;
   rule: string;
   description: string;
   axeImpact: string;
@@ -742,7 +743,29 @@ const writeJsonAndBase64Files = async (
     await writeJsonFileAndCompressedJsonFile(rest, storagePath, 'scanData');
   const { jsonFilePath: scanItemsJsonFilePath, base64FilePath: scanItemsBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(items, storagePath, 'scanItems');
+    // Add pagesAffectedCount to each rule in scanItemsMiniReport (items)
+    ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach((category) => {
+      if (items[category].rules && Array.isArray(items[category].rules)) {
+        items[category].rules.forEach((rule) => {
+          rule.pagesAffectedCount = Array.isArray(rule.pagesAffected)
+            ? rule.pagesAffected.length
+            : 0;
+        });
+      }
+    });
 
+    // Refactor scanIssuesSummary to reuse the scanItemsMiniReport structure by stripping out pagesAffected
+    const scanIssuesSummary = {
+      mustFix: items.mustFix.rules.map(({ pagesAffected, ...ruleInfo }) => ruleInfo),
+      goodToFix: items.goodToFix.rules.map(({ pagesAffected, ...ruleInfo }) => ruleInfo),
+      needsReview: items.needsReview.rules.map(({ pagesAffected, ...ruleInfo }) => ruleInfo),
+      passed: items.passed.rules.map(({ pagesAffected, ...ruleInfo }) => ruleInfo),
+    };
+
+    // Write out the scanIssuesSummary JSON using the new structure
+    const { jsonFilePath: scanIssuesSummaryJsonFilePath, base64FilePath: scanIssuesSummaryBase64FilePath } =
+    await writeJsonFileAndCompressedJsonFile(scanIssuesSummary, storagePath, 'scanIssuesSummary');
+  
   // scanItemsSummary
   // the below mutates the original items object, since it is expensive to clone
   items.mustFix.rules.forEach(rule => {
@@ -828,57 +851,6 @@ const writeJsonAndBase64Files = async (
     jsonFilePath: scanItemsSummaryJsonFilePath,
     base64FilePath: scanItemsSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(summaryItems, storagePath, 'scanItemsSummary');
-
-  // 1) SORT the rules in each category of allIssues.items by totalItems (descending)
-  //    before building scanIssuesSummary
-  if (allIssues.items.mustFix?.rules) {
-    allIssues.items.mustFix.rules.sort((a, b) => b.totalItems - a.totalItems);
-  }
-  if (allIssues.items.goodToFix?.rules) {
-    allIssues.items.goodToFix.rules.sort((a, b) => b.totalItems - a.totalItems);
-  }
-  if (allIssues.items.needsReview?.rules) {
-    allIssues.items.needsReview.rules.sort((a, b) => b.totalItems - a.totalItems);
-  }
-  if (allIssues.items.passed?.rules) {
-    allIssues.items.passed.rules.sort((a, b) => b.totalItems - a.totalItems);
-  }
-
-  // 2) Build the scanIssuesSummary object AFTER rules are sorted
-  const scanIssuesSummary = {
-    mustFix: allIssues.items.mustFix.rules.map(rule => ({
-      issueId: rule.rule,
-      issueDescription: rule.description,
-      occurrencesCount: rule.totalItems,  // typically "failed" for mustFix
-      uniquePagesAffectedCount: rule.pagesAffected.length,
-      wcagConformance: rule.conformance,
-    })),
-    goodToFix: allIssues.items.goodToFix.rules.map(rule => ({
-      issueId: rule.rule,
-      issueDescription: rule.description,
-      occurrencesCount: rule.totalItems,  // typically "failed" for goodToFix
-      uniquePagesAffectedCount: rule.pagesAffected.length,
-      wcagConformance: rule.conformance,
-    })),
-    needsReview: allIssues.items.needsReview.rules.map(rule => ({
-      issueId: rule.rule,
-      issueDescription: rule.description,
-      occurrencesCount: rule.totalItems,  // typically "failed" for needsReview
-      uniquePagesAffectedCount: rule.pagesAffected.length,
-      wcagConformance: rule.conformance,
-    })),
-    passed: allIssues.items.passed.rules.map(rule => ({
-      issueId: rule.rule,
-      issueDescription: rule.description,
-      occurrencesCount: rule.totalItems,  // usually "passed" occurrences
-      uniquePagesAffectedCount: rule.pagesAffected.length,
-      wcagConformance: rule.conformance,
-    })),
-  };
-
-  // 3) Write out scanIssuesSummary
-  const { jsonFilePath: scanIssuesSummaryJsonFilePath, base64FilePath: scanIssuesSummaryBase64FilePath } =
-    await writeJsonFileAndCompressedJsonFile(scanIssuesSummary, storagePath, 'scanIssuesSummary');
 
   // -----------------------------------------------------------------------------
   // --- Scan Pages Summary and Scan Pages Detail ---
