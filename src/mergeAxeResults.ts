@@ -743,7 +743,8 @@ const writeJsonAndBase64Files = async (
     await writeJsonFileAndCompressedJsonFile(rest, storagePath, 'scanData');
   const { jsonFilePath: scanItemsJsonFilePath, base64FilePath: scanItemsBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(items, storagePath, 'scanItems');
-    // Add pagesAffectedCount to each rule in scanItemsMiniReport (items)
+    
+    // Add pagesAffectedCount to each rule in scanItemsMiniReport (items) and sort them in descending order of pagesAffectedCount
     ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach((category) => {
       if (items[category].rules && Array.isArray(items[category].rules)) {
         items[category].rules.forEach((rule) => {
@@ -751,6 +752,9 @@ const writeJsonAndBase64Files = async (
             ? rule.pagesAffected.length
             : 0;
         });
+
+        // Sort in descending order of pagesAffectedCount
+        items[category].rules.sort((a, b) => (b.pagesAffectedCount || 0) - (a.pagesAffectedCount || 0));
       }
     });
 
