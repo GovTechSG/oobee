@@ -1,6 +1,6 @@
 import crawlee, { CrawlingContext, PlaywrightGotoOptions } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
-import { BrowserContext, Page } from 'playwright';
+import { Page } from 'playwright';
 import {
   axeScript,
   guiInfoStatusTypes,
@@ -94,13 +94,13 @@ export const filterAxeResults = (
 
     if (conformance[0] !== 'best-practice' && !wcagRegex.test(conformance[0])) {
       conformance.sort((a, b) => {
-      if (wcagRegex.test(a) && !wcagRegex.test(b)) {
-        return -1;
-      }
-      if (!wcagRegex.test(a) && wcagRegex.test(b)) {
-        return 1;
-      }
-      return 0;
+        if (wcagRegex.test(a) && !wcagRegex.test(b)) {
+          return -1;
+        }
+        if (!wcagRegex.test(a) && wcagRegex.test(b)) {
+          return 1;
+        }
+        return 0;
       });
     }
 
@@ -216,9 +216,6 @@ export const runAxeScript = async ({
   selectors?: string[];
   ruleset?: RuleFlags[];
 }) => {
-  const browserContext: BrowserContext = page.context();
-  const requestUrl = page.url();
-
   try {
     // Checking for DOM mutations before proceeding to scan
     await page.evaluate(() => {
@@ -356,7 +353,7 @@ export const runAxeScript = async ({
           })
           .then(results => {
             if (disableOobee) {
-              return results;
+              return { ...results, pageTitle: document.title };
             }
             // handle css id selectors that start with a digit
             const escapedCssSelectors =
@@ -393,7 +390,7 @@ export const runAxeScript = async ({
             };
 
             results.violations = [...results.violations, oobeeAccessibleLabelViolations];
-            return results;
+            return { ...results, pageTitle: document.title };
           })
           .catch(e => {
             console.error('Error at axe.run', e);
@@ -415,8 +412,7 @@ export const runAxeScript = async ({
       framesCheckFunctionString: framesCheck.toString(),
       findElementByCssSelectorFunctionString: findElementByCssSelector.toString(),
       getAxeConfigurationFunctionString: getAxeConfiguration.toString(),
-      flagUnlabelledClickableElementsFunctionString:
-        flagUnlabelledClickableElements.toString(),
+      flagUnlabelledClickableElementsFunctionString: flagUnlabelledClickableElements.toString(),
       xPathToCssFunctionString: xPathToCss.toString(),
     },
   );
@@ -426,20 +422,7 @@ export const runAxeScript = async ({
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
   }
 
-  let pageTitle = null;
-  try {
-    pageTitle = await page.evaluate(() => document.title);
-  } catch (e) {
-    silentLogger.warn(`Error while getting page title: ${e}`);
-    if (page.isClosed()) {
-      silentLogger.info(`Page was closed for ${requestUrl}, creating new page`);
-      page = await browserContext.newPage();
-      await page.goto(requestUrl, { waitUntil: 'domcontentloaded' });
-      pageTitle = await page.evaluate(() => document.title);
-    }
-  }
-
-  return filterAxeResults(results, pageTitle, customFlowDetails);
+  return filterAxeResults(results, results.pageTitle, customFlowDetails);
 };
 
 export const createCrawleeSubFolders = async (
