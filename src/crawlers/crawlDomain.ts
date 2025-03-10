@@ -457,6 +457,7 @@ const crawlDomain = async ({
 
   const crawler = new crawlee.PlaywrightCrawler({
     launchContext: {
+      useIncognitoPages: true,
       launcher: constants.launcher,
       launchOptions: getPlaywrightLaunchOptions(browser),
       // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
@@ -464,7 +465,7 @@ const crawlDomain = async ({
     },
     retryOnBlocked: true,
     browserPoolOptions: {
-      maxOpenPagesPerBrowser: 1,
+
       useFingerprints: false,
       preLaunchHooks: [
         async (_pageId, launchContext) => {
