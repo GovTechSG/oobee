@@ -3,12 +3,12 @@
     <div class="col-sm-6 text-sm-start">
       <%
         const encodedUrlScanned = encodeURIComponent(urlScanned);
-        const encodedVersionNumber = encodeURIComponent(phAppVersion);
+        const encodedVersionNumber = encodeURIComponent(oobeeAppVersion);
     
         // Use %0A for line breaks in the body
         const mailtoAddress = `oobee@wogaa.gov.sg`;
-        const mailtoSubject = encodeURIComponent(`Support Request - Oobee Version ${phAppVersion}`);
-        const mailtoBody = encodeURIComponent(`URL Scanned: ${urlScanned}\nVersion: ${phAppVersion}`);
+        const mailtoSubject = encodeURIComponent(`Support Request - Oobee Version ${oobeeAppVersion}`);
+        const mailtoBody = encodeURIComponent(`URL Scanned: ${urlScanned}\nVersion: ${oobeeAppVersion}`);
         const feedbackEmail = `mailto:${mailtoAddress}?subject=${mailtoSubject}&body=${mailtoBody}`;
       %>
     

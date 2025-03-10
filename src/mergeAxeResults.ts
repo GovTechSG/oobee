@@ -86,7 +86,7 @@ type AllIssues = {
   topTenIssues: Array<any>;
   wcagViolations: string[];
   customFlowLabel: string;
-  phAppVersion: string;
+  oobeeAppVersion: string;
   items: {
     mustFix: Category;
     goodToFix: Category;
@@ -1012,13 +1012,12 @@ const writeJsonAndBase64Files = async (
       page.totalOccurrencesFailedExcludingNeedsReview === 0 &&
       page.totalOccurrencesFailedIncludingNeedsReview > 0;
   
-    // NEW: Aggregate wcag conformance values only for rules with failing issues.
+    // Aggregate wcag conformance values only for rules with failing issues.
     const allConformance = typesOfIssuesArray.reduce((acc, curr) => {
       const nonPassedCount =
         (curr.occurrencesMustFix || 0) +
         (curr.occurrencesGoodToFix || 0) +
         (curr.occurrencesNeedsReview || 0);
-      // Only include if there are any failing counts.
       if (nonPassedCount > 0) {
         return acc.concat(curr.wagConformance || []);
       }
@@ -1032,7 +1031,9 @@ const writeJsonAndBase64Files = async (
       url: page.url,
       totalOccurrencesFailedIncludingNeedsReview: page.totalOccurrencesFailedIncludingNeedsReview,
       totalOccurrencesFailedExcludingNeedsReview: page.totalOccurrencesFailedExcludingNeedsReview,
-      totalOccurrencesNeedsReview: page.totalOccurrencesNeedsReview,
+      totalOccurrencesMustFix: mustFixSum,
+      totalOccurrencesGoodToFix: goodToFixSum,
+      totalOccurrencesNeedsReview: needsReviewSum,
       totalOccurrencesPassed: page.totalOccurrencesPassed,
       occurrencesExclusiveToNeedsReview,
       typesOfIssuesCount: failedRuleCount,
@@ -1041,7 +1042,7 @@ const writeJsonAndBase64Files = async (
       conformance,
       typesOfIssues: typesOfIssuesArray, // full details for scanPagesDetail
     };
-  }  
+  }
 
   const pagesAffected = pagesAffectedRaw.map(transformPageData);
   const pagesNotAffected = pagesNotAffectedRaw.map(transformPageData);
@@ -1470,7 +1471,7 @@ const generateArtifacts = async (
   generateJsonFiles = false,
 ) => {
   const intermediateDatasetsPath = `${randomToken}/datasets/${randomToken}`;
-  const phAppVersion = getVersion();
+  const oobeeAppVersion = getVersion();
   const storagePath = getStoragePath(randomToken);
 
   urlScanned =
@@ -1531,7 +1532,7 @@ const generateArtifacts = async (
     topTenIssues: [],
     wcagViolations: [],
     customFlowLabel,
-    phAppVersion,
+    oobeeAppVersion,
     items: {
       mustFix: {
         description: itemTypeDescription.mustFix,

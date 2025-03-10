@@ -249,8 +249,8 @@
         <a href="#" id="createPassedItemsFile">${passedItems} ${passedItems === 1 ? 'occurrence' : 'occurrences'} passed</a>`;
         itemsElement.innerHTML = itemsContent;
 
-        var phAppVersionElement = document.getElementById('phAppVersion');
-        var versionContent = 'Oobee Version ' + scanData.phAppVersion;
+        var phAppVersionElement = document.getElementById('oobeeAppVersion');
+        var versionContent = 'Oobee Version ' + scanData.oobeeAppVersion;
         phAppVersionElement.innerHTML = versionContent;
 
         var isCustomFlow = scanData.isCustomFlow;
