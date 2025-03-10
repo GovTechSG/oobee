@@ -457,6 +457,7 @@ const crawlDomain = async ({
 
   const crawler = new crawlee.PlaywrightCrawler({
     launchContext: {
+      useIncognitoPages: true,
       launcher: constants.launcher,
       launchOptions: getPlaywrightLaunchOptions(browser),
       // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
@@ -464,6 +465,7 @@ const crawlDomain = async ({
     },
     retryOnBlocked: true,
     browserPoolOptions: {
+
       useFingerprints: false,
       preLaunchHooks: [
         async (_pageId, launchContext) => {
@@ -559,31 +561,31 @@ const crawlDomain = async ({
     ],
     preNavigationHooks: isBasicAuth
       ? [
-        async ({ page, request }) => {
-          await page.setExtraHTTPHeaders({
-            Authorization: authHeader,
-            ...extraHTTPHeaders,
-          });
-          const processible = await isProcessibleUrl(request.url);
-          if (!processible) {
-            request.skipNavigation = true;
-            return null;
-          }
-        },
-      ]
+          async ({ page, request }) => {
+            await page.setExtraHTTPHeaders({
+              Authorization: authHeader,
+              ...extraHTTPHeaders,
+            });
+            const processible = await isProcessibleUrl(request.url);
+            if (!processible) {
+              request.skipNavigation = true;
+              return null;
+            }
+          },
+        ]
       : [
-        async ({ page, request }) => {
-          await page.setExtraHTTPHeaders({
-            ...extraHTTPHeaders,
-          });
+          async ({ page, request }) => {
+            await page.setExtraHTTPHeaders({
+              ...extraHTTPHeaders,
+            });
 
-          const processible = await isProcessibleUrl(request.url);
-          if (!processible) {
-            request.skipNavigation = true;
-            return null;
-          }
-        },
-      ],
+            const processible = await isProcessibleUrl(request.url);
+            if (!processible) {
+              request.skipNavigation = true;
+              return null;
+            }
+          },
+        ],
     requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
     requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
       const browserContext: BrowserContext = page.context();
@@ -606,7 +608,10 @@ const crawlDomain = async ({
           actualUrl = page.url();
         }
 
-        if (!isFollowStrategy(url, actualUrl, strategy) && (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))) {
+        if (
+          !isFollowStrategy(url, actualUrl, strategy) &&
+          (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))
+        ) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: actualUrl,
@@ -690,7 +695,11 @@ const crawlDomain = async ({
           return;
         }
 
-        if (!isFollowStrategy(url, actualUrl, strategy) && blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
+        if (
+          !isFollowStrategy(url, actualUrl, strategy) &&
+          blacklistedPatterns &&
+          isSkippedUrl(actualUrl, blacklistedPatterns)
+        ) {
           urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
@@ -734,11 +743,7 @@ const crawlDomain = async ({
           const isRedirected = !areLinksEqual(actualUrl, request.url);
 
           // check if redirected link is following strategy (same-domain/same-hostname)
-          const isLoadedUrlFollowStrategy = isFollowStrategy(
-            actualUrl,
-            request.url,
-            strategy,
-          );
+          const isLoadedUrlFollowStrategy = isFollowStrategy(actualUrl, request.url, strategy);
           if (isRedirected && !isLoadedUrlFollowStrategy) {
             urlsCrawled.notScannedRedirects.push({
               fromUrl: request.url,
@@ -809,7 +814,6 @@ const crawlDomain = async ({
             pageTitle: request.url,
             actualUrl: actualUrl, // i.e. actualUrl
           });
-
         }
 
         if (followRobots) await getUrlsFromRobotsTxt(request.url, browser);
@@ -822,7 +826,6 @@ const crawlDomain = async ({
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
-
             page = await browserContext.newPage();
             await page.goto(request.url);
 
@@ -847,7 +850,11 @@ const crawlDomain = async ({
         // when max pages have been scanned, scan will abort and all relevant pages still opened will close instantly.
         // a browser close error will then be flagged. Since this is an intended behaviour, this error will be excluded.
         if (!isAbortingScanNow) {
-            urlsCrawled.error.push({ url: request.url, pageTitle: request.url, actualUrl: request.url });
+          urlsCrawled.error.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: request.url,
+          });
         }
       }
     },
@@ -857,7 +864,7 @@ const crawlDomain = async ({
         urlScanned: request.url,
       });
       urlsCrawled.error.push({ url: request.url, pageTitle: request.url, actualUrl: request.url });
-    
+
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
     maxRequestsPerCrawl: Infinity,
