@@ -29,6 +29,7 @@ import {
   getBlackListedPatterns,
   urlWithoutAuth,
   waitForPageLoaded,
+  initModifiedUserAgent,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy } from '../utils.js';
 import {
@@ -455,6 +456,8 @@ const crawlDomain = async ({
     userDataDir = process.env.CRAWLEE_HEADLESS !== '0' ? userDataDirectory : '';
   }
 
+  await initModifiedUserAgent(browser, playwrightDeviceDetailsObject);
+  
   const crawler = new crawlee.PlaywrightCrawler({
     launchContext: {
       launcher: constants.launcher,
@@ -598,7 +601,9 @@ const crawlDomain = async ({
           currentUrl.password = password;
           request.url = currentUrl.href;
         }
-
+        // const htmlContent = await page.content();
+        const userAgent = await page.evaluate(() => navigator.userAgent);
+        console.log(userAgent);
         await waitForPageLoaded(page, 10000);
         let actualUrl = page.url() || request.loadedUrl || request.url;
 
