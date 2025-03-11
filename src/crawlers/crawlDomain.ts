@@ -39,6 +39,7 @@ import {
 } from './pdfScanFunc.js';
 import { silentLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
+import { fakeStorage } from './custom/fakeStorage.js';
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
@@ -457,7 +458,6 @@ const crawlDomain = async ({
 
   const crawler = new crawlee.PlaywrightCrawler({
     launchContext: {
-      useIncognitoPages: true,
       launcher: constants.launcher,
       launchOptions: getPlaywrightLaunchOptions(browser),
       // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
@@ -465,7 +465,6 @@ const crawlDomain = async ({
     },
     retryOnBlocked: true,
     browserPoolOptions: {
-
       useFingerprints: false,
       preLaunchHooks: [
         async (_pageId, launchContext) => {
@@ -561,11 +560,23 @@ const crawlDomain = async ({
     ],
     preNavigationHooks: isBasicAuth
       ? [
-          async ({ page, request }) => {
+          async ({ page }) => {
+            // Inject script to override localStorage before navigation
+            await page.addInitScript(
+              ({ fakeStorageFunctionString }) => {
+                // Execute the fake storage function in the page context
+                eval(fakeStorageFunctionString);
+                fakeStorage();
+              },
+              { fakeStorageFunctionString: fakeStorage.toString() },
+            );
+
             await page.setExtraHTTPHeaders({
               Authorization: authHeader,
               ...extraHTTPHeaders,
             });
+          },
+          async ({ page, request }) => {
             const processible = await isProcessibleUrl(request.url);
             if (!processible) {
               request.skipNavigation = true;
@@ -574,11 +585,22 @@ const crawlDomain = async ({
           },
         ]
       : [
-          async ({ page, request }) => {
+          async ({ page }) => {
+            // Inject script to override localStorage before navigation
+            await page.addInitScript(
+              ({ fakeStorageFunctionString }) => {
+                // Execute the fake storage function in the page context
+                eval(fakeStorageFunctionString);
+                fakeStorage();
+              },
+              { fakeStorageFunctionString: fakeStorage.toString() },
+            );
+
             await page.setExtraHTTPHeaders({
               ...extraHTTPHeaders,
             });
-
+          },
+          async ({ page, request }) => {
             const processible = await isProcessibleUrl(request.url);
             if (!processible) {
               request.skipNavigation = true;
@@ -646,7 +668,7 @@ const crawlDomain = async ({
             urlsCrawled.blacklisted.push({
               url: request.url,
               pageTitle: request.url,
-              actualUrl: actualUrl, // i.e. actualUrl
+              actualUrl,
             });
 
             return;
@@ -675,7 +697,7 @@ const crawlDomain = async ({
           urlsCrawled.blacklisted.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           return;
@@ -689,7 +711,7 @@ const crawlDomain = async ({
           urlsCrawled.blacklisted.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           return;
@@ -703,7 +725,7 @@ const crawlDomain = async ({
           urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl,
+            actualUrl,
           });
 
           await enqueueProcess(page, enqueueLinks, browserContext);
@@ -718,7 +740,7 @@ const crawlDomain = async ({
           urlsCrawled.forbidden.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           return;
@@ -732,7 +754,7 @@ const crawlDomain = async ({
           urlsCrawled.invalid.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           return;
@@ -762,7 +784,7 @@ const crawlDomain = async ({
             if (isLoadedUrlInCrawledUrls) {
               urlsCrawled.notScannedRedirects.push({
                 fromUrl: request.url,
-                toUrl: actualUrl, // i.e. actualUrl
+                toUrl: actualUrl,
               });
               return;
             }
@@ -777,12 +799,12 @@ const crawlDomain = async ({
               urlsCrawled.scanned.push({
                 url: urlWithoutAuth(request.url),
                 pageTitle: results.pageTitle,
-                actualUrl: actualUrl, // i.e. actualUrl
+                actualUrl,
               });
 
               urlsCrawled.scannedRedirects.push({
                 fromUrl: urlWithoutAuth(request.url),
-                toUrl: actualUrl, // i.e. actualUrl
+                toUrl: actualUrl,
               });
 
               results.url = request.url;
@@ -812,7 +834,7 @@ const crawlDomain = async ({
           urlsCrawled.blacklisted.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
         }
 
