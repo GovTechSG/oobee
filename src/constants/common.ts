@@ -1779,38 +1779,41 @@ export const submitForm = async (
 
 export async function initModifiedUserAgent(browser?: string, playwrightDeviceDetailsObject?: object) {
   const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
-  if (isHeadless) {
-    // Ensure the headless flag is set.
-    if (!constants.launchOptionsArgs.includes('--headless=new')) {
-      constants.launchOptionsArgs.push('--headless=new');
-    }
-    
-    // Build the launch options using your production settings:
-    // - headless is forced to false (as in your production persistent context).
-    // - Merge in getPlaywrightLaunchOptions(browser) and the device details.
-    const launchOptions = {
-      headless: false,
-      ...getPlaywrightLaunchOptions(browser),
-      ...playwrightDeviceDetailsObject,
-    };
-
-    // Launch a temporary persistent context with an empty userDataDir,
-    // so that we mimic exactly your production browser setup.
-    const browserContext = await constants.launcher.launchPersistentContext('', launchOptions);
-    const page = await browserContext.newPage();
-
-    // Retrieve the default user agent.
-    const defaultUA = await page.evaluate(() => navigator.userAgent);
-    await browserContext.close();
-
-    // Modify the UA: replace "HeadlessChrome" with "Chrome" and append "; Oobee".
-    const modifiedUA = defaultUA.replace('HeadlessChrome', 'Chrome') + '; Oobee';
-    
-    // Push the modified UA flag into your global launch options.
-    constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
-    // console.log('Modified User Agent:', modifiedUA);
+  
+  // If headless mode is enabled, ensure the headless flag is set.
+  if (isHeadless && !constants.launchOptionsArgs.includes('--headless=new')) {
+    constants.launchOptionsArgs.push('--headless=new');
   }
+  
+  // Build the launch options using your production settings.
+  // headless is forced to false as in your persistent context, and we merge in getPlaywrightLaunchOptions and device details.
+  const launchOptions = {
+    headless: false,
+    ...getPlaywrightLaunchOptions(browser),
+    ...playwrightDeviceDetailsObject,
+  };
+
+  // Launch a temporary persistent context with an empty userDataDir to mimic your production browser setup.
+  const browserContext = await constants.launcher.launchPersistentContext('', launchOptions);
+  const page = await browserContext.newPage();
+
+  // Retrieve the default user agent.
+  const defaultUA = await page.evaluate(() => navigator.userAgent);
+  await browserContext.close();
+
+  // Modify the UA:
+  // Replace "HeadlessChrome" with "Chrome" if present, and always append "; Oobee".
+  let modifiedUA = defaultUA.includes('HeadlessChrome')
+    ? defaultUA.replace('HeadlessChrome', 'Chrome')
+    : defaultUA;
+  modifiedUA += '; Oobee';
+
+  // Push the modified UA flag into your global launch options.
+  constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
+  // Optionally log the modified UA.
+  // console.log('Modified User Agent:', modifiedUA);
 }
+
 
 /**
  * @param {string} browser browser name ("chrome" or "edge", null for chromium, the default Playwright browser)
