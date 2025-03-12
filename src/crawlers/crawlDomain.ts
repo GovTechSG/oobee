@@ -560,7 +560,7 @@ const crawlDomain = async ({
     ],
     preNavigationHooks: isBasicAuth
       ? [
-          async ({ page }) => {
+          async ({ page, request }) => {
             // Inject script to override localStorage before navigation
             await page.addInitScript(
               ({ fakeStorageFunctionString }) => {
@@ -575,8 +575,7 @@ const crawlDomain = async ({
               Authorization: authHeader,
               ...extraHTTPHeaders,
             });
-          },
-          async ({ page, request }) => {
+
             const processible = await isProcessibleUrl(request.url);
             if (!processible) {
               request.skipNavigation = true;
@@ -585,7 +584,7 @@ const crawlDomain = async ({
           },
         ]
       : [
-          async ({ page }) => {
+          async ({ page, request }) => {
             // Inject script to override localStorage before navigation
             await page.addInitScript(
               ({ fakeStorageFunctionString }) => {
@@ -599,8 +598,7 @@ const crawlDomain = async ({
             await page.setExtraHTTPHeaders({
               ...extraHTTPHeaders,
             });
-          },
-          async ({ page, request }) => {
+
             const processible = await isProcessibleUrl(request.url);
             if (!processible) {
               request.skipNavigation = true;

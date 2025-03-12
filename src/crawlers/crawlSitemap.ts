@@ -21,6 +21,7 @@ import {
 import { areLinksEqual, isWhitelistedContentType, isFollowStrategy } from '../utils.js';
 import { handlePdfDownload, runPdfScan, mapPdfScanResults } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
+import { fakeStorage } from './custom/fakeStorage.js';
 
 const crawlSitemap = async (
   sitemapUrl,
@@ -166,7 +167,7 @@ const crawlSitemap = async (
         try {
           // Wait for a quiet period in the DOM, but with safeguards
           await page.evaluate(() => {
-            return new Promise((resolve) => {
+            return new Promise(resolve => {
               let timeout;
               let mutationCount = 0;
               const MAX_MUTATIONS = 250; // Prevent infinite mutations
@@ -194,7 +195,6 @@ const crawlSitemap = async (
               }, OBSERVER_TIMEOUT); // Ensure the observer stops after X seconds
 
               observer.observe(document.documentElement, { childList: true, subtree: true });
-
             });
           });
         } catch (err) {
@@ -209,19 +209,38 @@ const crawlSitemap = async (
 
     preNavigationHooks: isBasicAuth
       ? [
-        async ({ page }) => {
-          await page.setExtraHTTPHeaders({
-            Authorization: authHeader,
-            ...extraHTTPHeaders,
-          });
-        },
-      ]
+          async ({ page }) => {
+            // Inject script to override localStorage before navigation
+            await page.addInitScript(
+              ({ fakeStorageFunctionString }) => {
+                // Execute the fake storage function in the page context
+                eval(fakeStorageFunctionString);
+                fakeStorage();
+              },
+              { fakeStorageFunctionString: fakeStorage.toString() },
+            );
+
+            await page.setExtraHTTPHeaders({
+              Authorization: authHeader,
+              ...extraHTTPHeaders,
+            });
+          },
+        ]
       : [
-        async () => {
-          preNavigationHooks(extraHTTPHeaders);
-          // insert other code here
-        },
-      ],
+          async ({ page }) => {
+            // Inject script to override localStorage before navigation
+            await page.addInitScript(
+              ({ fakeStorageFunctionString }) => {
+                // Execute the fake storage function in the page context
+                eval(fakeStorageFunctionString);
+                fakeStorage();
+              },
+              { fakeStorageFunctionString: fakeStorage.toString() },
+            );
+
+            preNavigationHooks(extraHTTPHeaders);
+          },
+        ],
     requestHandlerTimeoutSecs: 90,
     requestHandler: async ({ page, request, response, sendRequest }) => {
       await waitForPageLoaded(page, 10000);
@@ -253,7 +272,7 @@ const crawlSitemap = async (
           urlsCrawled.blacklisted.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           return;
@@ -274,11 +293,15 @@ const crawlSitemap = async (
       const contentType = response.headers()['content-type'];
       const status = response.status();
 
-      if (blacklistedPatterns && !isFollowStrategy(actualUrl, request.url, "same-hostname") && isSkippedUrl(actualUrl, blacklistedPatterns)) {
+      if (
+        blacklistedPatterns &&
+        !isFollowStrategy(actualUrl, request.url, 'same-hostname') &&
+        isSkippedUrl(actualUrl, blacklistedPatterns)
+      ) {
         urlsCrawled.userExcluded.push({
           url: request.url,
           pageTitle: request.url,
-          actualUrl: actualUrl,
+          actualUrl,
         });
 
         guiInfoLog(guiInfoStatusTypes.SKIPPED, {
@@ -305,7 +328,7 @@ const crawlSitemap = async (
         urlsCrawled.invalid.push({
           url: request.url,
           pageTitle: request.url,
-          actualUrl: actualUrl, // i.e. actualUrl
+          actualUrl,
         });
 
         return;
@@ -329,7 +352,7 @@ const crawlSitemap = async (
           if (isLoadedUrlInCrawledUrls) {
             urlsCrawled.notScannedRedirects.push({
               fromUrl: request.url,
-              toUrl: actualUrl, // i.e. actualUrl
+              toUrl: actualUrl,
             });
             return;
           }
@@ -337,7 +360,7 @@ const crawlSitemap = async (
           urlsCrawled.scanned.push({
             url: urlWithoutAuth(request.url),
             pageTitle: results.pageTitle,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           urlsCrawled.scannedRedirects.push({
