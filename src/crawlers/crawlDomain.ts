@@ -601,9 +601,7 @@ const crawlDomain = async ({
           currentUrl.password = password;
           request.url = currentUrl.href;
         }
-        // const htmlContent = await page.content();
-        const userAgent = await page.evaluate(() => navigator.userAgent);
-        console.log(userAgent);
+
         await waitForPageLoaded(page, 10000);
         let actualUrl = page.url() || request.loadedUrl || request.url;
 

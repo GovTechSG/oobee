@@ -1802,12 +1802,11 @@ export async function initModifiedUserAgent(browser?: string, playwrightDeviceDe
   await browserContext.close();
 
   // Modify the UA:
-  // Replace "HeadlessChrome" with "Chrome" if present, and always append "; Oobee".
+  // Replace "HeadlessChrome" with "Chrome" if present.
   let modifiedUA = defaultUA.includes('HeadlessChrome')
     ? defaultUA.replace('HeadlessChrome', 'Chrome')
     : defaultUA;
-  modifiedUA += '; Oobee';
-
+    
   // Push the modified UA flag into your global launch options.
   constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
   // Optionally log the modified UA.

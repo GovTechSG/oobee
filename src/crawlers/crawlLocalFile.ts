@@ -10,6 +10,7 @@ import {
   isFilePath,
   convertLocalFileToPath,
   convertPathToLocalFile,
+  initModifiedUserAgent,
 } from '../constants/common.js';
 import { runPdfScan, mapPdfScanResults, doPdfScreenshots } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
@@ -142,13 +143,14 @@ const crawlLocalFile = async (
   uuidToPdfMapping[pdfFileName] = trimmedUrl;
 
   if (!isUrlPdf(request.url)) {
+    await initModifiedUserAgent(browser);
     const browserContext = await constants.launcher.launchPersistentContext('', {
       headless: false,
       ...getPlaywrightLaunchOptions(browser),
       ...playwrightDeviceDetailsObject,
     });
 
-    const page = await browserContext.newPage();
+    const page = await browserContext.newPage(););
     request.url = convertPathToLocalFile(request.url);
     await page.goto(request.url);
     const results = await runAxeScript({ includeScreenshots, page, randomToken });
