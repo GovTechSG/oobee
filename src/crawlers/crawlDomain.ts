@@ -40,6 +40,7 @@ import {
 } from './pdfScanFunc.js';
 import { silentLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
+import { fakeStorage } from './custom/fakeStorage.js';
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
@@ -562,31 +563,52 @@ const crawlDomain = async ({
     ],
     preNavigationHooks: isBasicAuth
       ? [
-        async ({ page, request }) => {
-          await page.setExtraHTTPHeaders({
-            Authorization: authHeader,
-            ...extraHTTPHeaders,
-          });
-          const processible = await isProcessibleUrl(request.url);
-          if (!processible) {
-            request.skipNavigation = true;
-            return null;
-          }
-        },
-      ]
-      : [
-        async ({ page, request }) => {
-          await page.setExtraHTTPHeaders({
-            ...extraHTTPHeaders,
-          });
+          async ({ page, request }) => {
+            // Inject script to override localStorage before navigation
+            await page.addInitScript(
+              ({ fakeStorageFunctionString }) => {
+                // Execute the fake storage function in the page context
+                eval(fakeStorageFunctionString);
+                fakeStorage();
+              },
+              { fakeStorageFunctionString: fakeStorage.toString() },
+            );
 
-          const processible = await isProcessibleUrl(request.url);
-          if (!processible) {
-            request.skipNavigation = true;
-            return null;
-          }
-        },
-      ],
+            await page.setExtraHTTPHeaders({
+              Authorization: authHeader,
+              ...extraHTTPHeaders,
+            });
+
+            const processible = await isProcessibleUrl(request.url);
+            if (!processible) {
+              request.skipNavigation = true;
+              return null;
+            }
+          },
+        ]
+      : [
+          async ({ page, request }) => {
+            // Inject script to override localStorage before navigation
+            await page.addInitScript(
+              ({ fakeStorageFunctionString }) => {
+                // Execute the fake storage function in the page context
+                eval(fakeStorageFunctionString);
+                fakeStorage();
+              },
+              { fakeStorageFunctionString: fakeStorage.toString() },
+            );
+
+            await page.setExtraHTTPHeaders({
+              ...extraHTTPHeaders,
+            });
+
+            const processible = await isProcessibleUrl(request.url);
+            if (!processible) {
+              request.skipNavigation = true;
+              return null;
+            }
+          },
+        ],
     requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
     requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
       const browserContext: BrowserContext = page.context();
@@ -609,7 +631,10 @@ const crawlDomain = async ({
           actualUrl = page.url();
         }
 
-        if (!isFollowStrategy(url, actualUrl, strategy) && (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))) {
+        if (
+          !isFollowStrategy(url, actualUrl, strategy) &&
+          (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))
+        ) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: actualUrl,
@@ -644,7 +669,7 @@ const crawlDomain = async ({
             urlsCrawled.blacklisted.push({
               url: request.url,
               pageTitle: request.url,
-              actualUrl: actualUrl, // i.e. actualUrl
+              actualUrl,
             });
 
             return;
@@ -673,7 +698,7 @@ const crawlDomain = async ({
           urlsCrawled.blacklisted.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           return;
@@ -687,17 +712,21 @@ const crawlDomain = async ({
           urlsCrawled.blacklisted.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           return;
         }
 
-        if (!isFollowStrategy(url, actualUrl, strategy) && blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
+        if (
+          !isFollowStrategy(url, actualUrl, strategy) &&
+          blacklistedPatterns &&
+          isSkippedUrl(actualUrl, blacklistedPatterns)
+        ) {
           urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl,
+            actualUrl,
           });
 
           await enqueueProcess(page, enqueueLinks, browserContext);
@@ -712,7 +741,7 @@ const crawlDomain = async ({
           urlsCrawled.forbidden.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           return;
@@ -726,7 +755,7 @@ const crawlDomain = async ({
           urlsCrawled.invalid.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
 
           return;
@@ -737,11 +766,7 @@ const crawlDomain = async ({
           const isRedirected = !areLinksEqual(actualUrl, request.url);
 
           // check if redirected link is following strategy (same-domain/same-hostname)
-          const isLoadedUrlFollowStrategy = isFollowStrategy(
-            actualUrl,
-            request.url,
-            strategy,
-          );
+          const isLoadedUrlFollowStrategy = isFollowStrategy(actualUrl, request.url, strategy);
           if (isRedirected && !isLoadedUrlFollowStrategy) {
             urlsCrawled.notScannedRedirects.push({
               fromUrl: request.url,
@@ -760,7 +785,7 @@ const crawlDomain = async ({
             if (isLoadedUrlInCrawledUrls) {
               urlsCrawled.notScannedRedirects.push({
                 fromUrl: request.url,
-                toUrl: actualUrl, // i.e. actualUrl
+                toUrl: actualUrl,
               });
               return;
             }
@@ -775,12 +800,12 @@ const crawlDomain = async ({
               urlsCrawled.scanned.push({
                 url: urlWithoutAuth(request.url),
                 pageTitle: results.pageTitle,
-                actualUrl: actualUrl, // i.e. actualUrl
+                actualUrl,
               });
 
               urlsCrawled.scannedRedirects.push({
                 fromUrl: urlWithoutAuth(request.url),
-                toUrl: actualUrl, // i.e. actualUrl
+                toUrl: actualUrl,
               });
 
               results.url = request.url;
@@ -810,9 +835,8 @@ const crawlDomain = async ({
           urlsCrawled.blacklisted.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl,
           });
-
         }
 
         if (followRobots) await getUrlsFromRobotsTxt(request.url, browser);
@@ -825,7 +849,6 @@ const crawlDomain = async ({
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
-
             page = await browserContext.newPage();
             await page.goto(request.url);
 
@@ -850,7 +873,11 @@ const crawlDomain = async ({
         // when max pages have been scanned, scan will abort and all relevant pages still opened will close instantly.
         // a browser close error will then be flagged. Since this is an intended behaviour, this error will be excluded.
         if (!isAbortingScanNow) {
-            urlsCrawled.error.push({ url: request.url, pageTitle: request.url, actualUrl: request.url });
+          urlsCrawled.error.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: request.url,
+          });
         }
       }
     },
@@ -860,7 +887,7 @@ const crawlDomain = async ({
         urlScanned: request.url,
       });
       urlsCrawled.error.push({ url: request.url, pageTitle: request.url, actualUrl: request.url });
-    
+
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
     maxRequestsPerCrawl: Infinity,
