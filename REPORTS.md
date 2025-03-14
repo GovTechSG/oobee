@@ -1,5 +1,9 @@
 # Accessibility Scan Reports Documentation
 
+Various types of reports are provided to help you to identify, manage, and understand the scale of accessibility for each website.  
+
+In order to generate JSON reports, you need to parse the switch `-g yes` in Oobee CLI.
+
 ## HTML, CSV and Summary Reports
 
 ### report.html
@@ -32,7 +36,7 @@ This file contains detailed accessibility scan results, including issue details,
 | `xpath`            | XPath selector for locating the issue within the page. |
 | `learnMore`        | URL to additional documentation about the issue (masked for privacy). |
 
-#### Example Entries
+#### Example CSV
 
 ```csv
 "customFlowLabel","deviceChosen","scanCompletedAt","severity","issueId","issueDescription","wcagConformance","url","pageTitle","context","howToFix","axeImpact","xpath","learnMore"
