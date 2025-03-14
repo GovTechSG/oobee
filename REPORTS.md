@@ -201,8 +201,8 @@ This file contains a summary of pages affected by accessibility issues.
   "scannedPagesCount": <number>,
   "pagesNotScanned": [
     {
-      "url": "https://www.example.com/Annex.pdf",
-      "pageTitle": "[https://www.tech.gov.sg/files/Annex-A-SPOTON-product-factsheet.pdf](https://www.example.com/Annex.pdf)",
+      "url": "<string>",
+      "pageTitle": "<string>",
       "actualUrl": "about:blank"
     },
   ],
@@ -299,8 +299,8 @@ This file contains a summary of accessibility issues found in a scan, categorize
   "scannedPagesCount": <number>,
   "pagesNotScanned": [
     {
-      "url": "https://www.example.com/Annex.pdf",
-      "pageTitle": "[https://www.tech.gov.sg/files/Annex-A-SPOTON-product-factsheet.pdf](https://www.example.com/Annex.pdf)",
+      "url": "<string>",
+      "pageTitle": "<string>",
       "actualUrl": "about:blank"
     },
   ],
