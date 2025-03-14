@@ -181,9 +181,9 @@ This file contains a summary of pages affected by accessibility issues.
       "conformance": ["<string>", "<string>", "<string>"]
     }
   ],
-  "pagesNotAffected": [],
+  "pagesNotAffected": <string>[],
   "scannedPagesCount": <number>,
-  "pagesNotScanned": [],
+  "pagesNotScanned": <string>[],
   "pagesNotScannedCount": <number>
 }
 ```
@@ -247,9 +247,9 @@ This file contains a summary of accessibility issues found in a scan, categorize
       ]
     }
   ],
-  "pagesNotAffected": [],
+  "pagesNotAffected": <string>[],
   "scannedPagesCount": <number>,
-  "pagesNotScanned": [],
+  "pagesNotScanned": <string>[],
   "pagesNotScannedCount": <number>
 }
 ```
