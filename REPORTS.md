@@ -1,5 +1,45 @@
 # Accessibility Scan Reports Documentation
 
+## HTML, CSV and Summary Reports
+
+### report.html
+An interactive HTML report that allows the user to interact and understand the different accessibility issues.  Note that if the number of scan issues is large > 510 MB of JSON data, the individual accessibility issues will not be viewable in the report.  Please refer to the report.csv for the detailed accessibility issues.
+
+### summary.pdf
+A short printable summary of the types and occurrences of accessibility issues found. It contains metadata of how many WCAG (Level A and AA) were violated.
+
+### report.csv
+This is the report which contains each individual accessibility issue found, across mustFix, goodToFix, and needsReview categories.  It contains the same information as a regular report.html except the scan metadata (i.e. how the scan was set up to run).  For scan metadata, please refer to scanData.csv.
+
+This file contains detailed accessibility scan results, including issue details, affected pages, and recommendations.
+
+#### CSV Structure
+
+| Column Name          | Description |
+|----------------------|-------------|
+| `customFlowLabel`   | Label indicating the custom flow used for the scan. |
+| `deviceChosen`      | Type of device used during the scan (e.g., Desktop, Mobile). |
+| `scanCompletedAt`   | Timestamp indicating when the scan was completed (ISO 8601 format). |
+| `severity`          | Severity level of the issue (`mustFix`, `goodToFix`, `needsReview`, `error`). |
+| `issueId`           | Unique identifier for the issue found. |
+| `issueDescription`  | Description of the issue detected during the scan. |
+| `wcagConformance`   | WCAG guidelines that the issue relates to, comma-separated. |
+| `url`              | The URL of the affected page. |
+| `pageTitle`        | The title of the affected page. |
+| `context`         | HTML snippet or element associated with the issue. |
+| `howToFix`         | Suggested fix or recommendation to resolve the issue. |
+| `axeImpact`        | Impact severity as determined by Axe (e.g., `critical`, `serious`, `moderate`, `minor`). |
+| `xpath`            | XPath selector for locating the issue within the page. |
+| `learnMore`        | URL to additional documentation about the issue (masked for privacy). |
+
+#### Example Entries
+
+```csv
+"customFlowLabel","deviceChosen","scanCompletedAt","severity","issueId","issueDescription","wcagConformance","url","pageTitle","context","howToFix","axeImpact","xpath","learnMore"
+"Custom Flow","Desktop","2025-03-13T10:09:18.733Z","needsReview","aria-prohibited-attr","Elements must only use permitted ARIA attributes","wcag2a,wcag412","https://example.com/page1","Example Page 1","<a class=""nav-link"" aria-label=""Example Link"">Example<i class=""icon-chevron-down"" aria-hidden=""true""></i></a>","aria-label attribute is not well supported on an <a> with no valid role attribute.","serious","a[aria-label=""Example Link""]","https://dequeuniversity.com/rules/axe/4.10/aria-prohibited-attr"
+"Custom Flow","Desktop","2025-03-13T10:09:18.733Z","error","error-pages-skipped","Page was skipped during the scan",,"https://example.com/file.pdf","Error",,,,,,
+```
+
 ## scanItemsSummary.json
 
 This file contains a summary of accessibility issues found in a scan, categorized into different levels of severity.
