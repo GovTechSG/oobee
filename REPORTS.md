@@ -2,7 +2,7 @@
 
 Various types of reports are provided to help you to identify, manage, and understand the scale of accessibility for each website.  
 
-In order to generate JSON reports, you need to parse the switch `-g yes` in Oobee CLI.
+In order to generate JSON reports, you need to parse the switch `-g yes` in Oobee CLI.  For each of the JSON reports listed below, a compressed version with the file extension `json.gz.b64` is provided.  See below for steps on uncompressing the compressed JSON files.
 
 ## HTML, CSV and Summary Reports
 
@@ -310,4 +310,18 @@ This file contains a summary of accessibility issues found in a scan, categorize
   ],
   "pagesNotScannedCount": <number>
 }
+```
+
+## Manage Compressed JSON in Base64 Encoding
+
+To deflate the .json.gz.b64, use the following with `pako` library installed:
+```js
+ // Decompress the binary data using pako.inflate
+  const decompressedBytes = pako.inflate(compressedBytes);
+
+  // Decode the decompressed bytes into a UTF-8 string
+  const jsonString = new TextDecoder().decode(decompressedBytes);
+
+  // Parse and return the JSON object
+  return JSON.parse(jsonString);
 ```
