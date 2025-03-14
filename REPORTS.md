@@ -181,9 +181,31 @@ This file contains a summary of pages affected by accessibility issues.
       "conformance": ["<string>", "<string>", "<string>"]
     }
   ],
-  "pagesNotAffected": <string>[],
+  "pagesNotAffected": [
+    {
+      "pageTitle": "<string>",
+      "url": "<string>",
+      "totalOccurrencesFailedIncludingNeedsReview": <number>,
+      "totalOccurrencesFailedExcludingNeedsReview": <number>,
+      "totalOccurrencesMustFix": <number>,
+      "totalOccurrencesGoodToFix": <number>,
+      "totalOccurrencesNeedsReview": <number>,
+      "totalOccurrencesPassed": <number>,
+      "occurrencesExclusiveToNeedsReview": <boolean>,
+      "typesOfIssuesCount": <number>,
+      "typesOfIssuesExcludingNeedsReviewCount": <number>,
+      "categoriesPresent": ["<string>", "<string>"],
+      "conformance": ["<string>", "<string>", "<string>"],
+    }
+  ],
   "scannedPagesCount": <number>,
-  "pagesNotScanned": <string>[],
+  "pagesNotScanned": [
+    {
+      "url": "https://www.example.com/Annex.pdf",
+      "pageTitle": "[https://www.tech.gov.sg/files/Annex-A-SPOTON-product-factsheet.pdf](https://www.example.com/Annex.pdf)",
+      "actualUrl": "about:blank"
+    },
+  ],
   "pagesNotScannedCount": <number>
 }
 ```
@@ -247,9 +269,41 @@ This file contains a summary of accessibility issues found in a scan, categorize
       ]
     }
   ],
-  "pagesNotAffected": <string>[],
+  "pagesNotAffected": [
+    {
+      "pageTitle": "<string>",
+      "url": "<string>",
+      "totalOccurrencesFailedIncludingNeedsReview": <number>,
+      "totalOccurrencesFailedExcludingNeedsReview": <number>,
+      "totalOccurrencesMustFix": <number>,
+      "totalOccurrencesGoodToFix": <number>,
+      "totalOccurrencesNeedsReview": <number>,
+      "totalOccurrencesPassed": <number>,
+      "occurrencesExclusiveToNeedsReview": <boolean>,
+      "typesOfIssuesCount": <number>,
+      "typesOfIssuesExcludingNeedsReviewCount": <number>,
+      "categoriesPresent": ["<string>", "<string>"],
+      "conformance": ["<string>", "<string>", "<string>"],
+      "typesOfIssues": [
+        {
+          "ruleId": "<string>",
+          "wagConformance": ["<string>", "<string>"],
+          "occurrencesMustFix": <number>,
+          "occurrencesGoodToFix": <number>,
+          "occurrencesNeedsReview": <number>,
+          "occurrencesPassed": <number>
+        }
+      ]
+    }
+  ],
   "scannedPagesCount": <number>,
-  "pagesNotScanned": <string>[],
+  "pagesNotScanned": [
+    {
+      "url": "https://www.example.com/Annex.pdf",
+      "pageTitle": "[https://www.tech.gov.sg/files/Annex-A-SPOTON-product-factsheet.pdf](https://www.example.com/Annex.pdf)",
+      "actualUrl": "about:blank"
+    },
+  ],
   "pagesNotScannedCount": <number>
 }
 ```
