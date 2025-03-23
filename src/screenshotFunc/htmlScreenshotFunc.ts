@@ -7,7 +7,7 @@ import { Result } from 'axe-core';
 import { Page } from 'playwright';
 import { NodeResultWithScreenshot, ResultWithScreenshot } from '../crawlers/commonCrawlerFunc.js';
 
-const screenshotMap = {}; // Map of screenshot hashkey to its buffer value and screenshot path
+const screenshotMap: Record<string, string> = {}; // Map of screenshot hashkey to its buffer value and screenshot path
 
 export const takeScreenshotForHTMLElements = async (
   violations: Result[],
@@ -75,30 +75,18 @@ export const takeScreenshotForHTMLElements = async (
   return newViolations;
 };
 
-const generateBufferHash = (buffer: Buffer) => {
+const generateBufferHash = (buffer: Buffer): string => {
   const hash = createHash('sha256');
   hash.update(buffer);
   return hash.digest('hex');
 };
 
-const isSameBufferHash = (buffer: Buffer, hash: string) => {
-  const bufferHash = generateBufferHash(buffer);
-  return hash === bufferHash;
-};
-
-const getIdenticalScreenshotKey = (buffer: Buffer) => {
-  for (const hashKey in screenshotMap) {
-    const isIdentical = isSameBufferHash(buffer, hashKey);
-    if (isIdentical) return hashKey;
-  }
-  return undefined;
-};
-
-const getScreenshotPath = (buffer: Buffer, randomToken: string) => {
-  let hashKey = getIdenticalScreenshotKey(buffer);
+const getScreenshotPath = (buffer: Buffer, randomToken: string): string => {
+  let hashKey = generateBufferHash(buffer);
+  const existingPath = screenshotMap[hashKey];
   // If exists identical entry in screenshot map, get its filepath
-  if (hashKey) {
-    return screenshotMap[hashKey];
+  if (existingPath) {
+    return existingPath;
   }
   // Create new entry in screenshot map
   hashKey = generateBufferHash(buffer);
