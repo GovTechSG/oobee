@@ -24,7 +24,7 @@ import { framesCheck } from './crawlers/custom/framesCheck.js';
 import { findElementByCssSelector } from './crawlers/custom/findElementByCssSelector.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 import { flagUnlabelledClickableElements } from './crawlers/custom/flagUnlabelledClickableElements.js';
-import { xPathToCss } from './crawlers/custom/xPathToCss.js';
+import xPathToCss from './crawlers/custom/xPathToCss.js';
 import { extractText } from './crawlers/custom/extractText.js';
 import { gradeReadability } from './crawlers/custom/gradeReadability.js';
 
