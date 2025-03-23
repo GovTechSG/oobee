@@ -16,7 +16,7 @@ export function findElementByCssSelector(cssSelector: string): string | null {
 
   // Handle Shadow DOM if the element is not found
   if (!element) {
-    const shadowRoots = [];
+    const shadowRoots: ShadowRoot[] = [];
     const allElements = document.querySelectorAll('*');
 
     // Look for elements with shadow roots
