@@ -362,7 +362,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
   }
 
   // Delete dataset and request queues
-  await cleanUp(data.randomToken);
+  cleanUp(data.randomToken);
 
   return getStoragePath(data.randomToken);
 };
