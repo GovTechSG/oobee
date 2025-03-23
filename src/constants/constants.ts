@@ -217,7 +217,7 @@ export const guiInfoStatusTypes = {
   DUPLICATE: 'duplicate',
 };
 
-let launchOptionsArgs = [];
+let launchOptionsArgs: string[] = [];
 
 // Check if running in docker container
 if (fs.existsSync('/.dockerenv')) {
