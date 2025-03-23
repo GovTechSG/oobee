@@ -17,7 +17,7 @@ import constants, { BrowserTypes, ScannerTypes } from './constants.js';
 
 const userData = getUserDataTxt();
 
-const questions = [];
+const questions: Question[] = [];
 
 const startScanQuestions = [
   {

@@ -31,6 +31,7 @@ import { silentLogger } from '../logs.js';
 import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
 import { randomThreeDigitNumberString } from '../utils.js';
 import { Answers, Data } from '../index.js';
+import { DeviceDescriptor } from '../types/types.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -252,7 +253,7 @@ export const getUrlMessage = (scanner: ScannerTypes): string => {
   }
 };
 
-export const isInputValid = inputString => {
+export const isInputValid = (inputString: string): boolean => {
   if (!validator.isEmpty(inputString)) {
     const removeBlackListCharacters = validator.escape(inputString);
 
@@ -373,12 +374,12 @@ const requestToUrl = async (
 };
 
 const checkUrlConnectivityWithBrowser = async (
-  url,
-  browserToRun,
-  clonedDataDir,
-  playwrightDeviceDetailsObject,
-  isCustomFlow,
-  extraHTTPHeaders,
+  url: string,
+  browserToRun: string,
+  clonedDataDir: string,
+  playwrightDeviceDetailsObject: object,
+  isCustomFlow: boolean,
+  extraHTTPHeaders: Record<string, string>,
 ) => {
   const res = new RES();
 
@@ -468,7 +469,6 @@ const checkUrlConnectivityWithBrowser = async (
         res.content = responseFromUrl.content;
       }
     } catch (error) {
-
       // But this does work with the headless=new flag
       if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
         res.status = constants.urlCheckStatuses.unauthorised.code;
@@ -1647,7 +1647,7 @@ export const getPlaywrightDeviceDetailsObject = (
   deviceChosen: string,
   customDevice: string,
   viewportWidth: number,
-) => {
+): DeviceDescriptor => {
   let playwrightDeviceDetailsObject = {};
   if (deviceChosen === 'Mobile' || customDevice === 'iPhone 11') {
     playwrightDeviceDetailsObject = devices['iPhone 11'];
@@ -1777,14 +1777,17 @@ export const submitForm = async (
   }
 };
 
-export async function initModifiedUserAgent(browser?: string, playwrightDeviceDetailsObject?: object) {
+export async function initModifiedUserAgent(
+  browser?: string,
+  playwrightDeviceDetailsObject?: object,
+) {
   const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
-  
+
   // If headless mode is enabled, ensure the headless flag is set.
   if (isHeadless && !constants.launchOptionsArgs.includes('--headless=new')) {
     constants.launchOptionsArgs.push('--headless=new');
   }
-  
+
   // Build the launch options using your production settings.
   // headless is forced to false as in your persistent context, and we merge in getPlaywrightLaunchOptions and device details.
   const launchOptions = {
@@ -1806,13 +1809,12 @@ export async function initModifiedUserAgent(browser?: string, playwrightDeviceDe
   let modifiedUA = defaultUA.includes('HeadlessChrome')
     ? defaultUA.replace('HeadlessChrome', 'Chrome')
     : defaultUA;
-    
+
   // Push the modified UA flag into your global launch options.
   constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
   // Optionally log the modified UA.
   // console.log('Modified User Agent:', modifiedUA);
 }
-
 
 /**
  * @param {string} browser browser name ("chrome" or "edge", null for chromium, the default Playwright browser)
@@ -1863,8 +1865,8 @@ export const waitForPageLoaded = async (page, timeout = 10000) => {
     page.waitForLoadState('load'), // Ensure page load completes
     page.waitForLoadState('networkidle'), // Wait for network requests to settle
     new Promise(resolve => setTimeout(resolve, timeout)), // Hard timeout as a fallback
-    page.evaluate((OBSERVER_TIMEOUT) => {
-      return new Promise((resolve) => {
+    page.evaluate(OBSERVER_TIMEOUT => {
+      return new Promise(resolve => {
         // Skip mutation check for PDFs
         if (document.contentType === 'application/pdf') {
           resolve('Skipping DOM mutation check for PDF.');
@@ -1916,12 +1918,15 @@ export const waitForPageLoaded = async (page, timeout = 10000) => {
           resolve('Observer timeout reached, exiting.');
         }, OBSERVER_TIMEOUT);
 
-        observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+        });
       });
     }, OBSERVER_TIMEOUT), // Pass OBSERVER_TIMEOUT dynamically to the browser context
   ]);
 };
-
 
 function isValidHttpUrl(urlString) {
   const pattern = /^(http|https):\/\/[^ "]+$/;
