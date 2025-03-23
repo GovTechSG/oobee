@@ -18,7 +18,7 @@ import { framesCheck } from './custom/framesCheck.js';
 import { findElementByCssSelector } from './custom/findElementByCssSelector.js';
 import { getAxeConfiguration } from './custom/getAxeConfiguration.js';
 import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
-import { xPathToCss } from './custom/xPathToCss.js';
+import xPathToCss from './custom/xPathToCss.js';
 
 // types
 interface AxeResultsWithScreenshot extends AxeResults {
@@ -118,13 +118,13 @@ export const filterAxeResults = (
 
     if (conformance[0] !== 'best-practice' && !wcagRegex.test(conformance[0])) {
       conformance.sort((a, b) => {
-      if (wcagRegex.test(a) && !wcagRegex.test(b)) {
-        return -1;
-      }
-      if (!wcagRegex.test(a) && wcagRegex.test(b)) {
-        return 1;
-      }
-      return 0;
+        if (wcagRegex.test(a) && !wcagRegex.test(b)) {
+          return -1;
+        }
+        if (!wcagRegex.test(a) && wcagRegex.test(b)) {
+          return 1;
+        }
+        return 0;
       });
     }
 
@@ -443,8 +443,7 @@ export const runAxeScript = async ({
       framesCheckFunctionString: framesCheck.toString(),
       findElementByCssSelectorFunctionString: findElementByCssSelector.toString(),
       getAxeConfigurationFunctionString: getAxeConfiguration.toString(),
-      flagUnlabelledClickableElementsFunctionString:
-        flagUnlabelledClickableElements.toString(),
+      flagUnlabelledClickableElementsFunctionString: flagUnlabelledClickableElements.toString(),
       xPathToCssFunctionString: xPathToCss.toString(),
     },
   );
