@@ -21,7 +21,7 @@ export type StructureTree = {
   pageIndex?: number;
 };
 
-type DeviceDescriptor = {
+export type DeviceDescriptor = {
   viewport: ViewportSize;
   userAgent: string;
   deviceScaleFactor: number;
