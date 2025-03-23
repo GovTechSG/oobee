@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import printMessage from 'print-message';
-import axe, { ImpactValue } from 'axe-core';
+import axe, { AxeResults, ImpactValue } from 'axe-core';
 import { fileURLToPath } from 'url';
 import { EnqueueStrategy } from 'crawlee';
 import constants, { BrowserTypes, RuleFlags, ScannerTypes } from './constants/constants.js';
@@ -197,7 +197,11 @@ export const init = async ({
     `;
   };
 
-  const pushScanResults = async (res, metadata, elementsToClick) => {
+  const pushScanResults = async (
+    res: { pageUrl: string; pageTitle: string; axeScanResults: AxeResults },
+    metadata: string,
+    elementsToClick: string[],
+  ) => {
     throwErrorIfTerminated();
     if (includeScreenshots) {
       // use chrome by default
@@ -211,7 +215,7 @@ export const init = async ({
       await page.waitForLoadState('networkidle');
 
       // click on elements to reveal hidden elements so screenshots can be taken
-      elementsToClick?.forEach(async elem => {
+      elementsToClick?.forEach(async (elem: string) => {
         try {
           await page.locator(elem).click();
         } catch (e) {
