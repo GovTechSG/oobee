@@ -863,6 +863,7 @@ const writeJsonAndBase64Files = async (
     topTenPagesWithMostIssues,
     wcagLinks,
     wcagPassPercentage,
+    progressPercentage,
     totalPagesScanned,
     totalPagesNotScanned,
     topTenIssues,
