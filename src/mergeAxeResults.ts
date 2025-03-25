@@ -22,6 +22,7 @@ import {
   getProgressPercentage,
   retryFunction,
   zipResults,
+  getIssuesPercentage,
 } from './utils.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
@@ -824,6 +825,7 @@ const writeJsonAndBase64Files = async (
     wcagLinks,
     wcagPassPercentage,
     progressPercentage,
+    issuesPercentage,
     totalPagesScanned,
     totalPagesNotScanned,
     topTenIssues,
@@ -837,6 +839,7 @@ const writeJsonAndBase64Files = async (
     wcagLinks,
     wcagPassPercentage,
     progressPercentage,
+    issuesPercentage,
     totalPagesScanned,
     totalPagesNotScanned,
     topTenIssues,
@@ -864,6 +867,7 @@ const writeJsonAndBase64Files = async (
     wcagLinks,
     wcagPassPercentage,
     progressPercentage,
+    issuesPercentage,
     totalPagesScanned,
     totalPagesNotScanned,
     topTenIssues,
@@ -1648,8 +1652,11 @@ const generateArtifacts = async (
 
   allIssues.wcagPassPercentage = getWcagPassPercentage(allIssues.wcagViolations, allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa);
   allIssues.progressPercentage = getProgressPercentage(allIssues.scanPagesDetail, allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa);
-
-  // console.log(allIssues.progressPercentage);
+  
+  allIssues.issuesPercentage = await getIssuesPercentage(
+    allIssues.scanPagesDetail, 
+    allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa, 
+    allIssues.advancedScanOptionsSummaryItems.disableOobee);
 
   const getAxeImpactCount = (allIssues: AllIssues) => {
     const impactCount = {

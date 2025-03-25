@@ -8,6 +8,9 @@ import constants, {
   getIntermediateScreenshotsPath,
 } from './constants/constants.js';
 import { consoleLogger, silentLogger } from './logs.js';
+import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
+import axe from 'axe-core';
+import { Rule, RuleMetadata } from 'axe-core';
 
 export const getVersion = () => {
   const loadJSON = filePath =>
@@ -217,11 +220,40 @@ export const getWcagPassPercentage = (
 };
 
 export interface ScanPagesDetail {
-  pagesAffected: any[];
-  pagesNotAffected: any[];
+  oobeeAppVersion?: string;
+  pagesAffected: PageDetail[];
+  pagesNotAffected: PageDetail[];
   scannedPagesCount: number;
-  pagesNotScanned: any[];
+  pagesNotScanned: PageDetail[];
   pagesNotScannedCount: number;
+}
+
+export interface PageDetail {
+  pageTitle: string;
+  url: string;
+  totalOccurrencesFailedIncludingNeedsReview: number;
+  totalOccurrencesFailedExcludingNeedsReview: number;
+  totalOccurrencesMustFix?: number;
+  totalOccurrencesGoodToFix?: number;
+  totalOccurrencesNeedsReview: number;
+  totalOccurrencesPassed: number;
+  occurrencesExclusiveToNeedsReview: boolean;
+  typesOfIssuesCount: number;
+  typesOfIssuesExcludingNeedsReviewCount: number;
+  categoriesPresent: IssueCategory[];
+  conformance?: string[]; // WCAG levels as flexible strings
+  typesOfIssues: IssueDetail[];
+}
+
+export type IssueCategory = "mustFix" | "goodToFix" | "needsReview" | "passed";
+
+export interface IssueDetail {
+  ruleId: string;
+  wcagConformance: string[];
+  occurrencesMustFix?: number;
+  occurrencesGoodToFix?: number;
+  occurrencesNeedsReview?: number;
+  occurrencesPassed: number;
 }
 
 export const getProgressPercentage = (
@@ -256,6 +288,195 @@ export const getProgressPercentage = (
     pageProgressPercentageAA: progressPercentagesAA,
     averageProgressPercentageAAandAAA: avgAAandAAA.toFixed(2),
     pageProgressPercentageAAandAAA: progressPercentagesAAandAAA,
+  };
+};
+
+export const getTotalRulesCount = async (
+  enableWcagAaa: boolean,
+  disableOobee: boolean
+): Promise<{
+  totalRulesMustFix: number;
+  totalRulesGoodToFix: number;
+  totalRulesMustFixAndGoodToFix: number;
+}> => {
+  const axeConfig = getAxeConfiguration({
+    enableWcagAaa,
+    gradingReadabilityFlag: '',
+    disableOobee,
+  });
+
+  // Get default rules from axe-core
+  const defaultRules = await axe.getRules();
+
+  // Merge custom rules with default rules, converting RuleMetadata to Rule
+  const mergedRules: Rule[] = defaultRules.map((defaultRule) => {
+    const customRule = axeConfig.rules.find((r) => r.id === defaultRule.ruleId);
+    if (customRule) {
+      // Merge properties from customRule into defaultRule (RuleMetadata) to create a Rule
+      return {
+        id: defaultRule.ruleId,
+        enabled: customRule.enabled,
+        selector: customRule.selector,
+        any: customRule.any,
+        tags: defaultRule.tags,
+        metadata: customRule.metadata, // Use custom metadata if it exists
+      };
+    } else {
+      // Convert defaultRule (RuleMetadata) to Rule
+      return {
+        id: defaultRule.ruleId,
+        enabled: true, // Default to true if not overridden
+        tags: defaultRule.tags,
+        // No metadata here, since defaultRule.metadata might not exist
+      };
+    }
+  });
+
+  // Add any custom rules that don't override the default rules
+  axeConfig.rules.forEach(customRule => {
+    if (!mergedRules.some(mergedRule => mergedRule.id === customRule.id)) {
+      // Ensure customRule is of type Rule
+      const rule: Rule = {
+        id: customRule.id,
+        enabled: customRule.enabled,
+        selector: customRule.selector,
+        any: customRule.any,
+        tags: customRule.tags,
+        metadata: customRule.metadata,
+        // Add other properties if needed
+      };
+      mergedRules.push(rule);
+    }
+  });
+
+  // Apply the merged configuration to axe-core
+  await axe.configure({ ...axeConfig, rules: mergedRules });
+
+  const rules = await axe.getRules();
+
+  // ... (rest of your logic)
+  let totalRulesMustFix = 0;
+  let totalRulesGoodToFix = 0;
+
+  const wcagRegex = /^wcag\d+a+$/;
+
+  // Use mergedRules instead of rules to check enabled property
+  mergedRules.forEach((rule) => {
+    if (!rule.enabled) {
+      return;
+    }
+
+    if (rule.id === 'frame-tested') return; // Ignore 'frame-tested' rule
+
+    const tags = rule.tags || [];
+    let conformance = tags.filter(tag => tag.startsWith('wcag') || tag === 'best-practice');
+
+    // Ensure conformance level is sorted correctly
+    if (conformance.length > 0 && conformance[0] !== 'best-practice' && !wcagRegex.test(conformance[0])) {
+      conformance.sort((a, b) => {
+        if (wcagRegex.test(a) && !wcagRegex.test(b)) {
+          return -1;
+        }
+        if (!wcagRegex.test(a) && wcagRegex.test(b)) {
+          return 1;
+        }
+        return 0;
+      });
+    }
+
+    if (conformance.includes('best-practice')) {
+      totalRulesGoodToFix++; // Categorized as "Good to Fix"
+    } else {
+      totalRulesMustFix++; // Otherwise, it's "Must Fix"
+    }
+  });
+
+  return {
+    totalRulesMustFix,
+    totalRulesGoodToFix,
+    totalRulesMustFixAndGoodToFix: totalRulesMustFix + totalRulesGoodToFix,
+  };
+};
+
+export const getIssuesPercentage = async (
+  scanPagesDetail: ScanPagesDetail,
+  enableWcagAaa: boolean,
+  disableOobee: boolean
+): Promise<{
+  // typesOfIssuesCountAtMustFix: number[];
+  // typesOfIssuesCountAtGoodToFix: number[];
+  // typesOfIssuesCountSumMustFixAndGoodToFix: number[];
+  avgTypesOfIssuesPercentageOfTotalRulesAtMustFix: string;
+  avgTypesOfIssuesPercentageOfTotalRulesAtGoodToFix: string;
+  avgTypesOfIssuesPercentageOfTotalRulesAtMustFixAndGoodToFix: string;
+  totalRulesMustFix: number;
+  totalRulesGoodToFix: number;
+  totalRulesMustFixAndGoodToFix: number;
+  avgTypesOfIssuesCountAtMustFix: string; // Added - raw count average
+  avgTypesOfIssuesCountAtGoodToFix: string; // Added - raw count average
+  avgTypesOfIssuesCountAtMustFixAndGoodToFix: string; // Added - raw count average
+}> => {
+  const pages = scanPagesDetail.pagesAffected || [];
+
+  const typesOfIssuesCountAtMustFix = pages.map((page) =>
+    page.typesOfIssues.filter((issue) => (issue.occurrencesMustFix || 0) > 0).length
+  );
+
+  const typesOfIssuesCountAtGoodToFix = pages.map((page) =>
+    page.typesOfIssues.filter((issue) => (issue.occurrencesGoodToFix || 0) > 0).length
+  );
+
+  const typesOfIssuesCountSumMustFixAndGoodToFix = pages.map(
+    (_, index) =>
+      (typesOfIssuesCountAtMustFix[index] || 0) +
+      (typesOfIssuesCountAtGoodToFix[index] || 0)
+  );
+
+  // Get the total rules count for normalization
+  const { totalRulesMustFix, totalRulesGoodToFix, totalRulesMustFixAndGoodToFix } = await getTotalRulesCount(
+    enableWcagAaa,
+    disableOobee
+  );
+
+  // Compute averages as percentages (without the '%' symbol)
+  const avgTypesOfIssuesPercentageOfTotalRulesAtMustFix =
+    totalRulesMustFix > 0
+      ? ((typesOfIssuesCountAtMustFix.reduce((sum, count) => sum + count, 0) / totalRulesMustFix) * 100).toFixed(2)
+      : "0.00";
+
+  const avgTypesOfIssuesPercentageOfTotalRulesAtGoodToFix =
+    totalRulesGoodToFix > 0
+      ? ((typesOfIssuesCountAtGoodToFix.reduce((sum, count) => sum + count, 0) / totalRulesGoodToFix) * 100).toFixed(2)
+      : "0.00";
+
+  const avgTypesOfIssuesPercentageOfTotalRulesAtMustFixAndGoodToFix =
+    totalRulesMustFixAndGoodToFix > 0
+      ? ((typesOfIssuesCountSumMustFixAndGoodToFix.reduce((sum, count) => sum + count, 0) / totalRulesMustFixAndGoodToFix) * 100).toFixed(2)
+      : "0.00";
+
+  // Compute raw count averages (without normalization)
+  const avgTypesOfIssuesCountAtMustFix =
+    (typesOfIssuesCountAtMustFix.reduce((sum, count) => sum + count, 0) / pages.length).toFixed(2);
+
+  const avgTypesOfIssuesCountAtGoodToFix =
+    (typesOfIssuesCountAtGoodToFix.reduce((sum, count) => sum + count, 0) / pages.length).toFixed(2);
+
+  const avgTypesOfIssuesCountAtMustFixAndGoodToFix =
+    (typesOfIssuesCountSumMustFixAndGoodToFix.reduce((sum, count) => sum + count, 0) / pages.length).toFixed(2);
+
+  return {
+    // typesOfIssuesCountAtMustFix,
+    // typesOfIssuesCountAtGoodToFix,
+    // typesOfIssuesCountSumMustFixAndGoodToFix,
+    avgTypesOfIssuesCountAtMustFix,
+    avgTypesOfIssuesCountAtGoodToFix,
+    avgTypesOfIssuesCountAtMustFixAndGoodToFix,
+    avgTypesOfIssuesPercentageOfTotalRulesAtMustFix,
+    avgTypesOfIssuesPercentageOfTotalRulesAtGoodToFix,
+    avgTypesOfIssuesPercentageOfTotalRulesAtMustFixAndGoodToFix,
+    totalRulesMustFix,
+    totalRulesGoodToFix,
+    totalRulesMustFixAndGoodToFix,
   };
 };
 
