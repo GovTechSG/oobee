@@ -19,6 +19,7 @@ import {
   getStoragePath,
   getVersion,
   getWcagPassPercentage,
+  getProgressPercentage,
   retryFunction,
   zipResults,
 } from './utils.js';
@@ -100,6 +101,13 @@ type AllIssues = {
   wcagLinks: { [key: string]: string };
   [key: string]: any;
   advancedScanOptionsSummaryItems: { [key: string]: boolean };
+  scanPagesDetail: {
+    pagesAffected: any[];
+    pagesNotAffected: any[];
+    scannedPagesCount: number;
+    pagesNotScanned: any[];
+    pagesNotScannedCount: number;
+  };
 };
 
 const filename = fileURLToPath(import.meta.url);
@@ -815,6 +823,7 @@ const writeJsonAndBase64Files = async (
     pagesNotScanned,
     wcagLinks,
     wcagPassPercentage,
+    progressPercentage,
     totalPagesScanned,
     totalPagesNotScanned,
     topTenIssues,
@@ -827,6 +836,7 @@ const writeJsonAndBase64Files = async (
     pagesNotScanned,
     wcagLinks,
     wcagPassPercentage,
+    progressPercentage,
     totalPagesScanned,
     totalPagesNotScanned,
     topTenIssues,
@@ -836,6 +846,7 @@ const writeJsonAndBase64Files = async (
     jsonFilePath: scanItemsMiniReportJsonFilePath,
     base64FilePath: scanItemsMiniReportBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile({ oobeeAppVersion: allIssues.oobeeAppVersion, ...summaryItemsMini }, storagePath, 'scanItemsSummaryMiniReport');
+  
   const summaryItems = {
     mustFix: {
       totalItems: items.mustFix?.totalItems || 0,
@@ -862,247 +873,15 @@ const writeJsonAndBase64Files = async (
     base64FilePath: scanItemsSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile({ oobeeAppVersion: allIssues.oobeeAppVersion, ...summaryItems }, storagePath, 'scanItemsSummary');
 
-  // -----------------------------------------------------------------------------
-  // --- Scan Pages Summary and Scan Pages Detail ---
-  // -----------------------------------------------------------------------------
-
-  // 1) Gather your "scanned" pages from allIssues
-  const allScannedPages = Array.isArray(allIssues.pagesScanned)
-    ? allIssues.pagesScanned
-    : [];
-
-  // Define which categories map to which occurrence property
-  const mustFixCategory = "mustFix";      // => occurrencesMustFix
-  const goodToFixCategory = "goodToFix";  // => occurrencesGoodToFix
-  const needsReviewCategory = "needsReview"; // => occurrencesNeedsReview
-  const passedCategory = "passed";           // => occurrencesPassed
-
-  type RuleData = {
-    ruleId: string;
-    wagConformance: string[];
-    occurrencesMustFix: number;
-    occurrencesGoodToFix: number;
-    occurrencesNeedsReview: number;
-    occurrencesPassed: number;
-  };
-
-  type PageData = {
-    pageTitle: string;
-    url: string;
-    // Summaries
-    totalOccurrencesFailedIncludingNeedsReview: number; // mustFix + goodToFix + needsReview
-    totalOccurrencesFailedExcludingNeedsReview: number; // mustFix + goodToFix
-    totalOccurrencesNeedsReview: number;                // needsReview
-    totalOccurrencesPassed: number;                     // passed only
-    typesOfIssues: Record<string, RuleData>;
-  };
-
-  // 2) We'll accumulate pages in a map keyed by URL
-  const pagesMap: Record<string, PageData> = {};
-
-  // 3) Build pagesMap by iterating over each category in allIssues.items
-  Object.entries(allIssues.items).forEach(([categoryName, categoryData]) => {
-    if (!categoryData?.rules) return; // no rules in this category? skip
-
-    categoryData.rules.forEach((rule) => {
-      const { rule: ruleId, conformance = [] } = rule;
-
-      rule.pagesAffected.forEach((p) => {
-        const { url, pageTitle, itemsCount = 0 } = p;
-
-        // Ensure the page is in pagesMap
-        if (!pagesMap[url]) {
-          pagesMap[url] = {
-            pageTitle,
-            url,
-            totalOccurrencesFailedIncludingNeedsReview: 0,
-            totalOccurrencesFailedExcludingNeedsReview: 0,
-            totalOccurrencesNeedsReview: 0,
-            totalOccurrencesPassed: 0,
-            typesOfIssues: {},
-          };
-        }
-
-        // Ensure the rule is present for this page
-        if (!pagesMap[url].typesOfIssues[ruleId]) {
-          pagesMap[url].typesOfIssues[ruleId] = {
-            ruleId,
-            wagConformance: conformance,
-            occurrencesMustFix: 0,
-            occurrencesGoodToFix: 0,
-            occurrencesNeedsReview: 0,
-            occurrencesPassed: 0,
-          };
-        }
-
-        // Depending on the category, increment the relevant occurrence counts
-        if (categoryName === mustFixCategory) {
-          pagesMap[url].typesOfIssues[ruleId].occurrencesMustFix += itemsCount;
-          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
-          pagesMap[url].totalOccurrencesFailedExcludingNeedsReview += itemsCount;
-        } else if (categoryName === goodToFixCategory) {
-          pagesMap[url].typesOfIssues[ruleId].occurrencesGoodToFix += itemsCount;
-          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
-          pagesMap[url].totalOccurrencesFailedExcludingNeedsReview += itemsCount;
-        } else if (categoryName === needsReviewCategory) {
-          pagesMap[url].typesOfIssues[ruleId].occurrencesNeedsReview += itemsCount;
-          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
-          pagesMap[url].totalOccurrencesNeedsReview += itemsCount;
-        } else if (categoryName === passedCategory) {
-          pagesMap[url].typesOfIssues[ruleId].occurrencesPassed += itemsCount;
-          pagesMap[url].totalOccurrencesPassed += itemsCount;
-        }
-      });
-    });
-  });
-
-  // 4) Separate scanned pages into “affected” vs. “notAffected”
-  //    - "affected" => totalOccurrencesFailedIncludingNeedsReview > 0
-  //    - "notAffected" => totalOccurrencesFailedIncludingNeedsReview = 0 (only passed issues)
-  //                       or pages that never appeared in pagesMap at all
-
-  const pagesInMap = Object.values(pagesMap); // All pages that have some record in pagesMap
-  const pagesInMapUrls = new Set(Object.keys(pagesMap));
-
-  // (a) Pages that appear in pagesMap BUT have only passed (no mustFix/goodToFix/needsReview)
-  const pagesAllPassed = pagesInMap.filter(
-    (p) => p.totalOccurrencesFailedIncludingNeedsReview === 0
-  );
-
-  // (b) Pages that do NOT appear in pagesMap at all => scanned but no items found
-  //     (This can happen if a page had 0 occurrences across all categories.)
-  const pagesNoEntries = allScannedPages
-    .filter((sp) => !pagesInMapUrls.has(sp.url))
-    .map((sp) => ({
-      // We'll create a PageData with everything zeroed out
-      pageTitle: sp.pageTitle,
-      url: sp.url,
-      totalOccurrencesFailedIncludingNeedsReview: 0,
-      totalOccurrencesFailedExcludingNeedsReview: 0,
-      totalOccurrencesNeedsReview: 0,
-      totalOccurrencesPassed: 0,
-      typesOfIssues: {},
-    }));
-
-  // Combine these into "notAffected"
-  const pagesNotAffectedRaw = [...pagesAllPassed, ...pagesNoEntries];
-
-  // "affected" pages => have at least 1 mustFix/goodToFix/needsReview
-  const pagesAffectedRaw = pagesInMap.filter(
-    (p) => p.totalOccurrencesFailedIncludingNeedsReview > 0
-  );
-
-  // 5) Transform both arrays to final shapes
-
-  function transformPageData(page: PageData) {
-    const typesOfIssuesArray = Object.values(page.typesOfIssues);
-  
-    // Compute sums for each failing category
-    const mustFixSum = typesOfIssuesArray.reduce((acc, r) => acc + r.occurrencesMustFix, 0);
-    const goodToFixSum = typesOfIssuesArray.reduce((acc, r) => acc + r.occurrencesGoodToFix, 0);
-    const needsReviewSum = typesOfIssuesArray.reduce((acc, r) => acc + r.occurrencesNeedsReview, 0);
-  
-    // Build categoriesPresent based on nonzero failing counts
-    const categoriesPresent: string[] = [];
-    if (mustFixSum > 0) categoriesPresent.push("mustFix");
-    if (goodToFixSum > 0) categoriesPresent.push("goodToFix");
-    if (needsReviewSum > 0) categoriesPresent.push("needsReview");
-  
-    // Count how many rules have failing issues (either mustFix or goodToFix)
-    const failedRuleCount = typesOfIssuesArray.filter(
-      (r) => (r.occurrencesMustFix || 0) + (r.occurrencesGoodToFix || 0) > 0
-    ).length;
-  
-    const typesOfIssuesExcludingNeedsReviewCount = failedRuleCount;
-    const occurrencesExclusiveToNeedsReview =
-      page.totalOccurrencesFailedExcludingNeedsReview === 0 &&
-      page.totalOccurrencesFailedIncludingNeedsReview > 0;
-  
-    // Aggregate wcag conformance values only for rules with failing issues.
-    const allConformance = typesOfIssuesArray.reduce((acc, curr) => {
-      const nonPassedCount =
-        (curr.occurrencesMustFix || 0) +
-        (curr.occurrencesGoodToFix || 0) +
-        (curr.occurrencesNeedsReview || 0);
-      if (nonPassedCount > 0) {
-        return acc.concat(curr.wagConformance || []);
-      }
-      return acc;
-    }, []);
-    // Remove duplicates.
-    const conformance = Array.from(new Set(allConformance));
-  
-    return {
-      pageTitle: page.pageTitle,
-      url: page.url,
-      totalOccurrencesFailedIncludingNeedsReview: page.totalOccurrencesFailedIncludingNeedsReview,
-      totalOccurrencesFailedExcludingNeedsReview: page.totalOccurrencesFailedExcludingNeedsReview,
-      totalOccurrencesMustFix: mustFixSum,
-      totalOccurrencesGoodToFix: goodToFixSum,
-      totalOccurrencesNeedsReview: needsReviewSum,
-      totalOccurrencesPassed: page.totalOccurrencesPassed,
-      occurrencesExclusiveToNeedsReview,
-      typesOfIssuesCount: failedRuleCount,
-      typesOfIssuesExcludingNeedsReviewCount,
-      categoriesPresent,
-      conformance,
-      typesOfIssues: typesOfIssuesArray, // full details for scanPagesDetail
-    };
-  }
-
-  const pagesAffected = pagesAffectedRaw.map(transformPageData);
-  const pagesNotAffected = pagesNotAffectedRaw.map(transformPageData);
-
-  // 6) SORT pages by typesOfIssuesCount (descending) for both arrays
-  pagesAffected.sort((a, b) => b.typesOfIssuesCount - a.typesOfIssuesCount);
-  pagesNotAffected.sort((a, b) => b.typesOfIssuesCount - a.typesOfIssuesCount);
-
-  // 7) Compute scanned/ skipped counts
-  const scannedPagesCount = pagesAffected.length + pagesNotAffected.length;
-  const pagesNotScannedCount = Array.isArray(allIssues.pagesNotScanned)
-    ? allIssues.pagesNotScanned.length
-    : 0;
-
-  // 8) Build scanPagesDetail (keeping full typesOfIssues)
-  const scanPagesDetail = {
-    pagesAffected,
-    pagesNotAffected,  // these pages are scanned but have no "fail/review" issues
-    scannedPagesCount,
-    pagesNotScanned: Array.isArray(allIssues.pagesNotScanned)
-      ? allIssues.pagesNotScanned
-      : [],
-    pagesNotScannedCount,
-  };
-
-  // 9) Build scanPagesSummary (remove “typesOfIssues” from both groups, but keep other fields)
-  function stripTypesOfIssues(page: ReturnType<typeof transformPageData>) {
-    const { typesOfIssues, ...rest } = page;
-    return rest;
-  }
-
-  const summaryPagesAffected = pagesAffected.map(stripTypesOfIssues);
-  const summaryPagesNotAffected = pagesNotAffected.map(stripTypesOfIssues);
-
-  const scanPagesSummary = {
-    pagesAffected: summaryPagesAffected,
-    pagesNotAffected: summaryPagesNotAffected,
-    scannedPagesCount,
-    pagesNotScanned: Array.isArray(allIssues.pagesNotScanned)
-      ? allIssues.pagesNotScanned
-      : [],
-    pagesNotScannedCount,
-  };
-
-  // 10) Write out the detail and summary JSON files
   const {
     jsonFilePath: scanPagesDetailJsonFilePath,
     base64FilePath: scanPagesDetailBase64FilePath
-  } = await writeJsonFileAndCompressedJsonFile({ oobeeAppVersion: allIssues.oobeeAppVersion, ...scanPagesDetail }, storagePath, 'scanPagesDetail');
+  } = await writeJsonFileAndCompressedJsonFile({ oobeeAppVersion: allIssues.oobeeAppVersion, ...allIssues.scanPagesDetail }, storagePath, 'scanPagesDetail');
 
   const {
     jsonFilePath: scanPagesSummaryJsonFilePath,
     base64FilePath: scanPagesSummaryBase64FilePath
-  } = await writeJsonFileAndCompressedJsonFile({ oobeeAppVersion: allIssues.oobeeAppVersion, ...scanPagesSummary }, storagePath, 'scanPagesSummary');
+  } = await writeJsonFileAndCompressedJsonFile({ oobeeAppVersion: allIssues.oobeeAppVersion, ...allIssues.scanPagesSummary }, storagePath, 'scanPagesSummary');
 
   return {
     scanDataJsonFilePath,
@@ -1442,6 +1221,260 @@ const moveElemScreenshots = (randomToken: string, storagePath: string) => {
   }
 };
 
+/**
+ * Build allIssues.scanPagesDetail and allIssues.scanPagesSummary
+ * by analyzing pagesScanned (including mustFix/goodToFix/etc.).
+ */
+function populateScanPagesDetail(allIssues: AllIssues): void {
+  // --------------------------------------------
+  // 1) Gather your "scanned" pages from allIssues
+  // --------------------------------------------
+  const allScannedPages = Array.isArray(allIssues.pagesScanned)
+    ? allIssues.pagesScanned
+    : [];
+
+  // --------------------------------------------
+  // 2) Define category constants (optional, just for clarity)
+  // --------------------------------------------
+  const mustFixCategory = "mustFix";      
+  const goodToFixCategory = "goodToFix";  
+  const needsReviewCategory = "needsReview"; 
+  const passedCategory = "passed";           
+
+  // --------------------------------------------
+  // 3) Set up type declarations (if you want them local to this function)
+  // --------------------------------------------
+  type RuleData = {
+    ruleId: string;
+    wcagConformance: string[];
+    occurrencesMustFix: number;
+    occurrencesGoodToFix: number;
+    occurrencesNeedsReview: number;
+    occurrencesPassed: number;
+  };
+
+  type PageData = {
+    pageTitle: string;
+    url: string;
+    // Summaries
+    totalOccurrencesFailedIncludingNeedsReview: number; // mustFix + goodToFix + needsReview
+    totalOccurrencesFailedExcludingNeedsReview: number; // mustFix + goodToFix
+    totalOccurrencesNeedsReview: number;                // needsReview
+    totalOccurrencesPassed: number;                     // passed only
+    typesOfIssues: Record<string, RuleData>;
+  };
+
+  // --------------------------------------------
+  // 4) We'll accumulate pages in a map keyed by URL
+  // --------------------------------------------
+  const pagesMap: Record<string, PageData> = {};
+
+  // --------------------------------------------
+  // 5) Build pagesMap by iterating over each category in allIssues.items
+  // --------------------------------------------
+  Object.entries(allIssues.items).forEach(([categoryName, categoryData]) => {
+    if (!categoryData?.rules) return; // no rules in this category? skip
+
+    categoryData.rules.forEach(rule => {
+      const { rule: ruleId, conformance = [] } = rule;
+
+      rule.pagesAffected.forEach(p => {
+        const { url, pageTitle, items = [] } = p;
+        const itemsCount = items.length;
+
+        // Ensure the page is in pagesMap
+        if (!pagesMap[url]) {
+          pagesMap[url] = {
+            pageTitle,
+            url,
+            totalOccurrencesFailedIncludingNeedsReview: 0,
+            totalOccurrencesFailedExcludingNeedsReview: 0,
+            totalOccurrencesNeedsReview: 0,
+            totalOccurrencesPassed: 0,
+            typesOfIssues: {},
+          };
+        }
+
+        // Ensure the rule is present for this page
+        if (!pagesMap[url].typesOfIssues[ruleId]) {
+          pagesMap[url].typesOfIssues[ruleId] = {
+            ruleId,
+            wcagConformance: conformance,
+            occurrencesMustFix: 0,
+            occurrencesGoodToFix: 0,
+            occurrencesNeedsReview: 0,
+            occurrencesPassed: 0,
+          };
+        }
+
+        // Depending on the category, increment the relevant occurrence counts
+        if (categoryName === mustFixCategory) {
+          pagesMap[url].typesOfIssues[ruleId].occurrencesMustFix += itemsCount;
+          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
+          pagesMap[url].totalOccurrencesFailedExcludingNeedsReview += itemsCount;
+        } else if (categoryName === goodToFixCategory) {
+          pagesMap[url].typesOfIssues[ruleId].occurrencesGoodToFix += itemsCount;
+          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
+          pagesMap[url].totalOccurrencesFailedExcludingNeedsReview += itemsCount;
+        } else if (categoryName === needsReviewCategory) {
+          pagesMap[url].typesOfIssues[ruleId].occurrencesNeedsReview += itemsCount;
+          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
+          pagesMap[url].totalOccurrencesNeedsReview += itemsCount;
+        } else if (categoryName === passedCategory) {
+          pagesMap[url].typesOfIssues[ruleId].occurrencesPassed += itemsCount;
+          pagesMap[url].totalOccurrencesPassed += itemsCount;
+        }
+      });
+    });
+  });
+
+  // --------------------------------------------
+  // 6) Separate scanned pages into “affected” vs. “notAffected”
+  // --------------------------------------------
+  const pagesInMap = Object.values(pagesMap); // All pages that have some record in pagesMap
+  const pagesInMapUrls = new Set(Object.keys(pagesMap));
+
+  // (a) Pages with only passed (no mustFix/goodToFix/needsReview)
+  const pagesAllPassed = pagesInMap.filter(
+    p => p.totalOccurrencesFailedIncludingNeedsReview === 0
+  );
+
+  // (b) Pages that do NOT appear in pagesMap at all => scanned but no items found
+  const pagesNoEntries = allScannedPages
+    .filter(sp => !pagesInMapUrls.has(sp.url))
+    .map(sp => ({
+      pageTitle: sp.pageTitle,
+      url: sp.url,
+      totalOccurrencesFailedIncludingNeedsReview: 0,
+      totalOccurrencesFailedExcludingNeedsReview: 0,
+      totalOccurrencesNeedsReview: 0,
+      totalOccurrencesPassed: 0,
+      typesOfIssues: {},
+    }));
+
+  // Combine these into "notAffected"
+  const pagesNotAffectedRaw = [...pagesAllPassed, ...pagesNoEntries];
+
+  // "affected" pages => have at least 1 mustFix/goodToFix/needsReview
+  const pagesAffectedRaw = pagesInMap.filter(
+    p => p.totalOccurrencesFailedIncludingNeedsReview > 0
+  );
+
+  // --------------------------------------------
+  // 7) Transform both arrays to the final shape
+  // --------------------------------------------
+  function transformPageData(page: PageData) {
+    const typesOfIssuesArray = Object.values(page.typesOfIssues);
+
+    // Compute sums for each failing category
+    const mustFixSum = typesOfIssuesArray.reduce((acc, r) => acc + r.occurrencesMustFix, 0);
+    const goodToFixSum = typesOfIssuesArray.reduce((acc, r) => acc + r.occurrencesGoodToFix, 0);
+    const needsReviewSum = typesOfIssuesArray.reduce((acc, r) => acc + r.occurrencesNeedsReview, 0);
+
+    // Build categoriesPresent based on nonzero failing counts
+    const categoriesPresent: string[] = [];
+    if (mustFixSum > 0) categoriesPresent.push("mustFix");
+    if (goodToFixSum > 0) categoriesPresent.push("goodToFix");
+    if (needsReviewSum > 0) categoriesPresent.push("needsReview");
+
+    // Count how many rules have failing issues
+    const failedRuleCount = typesOfIssuesArray.filter(
+      r => (r.occurrencesMustFix || 0) + (r.occurrencesGoodToFix || 0) > 0
+    ).length;
+
+    // Possibly these two for convenience
+    const typesOfIssuesExcludingNeedsReviewCount = failedRuleCount;
+    const occurrencesExclusiveToNeedsReview =
+      page.totalOccurrencesFailedExcludingNeedsReview === 0 &&
+      page.totalOccurrencesFailedIncludingNeedsReview > 0;
+
+    // Aggregate wcagConformance for rules that actually fail
+    const allConformance = typesOfIssuesArray.reduce((acc, curr) => {
+      const nonPassedCount =
+        (curr.occurrencesMustFix || 0) +
+        (curr.occurrencesGoodToFix || 0) +
+        (curr.occurrencesNeedsReview || 0);
+
+      if (nonPassedCount > 0) {
+        return acc.concat(curr.wcagConformance || []);
+      }
+      return acc;
+    }, [] as string[]);
+    // Remove duplicates
+    const conformance = Array.from(new Set(allConformance));
+
+    return {
+      pageTitle: page.pageTitle,
+      url: page.url,
+      totalOccurrencesFailedIncludingNeedsReview: page.totalOccurrencesFailedIncludingNeedsReview,
+      totalOccurrencesFailedExcludingNeedsReview: page.totalOccurrencesFailedExcludingNeedsReview,
+      totalOccurrencesMustFix: mustFixSum,
+      totalOccurrencesGoodToFix: goodToFixSum,
+      totalOccurrencesNeedsReview: needsReviewSum,
+      totalOccurrencesPassed: page.totalOccurrencesPassed,
+      occurrencesExclusiveToNeedsReview,
+      typesOfIssuesCount: failedRuleCount,
+      typesOfIssuesExcludingNeedsReviewCount,
+      categoriesPresent,
+      conformance,
+      // Keep full detail for "scanPagesDetail"
+      typesOfIssues: typesOfIssuesArray,
+    };
+  }
+
+  // Transform raw pages
+  const pagesAffected = pagesAffectedRaw.map(transformPageData);
+  const pagesNotAffected = pagesNotAffectedRaw.map(transformPageData);
+
+  // --------------------------------------------
+  // 8) Sort pages by typesOfIssuesCount (descending) for both arrays
+  // --------------------------------------------
+  pagesAffected.sort((a, b) => b.typesOfIssuesCount - a.typesOfIssuesCount);
+  pagesNotAffected.sort((a, b) => b.typesOfIssuesCount - a.typesOfIssuesCount);
+
+  // --------------------------------------------
+  // 9) Compute scanned/ skipped counts
+  // --------------------------------------------
+  const scannedPagesCount = pagesAffected.length + pagesNotAffected.length;
+  const pagesNotScannedCount = Array.isArray(allIssues.pagesNotScanned)
+    ? allIssues.pagesNotScanned.length
+    : 0;
+
+  // --------------------------------------------
+  // 10) Build scanPagesDetail (with full "typesOfIssues")
+  // --------------------------------------------
+  allIssues.scanPagesDetail = {
+    pagesAffected,
+    pagesNotAffected,
+    scannedPagesCount,
+    pagesNotScanned: Array.isArray(allIssues.pagesNotScanned)
+      ? allIssues.pagesNotScanned
+      : [],
+    pagesNotScannedCount,
+  };
+
+  // --------------------------------------------
+  // 11) Build scanPagesSummary (strip out "typesOfIssues")
+  // --------------------------------------------
+  function stripTypesOfIssues(page: ReturnType<typeof transformPageData>) {
+    const { typesOfIssues, ...rest } = page;
+    return rest;
+  }
+
+  const summaryPagesAffected = pagesAffected.map(stripTypesOfIssues);
+  const summaryPagesNotAffected = pagesNotAffected.map(stripTypesOfIssues);
+
+  allIssues.scanPagesSummary = {
+    pagesAffected: summaryPagesAffected,
+    pagesNotAffected: summaryPagesNotAffected,
+    scannedPagesCount,
+    pagesNotScanned: Array.isArray(allIssues.pagesNotScanned)
+      ? allIssues.pagesNotScanned
+      : [],
+    pagesNotScannedCount,
+  };
+}
+
 const generateArtifacts = async (
   randomToken: string,
   urlScanned: string,
@@ -1559,6 +1592,13 @@ const generateArtifacts = async (
     },
     cypressScanAboutMetadata,
     wcagLinks: constants.wcagLinks,
+    scanPagesDetail: {
+      pagesAffected: [],
+      pagesNotAffected: [],
+      scannedPagesCount: 0,
+      pagesNotScanned: [],
+      pagesNotScannedCount: 0,
+    },
     // Populate boolean values for id="advancedScanOptionsSummary"
     advancedScanOptionsSummaryItems: {
       showIncludeScreenshots: [true].includes(scanDetails.isIncludeScreenshots),
@@ -1599,15 +1639,16 @@ const generateArtifacts = async (
   ]);
 
   // move screenshots folder to report folders
-  moveElemScreenshots(randomToken, storagePath);
   if (isCustomFlow) {
     createScreenshotsFolder(randomToken);
   }
 
+  populateScanPagesDetail(allIssues);
+
   allIssues.wcagPassPercentage = getWcagPassPercentage(allIssues.wcagViolations, allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa);
-  consoleLogger.info(
-    `advancedScanOptionsSummaryItems is ${allIssues.advancedScanOptionsSummaryItems}`,
-  );
+  allIssues.progressPercentage = getProgressPercentage(allIssues.scanPagesDetail, allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa);
+
+  // console.log(allIssues.progressPercentage);
 
   const getAxeImpactCount = (allIssues: AllIssues) => {
     const impactCount = {

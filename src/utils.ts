@@ -7,7 +7,7 @@ import constants, {
   destinationPath,
   getIntermediateScreenshotsPath,
 } from './constants/constants.js';
-import { silentLogger } from './logs.js';
+import { consoleLogger, silentLogger } from './logs.js';
 
 export const getVersion = () => {
   const loadJSON = filePath =>
@@ -178,18 +178,6 @@ export const cleanUp = async pathToDelete => {
   fs.removeSync(pathToDelete);
 };
 
-/* istanbul ignore next */
-// export const getFormattedTime = () =>
-//   new Date().toLocaleTimeString('en-GB', {
-//     year: 'numeric',
-//     month: 'short',
-//     day: 'numeric',
-//     hour12: true,
-//     hour: 'numeric',
-//     minute: '2-digit',
-//     timeZoneName: "longGeneric",
-//   });
-
 export const getWcagPassPercentage = (
   wcagViolations: string[],
   showEnableWcagAaa: boolean
@@ -225,6 +213,49 @@ export const getWcagPassPercentage = (
     passPercentageAAandAAA: passPercentageAAandAAA ? passPercentageAAandAAA.toFixed(2) : null, // toFixed returns a string, which is correct here
     totalWcagChecksAAandAAA: totalChecksAAandAAA,
     totalWcagViolationsAAandAAA: wcagViolationsAAandAAA,
+  };
+};
+
+export interface ScanPagesDetail {
+  pagesAffected: any[];
+  pagesNotAffected: any[];
+  scannedPagesCount: number;
+  pagesNotScanned: any[];
+  pagesNotScannedCount: number;
+}
+
+export const getProgressPercentage = (
+  scanPagesDetail: ScanPagesDetail,
+  showEnableWcagAaa: boolean
+): {
+  averageProgressPercentageAA: string;
+  pageProgressPercentageAA: string[];
+  averageProgressPercentageAAandAAA: string;
+  pageProgressPercentageAAandAAA: string[];
+} => {
+  const pages = scanPagesDetail.pagesAffected || [];
+  
+  const progressPercentagesAA = pages.map((page: any) => {
+    const violations: string[] = page.conformance;
+    return getWcagPassPercentage(violations, showEnableWcagAaa).passPercentageAA;
+  });
+  
+  const progressPercentagesAAandAAA = pages.map((page: any) => {
+    const violations: string[] = page.conformance;
+    return getWcagPassPercentage(violations, showEnableWcagAaa).passPercentageAAandAAA;
+  });
+  
+  const totalAA = progressPercentagesAA.reduce((sum, p) => sum + parseFloat(p), 0);
+  const avgAA = progressPercentagesAA.length ? totalAA / progressPercentagesAA.length : 0;
+
+  const totalAAandAAA = progressPercentagesAAandAAA.reduce((sum, p) => sum + parseFloat(p), 0);
+  const avgAAandAAA = progressPercentagesAAandAAA.length ? totalAAandAAA / progressPercentagesAAandAAA.length : 0;
+  
+  return { 
+    averageProgressPercentageAA: avgAA.toFixed(2),
+    pageProgressPercentageAA: progressPercentagesAA,
+    averageProgressPercentageAAandAAA: avgAAandAAA.toFixed(2),
+    pageProgressPercentageAAandAAA: progressPercentagesAAandAAA,
   };
 };
 

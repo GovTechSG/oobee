@@ -264,7 +264,7 @@ This file contains a summary of accessibility issues found in a scan, categorize
       "typesOfIssues": [
         {
           "ruleId": "<string>",
-          "wagConformance": ["<string>", "<string>"],
+          "wcagConformance": ["<string>", "<string>"],
           "occurrencesMustFix": <number>,
           "occurrencesGoodToFix": <number>,
           "occurrencesNeedsReview": <number>,
@@ -291,7 +291,7 @@ This file contains a summary of accessibility issues found in a scan, categorize
       "typesOfIssues": [
         {
           "ruleId": "<string>",
-          "wagConformance": ["<string>", "<string>"],
+          "wcagConformance": ["<string>", "<string>"],
           "occurrencesMustFix": <number>,
           "occurrencesGoodToFix": <number>,
           "occurrencesNeedsReview": <number>,
