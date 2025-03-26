@@ -91,7 +91,7 @@ function hasPointerCursor(node: Node): boolean {
     const trimmedValue = value.trim();
 
     // Check if the text is a URL/link or a CSS url() pattern.
-    const linkRegex = /^(https?:\/\/|data:)[^\s]+$/i;
+    const linkRegex = /^(https?:\/\/|file:\/\/|[a-zA-Z]:[\\/]|\/)[^\s]+$/i;
     const cssUrlRegex = /^url\(.*\)$/i;
     if (linkRegex.test(trimmedValue) || cssUrlRegex.test(trimmedValue)) {
         return false;

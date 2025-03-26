@@ -14,7 +14,7 @@ export const takeScreenshotForHTMLElements = async (
   page: Page,
   randomToken: string,
   locatorTimeout = 2000,
-  maxScreenshots = 50,
+  maxScreenshots = 100,
 ): Promise<ResultWithScreenshot[]> => {
   const newViolations: ResultWithScreenshot[] = [];
   let screenshotCount = 0;
