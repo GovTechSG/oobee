@@ -418,8 +418,26 @@ export const getIssuesPercentage = async (
   avgTypesOfIssuesCountAtMustFix: string;
   avgTypesOfIssuesCountAtGoodToFix: string;
   avgTypesOfIssuesCountAtMustFixAndGoodToFix: string;
+  pagesAffectedPerRule: Record<string, number>;
+  pagesPercentageAffectedPerRule: Record<string, string>;
 }> => {
   const pages = scanPagesDetail.pagesAffected || [];
+  const totalPages = pages.length;
+
+  const pagesAffectedPerRule: Record<string, number> = {};
+
+  pages.forEach((page) => {
+    page.typesOfIssues.forEach((issue) => {
+      if ((issue.occurrencesMustFix || issue.occurrencesGoodToFix) > 0) {
+        pagesAffectedPerRule[issue.ruleId] = (pagesAffectedPerRule[issue.ruleId] || 0) + 1;
+      }
+    });
+  });
+
+  const pagesPercentageAffectedPerRule: Record<string, string> = {};
+  for (const [ruleId, count] of Object.entries(pagesAffectedPerRule)) {
+    pagesPercentageAffectedPerRule[ruleId] = totalPages > 0 ? ((count / totalPages) * 100).toFixed(2) : "0.00";
+  }
 
   const typesOfIssuesCountAtMustFix = pages.map((page) =>
     page.typesOfIssues.filter((issue) => (issue.occurrencesMustFix || 0) > 0).length
@@ -435,26 +453,23 @@ export const getIssuesPercentage = async (
       (typesOfIssuesCountAtGoodToFix[index] || 0)
   );
 
-  // Get the total rules count for normalization
   const { totalRulesMustFix, totalRulesGoodToFix, totalRulesMustFixAndGoodToFix } = await getTotalRulesCount(
     enableWcagAaa,
     disableOobee
   );
 
-  // Compute average issues per page first
-  const avgMustFixPerPage = pages.length > 0
-    ? typesOfIssuesCountAtMustFix.reduce((sum, count) => sum + count, 0) / pages.length
+  const avgMustFixPerPage = totalPages > 0
+    ? typesOfIssuesCountAtMustFix.reduce((sum, count) => sum + count, 0) / totalPages
     : 0;
 
-  const avgGoodToFixPerPage = pages.length > 0
-    ? typesOfIssuesCountAtGoodToFix.reduce((sum, count) => sum + count, 0) / pages.length
+  const avgGoodToFixPerPage = totalPages > 0
+    ? typesOfIssuesCountAtGoodToFix.reduce((sum, count) => sum + count, 0) / totalPages
     : 0;
 
-  const avgMustFixAndGoodToFixPerPage = pages.length > 0
-    ? typesOfIssuesCountSumMustFixAndGoodToFix.reduce((sum, count) => sum + count, 0) / pages.length
+  const avgMustFixAndGoodToFixPerPage = totalPages > 0
+    ? typesOfIssuesCountSumMustFixAndGoodToFix.reduce((sum, count) => sum + count, 0) / totalPages
     : 0;
 
-  // Compute percentages based on total rules
   const avgTypesOfIssuesPercentageOfTotalRulesAtMustFix =
     totalRulesMustFix > 0
       ? ((avgMustFixPerPage / totalRulesMustFix) * 100).toFixed(2)
@@ -470,7 +485,6 @@ export const getIssuesPercentage = async (
       ? ((avgMustFixAndGoodToFixPerPage / totalRulesMustFixAndGoodToFix) * 100).toFixed(2)
       : "0.00";
 
-  // Compute raw count averages (without normalization)
   const avgTypesOfIssuesCountAtMustFix = avgMustFixPerPage.toFixed(2);
   const avgTypesOfIssuesCountAtGoodToFix = avgGoodToFixPerPage.toFixed(2);
   const avgTypesOfIssuesCountAtMustFixAndGoodToFix = avgMustFixAndGoodToFixPerPage.toFixed(2);
@@ -485,8 +499,11 @@ export const getIssuesPercentage = async (
     totalRulesMustFix,
     totalRulesGoodToFix,
     totalRulesMustFixAndGoodToFix,
+    pagesAffectedPerRule,
+    pagesPercentageAffectedPerRule,
   };
 };
+
 export const getFormattedTime = inputDate => {
   if (inputDate) {
     return inputDate.toLocaleTimeString('en-GB', {
