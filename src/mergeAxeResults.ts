@@ -1658,6 +1658,9 @@ const generateArtifacts = async (
     allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa, 
     allIssues.advancedScanOptionsSummaryItems.disableOobee);
 
+  // console.log(allIssues.progressPercentage);
+  // console.log(allIssues.issuesPercentage);
+
   const getAxeImpactCount = (allIssues: AllIssues) => {
     const impactCount = {
       critical: 0,

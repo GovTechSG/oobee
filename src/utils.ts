@@ -261,9 +261,7 @@ export const getProgressPercentage = (
   showEnableWcagAaa: boolean
 ): {
   averageProgressPercentageAA: string;
-  pageProgressPercentageAA: string[];
   averageProgressPercentageAAandAAA: string;
-  pageProgressPercentageAAandAAA: string[];
 } => {
   const pages = scanPagesDetail.pagesAffected || [];
   
@@ -285,9 +283,7 @@ export const getProgressPercentage = (
   
   return { 
     averageProgressPercentageAA: avgAA.toFixed(2),
-    pageProgressPercentageAA: progressPercentagesAA,
     averageProgressPercentageAAandAAA: avgAAandAAA.toFixed(2),
-    pageProgressPercentageAAandAAA: progressPercentagesAAandAAA,
   };
 };
 
@@ -369,6 +365,12 @@ export const getTotalRulesCount = async (
     if (rule.id === 'frame-tested') return; // Ignore 'frame-tested' rule
 
     const tags = rule.tags || [];
+
+    // Skip experimental and deprecated rules
+    if (tags.includes('experimental') || tags.includes('deprecated')) {
+      return;
+    }
+
     let conformance = tags.filter(tag => tag.startsWith('wcag') || tag === 'best-practice');
 
     // Ensure conformance level is sorted correctly
@@ -385,8 +387,12 @@ export const getTotalRulesCount = async (
     }
 
     if (conformance.includes('best-practice')) {
+      // console.log(`${totalRulesMustFix} Good To Fix: ${rule.id}`);
+
       totalRulesGoodToFix++; // Categorized as "Good to Fix"
     } else {
+      // console.log(`${totalRulesMustFix} Must Fix: ${rule.id}`);
+
       totalRulesMustFix++; // Otherwise, it's "Must Fix"
     }
   });
