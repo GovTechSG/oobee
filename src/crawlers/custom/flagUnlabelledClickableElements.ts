@@ -59,35 +59,29 @@ export async function flagUnlabelledClickableElements() {
     }
   }
 
-  function hasPointerCursor(node: Node) {
-    let element: Element | null = null;
+function hasPointerCursor(node: Node): boolean {
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+        // Check if it's a parent and can be converted to an element
+        node = (node as HTMLElement).parentElement;
+        if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+            return false; // Still not a valid element
+        }
+    }
 
-    if (node instanceof Element) {
-      element = node; // Directly assign if it's already an Element
-    } else {
-      // Attempt to get the parent as an Element
-      const parent = node.parentElement;
-      if (parent) {
-        element = parent; // Assign the parent element
-      }
-    }
-  
-    if (!element) {
-      return false; // If no valid element, return false
-    }
-  
-    const computedStyle = window.getComputedStyle(element);
+    const computedStyle = window.getComputedStyle(node as HTMLElement);
     const hasPointerStyle = computedStyle.cursor === 'pointer';
-    const hasOnClick = element.hasAttribute('onclick');
+    const hasOnClick = (node as HTMLElement).hasAttribute('onclick');
     const hasEventListeners = Object.keys(node).some(prop => prop.startsWith('on'));
 
     // Check if the node is inherently interactive
-    const isClickableRole = ['button', 'link', 'menuitem'].includes(element.getAttribute('role'));
-    const isNativeClickableElement = ['a', 'button', 'input'].includes(element.tagName.toLowerCase()) &&(element.tagName.toLowerCase() !== 'a' || element.hasAttribute('href'));
-    const hasTabIndex = element.hasAttribute('tabindex') && element.getAttribute('tabindex') !== '-1';
+    const isClickableRole = ['button', 'link', 'menuitem'].includes((node as HTMLElement).getAttribute('role') || '');
+    const isNativeClickableElement = ['a', 'button', 'input'].includes((node as HTMLElement).nodeName.toLowerCase()) &&
+        (node.nodeName.toLowerCase() !== 'a' || (node as HTMLAnchorElement).hasAttribute('href'));
+    const hasTabIndex = (node as HTMLElement).hasAttribute('tabindex') && (node as HTMLElement).getAttribute('tabindex') !== '-1';
 
     return hasPointerStyle || hasOnClick || hasEventListeners || isClickableRole || isNativeClickableElement || hasTabIndex;
-  }
+}
+
 
   function isAccessibleText(value: string) {
     if (!value || value.trim().length === 0) {
@@ -146,7 +140,7 @@ export async function flagUnlabelledClickableElements() {
         isInOpenDetails(el)
       );
     } catch (error) {
-      console.log('Error in ELEMENT', el, error.message);
+      customConsoleWarn('Error in ELEMENT', error.message);
       return false;
     }
   }
