@@ -72,6 +72,27 @@ This file contains a summary of accessibility issues found in a scan, categorize
     "totalWcagChecksAAandAAA": <number>,
     "totalWcagViolationsAAandAAA": <number>
   },
+  "progressPercentage": {
+    "averageProgressPercentageAA": "<string>",
+    "averageProgressPercentageAAandAAA": "<string>"
+  },
+  "issuesPercentage": {
+    "avgTypesOfIssuesCountAtMustFix": "<number>",
+    "avgTypesOfIssuesCountAtGoodToFix": "<number>",
+    "avgTypesOfIssuesCountAtMustFixAndGoodToFix": "<number>",
+    "avgTypesOfIssuesPercentageOfTotalRulesAtMustFix": "<number>",
+    "avgTypesOfIssuesPercentageOfTotalRulesAtGoodToFix": "<number>",
+    "avgTypesOfIssuesPercentageOfTotalRulesAtMustFixAndGoodToFix": "<number>",
+    "totalRulesMustFix": <number>,
+    "totalRulesGoodToFix": <number>,
+    "totalRulesMustFixAndGoodToFix": <number>,
+    "pagesAffectedPerRule": {
+      "<string>": <number>
+    },
+    "pagesPercentageAffectedPerRule": {
+      "<string>": "<string>"
+    }
+  },
   "totalPagesScanned": <number>,
   "totalPagesNotScanned": <number>,
   "topTenIssues": [
@@ -106,6 +127,21 @@ This file contains a summary of accessibility issues found in a scan, categorize
 | `passPercentageAAandAAA` | Percentage of WCAG AA and AAA guidelines passed. |
 | `totalWcagChecksAAandAAA` | Total WCAG AA and AAA checks performed. |
 | `totalWcagViolationsAAandAAA` | Total WCAG AA and AAA violations found. |
+| `progressPercentage` | Summary of average progress percentages. |
+| `averageProgressPercentageAA` | Average progress percentage for WCAG AA guidelines. |
+| `averageProgressPercentageAAandAAA` | Average progress percentage for WCAG AA and AAA guidelines. |
+| `issuesPercentage` | Detailed breakdown of issue percentages and counts. |
+| `avgTypesOfIssuesCountAtMustFix` | Average count of issue types at "Must Fix" level. |
+| `avgTypesOfIssuesCountAtGoodToFix` | Average count of issue types at "Good to Fix" level. |
+| `avgTypesOfIssuesCountAtMustFixAndGoodToFix` | Average count of issue types at both "Must Fix" and "Good to Fix" levels per page. |
+| `avgTypesOfIssuesPercentageOfTotalRulesAtMustFix` | Average percentage of total rules affected at "Must Fix" level per page. |
+| `avgTypesOfIssuesPercentageOfTotalRulesAtGoodToFix` | Average percentage of total rules affected at "Good to Fix" level per page. |
+| `avgTypesOfIssuesPercentageOfTotalRulesAtMustFixAndGoodToFix` | Average percentage of total rules affected at both "Must Fix" and "Good to Fix" levels per page. |
+| `totalRulesMustFix` | Total number of rules categorized as "Must Fix". |
+| `totalRulesGoodToFix` | Total number of rules categorized as "Good to Fix". |
+| `totalRulesMustFixAndGoodToFix` | Total number of rules categorized as either "Must Fix" or "Good to Fix". |
+| `pagesAffectedPerRule` | Number of pages affected by each rule (keyed by rule ID). |
+| `pagesPercentageAffectedPerRule` | Percentage of pages affected by each rule (keyed by rule ID). |
 | `totalPagesScanned` | Total number of pages scanned. |
 | `totalPagesNotScanned` | Total number of pages not scanned. |
 | `topTenIssues` | List of the ten most common accessibility issues. |
@@ -115,7 +151,6 @@ This file contains a summary of accessibility issues found in a scan, categorize
 | `axeImpact` | Severity impact as determined by Axe. |
 | `conformance` | List of WCAG guidelines the rule conforms to. |
 | `totalItems` | Number of times this issue was detected. |
-
 
 
 ## scanIssuesSummary.json
@@ -264,7 +299,7 @@ This file contains a summary of accessibility issues found in a scan, categorize
       "typesOfIssues": [
         {
           "ruleId": "<string>",
-          "wcagConformance": ["<string>", "<string>"],
+          "wagConformance": ["<string>", "<string>"],
           "occurrencesMustFix": <number>,
           "occurrencesGoodToFix": <number>,
           "occurrencesNeedsReview": <number>,
@@ -291,7 +326,7 @@ This file contains a summary of accessibility issues found in a scan, categorize
       "typesOfIssues": [
         {
           "ruleId": "<string>",
-          "wcagConformance": ["<string>", "<string>"],
+          "wagConformance": ["<string>", "<string>"],
           "occurrencesMustFix": <number>,
           "occurrencesGoodToFix": <number>,
           "occurrencesNeedsReview": <number>,
