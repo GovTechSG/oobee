@@ -24,7 +24,7 @@ export async function flagUnlabelledClickableElements() {
       // Custom Roles
       "application", "presentation", "none"
   ];
-  const loggingEnabled = true; // Set to true to enable console warnings
+  const loggingEnabled = false; // Set to true to enable console warnings
 
   let previousFlaggedXPathsByDocument = {}; // Object to hold previous flagged XPaths
   const previousAllFlaggedElementsXPaths = []; // Array to store all flagged XPaths
