@@ -1648,7 +1648,8 @@ export const getPlaywrightDeviceDetailsObject = (
   customDevice: string,
   viewportWidth: number,
 ): DeviceDescriptor => {
-  let playwrightDeviceDetailsObject = {};
+  let playwrightDeviceDetailsObject = devices['Desktop Chrome']; // default to Desktop Chrome
+
   if (deviceChosen === 'Mobile' || customDevice === 'iPhone 11') {
     playwrightDeviceDetailsObject = devices['iPhone 11'];
   } else if (customDevice === 'Samsung Galaxy S9+') {
@@ -1656,6 +1657,11 @@ export const getPlaywrightDeviceDetailsObject = (
   } else if (viewportWidth) {
     playwrightDeviceDetailsObject = {
       viewport: { width: viewportWidth, height: 720 },
+      isMobile: false,
+      hasTouch: false,
+      userAgent: devices['Desktop Chrome'].userAgent,
+      deviceScaleFactor: 1,
+      defaultBrowserType: 'chromium',
     };
   } else if (customDevice) {
     playwrightDeviceDetailsObject = devices[customDevice.replace(/_/g, ' ')];
