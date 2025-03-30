@@ -1644,6 +1644,7 @@ const generateArtifacts = async (
   ]);
 
   // move screenshots folder to report folders
+  moveElemScreenshots(randomToken, storagePath);
   if (isCustomFlow) {
     createScreenshotsFolder(randomToken);
   }
