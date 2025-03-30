@@ -24,7 +24,7 @@ export const oobeeAiRules = [
   'autocomplete-valid',
 ];
 
-export const oobeeAiHtmlETL = htmlSnippet => {
+export const oobeeAiHtmlETL = (htmlSnippet: string) => {
   // Whitelisted attributes (to not drop)
   // i.e. any other attribute will be dropped
   const whitelistedAttributes = [
@@ -60,12 +60,12 @@ export const oobeeAiHtmlETL = htmlSnippet => {
     `aria-labelledby`,
   ];
 
-  const sortAlphaAttributes = html => {
+  const sortAlphaAttributes = (html: string) => {
     let entireHtml = '';
     const htmlOpeningTagRegex = /<[^>]+/g;
     const htmlTagmatches = html.match(htmlOpeningTagRegex);
 
-    let sortedHtmlTag;
+    let sortedHtmlTag: string = '';
 
     htmlTagmatches.forEach(htmlTag => {
       const closingTag = htmlTag.trim().slice(-1) === '/' ? '/>' : '>';
@@ -112,7 +112,7 @@ export const oobeeAiHtmlETL = htmlSnippet => {
 
   // For all attributes within mutedAttributeValues array
   // replace their values with "something" while maintaining the attribute
-  const muteAttributeValues = html => {
+  const muteAttributeValues = (html: string) => {
     const regex = /(\s+)([\w-]+)(\s*=\s*")([^"]*)(")/g;
 
     // p1 is the whitespace before the attribute
@@ -120,7 +120,7 @@ export const oobeeAiHtmlETL = htmlSnippet => {
     // p3 is the attribute value before the replacement
     // p4 is the attribute value (replaced with "...")
     // p5 is the closing quote of the attribute value
-    return html.replace(regex, (match, p1, p2, p3, p4, p5) => {
+    return html.replace(regex, (match, p1, p2, p3, _p4, p5) => {
       if (mutedAttributeValues.includes(p2)) {
         return `${p1}${p2}${p3}...${p5}`;
       }
@@ -129,7 +129,7 @@ export const oobeeAiHtmlETL = htmlSnippet => {
   };
 
   // Drop all attributes from the HTML snippet except whitelisted
-  const dropAllExceptWhitelisted = html => {
+  const dropAllExceptWhitelisted = (html: string) => {
     const regex = new RegExp(
       `(\\s+)(?!${whitelistedAttributes.join(`|`)})([\\w-]+)(\\s*=\\s*"[^"]*")`,
       `g`,
