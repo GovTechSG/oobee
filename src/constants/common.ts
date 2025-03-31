@@ -15,8 +15,8 @@ import safe from 'safe-regex';
 import * as https from 'https';
 import os from 'os';
 import { minimatch } from 'minimatch';
-import { globSync } from 'glob';
-import { LaunchOptions, devices, webkit } from 'playwright';
+import { globSync, GlobOptionsWithFileTypesFalse } from 'glob';
+import { LaunchOptions, Locator, Page, devices, webkit } from 'playwright';
 import printMessage from 'print-message';
 import constants, {
   getDefaultChromeDataDir,
@@ -377,7 +377,7 @@ const checkUrlConnectivityWithBrowser = async (
   url: string,
   browserToRun: string,
   clonedDataDir: string,
-  playwrightDeviceDetailsObject: object,
+  playwrightDeviceDetailsObject: DeviceDescriptor,
   isCustomFlow: boolean,
   extraHTTPHeaders: Record<string, string>,
 ) => {
@@ -510,13 +510,13 @@ export const isSitemapContent = (content: string) => {
 };
 
 export const checkUrl = async (
-  scanner,
-  url,
-  browser,
-  clonedDataDir,
-  playwrightDeviceDetailsObject,
-  isCustomFlow,
-  extraHTTPHeaders,
+  scanner: ScannerTypes,
+  url: string,
+  browser: string,
+  clonedDataDir: string,
+  playwrightDeviceDetailsObject: DeviceDescriptor,
+  isCustomFlow: boolean,
+  extraHTTPHeaders: Record<string, string>,
 ) => {
   const res = await checkUrlConnectivityWithBrowser(
     url,
@@ -548,7 +548,7 @@ export const parseHeaders = (header?: string): Record<string, string> => {
   // parse HTTP headers from string
   if (!header) return {};
   const headerValues = header.split(', ');
-  const allHeaders = {};
+  const allHeaders: Record<string, string> = {};
   headerValues.map((headerValue: string) => {
     const headerValuePair = headerValue.split(/ (.*)/s);
     if (headerValuePair.length < 2) {
@@ -776,11 +776,11 @@ export const getLinksFromSitemap = async (
   password: string,
 ) => {
   const scannedSitemaps = new Set<string>();
-  const urls = {}; // dictionary of requests to urls to be scanned
+  const urls: Record<string, Request> = {}; // dictionary of requests to urls to be scanned
 
   const isLimitReached = () => Object.keys(urls).length >= maxLinksCount;
 
-  const addToUrlList = url => {
+  const addToUrlList = (url: string) => {
     if (!url) return;
     if (isDisallowedInRobotsTxt(url)) return;
 
@@ -803,14 +803,14 @@ export const getLinksFromSitemap = async (
     urls[url] = request;
   };
 
-  const addBasicAuthCredentials = (url, username, password) => {
+  const addBasicAuthCredentials = (url: string, username: string, password: string) => {
     const urlObject = new URL(url);
     urlObject.username = username;
     urlObject.password = password;
     return urlObject.toString();
   };
 
-  const calculateCloseness = sitemapUrl => {
+  const calculateCloseness = (sitemapUrl: string) => {
     // Remove 'http://', 'https://', and 'www.' prefixes from the URLs
     const normalizedSitemapUrl = sitemapUrl.replace(/^(https?:\/\/)?(www\.)?/, '');
     const normalizedUserUrlInput = userUrlInput
@@ -825,10 +825,16 @@ export const getLinksFromSitemap = async (
     }
     return 0;
   };
-  const processXmlSitemap = async ($, sitemapType, linkSelector, dateSelector, sectionSelector) => {
-    const urlList = [];
+  const processXmlSitemap = async (
+    $: cheerio.CheerioAPI,
+    sitemapType: number,
+    linkSelector: string,
+    dateSelector: string,
+    sectionSelector: string,
+  ) => {
+    const urlList: { url: string; lastModifiedDate: Date }[] = [];
     // Iterate through each URL element in the sitemap, collect url and modified date
-    $(sectionSelector).each((index, urlElement) => {
+    $(sectionSelector).each((_index, urlElement) => {
       let url;
       if (sitemapType === constants.xmlSitemapTypes.atom) {
         url = $(urlElement).find(linkSelector).prop('href');
@@ -850,8 +856,7 @@ export const getLinksFromSitemap = async (
         }
 
         // If closeness is the same, sort by last modified date in descending order
-        const dateDifference = (b.lastModifiedDate || 0) - (a.lastModifiedDate || 0);
-        return dateDifference !== 0 ? dateDifference : 0; // Maintain original order for equal dates
+        return (b.lastModifiedDate?.getTime() || 0) - (a.lastModifiedDate?.getTime() || 0);
       });
     }
 
@@ -861,7 +866,7 @@ export const getLinksFromSitemap = async (
     }
   };
 
-  const processNonStandardSitemap = data => {
+  const processNonStandardSitemap = (data: string) => {
     const urlsFromData = crawlee
       .extractUrls({ string: data, urlRegExp: new RegExp('^(http|https):/{2}.+$', 'gmi') })
       .slice(0, maxLinksCount);
@@ -934,7 +939,7 @@ export const getLinksFromSitemap = async (
         const sitemapIndex = page.locator('sitemapindex');
         const rss = page.locator('rss');
         const feed = page.locator('feed');
-        const isRoot = async locator => (await locator.count()) > 0;
+        const isRoot = async (locator: Locator) => (await locator.count()) > 0;
 
         if (await isRoot(urlSet)) {
           data = await urlSet.evaluate(elem => elem.outerHTML);
@@ -1054,14 +1059,14 @@ export const getLinksFromSitemap = async (
   return requestList;
 };
 
-export const validEmail = email => {
+export const validEmail = (email: string) => {
   const emailRegex = /^.+@.+\..+$/u;
 
   return emailRegex.test(email);
 };
 
 // For new user flow.
-export const validName = name => {
+export const validName = (name: string) => {
   // Allow only printable characters from any language
   const regex = /^[\p{L}\p{N}\s'".,()\[\]{}!?:؛،؟…]+$/u;
 
@@ -1213,11 +1218,11 @@ export const getEdgeData = () => {
  * @param {*} destDir destination directory
  * @returns boolean indicating whether the operation was successful
  */
-const cloneChromeProfileCookieFiles = (options, destDir) => {
+const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, destDir: string) => {
   let profileCookiesDir;
   // Cookies file per profile is located in .../User Data/<profile name>/Network/Cookies for windows
   // and ../Chrome/<profile name>/Cookies for mac
-  let profileNamesRegex;
+  let profileNamesRegex: RegExp;
   if (os.platform() === 'win32') {
     profileCookiesDir = globSync('**/Network/Cookies', {
       ...options,
@@ -1288,11 +1293,11 @@ const cloneChromeProfileCookieFiles = (options, destDir) => {
  * @param {*} destDir destination directory
  * @returns boolean indicating whether the operation was successful
  */
-const cloneEdgeProfileCookieFiles = (options, destDir) => {
+const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, destDir: string) => {
   let profileCookiesDir;
   // Cookies file per profile is located in .../User Data/<profile name>/Network/Cookies for windows
   // and ../Chrome/<profile name>/Cookies for mac
-  let profileNamesRegex;
+  let profileNamesRegex: RegExp;
   // Ignores the cloned oobee directory if exists
   if (os.platform() === 'win32') {
     profileCookiesDir = globSync('**/Network/Cookies', {
@@ -1361,7 +1366,7 @@ const cloneEdgeProfileCookieFiles = (options, destDir) => {
  * @param {string} destDir - destination directory
  * @returns boolean indicating whether the operation was successful
  */
-const cloneLocalStateFile = (options, destDir) => {
+const cloneLocalStateFile = (options: GlobOptionsWithFileTypesFalse, destDir: string) => {
   const localState = globSync('**/*Local State', {
     ...options,
     maxDepth: 1,
@@ -1812,7 +1817,7 @@ export async function initModifiedUserAgent(
 
   // Modify the UA:
   // Replace "HeadlessChrome" with "Chrome" if present.
-  let modifiedUA = defaultUA.includes('HeadlessChrome')
+  const modifiedUA = defaultUA.includes('HeadlessChrome')
     ? defaultUA.replace('HeadlessChrome', 'Chrome')
     : defaultUA;
 
@@ -1864,7 +1869,7 @@ export const urlWithoutAuth = (url: string): string => {
   return parsedUrl.toString();
 };
 
-export const waitForPageLoaded = async (page, timeout = 10000) => {
+export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
   const OBSERVER_TIMEOUT = timeout; // Ensure observer timeout does not exceed the main timeout
 
   return Promise.race([
@@ -1879,10 +1884,10 @@ export const waitForPageLoaded = async (page, timeout = 10000) => {
           return;
         }
 
-        let timeout;
+        let timeout: NodeJS.Timeout;
         let mutationCount = 0;
         const MAX_MUTATIONS = 250; // Limit max mutations
-        const mutationHash = {};
+        const mutationHash: Record<string, number> = {};
 
         const observer = new MutationObserver(mutationsList => {
           clearTimeout(timeout);
@@ -1934,7 +1939,7 @@ export const waitForPageLoaded = async (page, timeout = 10000) => {
   ]);
 };
 
-function isValidHttpUrl(urlString) {
+function isValidHttpUrl(urlString: string) {
   const pattern = /^(http|https):\/\/[^ "]+$/;
   return pattern.test(urlString);
 }
