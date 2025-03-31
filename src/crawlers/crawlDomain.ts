@@ -9,7 +9,6 @@ import https from 'https';
 import type { BatchAddRequestsResult } from '@crawlee/types';
 import {
   createCrawleeSubFolders,
-  preNavigationHooks,
   runAxeScript,
   isUrlPdf,
 } from './commonCrawlerFunc.js';
@@ -26,7 +25,6 @@ import {
   isSkippedUrl,
   isDisallowedInRobotsTxt,
   getUrlsFromRobotsTxt,
-  getBlackListedPatterns,
   urlWithoutAuth,
   waitForPageLoaded,
   initModifiedUserAgent,
@@ -116,13 +114,12 @@ const crawlDomain = async ({
     fs.mkdirSync(randomToken);
   }
 
-  const pdfDownloads = [];
-  const uuidToPdfMapping = {};
+  const pdfDownloads: Promise<void>[] = [];
+  const uuidToPdfMapping: Record<string, string> = {};
   const isScanHtml = ['all', 'html-only'].includes(fileTypes);
   const isScanPdfs = ['all', 'pdf-only'].includes(fileTypes);
   const { maxConcurrency } = constants;
   const { playwrightDeviceDetailsObject } = viewportSettings;
-  const isBlacklistedUrl = isBlacklisted(url, blacklistedPatterns);
 
   const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
@@ -488,11 +485,11 @@ const crawlDomain = async ({
 
         await page.evaluate(() => {
           return new Promise(resolve => {
-            let timeout;
+            let timeout: NodeJS.Timeout;
             let mutationCount = 0;
             const MAX_MUTATIONS = 250;
             const MAX_SAME_MUTATION_LIMIT = 10;
-            const mutationHash = {};
+            const mutationHash: Record<string, number> = {};
 
             const observer = new MutationObserver(mutationsList => {
               clearTimeout(timeout);
