@@ -1,4 +1,4 @@
-import crawlee, { Request, RequestList } from 'crawlee';
+import crawlee, { LaunchContext, Request, RequestList } from 'crawlee';
 import printMessage from 'print-message';
 import fs from 'fs';
 import {
@@ -8,7 +8,7 @@ import {
   isUrlPdf,
 } from './commonCrawlerFunc.js';
 
-import constants, { guiInfoStatusTypes } from '../constants/constants.js';
+import constants, { guiInfoStatusTypes, UrlsCrawled } from '../constants/constants.js';
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
@@ -22,31 +22,32 @@ import {
 import { areLinksEqual, isWhitelistedContentType, isFollowStrategy } from '../utils.js';
 import { handlePdfDownload, runPdfScan, mapPdfScanResults } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
+import { ViewportSettingsClass } from '../combine.js';
 
 const crawlSitemap = async (
-  sitemapUrl,
-  randomToken,
-  host,
-  viewportSettings,
-  maxRequestsPerCrawl,
-  browser,
-  userDataDirectory,
-  specifiedMaxConcurrency,
-  fileTypes,
-  blacklistedPatterns,
-  includeScreenshots,
-  extraHTTPHeaders,
+  sitemapUrl: string,
+  randomToken: string,
+  _host: string,
+  viewportSettings: ViewportSettingsClass,
+  maxRequestsPerCrawl: number,
+  browser: string,
+  userDataDirectory: string,
+  specifiedMaxConcurrency: number,
+  fileTypes: string,
+  blacklistedPatterns: string[],
+  includeScreenshots: boolean,
+  extraHTTPHeaders: Record<string, string>,
   fromCrawlIntelligentSitemap = false, // optional
-  userUrlInputFromIntelligent = null, // optional
-  datasetFromIntelligent = null, // optional
-  urlsCrawledFromIntelligent = null, // optional
+  userUrlInputFromIntelligent: string = null, // optional
+  datasetFromIntelligent: crawlee.Dataset = null, // optional
+  urlsCrawledFromIntelligent: UrlsCrawled = null, // optional
   crawledFromLocalFile = false, // optional
 ) => {
   let dataset;
   let urlsCrawled;
 
   // Boolean to omit axe scan for basic auth URL
-  let isBasicAuth;
+  let isBasicAuth: boolean;
   let basicAuthPage = 0;
   let finalLinks = [];
   let authHeader = '';
@@ -119,8 +120,8 @@ const crawlSitemap = async (
     basicAuthPage = -2;
   }
 
-  const pdfDownloads = [];
-  const uuidToPdfMapping = {};
+  const pdfDownloads: Promise<void>[] = [];
+  const uuidToPdfMapping: Record<string, string> = {};
   const isScanHtml = ['all', 'html-only'].includes(fileTypes);
   const isScanPdfs = ['all', 'pdf-only'].includes(fileTypes);
   const { playwrightDeviceDetailsObject } = viewportSettings;
@@ -152,7 +153,7 @@ const crawlSitemap = async (
     browserPoolOptions: {
       useFingerprints: false,
       preLaunchHooks: [
-        async (pageId, launchContext) => {
+        async (_pageId: string, launchContext: LaunchContext) => {
           launchContext.launchOptions = {
             ...launchContext.launchOptions,
             bypassCSP: true,
@@ -164,12 +165,12 @@ const crawlSitemap = async (
     },
     requestList,
     postNavigationHooks: [
-      async ({ page, request }) => {
+      async ({ page }) => {
         try {
           // Wait for a quiet period in the DOM, but with safeguards
           await page.evaluate(() => {
-            return new Promise((resolve) => {
-              let timeout;
+            return new Promise(resolve => {
+              let timeout: NodeJS.Timeout;
               let mutationCount = 0;
               const MAX_MUTATIONS = 250; // Prevent infinite mutations
               const OBSERVER_TIMEOUT = 5000; // Hard timeout to exit
@@ -196,7 +197,6 @@ const crawlSitemap = async (
               }, OBSERVER_TIMEOUT); // Ensure the observer stops after X seconds
 
               observer.observe(document.documentElement, { childList: true, subtree: true });
-
             });
           });
         } catch (err) {
@@ -211,19 +211,19 @@ const crawlSitemap = async (
 
     preNavigationHooks: isBasicAuth
       ? [
-        async ({ page }) => {
-          await page.setExtraHTTPHeaders({
-            Authorization: authHeader,
-            ...extraHTTPHeaders,
-          });
-        },
-      ]
+          async ({ page }) => {
+            await page.setExtraHTTPHeaders({
+              Authorization: authHeader,
+              ...extraHTTPHeaders,
+            });
+          },
+        ]
       : [
-        async () => {
-          preNavigationHooks(extraHTTPHeaders);
-          // insert other code here
-        },
-      ],
+          async () => {
+            preNavigationHooks(extraHTTPHeaders);
+            // insert other code here
+          },
+        ],
     requestHandlerTimeoutSecs: 90,
     requestHandler: async ({ page, request, response, sendRequest }) => {
       await waitForPageLoaded(page, 10000);
@@ -276,7 +276,11 @@ const crawlSitemap = async (
       const contentType = response?.headers?.()['content-type'] || '';
       const status = response ? response.status() : 0;
 
-      if (blacklistedPatterns && !isFollowStrategy(actualUrl, request.url, "same-hostname") && isSkippedUrl(actualUrl, blacklistedPatterns)) {
+      if (
+        blacklistedPatterns &&
+        !isFollowStrategy(actualUrl, request.url, 'same-hostname') &&
+        isSkippedUrl(actualUrl, blacklistedPatterns)
+      ) {
         urlsCrawled.userExcluded.push({
           url: request.url,
           pageTitle: request.url,
@@ -295,7 +299,7 @@ const crawlSitemap = async (
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
-        urlsCrawled.forbidden.push({ url: request.url });
+        urlsCrawled.forbidden.push({ url: request.url, actualUrl: null, pageTitle: null });
         return;
       }
 
@@ -325,7 +329,7 @@ const crawlSitemap = async (
         const isRedirected = !areLinksEqual(page.url(), request.url);
         if (isRedirected) {
           const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-            item => (item.actualUrl || item.url.href) === page,
+            item => (item.actualUrl || item.url) === page.url(),
           );
 
           if (isLoadedUrlInCrawledUrls) {
@@ -353,6 +357,7 @@ const crawlSitemap = async (
           urlsCrawled.scanned.push({
             url: urlWithoutAuth(request.url),
             pageTitle: results.pageTitle,
+            actualUrl: actualUrl,
           });
         }
         await dataset.pushData(results);
@@ -363,7 +368,7 @@ const crawlSitemap = async (
         });
 
         if (isScanHtml) {
-          urlsCrawled.invalid.push(actualUrl);
+          urlsCrawled.invalid.push({ actualUrl, url: request.url, pageTitle: null });
         }
       }
     },
@@ -381,7 +386,7 @@ const crawlSitemap = async (
         numScanned: urlsCrawled.scanned.length,
         urlScanned: request.url,
       });
-      urlsCrawled.error.push(request.url);
+      urlsCrawled.error.push({ url: request.url, pageTitle: null, actualUrl: null });
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
     maxRequestsPerCrawl: Infinity,
