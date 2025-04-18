@@ -635,7 +635,7 @@ const crawlDomain = async ({
         }
 
         // handle pdfs
-        if (request.skipNavigation && isUrlPdf(actualUrl)) {
+        if (isScanPdfs && request.skipNavigation && actualUrl === "about:blank") {
           if (!isScanPdfs) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
@@ -662,22 +662,6 @@ const crawlDomain = async ({
         }
 
         const resHeaders = response ? response.headers() : {}; // Safely access response headers
-        const contentType = resHeaders['content-type'] || ''; // Ensure contentType is defined
-
-        // Skip non-HTML and non-PDF URLs
-        if (!contentType.includes('text/html') && !contentType.includes('application/pdf')) {
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.blacklisted.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
-          });
-
-          return;
-        }
 
         if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
@@ -704,7 +688,7 @@ const crawlDomain = async ({
           return;
         }
 
-        if (response.status() === 403) {
+        if (response && response.status() === 403) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
@@ -718,7 +702,8 @@ const crawlDomain = async ({
           return;
         }
 
-        if (response.status() !== 200) {
+        if (response && response.status() !== 200) {
+
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,

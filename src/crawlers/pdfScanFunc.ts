@@ -256,30 +256,63 @@ export const handlePdfDownload = (
 
   pdfDownloads.push(
     new Promise<void>(async resolve => {
-      const bufs = [];
-      let pdfResponse: ReadStream;
+      let bufs: Buffer[] = [];
+      let buf: Buffer;
 
       if (isFilePath(url)) {
-        // Read the file from the file system
+        // Read from local file system
         const filePath = new URL(url).pathname;
-        pdfResponse = fs.createReadStream(filePath, { encoding: 'binary' });
+        const pdfResponse = fs.createReadStream(filePath, { encoding: 'binary' });
+
+        const downloadFile = fs.createWriteStream(`${randomToken}/${pdfFileName}.pdf`, {
+          flags: 'a',
+        });
+
+        pdfResponse.on('data', (chunk: Buffer) => {
+          downloadFile.write(chunk, 'binary');
+          bufs.push(Buffer.from(chunk));
+        });
+
+        pdfResponse.on('end', () => {
+          downloadFile.end();
+          buf = Buffer.concat(bufs);
+
+          if (isPDF(buf)) {
+            guiInfoLog(guiInfoStatusTypes.SCANNED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.scanned.push({
+              url: request.url,
+              pageTitle,
+              actualUrl: url,
+            });
+          } else {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.invalid.push({
+              url: request.url,
+              pageTitle: url,
+              actualUrl: url,
+            });
+          }
+
+          resolve();
+        });
       } else {
-        // Send HTTP/HTTPS request
-        pdfResponse = await sendRequest({ responseType: 'buffer', isStream: true });
-        pdfResponse.setEncoding('binary');
-      }
-      const downloadFile = fs.createWriteStream(`${randomToken}/${pdfFileName}.pdf`, {
-        flags: 'a',
-      });
+        // Download from remote URL
+        const response = await sendRequest({ responseType: 'buffer' });
+        buf = Buffer.isBuffer(response) ? response : response.body;
 
-      pdfResponse.on('data', (chunk: Buffer) => {
-        downloadFile.write(chunk, 'binary');
-        bufs.push(Buffer.from(chunk));
-      });
+        const downloadFile = fs.createWriteStream(`${randomToken}/${pdfFileName}.pdf`, {
+          flags: 'a',
+        });
 
-      pdfResponse.on('end', () => {
+        downloadFile.write(buf, 'binary');
         downloadFile.end();
-        const buf = Buffer.concat(bufs);
+
         if (isPDF(buf)) {
           guiInfoLog(guiInfoStatusTypes.SCANNED, {
             numScanned: urlsCrawled.scanned.length,
@@ -298,11 +331,12 @@ export const handlePdfDownload = (
           urlsCrawled.invalid.push({
             url: request.url,
             pageTitle: url,
-            actualUrl: url, // i.e. actualUrl
+            actualUrl: url,
           });
         }
+
         resolve();
-      });
+      }
     }),
   );
 
