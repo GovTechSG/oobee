@@ -246,7 +246,7 @@ const crawlSitemap = async (
         return;
       }
 
-      if (isUrlPdf(actualUrl)) {
+      if (request.skipNavigation && actualUrl === "about:blank") {
         if (!isScanPdfs) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,

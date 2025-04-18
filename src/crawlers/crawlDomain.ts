@@ -635,7 +635,7 @@ const crawlDomain = async ({
         }
 
         // handle pdfs
-        if (isScanPdfs && request.skipNavigation && actualUrl === "about:blank") {
+        if (request.skipNavigation && actualUrl === "about:blank") {
           if (!isScanPdfs) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
@@ -660,8 +660,6 @@ const crawlDomain = async ({
           uuidToPdfMapping[pdfFileName] = url;
           return;
         }
-
-        const resHeaders = response ? response.headers() : {}; // Safely access response headers
 
         if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
