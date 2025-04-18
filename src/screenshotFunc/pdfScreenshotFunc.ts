@@ -32,7 +32,7 @@ interface pathObject {
   annot?: number;
 }
 
-// Ise safe canvas to avoid Path2D issues
+// Use safe canvas to avoid Path2D issues
 function createSafeCanvas(width: number, height: number) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
