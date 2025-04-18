@@ -374,14 +374,21 @@ export const mapPdfScanResults = async (
       const { itemDetails, validationResult } = jobs[jobIdx];
       const { name: fileName } = itemDetails;
 
-      const uuid = fileName
-        .split(os.platform() === 'win32' ? '\\' : '/')
-        .pop()
-        .split('.')[0];
-      const url = uuidToUrlMapping[uuid];
-      const pageTitle = decodeURI(url).split('/').pop();
-      const filePath = `${randomToken}/${uuid}.pdf`;
+      const rawFileName = fileName.split(os.platform() === 'win32' ? '\\' : '/').pop();
+      const fileNameWithoutExt = rawFileName.replace(/\.pdf$/i, '');
 
+      const url =
+        uuidToUrlMapping[rawFileName] || // exact match like 'Some-filename.pdf'
+        uuidToUrlMapping[fileNameWithoutExt] || // uuid-based key like 'a9f7ebbd-5a90...'
+        `file://${fileName}`; // fallback
+
+      const filePath = `${randomToken}/${rawFileName}`;
+
+
+      const pageTitle = decodeURI(url).split('/').pop();
+      translated.url = url;
+      translated.pageTitle = pageTitle;
+      
       translated.url = url;
       translated.pageTitle = pageTitle;
       translated.filePath = filePath;
