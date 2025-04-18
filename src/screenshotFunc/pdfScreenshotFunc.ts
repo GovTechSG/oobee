@@ -69,6 +69,7 @@ export async function getPdfScreenshots(
   const newItems = _.cloneDeep(items);
   const loadingTask = getDocument({
     url: pdfFilePath,
+    canvasFactory,
     standardFontDataUrl: path.join(dirname, '../node_modules/pdfjs-dist/standard_fonts/'),
     disableFontFace: true,
     verbosity: 0,
