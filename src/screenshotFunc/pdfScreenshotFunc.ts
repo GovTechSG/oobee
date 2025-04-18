@@ -1,3 +1,10 @@
+// Monkey patch Path2D to avoid PDF.js crashing
+(globalThis as any).Path2D = class {
+  constructor(_path?: string) {}
+  rect(_x: number, _y: number, _width: number, _height: number) {}
+  addPath(_path: any, _transform?: any) {}
+};
+
 import _ from 'lodash';
 import  { getDocument, PDFPageProxy } from 'pdfjs-dist';
 import fs from 'fs';
@@ -25,11 +32,36 @@ interface pathObject {
   annot?: number;
 }
 
+// Ise safe canvas to avoid Path2D issues
+function createSafeCanvas(width: number, height: number) {
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  // Patch clip/stroke/fill/etc. to skip if Path2D is passed
+  const wrapIgnorePath2D = (fn: Function) =>
+    function (...args: any[]) {
+      if (args.length > 0 && args[0] instanceof (globalThis as any).Path2D) {
+        // Skip the operation
+        return;
+      }
+      return fn.apply(this, args);
+    };
+
+  ctx.clip = wrapIgnorePath2D(ctx.clip);
+  ctx.fill = wrapIgnorePath2D(ctx.fill);
+  ctx.stroke = wrapIgnorePath2D(ctx.stroke);
+  ctx.isPointInPath = wrapIgnorePath2D(ctx.isPointInPath);
+  ctx.isPointInStroke = wrapIgnorePath2D(ctx.isPointInStroke);
+
+  return canvas;
+}
+
+// CanvasFactory for Node.js
 function NodeCanvasFactory() {}
 NodeCanvasFactory.prototype = {
   create: function NodeCanvasFactory_create(width: number, height: number) {
     assert(width > 0 && height > 0, 'Invalid canvas size');
-    const canvas = createCanvas(width, height);
+    const canvas = createSafeCanvas(width, height);
     const context = canvas.getContext('2d');
     return {
       canvas,
