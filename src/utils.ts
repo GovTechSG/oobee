@@ -2,6 +2,7 @@ import { execSync, spawnSync } from 'child_process';
 import path from 'path';
 import os from 'os';
 import fs from 'fs-extra';
+import axe, { Rule } from 'axe-core';
 import constants, {
   BrowserTypes,
   destinationPath,
@@ -9,8 +10,6 @@ import constants, {
 } from './constants/constants.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
-import axe from 'axe-core';
-import { Rule, RuleMetadata } from 'axe-core';
 
 export const getVersion = () => {
   const loadJSON = (filePath: string): { version: string } =>
@@ -59,20 +58,24 @@ export const createDetailsAndLogs = async (randomToken: string): Promise<void> =
           await fs.copy('errors.txt', `${logPath}/${randomToken}.txt`);
         } catch (error) {
           if (error.code === 'EBUSY') {
-            console.log(
+            consoleLogger.error(
               `Unable to copy the file from 'errors.txt' to '${logPath}/${randomToken}.txt' because it is currently in use.`,
             );
-            console.log(
+            consoleLogger.error(
               'Please close any applications that might be using this file and try again.',
             );
           } else {
-            console.log(`An unexpected error occurred while copying the file: ${error.message}`);
+            consoleLogger.error(
+              `An unexpected error occurred while copying the file: ${error.message}`,
+            );
           }
         }
       }
     });
   } catch (error) {
-    console.log(`An error occurred while setting up storage or log directories: ${error.message}`);
+    consoleLogger.error(
+      `An error occurred while setting up storage or log directories: ${error.message}`,
+    );
   }
 };
 
@@ -129,12 +132,14 @@ export const createAndUpdateResultsFolders = async (randomToken: string): Promis
       }
     } catch (error) {
       if (error.code === 'EBUSY') {
-        console.log(
+        consoleLogger.error(
           `Unable to copy the file from ${intermPath} to ${storagePath}/${resultFile} because it is currently in use.`,
         );
-        console.log('Please close any applications that might be using this file and try again.');
+        consoleLogger.error(
+          'Please close any applications that might be using this file and try again.',
+        );
       } else {
-        console.log(
+        consoleLogger.error(
           `An unexpected error occurred while copying the file from ${intermPath} to ${storagePath}/${resultFile}: ${error.message}`,
         );
       }
@@ -150,14 +155,14 @@ export const createScreenshotsFolder = (randomToken: string): void => {
   if (fs.existsSync(intermediateScreenshotsPath)) {
     fs.readdir(intermediateScreenshotsPath, (err, files) => {
       if (err) {
-        console.log(`Screenshots were not moved successfully: ${err.message}`);
+        consoleLogger.error(`Screenshots were not moved successfully: ${err.message}`);
       }
 
       if (!fs.existsSync(destinationPath(storagePath))) {
         try {
           fs.mkdirSync(destinationPath(storagePath), { recursive: true });
         } catch (error) {
-          console.error('Screenshots folder was not created successfully:', error);
+          consoleLogger.error('Screenshots folder was not created successfully:', error);
         }
       }
 
@@ -170,7 +175,7 @@ export const createScreenshotsFolder = (randomToken: string): void => {
 
       fs.rmdir(intermediateScreenshotsPath, rmdirErr => {
         if (rmdirErr) {
-          console.log(rmdirErr);
+          consoleLogger.error(rmdirErr);
         }
       });
     });
@@ -203,6 +208,7 @@ export const getWcagPassPercentage = (
   const passedChecksAAandAAA = showEnableWcagAaa
     ? totalChecksAAandAAA - wcagViolationsAAandAAA
     : null;
+  // eslint-disable-next-line no-nested-ternary
   const passPercentageAAandAAA = showEnableWcagAaa
     ? totalChecksAAandAAA === 0
       ? 0
@@ -226,13 +232,15 @@ export const getWcagPassPercentage = (
   };
 };
 
-export interface ScanPagesDetail {
-  oobeeAppVersion?: string;
-  pagesAffected: PageDetail[];
-  pagesNotAffected: PageDetail[];
-  scannedPagesCount: number;
-  pagesNotScanned: PageDetail[];
-  pagesNotScannedCount: number;
+export type IssueCategory = 'mustFix' | 'goodToFix' | 'needsReview' | 'passed';
+
+export interface IssueDetail {
+  ruleId: string;
+  wcagConformance: string[];
+  occurrencesMustFix?: number;
+  occurrencesGoodToFix?: number;
+  occurrencesNeedsReview?: number;
+  occurrencesPassed: number;
 }
 
 export interface PageDetail {
@@ -252,15 +260,13 @@ export interface PageDetail {
   typesOfIssues: IssueDetail[];
 }
 
-export type IssueCategory = 'mustFix' | 'goodToFix' | 'needsReview' | 'passed';
-
-export interface IssueDetail {
-  ruleId: string;
-  wcagConformance: string[];
-  occurrencesMustFix?: number;
-  occurrencesGoodToFix?: number;
-  occurrencesNeedsReview?: number;
-  occurrencesPassed: number;
+export interface ScanPagesDetail {
+  oobeeAppVersion?: string;
+  pagesAffected: PageDetail[];
+  pagesNotAffected: PageDetail[];
+  scannedPagesCount: number;
+  pagesNotScanned: PageDetail[];
+  pagesNotScannedCount: number;
 }
 
 export const getProgressPercentage = (
@@ -272,12 +278,12 @@ export const getProgressPercentage = (
 } => {
   const pages = scanPagesDetail.pagesAffected || [];
 
-  const progressPercentagesAA = pages.map((page: any) => {
+  const progressPercentagesAA = pages.map((page: PageDetail) => {
     const violations: string[] = page.conformance;
     return getWcagPassPercentage(violations, showEnableWcagAaa).passPercentageAA;
   });
 
-  const progressPercentagesAAandAAA = pages.map((page: any) => {
+  const progressPercentagesAAandAAA = pages.map((page: PageDetail) => {
     const violations: string[] = page.conformance;
     return getWcagPassPercentage(violations, showEnableWcagAaa).passPercentageAAandAAA;
   });
@@ -311,7 +317,7 @@ export const getTotalRulesCount = async (
   });
 
   // Get default rules from axe-core
-  const defaultRules = await axe.getRules();
+  const defaultRules = axe.getRules();
 
   // Merge custom rules with default rules, converting RuleMetadata to Rule
   const mergedRules: Rule[] = defaultRules.map(defaultRule => {
@@ -326,15 +332,14 @@ export const getTotalRulesCount = async (
         tags: defaultRule.tags,
         metadata: customRule.metadata, // Use custom metadata if it exists
       };
-    } else {
-      // Convert defaultRule (RuleMetadata) to Rule
-      return {
-        id: defaultRule.ruleId,
-        enabled: true, // Default to true if not overridden
-        tags: defaultRule.tags,
-        // No metadata here, since defaultRule.metadata might not exist
-      };
     }
+    // Convert defaultRule (RuleMetadata) to Rule
+    return {
+      id: defaultRule.ruleId,
+      enabled: true, // Default to true if not overridden
+      tags: defaultRule.tags,
+      // No metadata here, since defaultRule.metadata might not exist
+    };
   });
 
   // Add any custom rules that don't override the default rules
@@ -355,9 +360,7 @@ export const getTotalRulesCount = async (
   });
 
   // Apply the merged configuration to axe-core
-  await axe.configure({ ...axeConfig, rules: mergedRules });
-
-  const rules = await axe.getRules();
+  axe.configure({ ...axeConfig, rules: mergedRules });
 
   // ... (rest of your logic)
   let totalRulesMustFix = 0;
@@ -380,7 +383,7 @@ export const getTotalRulesCount = async (
       return;
     }
 
-    let conformance = tags.filter(tag => tag.startsWith('wcag') || tag === 'best-practice');
+    const conformance = tags.filter(tag => tag.startsWith('wcag') || tag === 'best-practice');
 
     // Ensure conformance level is sorted correctly
     if (
@@ -402,11 +405,11 @@ export const getTotalRulesCount = async (
     if (conformance.includes('best-practice')) {
       // console.log(`${totalRulesMustFix} Good To Fix: ${rule.id}`);
 
-      totalRulesGoodToFix++; // Categorized as "Good to Fix"
+      totalRulesGoodToFix += 1; // Categorized as "Good to Fix"
     } else {
       // console.log(`${totalRulesMustFix} Must Fix: ${rule.id}`);
 
-      totalRulesMustFix++; // Otherwise, it's "Must Fix"
+      totalRulesMustFix += 1; // Otherwise, it's "Must Fix"
     }
   });
 
@@ -448,10 +451,10 @@ export const getIssuesPercentage = async (
   });
 
   const pagesPercentageAffectedPerRule: Record<string, string> = {};
-  for (const [ruleId, count] of Object.entries(pagesAffectedPerRule)) {
+  Object.entries(pagesAffectedPerRule).forEach(([ruleId, count]) => {
     pagesPercentageAffectedPerRule[ruleId] =
       totalPages > 0 ? ((count / totalPages) * 100).toFixed(2) : '0.00';
-  }
+  });
 
   const typesOfIssuesCountAtMustFix = pages.map(
     page => page.typesOfIssues.filter(issue => (issue.occurrencesMustFix || 0) > 0).length,
@@ -639,10 +642,12 @@ export const retryFunction = async <T>(func: () => Promise<T>, maxAttempt: numbe
   while (attemptCount < maxAttempt) {
     attemptCount += 1;
     try {
+      // eslint-disable-next-line no-await-in-loop
       const result = await func();
       return result;
     } catch (error) {
       silentLogger.error(`(Attempt count: ${attemptCount} of ${maxAttempt}) ${error}`);
     }
   }
+  throw new Error('Maximum number of attempts reached');
 };
