@@ -16,7 +16,7 @@ import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCraw
 import { createAndUpdateResultsFolders, createDetailsAndLogs } from './utils.js';
 import generateArtifacts from './mergeAxeResults.js';
 import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
-import { silentLogger } from './logs.js';
+import { consoleLogger, silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
 import { evaluateAltText } from './crawlers/custom/evaluateAltText.js';
 import { escapeCssSelector } from './crawlers/custom/escapeCssSelector.js';
@@ -65,7 +65,7 @@ export const init = async ({
   specifiedMaxConcurrency?: number;
   followRobots?: boolean;
 }) => {
-  console.log('Starting Oobee');
+  consoleLogger.info('Starting Oobee');
 
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
   const domain = new URL(entryUrl).hostname;
@@ -126,7 +126,7 @@ export const init = async ({
             const cssSelector = xPathToCss(xpath);
             return cssSelector;
           } catch (e) {
-            console.error('Error converting XPath to CSS: ', xpath, e);
+            consoleLogger.error(`Error converting XPath to CSS: ${xpath} - ${e}`);
             return '';
           }
         })
@@ -263,7 +263,7 @@ export const init = async ({
 
   const terminate = async () => {
     throwErrorIfTerminated();
-    console.log('Stopping Oobee');
+    consoleLogger.info('Stopping Oobee');
     isInstanceTerminated = true;
     scanDetails.endTime = new Date();
     scanDetails.urlsCrawled = urlsCrawled;
