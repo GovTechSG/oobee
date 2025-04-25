@@ -1810,7 +1810,7 @@ export async function initModifiedUserAgent(browser?: string, playwrightDeviceDe
   // Push the modified UA flag into your global launch options.
   constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
   // Optionally log the modified UA.
-  // console.log('Modified User Agent:', modifiedUA);
+  console.log('Modified User Agent:', modifiedUA);
 }
 
 
