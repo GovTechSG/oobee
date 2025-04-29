@@ -6,6 +6,7 @@ import which from 'which';
 import os from 'os';
 import { spawnSync, execSync } from 'child_process';
 import { chromium } from 'playwright';
+import * as Sentry from '@sentry/node';
 import { silentLogger } from '../logs.js';
 import { PageInfo } from '../mergeAxeResults.js';
 
@@ -273,17 +274,10 @@ export const impactOrder = {
   critical: 3,
 };
 
-export const formDataFields = {
-  formUrl: `https://docs.google.com/forms/d/e/1FAIpQLSem5C8fyNs5TiU5Vv2Y63-SH7CHN86f-LEPxeN_1u_ldUbgUA/formResponse`, // prod
-  entryUrlField: 'entry.1562345227',
-  redirectUrlField: 'entry.473072563',
-  scanTypeField: 'entry.1148680657',
-  emailField: 'entry.52161304',
-  nameField: 'entry.1787318910',
-  resultsField: 'entry.904051439',
-  numberOfPagesScannedField: 'entry.238043773',
-  additionalPageDataField: 'entry.2090887881',
-  metadataField: 'entry.1027769131',
+export const sentryConfig = {
+  dsn: "https://e4ab99e457c531e7bde4a8dc3dd2b1ab@o4509047624761344.ingest.us.sentry.io/4509192349548544",
+  tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
+  profilesSampleRate: 1.0, // Capture 100% of profiles
 };
 
 export const sitemapPaths = [

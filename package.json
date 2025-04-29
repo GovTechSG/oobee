@@ -7,6 +7,7 @@
   "dependencies": {
     "@json2csv/node": "^7.0.3",
     "@napi-rs/canvas": "^0.1.53",
+    "@sentry/node": "^9.13.0",
     "axe-core": "^4.10.2",
     "axios": "^1.8.2",
     "base64-stream": "^1.0.0",
