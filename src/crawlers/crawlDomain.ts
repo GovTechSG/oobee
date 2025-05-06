@@ -18,6 +18,7 @@ import constants, {
   guiInfoStatusTypes,
   cssQuerySelectors,
   RuleFlags,
+  REASON_PHRASES,
 } from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
@@ -638,10 +639,11 @@ const crawlDomain = async ({
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
-            urlsCrawled.blacklisted.push({
+            urlsCrawled.userExcluded.push({
               url: request.url,
               pageTitle: request.url,
-              actualUrl: actualUrl, // i.e. actualUrl
+              actualUrl: request.url, // because about:blank is not useful
+              metadata: REASON_PHRASES[1],
             });
 
             return;
@@ -663,10 +665,11 @@ const crawlDomain = async ({
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.blacklisted.push({
+          urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl: actualUrl, // because about:blank is not useful
+            metadata: REASON_PHRASES[1],
           });
 
           return;
@@ -677,38 +680,15 @@ const crawlDomain = async ({
             url: request.url,
             pageTitle: request.url,
             actualUrl: actualUrl,
+            metadata: REASON_PHRASES[0],
+          });
+          
+          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+            numScanned: urlsCrawled.scanned.length,
+            urlScanned: request.url,
           });
 
           await enqueueProcess(page, enqueueLinks, browserContext);
-          return;
-        }
-
-        if (response && response.status() === 403) {
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.forbidden.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
-          });
-
-          return;
-        }
-
-        if (response && response.status() !== 200) {
-
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.invalid.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
-          });
-
           return;
         }
 
@@ -787,10 +767,11 @@ const crawlDomain = async ({
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.blacklisted.push({
+          urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl: actualUrl, // because about:blank is not useful
+            metadata: REASON_PHRASES[1],
           });
 
         }
@@ -830,17 +811,28 @@ const crawlDomain = async ({
         // when max pages have been scanned, scan will abort and all relevant pages still opened will close instantly.
         // a browser close error will then be flagged. Since this is an intended behaviour, this error will be excluded.
         if (!isAbortingScanNow) {
-            urlsCrawled.error.push({ url: request.url, pageTitle: request.url, actualUrl: request.url });
+            urlsCrawled.error.push({ url: request.url, pageTitle: request.url, actualUrl: request.url, metadata: REASON_PHRASES[2] });
         }
       }
     },
-    failedRequestHandler: async ({ request }) => {
+    failedRequestHandler: async ({ request, response }) => {
       guiInfoLog(guiInfoStatusTypes.ERROR, {
         numScanned: urlsCrawled.scanned.length,
         urlScanned: request.url,
       });
-      urlsCrawled.error.push({ url: request.url, pageTitle: request.url, actualUrl: request.url });
-    
+
+      const status = response?.status();
+      const metadata = typeof status === 'number'
+      ? (REASON_PHRASES[status] || `${status} - Uncommon Status Code Received`)
+      : REASON_PHRASES[2];
+
+      urlsCrawled.error.push({
+        url: request.url,
+        pageTitle: null,
+        actualUrl: null,
+        metadata,   // e.g. "403 - Forbidden"
+      });
+      
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
     maxRequestsPerCrawl: Infinity,

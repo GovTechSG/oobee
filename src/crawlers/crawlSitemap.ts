@@ -8,7 +8,7 @@ import {
   isUrlPdf,
 } from './commonCrawlerFunc.js';
 
-import constants, { guiInfoStatusTypes, UrlsCrawled } from '../constants/constants.js';
+import constants, { REASON_PHRASES, guiInfoStatusTypes, UrlsCrawled } from '../constants/constants.js';
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
@@ -46,25 +46,6 @@ const crawlSitemap = async (
   let dataset;
   let urlsCrawled;
 
-  const REASON_PHRASES: Record<number,string> = {
-    0: 'Page Excluded',
-    1: 'Not A Supported Document',
-    301: '301 - Moved Permanently',
-    302: '302 - Found',
-    303: '303 - See Other',
-    307: '307 - Temporary Redirect',
-    308: '308 - Permanent Redirect',
-    400: '400 - Bad Request',
-    401: '401 - Unauthorized',
-    403: '403 - Forbidden',
-    404: '404 - Not Found',
-    500: '500 - Internal Server Error',
-    502: '502 - Bad Gateway',
-    503: '503 - Service Unavailable',
-    504: '504 - Gateway Timeout',
-  };
-
-  
   // Boolean to omit axe scan for basic auth URL
   let isBasicAuth: boolean;
   let basicAuthPage = 0;
@@ -372,9 +353,10 @@ const crawlSitemap = async (
 
         if (isScanHtml) {
           // carry through the HTTP status metadata
-          const status = response?.status() ?? 0;
-          const metadata = status
-            ? REASON_PHRASES[status] : 'Non-compliant Status Code Received';
+          const status = response?.status();
+          const metadata = typeof status === 'number'
+          ? (REASON_PHRASES[status] || `${status} - Uncommon Status Code Received`)
+          : REASON_PHRASES[2];
 
           urlsCrawled.invalid.push({
             actualUrl,
@@ -399,20 +381,12 @@ const crawlSitemap = async (
         numScanned: urlsCrawled.scanned.length,
         urlScanned: request.url,
       });
-      // derive a metadata string like "403 - Forbidden"
-      let metadata: string;
-      if (response) {
-        const status = response.status();
-        metadata = status
-                  ? REASON_PHRASES[status] : 'Non-compliant Status Code Received';
-      } else if (error instanceof Error) {
-        // now TS knows this is really an Error
-        metadata = `${error.name}${error.message ? ` - ${error.message}` : ""}`;
-      } else if (typeof error === "string") {
-        metadata = error;  
-      } else {
-        metadata = "Unknown Error";
-      }
+
+      const status = response?.status();
+      const metadata = typeof status === 'number'
+      ? (REASON_PHRASES[status] || `${status} - Uncommon Status Code Received`)
+      : REASON_PHRASES[2];
+
       urlsCrawled.error.push({
         url: request.url,
         pageTitle: null,

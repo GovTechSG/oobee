@@ -444,3 +444,22 @@ export enum RuleFlags {
   DISABLE_OOBEE = 'disable-oobee',
   ENABLE_WCAG_AAA = 'enable-wcag-aaa',
 }
+
+export const REASON_PHRASES: Record<number,string> = {
+  0: 'Page Excluded',
+  1: 'Not A Supported Document',
+  2: 'Web Crawler Errored',
+  301: '301 - Moved Permanently',
+  302: '302 - Found',
+  303: '303 - See Other',
+  307: '307 - Temporary Redirect',
+  308: '308 - Permanent Redirect',
+  400: '400 - Bad Request',
+  401: '401 - Unauthorized',
+  403: '403 - Forbidden',
+  404: '404 - Not Found',
+  500: '500 - Internal Server Error',
+  502: '502 - Bad Gateway',
+  503: '503 - Service Unavailable',
+  504: '504 - Gateway Timeout',
+};
