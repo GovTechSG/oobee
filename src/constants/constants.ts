@@ -449,6 +449,7 @@ export const REASON_PHRASES: Record<number,string> = {
   0: 'Page Excluded',
   1: 'Not A Supported Document',
   2: 'Web Crawler Errored',
+  200: '200 - However Page Could Not Load Properly',
   400: '400 - Bad Request',
   401: '401 - Unauthorized',
   403: '403 - Forbidden',
