@@ -45,6 +45,7 @@ export type PageInfo = {
   pageImagePath?: string;
   pageIndex?: number;
   metadata?: string;
+  httpStatusCode?: number;
 };
 
 export type RuleInfo = {

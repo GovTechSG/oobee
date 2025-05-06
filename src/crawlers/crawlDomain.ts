@@ -623,6 +623,7 @@ const crawlDomain = async ({
               pageTitle: request.url,
               actualUrl: request.url, // because about:blank is not useful
               metadata: REASON_PHRASES[1],
+              httpStatusCode: 0,
             });
 
             return;
@@ -649,6 +650,7 @@ const crawlDomain = async ({
             pageTitle: request.url,
             actualUrl: actualUrl, // because about:blank is not useful
             metadata: REASON_PHRASES[1],
+            httpStatusCode: 0,
           });
 
           return;
@@ -660,6 +662,7 @@ const crawlDomain = async ({
             pageTitle: request.url,
             actualUrl: actualUrl,
             metadata: REASON_PHRASES[0],
+            httpStatusCode: 0,
           });
           
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
@@ -751,6 +754,7 @@ const crawlDomain = async ({
             pageTitle: request.url,
             actualUrl: actualUrl, // because about:blank is not useful
             metadata: REASON_PHRASES[1],
+            httpStatusCode: 0,
           });
 
         }
@@ -809,7 +813,8 @@ const crawlDomain = async ({
         url: request.url,
         pageTitle: null,
         actualUrl: null,
-        metadata,   // e.g. "403 - Forbidden"
+        metadata,
+        httpStatusCode: 0,
       });
 
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);

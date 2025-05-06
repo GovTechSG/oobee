@@ -43,8 +43,8 @@ const crawlSitemap = async (
   urlsCrawledFromIntelligent: UrlsCrawled = null, // optional
   crawledFromLocalFile = false, // optional
 ) => {
-  let dataset;
-  let urlsCrawled;
+  let dataset: crawlee.Dataset;
+  let urlsCrawled: UrlsCrawled;
 
   // Boolean to omit axe scan for basic auth URL
   let isBasicAuth: boolean;
@@ -263,6 +263,7 @@ const crawlSitemap = async (
             pageTitle: request.url,
             actualUrl: request.url, // because about:blank is not useful
             metadata: REASON_PHRASES[1],
+            httpStatusCode: 0,
           });
 
           return;
@@ -310,6 +311,7 @@ const crawlSitemap = async (
             pageTitle: request.url,
             actualUrl: actualUrl,
             metadata: REASON_PHRASES[0],
+            httpStatusCode: 0,
           });
 
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
@@ -354,11 +356,12 @@ const crawlSitemap = async (
           ? (REASON_PHRASES[status] || `${status} - Uncommon Status Code Received`)
           : REASON_PHRASES[2];
 
-          urlsCrawled.invalid.push({
+            urlsCrawled.invalid.push({
             actualUrl,
-            url:        request.url,
-            pageTitle:  null,
-            metadata,    // e.g. "404 - Not Found"
+            url: request.url,
+            pageTitle: null,
+            metadata,
+            httpStatusCode: typeof status === 'number' ? status : 0
           });
         }
       }
@@ -387,7 +390,8 @@ const crawlSitemap = async (
         url: request.url,
         pageTitle: null,
         actualUrl: null,
-        metadata,   // e.g. "403 - Forbidden"
+        metadata,
+        httpStatusCode: typeof status === 'number' ? status : 0
       });
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
