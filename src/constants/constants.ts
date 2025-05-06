@@ -449,11 +449,6 @@ export const REASON_PHRASES: Record<number,string> = {
   0: 'Page Excluded',
   1: 'Not A Supported Document',
   2: 'Web Crawler Errored',
-  301: '301 - Moved Permanently',
-  302: '302 - Found',
-  303: '303 - See Other',
-  307: '307 - Temporary Redirect',
-  308: '308 - Permanent Redirect',
   400: '400 - Bad Request',
   401: '401 - Unauthorized',
   403: '403 - Forbidden',
@@ -462,4 +457,13 @@ export const REASON_PHRASES: Record<number,string> = {
   502: '502 - Bad Gateway',
   503: '503 - Service Unavailable',
   504: '504 - Gateway Timeout',
+
+  // errors that cannot be captured due to the nature of Crawlers to handle redirects
+  /*
+  301: '301 - Moved Permanently',
+  302: '302 - Found',
+  303: '303 - See Other',
+  307: '307 - Temporary Redirect',
+  308: '308 - Permanent Redirect',
+  */
 };
