@@ -46,6 +46,25 @@ const crawlSitemap = async (
   let dataset;
   let urlsCrawled;
 
+  const REASON_PHRASES: Record<number,string> = {
+    0: 'Page Excluded',
+    1: 'Not A Supported Document',
+    301: '301 - Moved Permanently',
+    302: '302 - Found',
+    303: '303 - See Other',
+    307: '307 - Temporary Redirect',
+    308: '308 - Permanent Redirect',
+    400: '400 - Bad Request',
+    401: '401 - Unauthorized',
+    403: '403 - Forbidden',
+    404: '404 - Not Found',
+    500: '500 - Internal Server Error',
+    502: '502 - Bad Gateway',
+    503: '503 - Service Unavailable',
+    504: '504 - Gateway Timeout',
+  };
+
+  
   // Boolean to omit axe scan for basic auth URL
   let isBasicAuth: boolean;
   let basicAuthPage = 0;
@@ -165,38 +184,43 @@ const crawlSitemap = async (
     },
     requestList,
     postNavigationHooks: [
+
       async ({ page }) => {
         try {
           // Wait for a quiet period in the DOM, but with safeguards
           await page.evaluate(() => {
             return new Promise(resolve => {
-              let timeout: NodeJS.Timeout;
+              let timeout;
               let mutationCount = 0;
-              const MAX_MUTATIONS = 250; // Prevent infinite mutations
-              const OBSERVER_TIMEOUT = 5000; // Hard timeout to exit
-
+              const MAX_MUTATIONS     = 250;   // stop if things never quiet down
+              const OBSERVER_TIMEOUT  = 5000;  // hard cap on total wait
+      
               const observer = new MutationObserver(() => {
                 clearTimeout(timeout);
-
+      
                 mutationCount++;
                 if (mutationCount > MAX_MUTATIONS) {
                   observer.disconnect();
-                  resolve('Too many mutations detected, exiting.');
+                  resolve('Too many mutations, exiting.');
                   return;
                 }
-
+      
+                // restart quiet‑period timer
                 timeout = setTimeout(() => {
                   observer.disconnect();
-                  resolve('DOM stabilized after mutations.');
+                  resolve('DOM stabilized.');
                 }, 1000);
               });
-
+      
+              // overall timeout in case the page never settles
               timeout = setTimeout(() => {
                 observer.disconnect();
-                resolve('Observer timeout reached, exiting.');
-              }, OBSERVER_TIMEOUT); // Ensure the observer stops after X seconds
-
-              observer.observe(document.documentElement, { childList: true, subtree: true });
+                resolve('Observer timeout reached.');
+              }, OBSERVER_TIMEOUT);
+      
+              // **HERE**: select the real DOM node inside evaluate
+              const root = document.documentElement;
+              observer.observe(root, { childList: true, subtree: true });
             });
           });
         } catch (err) {
@@ -207,23 +231,24 @@ const crawlSitemap = async (
           throw err; // Rethrow unknown errors
         }
       },
+      
     ],
 
     preNavigationHooks: isBasicAuth
       ? [
-          async ({ page }) => {
-            await page.setExtraHTTPHeaders({
-              Authorization: authHeader,
-              ...extraHTTPHeaders,
-            });
-          },
-        ]
+        async ({ page }) => {
+          await page.setExtraHTTPHeaders({
+            Authorization: authHeader,
+            ...extraHTTPHeaders,
+          });
+        },
+      ]
       : [
-          async () => {
-            preNavigationHooks(extraHTTPHeaders);
-            // insert other code here
-          },
-        ],
+        async () => {
+          preNavigationHooks(extraHTTPHeaders);
+          // insert other code here
+        },
+      ],
     requestHandlerTimeoutSecs: 90,
     requestHandler: async ({ page, request, response, sendRequest }) => {
       await waitForPageLoaded(page, 10000);
@@ -252,10 +277,11 @@ const crawlSitemap = async (
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.blacklisted.push({
+          urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl: request.url, // because about:blank is not useful
+            metadata: REASON_PHRASES[1],
           });
 
           return;
@@ -278,42 +304,19 @@ const crawlSitemap = async (
 
       if (
         blacklistedPatterns &&
-        !isFollowStrategy(actualUrl, request.url, 'same-hostname') &&
         isSkippedUrl(actualUrl, blacklistedPatterns)
       ) {
         urlsCrawled.userExcluded.push({
           url: request.url,
           pageTitle: request.url,
           actualUrl: actualUrl,
+          metadata: REASON_PHRASES[0],
         });
 
         guiInfoLog(guiInfoStatusTypes.SKIPPED, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
-        return;
-      }
-
-      if (status === 403) {
-        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-          numScanned: urlsCrawled.scanned.length,
-          urlScanned: request.url,
-        });
-        urlsCrawled.forbidden.push({ url: request.url, actualUrl: null, pageTitle: null });
-        return;
-      }
-
-      if (status !== 200) {
-        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-          numScanned: urlsCrawled.scanned.length,
-          urlScanned: request.url,
-        });
-        urlsCrawled.invalid.push({
-          url: request.url,
-          pageTitle: request.url,
-          actualUrl: actualUrl, // i.e. actualUrl
-        });
-
         return;
       }
 
@@ -368,11 +371,21 @@ const crawlSitemap = async (
         });
 
         if (isScanHtml) {
-          urlsCrawled.invalid.push({ actualUrl, url: request.url, pageTitle: null });
+          // carry through the HTTP status metadata
+          const status = response?.status() ?? 0;
+          const metadata = status
+            ? REASON_PHRASES[status] : 'Non-compliant Status Code Received';
+
+          urlsCrawled.invalid.push({
+            actualUrl,
+            url:        request.url,
+            pageTitle:  null,
+            metadata,    // e.g. "404 - Not Found"
+          });
         }
       }
     },
-    failedRequestHandler: async ({ request }) => {
+    failedRequestHandler: async ({ request, response, error }) => {
       if (isBasicAuth && request.url) {
         request.url = `${request.url.split('://')[0]}://${request.url.split('@')[1]}`;
       }
@@ -386,7 +399,26 @@ const crawlSitemap = async (
         numScanned: urlsCrawled.scanned.length,
         urlScanned: request.url,
       });
-      urlsCrawled.error.push({ url: request.url, pageTitle: null, actualUrl: null });
+      // derive a metadata string like "403 - Forbidden"
+      let metadata: string;
+      if (response) {
+        const status = response.status();
+        metadata = status
+                  ? REASON_PHRASES[status] : 'Non-compliant Status Code Received';
+      } else if (error instanceof Error) {
+        // now TS knows this is really an Error
+        metadata = `${error.name}${error.message ? ` - ${error.message}` : ""}`;
+      } else if (typeof error === "string") {
+        metadata = error;  
+      } else {
+        metadata = "Unknown Error";
+      }
+      urlsCrawled.error.push({
+        url: request.url,
+        pageTitle: null,
+        actualUrl: null,
+        metadata,   // e.g. "403 - Forbidden"
+      });
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
     maxRequestsPerCrawl: Infinity,
