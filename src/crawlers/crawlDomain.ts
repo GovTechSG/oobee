@@ -486,58 +486,37 @@ const crawlDomain = async ({
 
         await page.evaluate(() => {
           return new Promise(resolve => {
-            let timeout: NodeJS.Timeout;
+            let timeout;
             let mutationCount = 0;
-            const MAX_MUTATIONS = 250;
-            const MAX_SAME_MUTATION_LIMIT = 10;
-            const mutationHash: Record<string, number> = {};
-
-            const observer = new MutationObserver(mutationsList => {
+            const MAX_MUTATIONS     = 250;   // stop if things never quiet down
+            const OBSERVER_TIMEOUT  = 5000;  // hard cap on total wait
+    
+            const observer = new MutationObserver(() => {
               clearTimeout(timeout);
-
-              mutationCount += 1;
-
+    
+              mutationCount++;
               if (mutationCount > MAX_MUTATIONS) {
                 observer.disconnect();
-                resolve('Too many mutations detected');
+                resolve('Too many mutations, exiting.');
+                return;
               }
-
-              // To handle scenario where DOM elements are constantly changing and unable to exit
-              mutationsList.forEach(mutation => {
-                let mutationKey;
-
-                if (mutation.target instanceof Element) {
-                  Array.from(mutation.target.attributes).forEach(attr => {
-                    mutationKey = `${mutation.target.nodeName}-${attr.name}`;
-
-                    if (mutationKey) {
-                      if (!mutationHash[mutationKey]) {
-                        mutationHash[mutationKey] = 1;
-                      } else {
-                        mutationHash[mutationKey]++;
-                      }
-
-                      if (mutationHash[mutationKey] >= MAX_SAME_MUTATION_LIMIT) {
-                        observer.disconnect();
-                        resolve(`Repeated mutation detected for ${mutationKey}`);
-                      }
-                    }
-                  });
-                }
-              });
-
+    
+              // restart quiet‑period timer
               timeout = setTimeout(() => {
                 observer.disconnect();
-                resolve('DOM stabilized after mutations.');
+                resolve('DOM stabilized.');
               }, 1000);
             });
-
+    
+            // overall timeout in case the page never settles
             timeout = setTimeout(() => {
               observer.disconnect();
-              resolve('No mutations detected, exit from idle state');
-            }, 1000);
-
-            observer.observe(document, { childList: true, subtree: true, attributes: true });
+              resolve('Observer timeout reached.');
+            }, OBSERVER_TIMEOUT);
+    
+            // **HERE**: select the real DOM node inside evaluate
+            const root = document.documentElement;
+            observer.observe(root, { childList: true, subtree: true });
           });
         });
 
@@ -832,7 +811,7 @@ const crawlDomain = async ({
         actualUrl: null,
         metadata,   // e.g. "403 - Forbidden"
       });
-      
+
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
     maxRequestsPerCrawl: Infinity,
