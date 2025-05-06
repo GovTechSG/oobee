@@ -308,6 +308,8 @@ export const runAxeScript = async ({
     silentLogger.warn(`Error while checking for DOM mutations: ${e}`);
   }
 
+  // Omit logging of browser console errors to reduce unnecessary verbosity
+  /*
   page.on('console', msg => {
     const type = msg.type();
     if (type === 'error') {
@@ -316,6 +318,7 @@ export const runAxeScript = async ({
       silentLogger.log({ level: 'info', message: msg.text() });
     }
   });
+  */
 
   const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
