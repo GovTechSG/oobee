@@ -283,67 +283,63 @@ const crawlSitemap = async (
       const contentType = response?.headers?.()['content-type'] || '';
       const status = response ? response.status() : 0;
 
-      if (
-        blacklistedPatterns &&
-        isSkippedUrl(actualUrl, blacklistedPatterns)
-      ) {
-        urlsCrawled.userExcluded.push({
-          url: request.url,
-          pageTitle: request.url,
-          actualUrl: actualUrl,
-          metadata: REASON_PHRASES[0],
-        });
-
-        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-          numScanned: urlsCrawled.scanned.length,
-          urlScanned: request.url,
-        });
-        return;
-      }
-
       if (basicAuthPage < 0) {
         basicAuthPage += 1;
       } else if (isScanHtml && status === 200 && isWhitelistedContentType(contentType)) {
+        const isRedirected = !areLinksEqual(page.url(), request.url);
+        const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
+          item => (item.actualUrl || item.url) === page.url(),
+        );
+
+        if (isRedirected && isLoadedUrlInCrawledUrls) {
+          urlsCrawled.notScannedRedirects.push({
+            fromUrl: request.url,
+            toUrl: actualUrl, // i.e. actualUrl
+          });
+          return;
+        }
+
+        // This logic is different from crawlDomain, as it also checks if the pae is redirected before checking if it is excluded using exclusions.txt
+        if (
+          isRedirected &&
+          blacklistedPatterns &&
+          isSkippedUrl(actualUrl, blacklistedPatterns)
+        ) {
+          urlsCrawled.userExcluded.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl,
+            metadata: REASON_PHRASES[0],
+          });
+
+          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+            numScanned: urlsCrawled.scanned.length,
+            urlScanned: request.url,
+          });
+          return;
+        }
+
         const results = await runAxeScript({ includeScreenshots, page, randomToken });
+        
         guiInfoLog(guiInfoStatusTypes.SCANNED, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
 
-        const isRedirected = !areLinksEqual(page.url(), request.url);
-        if (isRedirected) {
-          const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-            item => (item.actualUrl || item.url) === page.url(),
-          );
+        urlsCrawled.scanned.push({
+          url: urlWithoutAuth(request.url),
+          pageTitle: results.pageTitle,
+          actualUrl: actualUrl, // i.e. actualUrl
+        });
 
-          if (isLoadedUrlInCrawledUrls) {
-            urlsCrawled.notScannedRedirects.push({
-              fromUrl: request.url,
-              toUrl: actualUrl, // i.e. actualUrl
-            });
-            return;
-          }
+        urlsCrawled.scannedRedirects.push({
+          fromUrl: urlWithoutAuth(request.url),
+          toUrl: actualUrl,
+        });
 
-          urlsCrawled.scanned.push({
-            url: urlWithoutAuth(request.url),
-            pageTitle: results.pageTitle,
-            actualUrl: actualUrl, // i.e. actualUrl
-          });
+        results.url = request.url;
+        results.actualUrl = actualUrl;
 
-          urlsCrawled.scannedRedirects.push({
-            fromUrl: urlWithoutAuth(request.url),
-            toUrl: actualUrl,
-          });
-
-          results.url = request.url;
-          results.actualUrl = actualUrl;
-        } else {
-          urlsCrawled.scanned.push({
-            url: urlWithoutAuth(request.url),
-            pageTitle: results.pageTitle,
-            actualUrl: actualUrl,
-          });
-        }
         await dataset.pushData(results);
       } else {
         guiInfoLog(guiInfoStatusTypes.SKIPPED, {
