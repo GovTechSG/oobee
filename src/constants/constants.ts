@@ -29,6 +29,7 @@ export const blackListedFileExtensions = [
   'zip',
   'webp',
   'json',
+  'xml'
 ];
 
 export const getIntermediateScreenshotsPath = (datasetsPath: string): string =>
@@ -454,6 +455,7 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   401: '401 - Unauthorized',
   403: '403 - Forbidden',
   404: '404 - Not Found',
+  429: '429 - Too Many Requests',
   500: '500 - Internal Server Error',
   502: '502 - Bad Gateway',
   503: '503 - Service Unavailable',

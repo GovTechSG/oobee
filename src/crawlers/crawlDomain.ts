@@ -165,8 +165,8 @@ const crawlDomain = async ({
   const httpHeadCache = new Map<string, boolean>();
   const isProcessibleUrl = async (url: string): Promise<boolean> => {
     if (httpHeadCache.has(url)) {
-      silentLogger.info('cache hit', url, httpHeadCache.get(url));
-      return false; // return false to avoid processing the url again
+      silentLogger.info(`Skipping request as URL has been processed before ${url}}`);
+      return false; // return false to avoid processing the same url again
     }
 
     try {
@@ -692,6 +692,22 @@ const crawlDomain = async ({
             return;
           }
 
+          const responseStatus = response?.status();
+          if (responseStatus && [400, 401, 403, 404, 500, 502, 503, 504].includes(responseStatus)) {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl,
+              metadata: STATUS_CODE_METADATA[responseStatus],
+              httpStatusCode: responseStatus,
+            });
+            return;
+          }
+
           const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
           if (isRedirected) {
@@ -794,11 +810,17 @@ const crawlDomain = async ({
         // when max pages have been scanned, scan will abort and all relevant pages still opened will close instantly.
         // a browser close error will then be flagged. Since this is an intended behaviour, this error will be excluded.
         if (!isAbortingScanNow) {
-            urlsCrawled.error.push({ 
-              url: request.url, 
-              pageTitle: request.url, 
-              actualUrl: request.url, 
-              metadata: STATUS_CODE_METADATA[2] });
+          guiInfoLog(guiInfoStatusTypes.ERROR, {
+            numScanned: urlsCrawled.scanned.length,
+            urlScanned: request.url,
+          });
+
+          urlsCrawled.error.push({ 
+            url: request.url, 
+            pageTitle: request.url, 
+            actualUrl: request.url, 
+            metadata: STATUS_CODE_METADATA[2] 
+          });
         }
       }
     },
@@ -818,10 +840,9 @@ const crawlDomain = async ({
         pageTitle: request.url,
         actualUrl: request.url,
         metadata,
-        httpStatusCode: 0,
+        httpStatusCode: typeof status === 'number' ? status : 0,
       });
 
-      crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
     maxRequestsPerCrawl: Infinity,
     maxConcurrency: specifiedMaxConcurrency || maxConcurrency,

@@ -286,7 +286,7 @@ const crawlSitemap = async (
 
       if (basicAuthPage < 0) {
         basicAuthPage += 1;
-      } else if (isScanHtml && status === 200 && isWhitelistedContentType(contentType)) {
+      } else if (isScanHtml && status >= 200 && status < 300 && isWhitelistedContentType(contentType)) {
         const isRedirected = !areLinksEqual(page.url(), request.url);
         const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
           item => (item.actualUrl || item.url) === page.url(),
