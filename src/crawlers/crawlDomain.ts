@@ -18,7 +18,7 @@ import constants, {
   guiInfoStatusTypes,
   cssQuerySelectors,
   RuleFlags,
-  REASON_PHRASES,
+  STATUS_CODE_METADATA,
 } from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
@@ -622,7 +622,7 @@ const crawlDomain = async ({
               url: request.url,
               pageTitle: request.url,
               actualUrl: request.url, // because about:blank is not useful
-              metadata: REASON_PHRASES[1],
+              metadata: STATUS_CODE_METADATA[1],
               httpStatusCode: 0,
             });
 
@@ -649,7 +649,7 @@ const crawlDomain = async ({
             url: request.url,
             pageTitle: request.url,
             actualUrl: actualUrl, // because about:blank is not useful
-            metadata: REASON_PHRASES[1],
+            metadata: STATUS_CODE_METADATA[1],
             httpStatusCode: 0,
           });
 
@@ -661,7 +661,7 @@ const crawlDomain = async ({
             url: request.url,
             pageTitle: request.url,
             actualUrl: actualUrl,
-            metadata: REASON_PHRASES[0],
+            metadata: STATUS_CODE_METADATA[0],
             httpStatusCode: 0,
           });
           
@@ -753,7 +753,7 @@ const crawlDomain = async ({
             url: request.url,
             pageTitle: request.url,
             actualUrl: actualUrl, // because about:blank is not useful
-            metadata: REASON_PHRASES[1],
+            metadata: STATUS_CODE_METADATA[1],
             httpStatusCode: 0,
           });
 
@@ -794,7 +794,11 @@ const crawlDomain = async ({
         // when max pages have been scanned, scan will abort and all relevant pages still opened will close instantly.
         // a browser close error will then be flagged. Since this is an intended behaviour, this error will be excluded.
         if (!isAbortingScanNow) {
-            urlsCrawled.error.push({ url: request.url, pageTitle: request.url, actualUrl: request.url, metadata: REASON_PHRASES[2] });
+            urlsCrawled.error.push({ 
+              url: request.url, 
+              pageTitle: request.url, 
+              actualUrl: request.url, 
+              metadata: STATUS_CODE_METADATA[2] });
         }
       }
     },
@@ -806,13 +810,13 @@ const crawlDomain = async ({
 
       const status = response?.status();
       const metadata = typeof status === 'number'
-      ? (REASON_PHRASES[status] || `${status} - Uncommon Status Code Received`)
-      : REASON_PHRASES[2];
+      ? (STATUS_CODE_METADATA[status] || `${status} - Uncommon Status Code Received`)
+      : STATUS_CODE_METADATA[2];
 
       urlsCrawled.error.push({
         url: request.url,
-        pageTitle: null,
-        actualUrl: null,
+        pageTitle: request.url,
+        actualUrl: request.url,
         metadata,
         httpStatusCode: 0,
       });

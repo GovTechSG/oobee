@@ -8,7 +8,7 @@ import {
   isUrlPdf,
 } from './commonCrawlerFunc.js';
 
-import constants, { REASON_PHRASES, guiInfoStatusTypes, UrlsCrawled } from '../constants/constants.js';
+import constants, { STATUS_CODE_METADATA, guiInfoStatusTypes, UrlsCrawled } from '../constants/constants.js';
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
@@ -262,7 +262,7 @@ const crawlSitemap = async (
             url: request.url,
             pageTitle: request.url,
             actualUrl: request.url, // because about:blank is not useful
-            metadata: REASON_PHRASES[1],
+            metadata: STATUS_CODE_METADATA[1],
             httpStatusCode: 0,
           });
 
@@ -310,7 +310,7 @@ const crawlSitemap = async (
             url: request.url,
             pageTitle: request.url,
             actualUrl: actualUrl,
-            metadata: REASON_PHRASES[0],
+            metadata: STATUS_CODE_METADATA[0],
             httpStatusCode: 0,
           });
 
@@ -353,13 +353,13 @@ const crawlSitemap = async (
           // carry through the HTTP status metadata
           const status = response?.status();
           const metadata = typeof status === 'number'
-          ? (REASON_PHRASES[status] || `${status} - Uncommon Status Code Received`)
-          : REASON_PHRASES[2];
+          ? (STATUS_CODE_METADATA[status] || `${status} - Uncommon Status Code Received`)
+          : STATUS_CODE_METADATA[2];
 
             urlsCrawled.invalid.push({
             actualUrl,
             url: request.url,
-            pageTitle: null,
+            pageTitle: request.url,
             metadata,
             httpStatusCode: typeof status === 'number' ? status : 0
           });
@@ -383,13 +383,13 @@ const crawlSitemap = async (
 
       const status = response?.status();
       const metadata = typeof status === 'number'
-      ? (REASON_PHRASES[status] || `${status} - Uncommon Status Code Received`)
-      : REASON_PHRASES[2];
+      ? (STATUS_CODE_METADATA[status] || `${status} - Uncommon Status Code Received`)
+      : STATUS_CODE_METADATA[2];
 
       urlsCrawled.error.push({
         url: request.url,
-        pageTitle: null,
-        actualUrl: null,
+        pageTitle: request.url,
+        actualUrl: request.url,
         metadata,
         httpStatusCode: typeof status === 'number' ? status : 0
       });

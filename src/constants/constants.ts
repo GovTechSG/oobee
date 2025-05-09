@@ -445,7 +445,7 @@ export enum RuleFlags {
   ENABLE_WCAG_AAA = 'enable-wcag-aaa',
 }
 
-export const REASON_PHRASES: Record<number,string> = {
+export const STATUS_CODE_METADATA: Record<number,string> = {
   0: 'Page Excluded',
   1: 'Not A Supported Document',
   2: 'Web Crawler Errored',
