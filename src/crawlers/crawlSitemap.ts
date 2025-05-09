@@ -286,7 +286,7 @@ const crawlSitemap = async (
 
       if (basicAuthPage < 0) {
         basicAuthPage += 1;
-      } else if (isScanHtml && status >= 200 && status < 300 && isWhitelistedContentType(contentType)) {
+      } else if (isScanHtml && status < 300 && isWhitelistedContentType(contentType)) {
         const isRedirected = !areLinksEqual(page.url(), request.url);
         const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
           item => (item.actualUrl || item.url) === page.url(),
@@ -353,7 +353,7 @@ const crawlSitemap = async (
           // carry through the HTTP status metadata
           const status = response?.status();
           const metadata = typeof status === 'number'
-          ? (STATUS_CODE_METADATA[status] || `${status} - Uncommon Status Code Received`)
+          ? (STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599])
           : STATUS_CODE_METADATA[2];
 
             urlsCrawled.invalid.push({
@@ -383,7 +383,7 @@ const crawlSitemap = async (
 
       const status = response?.status();
       const metadata = typeof status === 'number'
-      ? (STATUS_CODE_METADATA[status] || `${status} - Uncommon Status Code Received`)
+      ? (STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599])
       : STATUS_CODE_METADATA[2];
 
       urlsCrawled.error.push({

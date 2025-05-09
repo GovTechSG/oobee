@@ -693,7 +693,7 @@ const crawlDomain = async ({
           }
 
           const responseStatus = response?.status();
-          if (responseStatus && [400, 401, 403, 404, 500, 502, 503, 504].includes(responseStatus)) {
+            if (responseStatus && responseStatus >= 300) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
@@ -702,11 +702,11 @@ const crawlDomain = async ({
               url: request.url,
               pageTitle: request.url,
               actualUrl,
-              metadata: STATUS_CODE_METADATA[responseStatus],
+              metadata: STATUS_CODE_METADATA[responseStatus] || STATUS_CODE_METADATA[599],
               httpStatusCode: responseStatus,
             });
             return;
-          }
+            }
 
           const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
@@ -832,7 +832,7 @@ const crawlDomain = async ({
 
       const status = response?.status();
       const metadata = typeof status === 'number'
-      ? (STATUS_CODE_METADATA[status] || `${status} - Uncommon Status Code Received`)
+      ? (STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599])
       : STATUS_CODE_METADATA[2];
 
       urlsCrawled.error.push({
