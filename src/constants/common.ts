@@ -26,6 +26,9 @@ import constants, {
   getDefaultChromiumDataDir,
   proxy,
   sentryConfig,
+    // Legacy code start - Google Sheets submission
+  formDataFields,
+    // Legacy code end - Google Sheets submission
   ScannerTypes,
   BrowserTypes,
 } from './constants.js';
@@ -1832,6 +1835,47 @@ export const submitForm = async (
   } catch (error) {
     console.error('Error sending data to Sentry:', error);
   }
+
+  // Legacy code start - Google Sheets submission
+  try {
+    const additionalPageDataJson = JSON.stringify({
+      redirectsScanned: numberOfRedirectsScanned,
+      pagesNotScanned: numberOfPagesNotScanned,
+    });
+
+    let finalUrl =
+      `${formDataFields.formUrl}?` +
+      `${formDataFields.entryUrlField}=${entryUrl}&` +
+      `${formDataFields.scanTypeField}=${scanType}&` +
+      `${formDataFields.emailField}=${email}&` +
+      `${formDataFields.nameField}=${name}&` +
+      `${formDataFields.resultsField}=${encodeURIComponent(scanResultsJson)}&` +
+      `${formDataFields.numberOfPagesScannedField}=${numberOfPagesScanned}&` +
+      `${formDataFields.additionalPageDataField}=${encodeURIComponent(additionalPageDataJson)}&` +
+      `${formDataFields.metadataField}=${encodeURIComponent(metadata)}`;
+
+    if (scannedUrl !== entryUrl) {
+      finalUrl += `&${formDataFields.redirectUrlField}=${scannedUrl}`;
+    }
+
+    if (proxy) {
+      await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
+    } else {
+      try {
+        await axios.get(finalUrl, { timeout: 2000 });
+      } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+          if (browserToRun || constants.launcher === webkit) {
+            await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
+          }
+        }
+      }
+    }
+    console.log('Legacy Google Sheets form submitted successfully');
+  } catch (legacyError) {
+    console.error('Error submitting legacy Google Sheets form:', legacyError);
+  }
+  // Legacy code end - Google Sheets submission
 };
 
 // Helper function to extract issue occurrences from scan results
