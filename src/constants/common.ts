@@ -18,6 +18,7 @@ import { minimatch } from 'minimatch';
 import { globSync } from 'glob';
 import { LaunchOptions, devices, webkit } from 'playwright';
 import printMessage from 'print-message';
+// @ts-ignore
 import * as Sentry from '@sentry/node';
 import constants, {
   getDefaultChromeDataDir,

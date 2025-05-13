@@ -12,8 +12,10 @@ import { AsyncParser, ParserOptions } from '@json2csv/node';
 import zlib from 'zlib';
 import { Base64Encode } from 'base64-stream';
 import { pipeline } from 'stream/promises';
-import constants, { ScannerTypes } from './constants/constants.js';
+import constants, { ScannerTypes, sentryConfig } from './constants/constants.js';
 import { urlWithoutAuth } from './constants/common.js';
+// @ts-ignore
+import * as Sentry from '@sentry/node';
 import {
   createScreenshotsFolder,
   getStoragePath,
@@ -230,7 +232,7 @@ const writeCsv = async (allIssues, storagePath) => {
     includeEmptyRows: true,
   };
 
-  // Create the parse stream (it’s asynchronous)
+  // Create the parse stream (it's asynchronous)
   const parser = new AsyncParser(opts);
   const parseStream = parser.parse(allIssues);
 
@@ -988,6 +990,50 @@ const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filena
   }
 };
 
+// WCAG criteria mapping for Sentry tags
+const wcagCriteriaMap = {
+  'wcag111': { name: 'non-text-content', level: 'a' },
+  'wcag122': { name: 'captions-prerecorded', level: 'a' },
+  'wcag131': { name: 'info-and-relationships', level: 'a' },
+  'wcag135': { name: 'identify-input-purpose', level: 'aa' },
+  'wcag141': { name: 'use-of-color', level: 'a' },
+  'wcag142': { name: 'audio-control', level: 'a' },
+  'wcag143': { name: 'contrast-minimum', level: 'aa' },
+  'wcag144': { name: 'resize-text', level: 'aa' },
+  'wcag146': { name: 'contrast-enhanced', level: 'aaa' },
+  'wcag1411': { name: 'non-text-contrast', level: 'aa' },
+  'wcag1412': { name: 'text-spacing', level: 'aa' },
+  'wcag211': { name: 'keyboard', level: 'a' },
+  'wcag221': { name: 'timing-adjustable', level: 'a' },
+  'wcag222': { name: 'pause-stop-hide', level: 'a' },
+  'wcag224': { name: 'interruptions', level: 'aaa' },
+  'wcag241': { name: 'bypass-blocks', level: 'a' },
+  'wcag242': { name: 'page-titled', level: 'a' },
+  'wcag243': { name: 'focus-order', level: 'a' },
+  'wcag244': { name: 'link-purpose-in-context', level: 'a' },
+  'wcag246': { name: 'headings-and-labels', level: 'aa' },
+  'wcag249': { name: 'link-purpose-link-only', level: 'aaa' },
+  'wcag258': { name: 'target-size-minimum', level: 'aa' },
+  'wcag311': { name: 'language-of-page', level: 'a' },
+  'wcag312': { name: 'language-of-parts', level: 'aa' },
+  'wcag315': { name: 'reading-level', level: 'aaa' },
+  'wcag325': { name: 'change-on-request', level: 'aaa' },
+  'wcag332': { name: 'labels-or-instructions', level: 'a' },
+  'wcag412': { name: 'name-role-value', level: 'a' }
+};
+
+// Tracking WCAG occurrences 
+const wcagOccurrencesMap = new Map<string, number>();
+
+// Format WCAG tag in requested format: wcag111a_non-text-content-Occurrences
+const formatWcagTag = (wcagId: string): string | null => {
+  if (wcagCriteriaMap[wcagId]) {
+    const { name, level } = wcagCriteriaMap[wcagId];
+    return `${wcagId}${level}_${name}-Occurrences`;
+  }
+  return null;
+};
+
 const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   const { url, pageTitle, filePath } = pageResults;
 
@@ -1039,6 +1085,10 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
             if (!allIssues.wcagViolations.includes(c)) {
               allIssues.wcagViolations.push(c);
             }
+            
+            // Track WCAG criteria occurrences for Sentry
+            const currentCount = wcagOccurrencesMap.get(c) || 0;
+            wcagOccurrencesMap.set(c, currentCount + count);
           });
       }
 
@@ -1492,6 +1542,85 @@ function populateScanPagesDetail(allIssues: AllIssues): void {
   };
 }
 
+// Send WCAG criteria breakdown to Sentry
+const sendWcagBreakdownToSentry = async (
+  wcagBreakdown: Map<string, number>,
+  scanInfo: {
+    entryUrl: string;
+    scanType: string;
+    browser: string;
+    email?: string;
+    name?: string;
+  }
+) => {
+  try {
+    // Initialize Sentry
+    Sentry.init(sentryConfig);
+    
+    // Create an event with all WCAG criteria as tags
+    const tags = {};
+    const wcagCriteriaBreakdown = {};
+    
+    // First ensure all WCAG criteria are included in the tags with a value of 0
+    // This ensures criteria with no violations are still reported
+    for (const [wcagId, info] of Object.entries(wcagCriteriaMap)) {
+      const formattedTag = formatWcagTag(wcagId);
+      if (formattedTag) {
+        // Initialize with zero
+        tags[formattedTag] = "0";
+        wcagCriteriaBreakdown[formattedTag] = 0;
+      }
+    }
+    
+    // Now override with actual counts from the scan
+    for (const [wcagId, count] of wcagBreakdown.entries()) {
+      const formattedTag = formatWcagTag(wcagId);
+      if (formattedTag) {
+        // Add as a tag with the count as value
+        tags[formattedTag] = String(count);
+        
+        // Store in breakdown object for the extra data
+        wcagCriteriaBreakdown[formattedTag] = count;
+      }
+    }
+    
+    // Calculate the WCAG passing percentage
+    const totalCriteria = Object.keys(wcagCriteriaMap).length;
+    const violatedCriteria = wcagBreakdown.size;
+    const passingPercentage = Math.round(((totalCriteria - violatedCriteria) / totalCriteria) * 100);
+    
+    // Add the percentage as a tag
+    tags['WCAG-Percentage-Passed'] = String(passingPercentage);
+    
+    // Send the event to Sentry
+    await Sentry.captureEvent({
+      message: `WCAG Accessibility Scan Results for ${scanInfo.entryUrl}`,
+      level: 'info',
+      tags: {
+        ...tags,
+        event_type: 'accessibility_scan',
+        scanType: scanInfo.scanType,
+        browser: scanInfo.browser,
+      },
+      user: scanInfo.email && scanInfo.name ? {
+        email: scanInfo.email,
+        username: scanInfo.name
+      } : undefined,
+      extra: {
+        entryUrl: scanInfo.entryUrl,
+        wcagBreakdown: wcagCriteriaBreakdown,
+        wcagPassPercentage: passingPercentage
+      }
+    });
+    
+    // Wait for events to be sent
+    await Sentry.flush(2000);
+    console.log('WCAG criteria breakdown sent to Sentry successfully');
+  } catch (error) {
+    console.error('Error sending WCAG breakdown to Sentry:', error);
+  }
+};
+
 const generateArtifacts = async (
   randomToken: string,
   urlScanned: string,
@@ -1514,6 +1643,7 @@ const generateArtifacts = async (
     isEnableWcagAaa: string[];
     isSlowScanMode: number;
     isAdhereRobots: boolean;
+    nameEmail?: { name: string; email: string };
   },
   zip: string = undefined, // optional
   generateJsonFiles = false,
@@ -1807,6 +1937,23 @@ const generateArtifacts = async (
     .catch(error => {
       printMessage([`Error in zipping results: ${error}`]);
     });
+
+  // At the end of the function where results are generated, add:
+  try {
+    // Always send WCAG breakdown to Sentry, even if no violations were found
+    // This ensures that all criteria are reported, including those with 0 occurrences
+    await sendWcagBreakdownToSentry(wcagOccurrencesMap, {
+      entryUrl: urlScanned,
+      scanType: scanType,
+      browser: scanDetails.deviceChosen,
+      ...(scanDetails.nameEmail && {
+        email: scanDetails.nameEmail.email,
+        name: scanDetails.nameEmail.name
+      })
+    });
+  } catch (error) {
+    console.error('Error sending WCAG data to Sentry:', error);
+  }
 
   return createRuleIdJson(allIssues);
 };
