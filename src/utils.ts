@@ -420,6 +420,132 @@ export const getTotalRulesCount = async (
   };
 };
 
+/**
+ * Dynamically generates a map of WCAG criteria IDs to their details (name and level)
+ * Reuses the rule processing logic from getTotalRulesCount
+ */
+export const getWcagCriteriaMap = async (
+  enableWcagAaa: boolean = true,
+  disableOobee: boolean = false
+): Promise<Record<string, { name: string; level: string }>> => {
+  // Reuse the configuration setup from getTotalRulesCount
+  const axeConfig = getAxeConfiguration({
+    enableWcagAaa,
+    gradingReadabilityFlag: '',
+    disableOobee,
+  });
+
+  // Get default rules from axe-core
+  const defaultRules = axe.getRules();
+
+  // Merge custom rules with default rules
+  const mergedRules: Rule[] = defaultRules.map(defaultRule => {
+    const customRule = axeConfig.rules.find(r => r.id === defaultRule.ruleId);
+    if (customRule) {
+      return {
+        id: defaultRule.ruleId,
+        enabled: customRule.enabled,
+        selector: customRule.selector,
+        any: customRule.any,
+        tags: defaultRule.tags,
+        metadata: customRule.metadata,
+      };
+    }
+    return {
+      id: defaultRule.ruleId,
+      enabled: true,
+      tags: defaultRule.tags,
+    };
+  });
+
+  // Add custom rules that don't override default rules
+  axeConfig.rules.forEach(customRule => {
+    if (!mergedRules.some(rule => rule.id === customRule.id)) {
+      mergedRules.push({
+        id: customRule.id,
+        enabled: customRule.enabled,
+        selector: customRule.selector,
+        any: customRule.any,
+        tags: customRule.tags,
+        metadata: customRule.metadata,
+      });
+    }
+  });
+
+  // Apply configuration
+  axe.configure({ ...axeConfig, rules: mergedRules });
+
+  // Build WCAG criteria map
+  const wcagCriteriaMap: Record<string, { name: string; level: string }> = {};
+  
+  // Process rules to extract WCAG information
+  mergedRules.forEach(rule => {
+    if (!rule.enabled) return;
+    if (rule.id === 'frame-tested') return;
+    
+    const tags = rule.tags || [];
+    if (tags.includes('experimental') || tags.includes('deprecated')) return;
+    
+    // Look for WCAG criteria tags (format: wcag111, wcag143, etc.)
+    tags.forEach(tag => {
+      const wcagMatch = tag.match(/^wcag(\d+)$/);
+      if (wcagMatch) {
+        const wcagId = tag;
+        
+        // Default values
+        let level = 'a';
+        let name = '';
+        
+        // Try to extract better info from metadata if available
+        const metadata = rule.metadata as any;
+        if (metadata && metadata.wcag) {
+          const wcagInfo = metadata.wcag as any;
+          
+          // Find matching criterion in metadata
+          for (const key in wcagInfo) {
+            const criterion = wcagInfo[key];
+            if (criterion && 
+                criterion.num && 
+                `wcag${criterion.num.replace(/\./g, '')}` === wcagId) {
+              
+              // Extract level
+              if (criterion.level) {
+                level = String(criterion.level).toLowerCase();
+              }
+              
+              // Extract name
+              if (criterion.handle) {
+                name = String(criterion.handle);
+              } else if (criterion.id) {
+                name = String(criterion.id);
+              } else if (criterion.num) {
+                name = `wcag-${String(criterion.num).replace(/\./g, '-')}`;
+              }
+              
+              break;
+            }
+          }
+        }
+        
+        // Generate fallback name if none found
+        if (!name) {
+          const numStr = wcagMatch[1];
+          const formattedNum = numStr.replace(/(\d)(\d)(\d+)?/, '$1.$2.$3');
+          name = `wcag-${formattedNum.replace(/\./g, '-')}`;
+        }
+        
+        // Store in map
+        wcagCriteriaMap[wcagId] = { 
+          name: name.toLowerCase().replace(/_/g, '-'),
+          level
+        };
+      }
+    });
+  });
+  
+  return wcagCriteriaMap;
+};
+
 export const getIssuesPercentage = async (
   scanPagesDetail: ScanPagesDetail,
   enableWcagAaa: boolean,

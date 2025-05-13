@@ -25,6 +25,7 @@ import {
   retryFunction,
   zipResults,
   getIssuesPercentage,
+  getWcagCriteriaMap,
 } from './utils.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
@@ -987,46 +988,17 @@ const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filena
   }
 };
 
-// WCAG criteria mapping for Sentry tags
-const wcagCriteriaMap = {
-  'wcag111': { name: 'non-text-content', level: 'a' },
-  'wcag122': { name: 'captions-prerecorded', level: 'a' },
-  'wcag131': { name: 'info-and-relationships', level: 'a' },
-  'wcag135': { name: 'identify-input-purpose', level: 'aa' },
-  'wcag141': { name: 'use-of-color', level: 'a' },
-  'wcag142': { name: 'audio-control', level: 'a' },
-  'wcag143': { name: 'contrast-minimum', level: 'aa' },
-  'wcag144': { name: 'resize-text', level: 'aa' },
-  'wcag146': { name: 'contrast-enhanced', level: 'aaa' },
-  'wcag1411': { name: 'non-text-contrast', level: 'aa' },
-  'wcag1412': { name: 'text-spacing', level: 'aa' },
-  'wcag211': { name: 'keyboard', level: 'a' },
-  'wcag221': { name: 'timing-adjustable', level: 'a' },
-  'wcag222': { name: 'pause-stop-hide', level: 'a' },
-  'wcag224': { name: 'interruptions', level: 'aaa' },
-  'wcag241': { name: 'bypass-blocks', level: 'a' },
-  'wcag242': { name: 'page-titled', level: 'a' },
-  'wcag243': { name: 'focus-order', level: 'a' },
-  'wcag244': { name: 'link-purpose-in-context', level: 'a' },
-  'wcag246': { name: 'headings-and-labels', level: 'aa' },
-  'wcag249': { name: 'link-purpose-link-only', level: 'aaa' },
-  'wcag258': { name: 'target-size-minimum', level: 'aa' },
-  'wcag311': { name: 'language-of-page', level: 'a' },
-  'wcag312': { name: 'language-of-parts', level: 'aa' },
-  'wcag315': { name: 'reading-level', level: 'aaa' },
-  'wcag325': { name: 'change-on-request', level: 'aaa' },
-  'wcag332': { name: 'labels-or-instructions', level: 'a' },
-  'wcag412': { name: 'name-role-value', level: 'a' }
-};
-
 // Tracking WCAG occurrences 
 const wcagOccurrencesMap = new Map<string, number>();
 
-// Format WCAG tag in requested format: wcag111a_non-text-content-Occurrences
-const formatWcagTag = (wcagId: string): string | null => {
+// Format WCAG tag in requested format: wcag111a_Occurrences
+const formatWcagTag = async (wcagId: string): Promise<string | null> => {
+  // Get dynamic WCAG criteria map
+  const wcagCriteriaMap = await getWcagCriteriaMap();
+  
   if (wcagCriteriaMap[wcagId]) {
-    const { name, level } = wcagCriteriaMap[wcagId];
-    return `${wcagId}${level}_${name}-Occurrences`;
+    const { level } = wcagCriteriaMap[wcagId];
+    return `${wcagId}${level}_Occurrences`;
   }
   return null;
 };
@@ -1555,24 +1527,29 @@ const sendWcagBreakdownToSentry = async (
     // Initialize Sentry
     Sentry.init(sentryConfig);
     
-    // Create an event with all WCAG criteria as tags
-    const tags = {};
-    const wcagCriteriaBreakdown = {};
+    console.log('Sending WCAG criteria breakdown to Sentry...');
+    
+    // Prepare tags for the event
+    const tags: Record<string, string> = {};
+    const wcagCriteriaBreakdown: Record<string, number> = {};
+    
+    // Get dynamic WCAG criteria map once
+    const wcagCriteriaMap = await getWcagCriteriaMap();
     
     // First ensure all WCAG criteria are included in the tags with a value of 0
     // This ensures criteria with no violations are still reported
     for (const [wcagId, info] of Object.entries(wcagCriteriaMap)) {
-      const formattedTag = formatWcagTag(wcagId);
+      const formattedTag = await formatWcagTag(wcagId);
       if (formattedTag) {
         // Initialize with zero
-        tags[formattedTag] = "0";
+        tags[formattedTag] = '0';
         wcagCriteriaBreakdown[formattedTag] = 0;
       }
     }
     
     // Now override with actual counts from the scan
     for (const [wcagId, count] of wcagBreakdown.entries()) {
-      const formattedTag = formatWcagTag(wcagId);
+      const formattedTag = await formatWcagTag(wcagId);
       if (formattedTag) {
         // Add as a tag with the count as value
         tags[formattedTag] = String(count);
