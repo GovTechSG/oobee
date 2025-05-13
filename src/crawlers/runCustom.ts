@@ -48,7 +48,7 @@ const runCustom = async (
   includeScreenshots: boolean,
 ) => {
   // checks and delete datasets path if it already exists
-  await cleanUp(randomToken);
+  cleanUp(randomToken);
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
 
   const urlsCrawled: UrlsCrawled = { ...constants.urlsCrawledObj };

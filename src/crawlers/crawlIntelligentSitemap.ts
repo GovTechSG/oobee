@@ -1,27 +1,29 @@
 import fs from 'fs';
-import { chromium } from 'playwright';
+import { chromium, Page } from 'playwright';
 import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
 import constants, { guiInfoStatusTypes, sitemapPaths } from '../constants/constants.js';
 import { silentLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
+import { EnqueueStrategy } from 'crawlee';
+import { ViewportSettingsClass } from '../combine.js';
 
 const crawlIntelligentSitemap = async (
-  url,
-  randomToken,
-  host,
-  viewportSettings,
-  maxRequestsPerCrawl,
-  browser,
-  userDataDirectory,
-  strategy,
-  specifiedMaxConcurrency,
-  fileTypes,
-  blacklistedPatterns,
-  includeScreenshots,
-  followRobots,
-  extraHTTPHeaders,
-  safeMode,
+  url: string,
+  randomToken: string,
+  host: string,
+  viewportSettings: ViewportSettingsClass,
+  maxRequestsPerCrawl: number,
+  browser: string,
+  userDataDirectory: string,
+  strategy: EnqueueStrategy,
+  specifiedMaxConcurrency: number,
+  fileTypes: string,
+  blacklistedPatterns: string[],
+  includeScreenshots: boolean,
+  followRobots: boolean,
+  extraHTTPHeaders: Record<string, string>,
+  safeMode: boolean,
 ) => {
   let urlsCrawledFinal;
   let urlsCrawled;
@@ -37,7 +39,7 @@ const crawlIntelligentSitemap = async (
     fs.mkdirSync(randomToken);
   }
 
-  function getHomeUrl(parsedUrl) {
+  function getHomeUrl(parsedUrl: string) {
     const urlObject = new URL(parsedUrl);
     if (urlObject.username !== '' && urlObject.password !== '') {
       return `${urlObject.protocol}//${urlObject.username}:${urlObject.password}@${urlObject.hostname}${urlObject.port ? `:${urlObject.port}` : ''}`;
@@ -46,7 +48,7 @@ const crawlIntelligentSitemap = async (
     return `${urlObject.protocol}//${urlObject.hostname}${urlObject.port ? `:${urlObject.port}` : ''}`;
   }
 
-  async function findSitemap(link) {
+  async function findSitemap(link: string) {
     const homeUrl = getHomeUrl(link);
     let sitemapLinkFound = false;
     let sitemapLink = '';
@@ -70,7 +72,7 @@ const crawlIntelligentSitemap = async (
     return sitemapExist ? sitemapLink : '';
   }
 
-  const checkUrlExists = async (page, parsedUrl) => {
+  const checkUrlExists = async (page: Page, parsedUrl: string) => {
     try {
       const response = await page.goto(parsedUrl);
       if (response.ok()) {

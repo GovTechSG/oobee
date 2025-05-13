@@ -137,9 +137,6 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
       printMessage([`Invalid blacklistedPatternsFilename file path. ${err}`], messageOptions);
       process.exit(1);
     }
-
-    // eslint-disable-next-line no-unreachable
-    return null;
   })
   .coerce('i', option => {
     const { choices } = cliOptions.i;
@@ -241,7 +238,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     clonedDataDir,
     updatedArgvs.playwrightDeviceDetailsObject,
     isCustomFlow,
-    updatedArgvs.header,
+    parseHeaders(updatedArgvs.header),
   );
   switch (res.status) {
     case statuses.success.code: {
@@ -255,17 +252,14 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     case statuses.unauthorised.code: {
       printMessage([statuses.unauthorised.message], messageOptions);
       process.exit(res.status);
-      break;
     }
     case statuses.cannotBeResolved.code: {
       printMessage([statuses.cannotBeResolved.message], messageOptions);
       process.exit(res.status);
-      break;
     }
     case statuses.systemError.code: {
       printMessage([statuses.systemError.message], messageOptions);
       process.exit(res.status);
-      break;
     }
     case statuses.invalidUrl.code: {
       if (
@@ -296,17 +290,14 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     case statuses.notASitemap.code: {
       printMessage([statuses.notASitemap.message], messageOptions);
       process.exit(res.status);
-      break;
     }
     case statuses.notALocalFile.code: {
       printMessage([statuses.notALocalFile.message], messageOptions);
       process.exit(res.status);
-      break;
     }
     case statuses.browserError.code: {
       printMessage([statuses.browserError.message], messageOptions);
       process.exit(res.status);
-      break;
     }
     default:
       break;
@@ -362,7 +353,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
   }
 
   // Delete dataset and request queues
-  await cleanUp(data.randomToken);
+  cleanUp(data.randomToken);
 
   return getStoragePath(data.randomToken);
 };

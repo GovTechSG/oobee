@@ -1,4 +1,4 @@
-import crawlee, { Request, RequestList } from 'crawlee';
+import crawlee, { LaunchContext, Request, RequestList } from 'crawlee';
 import printMessage from 'print-message';
 import fs from 'fs';
 import {
@@ -8,7 +8,7 @@ import {
   isUrlPdf,
 } from './commonCrawlerFunc.js';
 
-import constants, { guiInfoStatusTypes } from '../constants/constants.js';
+import constants, { STATUS_CODE_METADATA, guiInfoStatusTypes, UrlsCrawled } from '../constants/constants.js';
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
@@ -22,31 +22,32 @@ import {
 import { areLinksEqual, isWhitelistedContentType, isFollowStrategy } from '../utils.js';
 import { handlePdfDownload, runPdfScan, mapPdfScanResults } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
+import { ViewportSettingsClass } from '../combine.js';
 
 const crawlSitemap = async (
-  sitemapUrl,
-  randomToken,
-  host,
-  viewportSettings,
-  maxRequestsPerCrawl,
-  browser,
-  userDataDirectory,
-  specifiedMaxConcurrency,
-  fileTypes,
-  blacklistedPatterns,
-  includeScreenshots,
-  extraHTTPHeaders,
+  sitemapUrl: string,
+  randomToken: string,
+  _host: string,
+  viewportSettings: ViewportSettingsClass,
+  maxRequestsPerCrawl: number,
+  browser: string,
+  userDataDirectory: string,
+  specifiedMaxConcurrency: number,
+  fileTypes: string,
+  blacklistedPatterns: string[],
+  includeScreenshots: boolean,
+  extraHTTPHeaders: Record<string, string>,
   fromCrawlIntelligentSitemap = false, // optional
-  userUrlInputFromIntelligent = null, // optional
-  datasetFromIntelligent = null, // optional
-  urlsCrawledFromIntelligent = null, // optional
+  userUrlInputFromIntelligent: string = null, // optional
+  datasetFromIntelligent: crawlee.Dataset = null, // optional
+  urlsCrawledFromIntelligent: UrlsCrawled = null, // optional
   crawledFromLocalFile = false, // optional
 ) => {
-  let dataset;
-  let urlsCrawled;
+  let dataset: crawlee.Dataset;
+  let urlsCrawled: UrlsCrawled;
 
   // Boolean to omit axe scan for basic auth URL
-  let isBasicAuth;
+  let isBasicAuth: boolean;
   let basicAuthPage = 0;
   let finalLinks = [];
   let authHeader = '';
@@ -119,8 +120,8 @@ const crawlSitemap = async (
     basicAuthPage = -2;
   }
 
-  const pdfDownloads = [];
-  const uuidToPdfMapping = {};
+  const pdfDownloads: Promise<void>[] = [];
+  const uuidToPdfMapping: Record<string, string> = {};
   const isScanHtml = ['all', 'html-only'].includes(fileTypes);
   const isScanPdfs = ['all', 'pdf-only'].includes(fileTypes);
   const { playwrightDeviceDetailsObject } = viewportSettings;
@@ -152,7 +153,7 @@ const crawlSitemap = async (
     browserPoolOptions: {
       useFingerprints: false,
       preLaunchHooks: [
-        async (pageId, launchContext) => {
+        async (_pageId: string, launchContext: LaunchContext) => {
           launchContext.launchOptions = {
             ...launchContext.launchOptions,
             bypassCSP: true,
@@ -164,39 +165,43 @@ const crawlSitemap = async (
     },
     requestList,
     postNavigationHooks: [
-      async ({ page, request }) => {
+
+      async ({ page }) => {
         try {
           // Wait for a quiet period in the DOM, but with safeguards
           await page.evaluate(() => {
-            return new Promise((resolve) => {
+            return new Promise(resolve => {
               let timeout;
               let mutationCount = 0;
-              const MAX_MUTATIONS = 250; // Prevent infinite mutations
-              const OBSERVER_TIMEOUT = 5000; // Hard timeout to exit
-
+              const MAX_MUTATIONS     = 250;   // stop if things never quiet down
+              const OBSERVER_TIMEOUT  = 5000;  // hard cap on total wait
+      
               const observer = new MutationObserver(() => {
                 clearTimeout(timeout);
-
+      
                 mutationCount++;
                 if (mutationCount > MAX_MUTATIONS) {
                   observer.disconnect();
-                  resolve('Too many mutations detected, exiting.');
+                  resolve('Too many mutations, exiting.');
                   return;
                 }
-
+      
+                // restart quiet‑period timer
                 timeout = setTimeout(() => {
                   observer.disconnect();
-                  resolve('DOM stabilized after mutations.');
+                  resolve('DOM stabilized.');
                 }, 1000);
               });
-
+      
+              // overall timeout in case the page never settles
               timeout = setTimeout(() => {
                 observer.disconnect();
-                resolve('Observer timeout reached, exiting.');
-              }, OBSERVER_TIMEOUT); // Ensure the observer stops after X seconds
-
-              observer.observe(document.documentElement, { childList: true, subtree: true });
-
+                resolve('Observer timeout reached.');
+              }, OBSERVER_TIMEOUT);
+      
+              // **HERE**: select the real DOM node inside evaluate
+              const root = document.documentElement;
+              observer.observe(root, { childList: true, subtree: true });
             });
           });
         } catch (err) {
@@ -207,6 +212,7 @@ const crawlSitemap = async (
           throw err; // Rethrow unknown errors
         }
       },
+      
     ],
 
     preNavigationHooks: isBasicAuth
@@ -252,10 +258,12 @@ const crawlSitemap = async (
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
-          urlsCrawled.blacklisted.push({
+          urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // i.e. actualUrl
+            actualUrl: request.url, // because about:blank is not useful
+            metadata: STATUS_CODE_METADATA[1],
+            httpStatusCode: 0,
           });
 
           return;
@@ -276,85 +284,64 @@ const crawlSitemap = async (
       const contentType = response?.headers?.()['content-type'] || '';
       const status = response ? response.status() : 0;
 
-      if (blacklistedPatterns && !isFollowStrategy(actualUrl, request.url, "same-hostname") && isSkippedUrl(actualUrl, blacklistedPatterns)) {
-        urlsCrawled.userExcluded.push({
-          url: request.url,
-          pageTitle: request.url,
-          actualUrl: actualUrl,
-        });
-
-        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-          numScanned: urlsCrawled.scanned.length,
-          urlScanned: request.url,
-        });
-        return;
-      }
-
-      if (status === 403) {
-        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-          numScanned: urlsCrawled.scanned.length,
-          urlScanned: request.url,
-        });
-        urlsCrawled.forbidden.push({ url: request.url });
-        return;
-      }
-
-      if (status !== 200) {
-        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-          numScanned: urlsCrawled.scanned.length,
-          urlScanned: request.url,
-        });
-        urlsCrawled.invalid.push({
-          url: request.url,
-          pageTitle: request.url,
-          actualUrl: actualUrl, // i.e. actualUrl
-        });
-
-        return;
-      }
-
       if (basicAuthPage < 0) {
         basicAuthPage += 1;
-      } else if (isScanHtml && status === 200 && isWhitelistedContentType(contentType)) {
+      } else if (isScanHtml && status < 300 && isWhitelistedContentType(contentType)) {
+        const isRedirected = !areLinksEqual(page.url(), request.url);
+        const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
+          item => (item.actualUrl || item.url) === page.url(),
+        );
+
+        if (isRedirected && isLoadedUrlInCrawledUrls) {
+          urlsCrawled.notScannedRedirects.push({
+            fromUrl: request.url,
+            toUrl: actualUrl, // i.e. actualUrl
+          });
+          return;
+        }
+
+        // This logic is different from crawlDomain, as it also checks if the pae is redirected before checking if it is excluded using exclusions.txt
+        if (
+          isRedirected &&
+          blacklistedPatterns &&
+          isSkippedUrl(actualUrl, blacklistedPatterns)
+        ) {
+          urlsCrawled.userExcluded.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: actualUrl,
+            metadata: STATUS_CODE_METADATA[0],
+            httpStatusCode: 0,
+          });
+
+          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+            numScanned: urlsCrawled.scanned.length,
+            urlScanned: request.url,
+          });
+          return;
+        }
+
         const results = await runAxeScript({ includeScreenshots, page, randomToken });
+        
         guiInfoLog(guiInfoStatusTypes.SCANNED, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
 
-        const isRedirected = !areLinksEqual(page.url(), request.url);
-        if (isRedirected) {
-          const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-            item => (item.actualUrl || item.url.href) === page,
-          );
+        urlsCrawled.scanned.push({
+          url: urlWithoutAuth(request.url),
+          pageTitle: results.pageTitle,
+          actualUrl: actualUrl, // i.e. actualUrl
+        });
 
-          if (isLoadedUrlInCrawledUrls) {
-            urlsCrawled.notScannedRedirects.push({
-              fromUrl: request.url,
-              toUrl: actualUrl, // i.e. actualUrl
-            });
-            return;
-          }
+        urlsCrawled.scannedRedirects.push({
+          fromUrl: urlWithoutAuth(request.url),
+          toUrl: actualUrl,
+        });
 
-          urlsCrawled.scanned.push({
-            url: urlWithoutAuth(request.url),
-            pageTitle: results.pageTitle,
-            actualUrl: actualUrl, // i.e. actualUrl
-          });
+        results.url = request.url;
+        results.actualUrl = actualUrl;
 
-          urlsCrawled.scannedRedirects.push({
-            fromUrl: urlWithoutAuth(request.url),
-            toUrl: actualUrl,
-          });
-
-          results.url = request.url;
-          results.actualUrl = actualUrl;
-        } else {
-          urlsCrawled.scanned.push({
-            url: urlWithoutAuth(request.url),
-            pageTitle: results.pageTitle,
-          });
-        }
         await dataset.pushData(results);
       } else {
         guiInfoLog(guiInfoStatusTypes.SKIPPED, {
@@ -363,11 +350,23 @@ const crawlSitemap = async (
         });
 
         if (isScanHtml) {
-          urlsCrawled.invalid.push(actualUrl);
+          // carry through the HTTP status metadata
+          const status = response?.status();
+          const metadata = typeof status === 'number'
+          ? (STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599])
+          : STATUS_CODE_METADATA[2];
+
+            urlsCrawled.invalid.push({
+            actualUrl,
+            url: request.url,
+            pageTitle: request.url,
+            metadata,
+            httpStatusCode: typeof status === 'number' ? status : 0
+          });
         }
       }
     },
-    failedRequestHandler: async ({ request }) => {
+    failedRequestHandler: async ({ request, response, error }) => {
       if (isBasicAuth && request.url) {
         request.url = `${request.url.split('://')[0]}://${request.url.split('@')[1]}`;
       }
@@ -381,7 +380,19 @@ const crawlSitemap = async (
         numScanned: urlsCrawled.scanned.length,
         urlScanned: request.url,
       });
-      urlsCrawled.error.push(request.url);
+
+      const status = response?.status();
+      const metadata = typeof status === 'number'
+      ? (STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599])
+      : STATUS_CODE_METADATA[2];
+
+      urlsCrawled.error.push({
+        url: request.url,
+        pageTitle: request.url,
+        actualUrl: request.url,
+        metadata,
+        httpStatusCode: typeof status === 'number' ? status : 0
+      });
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
     maxRequestsPerCrawl: Infinity,

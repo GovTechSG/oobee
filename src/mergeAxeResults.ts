@@ -47,6 +47,7 @@ export type PageInfo = {
   pageImagePath?: string;
   pageIndex?: number;
   metadata?: string;
+  httpStatusCode?: number;
 };
 
 export type RuleInfo = {
@@ -250,7 +251,7 @@ const writeCsv = async (allIssues, storagePath) => {
           scanCompletedAt: allIssues.endTime ? allIssues.endTime.toISOString() : '',
           severity: 'error',
           issueId: 'error-pages-skipped',
-          issueDescription: 'Page was skipped during the scan',
+          issueDescription: page.metadata ? page.metadata : 'An unknown error caused the page to be skipped',
           wcagConformance: '',
           url: page.url || page || '',
           pageTitle: 'Error',
@@ -793,25 +794,21 @@ const writeJsonAndBase64Files = async (
   items.mustFix.rules.forEach(rule => {
     rule.pagesAffected.forEach(page => {
       page.itemsCount = page.items.length;
-      page.items = [];
     });
   });
   items.goodToFix.rules.forEach(rule => {
     rule.pagesAffected.forEach(page => {
       page.itemsCount = page.items.length;
-      page.items = [];
     });
   });
   items.needsReview.rules.forEach(rule => {
     rule.pagesAffected.forEach(page => {
       page.itemsCount = page.items.length;
-      page.items = [];
     });
   });
   items.passed.rules.forEach(rule => {
     rule.pagesAffected.forEach(page => {
       page.itemsCount = page.items.length;
-      page.items = [];
     });
   });
 
@@ -1255,6 +1252,7 @@ const createRuleIdJson = allIssues => {
         });
       });
       snippets = [...snippetsSet];
+      rule.pagesAffected.forEach(p => { delete p.items; });
     }
     compiledRuleJson[ruleId] = {
       snippets,
@@ -1448,7 +1446,7 @@ function populateScanPagesDetail(allIssues: AllIssues): void {
       r => (r.occurrencesMustFix || 0) + (r.occurrencesGoodToFix || 0) > 0
     ).length;
 
-    const typesOfIssuesExclusiveToNeedsReview = typesOfIssuesArray.filter(
+    const typesOfIssuesExclusiveToNeedsReviewCount = typesOfIssuesArray.filter(
       r =>
         (r.occurrencesNeedsReview || 0) > 0 &&
         (r.occurrencesMustFix || 0) === 0 &&
@@ -1479,7 +1477,7 @@ function populateScanPagesDetail(allIssues: AllIssues): void {
       totalOccurrencesGoodToFix: goodToFixSum,
       totalOccurrencesNeedsReview: needsReviewSum,
       totalOccurrencesPassed: page.totalOccurrencesPassed,
-      typesOfIssuesExclusiveToNeedsReview,
+      typesOfIssuesExclusiveToNeedsReviewCount,
       typesOfIssuesCount: failedRuleCount,
       typesOfIssuesExcludingNeedsReviewCount,
       categoriesPresent,

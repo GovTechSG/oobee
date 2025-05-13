@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import printMessage from 'print-message';
-import axe, { ImpactValue } from 'axe-core';
+import axe, { AxeResults, ImpactValue } from 'axe-core';
 import { fileURLToPath } from 'url';
 import { EnqueueStrategy } from 'crawlee';
 import constants, { BrowserTypes, RuleFlags, ScannerTypes } from './constants/constants.js';
@@ -16,7 +16,7 @@ import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCraw
 import { createAndUpdateResultsFolders, createDetailsAndLogs } from './utils.js';
 import generateArtifacts from './mergeAxeResults.js';
 import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
-import { silentLogger } from './logs.js';
+import { consoleLogger, silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
 import { evaluateAltText } from './crawlers/custom/evaluateAltText.js';
 import { escapeCssSelector } from './crawlers/custom/escapeCssSelector.js';
@@ -24,7 +24,7 @@ import { framesCheck } from './crawlers/custom/framesCheck.js';
 import { findElementByCssSelector } from './crawlers/custom/findElementByCssSelector.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 import { flagUnlabelledClickableElements } from './crawlers/custom/flagUnlabelledClickableElements.js';
-import { xPathToCss } from './crawlers/custom/xPathToCss.js';
+import xPathToCss from './crawlers/custom/xPathToCss.js';
 import { extractText } from './crawlers/custom/extractText.js';
 import { gradeReadability } from './crawlers/custom/gradeReadability.js';
 
@@ -65,7 +65,7 @@ export const init = async ({
   specifiedMaxConcurrency?: number;
   followRobots?: boolean;
 }) => {
-  console.log('Starting Oobee');
+  consoleLogger.info('Starting Oobee');
 
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
   const domain = new URL(entryUrl).hostname;
@@ -126,7 +126,7 @@ export const init = async ({
             const cssSelector = xPathToCss(xpath);
             return cssSelector;
           } catch (e) {
-            console.error('Error converting XPath to CSS: ', xpath, e);
+            consoleLogger.error(`Error converting XPath to CSS: ${xpath} - ${e}`);
             return '';
           }
         })
@@ -197,7 +197,11 @@ export const init = async ({
     `;
   };
 
-  const pushScanResults = async (res, metadata, elementsToClick) => {
+  const pushScanResults = async (
+    res: { pageUrl: string; pageTitle: string; axeScanResults: AxeResults },
+    metadata: string,
+    elementsToClick: string[],
+  ) => {
     throwErrorIfTerminated();
     if (includeScreenshots) {
       // use chrome by default
@@ -211,7 +215,7 @@ export const init = async ({
       await page.waitForLoadState('networkidle');
 
       // click on elements to reveal hidden elements so screenshots can be taken
-      elementsToClick?.forEach(async elem => {
+      elementsToClick?.forEach(async (elem: string) => {
         try {
           await page.locator(elem).click();
         } catch (e) {
@@ -259,7 +263,7 @@ export const init = async ({
 
   const terminate = async () => {
     throwErrorIfTerminated();
-    console.log('Stopping Oobee');
+    consoleLogger.info('Stopping Oobee');
     isInstanceTerminated = true;
     scanDetails.endTime = new Date();
     scanDetails.urlsCrawled = urlsCrawled;

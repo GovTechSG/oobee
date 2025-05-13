@@ -27,9 +27,9 @@ export async function flagUnlabelledClickableElements() {
   const loggingEnabled = false; // Set to true to enable console warnings
 
   let previousFlaggedXPathsByDocument = {}; // Object to hold previous flagged XPaths
-  const previousAllFlaggedElementsXPaths = []; // Array to store all flagged XPaths
+  const previousAllFlaggedElementsXPaths : {xpath: string, code: string }[] = []; // Array to store all flagged XPaths
 
-  function getXPath(element: Node) {
+  function getXPath(element: Node): string {
     if (!element) return null;
     if (element instanceof HTMLElement && element.id) {
       return `//*[@id="${element.id}"]`;
@@ -297,7 +297,7 @@ function hasPointerCursor(node: Node): boolean {
     return hasAccessibleChildElement || hasDirectAccessibleText;
   }
 
-  function hasAllChildrenAccessible(element: Element) {
+  function hasAllChildrenAccessible(element: Element): boolean {
     // If the element is aria-hidden, consider it accessible
     if (element.getAttribute('aria-hidden') === 'true') {
       return true;
@@ -331,7 +331,7 @@ function hasPointerCursor(node: Node): boolean {
   function hasChildNotANewInteractWithAccessibleText(element: Element) {
 
    // Helper function to check if the element is a link or button
-    const isBuildInInteractable = (child) => {
+    const isBuildInInteractable = (child: Element) => {
         return child.nodeName.toLowerCase() === "a" || child.nodeName.toLowerCase() === "button" || child.nodeName.toLowerCase() === "input" ||
                child.getAttribute('role') === 'link' || child.getAttribute('role') === 'button';
     };
@@ -376,7 +376,7 @@ function hasPointerCursor(node: Node): boolean {
         }
 
         // Recursively check for text content inside child nodes of elements that are not links or buttons
-        if (node.nodeType === Node.ELEMENT_NODE && !isBuildInInteractable(node)) {
+        if (node.nodeType === Node.ELEMENT_NODE && !isBuildInInteractable(node as Element)) {
             return Array.from(node.childNodes).some(innerNode => {
                 if (innerNode.nodeType === Node.TEXT_NODE) {
                     const innerTextContent = getTextContent(innerNode).trim();
@@ -440,7 +440,7 @@ function hasPointerCursor(node: Node): boolean {
     const beforeContent = window.getComputedStyle(element, '::before').getPropertyValue('content');
     const afterContent = window.getComputedStyle(element, '::after').getPropertyValue('content');
 
-    function isAccessibleContent(value) {
+    function isAccessibleContent(value: string) {
         if (!value || value === 'none' || value === 'normal') {
             return false;
         }
@@ -1126,11 +1126,11 @@ function hasPointerCursor(node: Node): boolean {
     });
 
     // Collect XPaths and outerHTMLs of flagged elements per document
-    const flaggedXPathsByDocument = {};
+    const flaggedXPathsByDocument: { [key: string]: { xpath: string; code: string }[] } = {};
 
     for (const docKey in currentFlaggedElementsByDocument) {
       const elements = currentFlaggedElementsByDocument[docKey];
-      const flaggedInfo = []; // Array to hold flagged element info
+      const flaggedInfo: { xpath: string; code: string }[] = []; // Array to hold flagged element info
       elements.forEach(flaggedElement => {
         const parentFlagged = flaggedElement.closest('[data-flagged="true"]');
         if (!parentFlagged || parentFlagged === flaggedElement) {

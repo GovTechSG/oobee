@@ -40,7 +40,7 @@ const silentLogger = createLogger({
 });
 
 // guiInfoLogger feeds the gui information via console log and is mainly used for scanning process
-export const guiInfoLog = (status, data) => {
+export const guiInfoLog = (status: string, data: { numScanned?: number; urlScanned?: string }) => {
   if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE) {
     switch (status) {
       case guiInfoStatusTypes.COMPLETED:

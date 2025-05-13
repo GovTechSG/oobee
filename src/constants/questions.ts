@@ -12,12 +12,13 @@ import {
   validEmail,
   validName,
   validateCustomFlowLabel,
+  parseHeaders,
 } from './common.js';
 import constants, { BrowserTypes, ScannerTypes } from './constants.js';
 
 const userData = getUserDataTxt();
 
-const questions = [];
+const questions: Question[] = [];
 
 const startScanQuestions = [
   {
@@ -95,7 +96,7 @@ const startScanQuestions = [
         clonedBrowserDataDir,
         playwrightDeviceDetailsObject,
         answers.scanner === ScannerTypes.CUSTOM,
-        answers.header,
+        parseHeaders(answers.header),
       );
 
       deleteClonedProfiles(browserToRun);

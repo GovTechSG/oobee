@@ -30,6 +30,7 @@ export const blackListedFileExtensions = [
   'zip',
   'webp',
   'json',
+  'xml'
 ];
 
 export const getIntermediateScreenshotsPath = (datasetsPath: string): string =>
@@ -218,7 +219,7 @@ export const guiInfoStatusTypes = {
   DUPLICATE: 'duplicate',
 };
 
-let launchOptionsArgs = [];
+let launchOptionsArgs: string[] = [];
 
 // Check if running in docker container
 if (fs.existsSync('/.dockerenv')) {
@@ -438,3 +439,82 @@ export enum RuleFlags {
   DISABLE_OOBEE = 'disable-oobee',
   ENABLE_WCAG_AAA = 'enable-wcag-aaa',
 }
+
+// Note: Not all status codes will appear as Crawler will handle it as best effort first. E.g. try to handle redirect
+export const STATUS_CODE_METADATA: Record<number,string> = {
+  // Custom Codes for Oobee's use
+  0: 'Page Excluded',
+  1: 'Not A Supported Document',
+  2: 'Web Crawler Errored',
+
+  // 599 is set because Crawlee returns response status 100, 102, 103 as 599
+  599: 'Uncommon Response Status Code Received',
+
+  // This is Status OK but thrown when the crawler cannot scan the page
+  200: '200 - However Page Could Not Be Scanned', 
+  
+  // 1xx - Informational
+  100: '100 - Continue',
+  101: '101 - Switching Protocols',
+  102: '102 - Processing',
+  103: '103 - Early Hints',
+
+  // 2xx - Browser Doesn't Support
+  204: '204 - No Content',
+  205: '205 - Reset Content',
+
+  // 3xx - Redirection
+  300: '300 - Multiple Choices',
+  301: '301 - Moved Permanently',
+  302: '302 - Found',
+  303: '303 - See Other',
+  304: '304 - Not Modified',
+  305: '305 - Use Proxy',
+  307: '307 - Temporary Redirect',
+  308: '308 - Permanent Redirect',
+  
+  // 4xx - Client Error
+  400: '400 - Bad Request',
+  401: '401 - Unauthorized',
+  402: '402 - Payment Required',
+  403: '403 - Forbidden',
+  404: '404 - Not Found',
+  405: '405 - Method Not Allowed',
+  406: '406 - Not Acceptable',
+  407: '407 - Proxy Authentication Required',
+  408: '408 - Request Timeout',
+  409: '409 - Conflict',
+  410: '410 - Gone',
+  411: '411 - Length Required',
+  412: '412 - Precondition Failed',
+  413: '413 - Payload Too Large',
+  414: '414 - URI Too Long',
+  415: '415 - Unsupported Media Type',
+  416: '416 - Range Not Satisfiable',
+  417: '417 - Expectation Failed',
+  418: "418 - I'm a teapot",
+  421: '421 - Misdirected Request',
+  422: '422 - Unprocessable Content',
+  423: '423 - Locked',
+  424: '424 - Failed Dependency',
+  425: '425 - Too Early',
+  426: '426 - Upgrade Required',
+  428: '428 - Precondition Required',
+  429: '429 - Too Many Requests',
+  431: '431 - Request Header Fields Too Large',
+  451: '451 - Unavailable For Legal Reasons',
+
+  // 5xx - Server Error
+  500: '500 - Internal Server Error',
+  501: '501 - Not Implemented',
+  502: '502 - Bad Gateway',
+  503: '503 - Service Unavailable',
+  504: '504 - Gateway Timeout',
+  505: '505 - HTTP Version Not Supported',
+  506: '506 - Variant Also Negotiates',
+  507: '507 - Insufficient Storage',
+  508: '508 - Loop Detected',
+  510: '510 - Not Extended',
+  511: '511 - Network Authentication Required',
+
+};

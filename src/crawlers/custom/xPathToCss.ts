@@ -1,12 +1,12 @@
-export function xPathToCss(expr: string) {
-  const isValidXPath = expr =>
+export default function xPathToCss(expr: string) {
+  const isValidXPath = (expr: string) =>
     typeof expr !== 'undefined' &&
     expr.replace(/[\s-_=]/g, '') !== '' &&
     expr.length ===
-    expr.replace(
-      /[-_\w:.]+\(\)\s*=|=\s*[-_\w:.]+\(\)|\sor\s|\sand\s|\[(?:[^\/\]]+[\/\[]\/?.+)+\]|starts-with\(|\[.*last\(\)\s*[-\+<>=].+\]|number\(\)|not\(|count\(|text\(|first\(|normalize-space|[^\/]following-sibling|concat\(|descendant::|parent::|self::|child::|/gi,
-      '',
-    ).length;
+      expr.replace(
+        /[-_\w:.]+\(\)\s*=|=\s*[-_\w:.]+\(\)|\sor\s|\sand\s|\[(?:[^\/\]]+[\/\[]\/?.+)+\]|starts-with\(|\[.*last\(\)\s*[-\+<>=].+\]|number\(\)|not\(|count\(|text\(|first\(|normalize-space|[^\/]following-sibling|concat\(|descendant::|parent::|self::|child::|/gi,
+        '',
+      ).length;
 
   const getValidationRegex = () => {
     let regex =
@@ -30,7 +30,7 @@ export function xPathToCss(expr: string) {
       value: '\\s*[\\w/:][-/\\w\\s,:;.]*',
     };
 
-    Object.keys(subRegexes).forEach(key => {
+    Object.keys(subRegexes).forEach((key: keyof typeof subRegexes) => {
       regex = regex.replace(new RegExp(`%\\(${key}\\)s`, 'gi'), subRegexes[key]);
     });
 
@@ -42,14 +42,14 @@ export function xPathToCss(expr: string) {
     return new RegExp(regex, 'gi');
   };
 
-  const preParseXpath = expr =>
+  const preParseXpath = (expr: string) =>
     expr.replace(
       /contains\s*\(\s*concat\(["']\s+["']\s*,\s*@class\s*,\s*["']\s+["']\)\s*,\s*["']\s+([a-zA-Z0-9-_]+)\s+["']\)/gi,
       '@class="$1"',
     );
 
-  function escapeCssIdSelectors(cssSelector) {
-    return cssSelector.replace(/#([^ >]+)/g, (match, id) => {
+  function escapeCssIdSelectors(cssSelector: string) {
+    return cssSelector.replace(/#([^ >]+)/g, (_match, id) => {
       // Escape special characters in the id part
       return `#${id.replace(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, '\\$&')}`;
     });
