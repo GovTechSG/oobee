@@ -98,7 +98,14 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     isSlowScanMode: envDetails.specifiedMaxConcurrency,
     isAdhereRobots: envDetails.followRobots,
     deviceChosen: deviceToScan,
+    nameEmail: undefined as { name: string; email: string } | undefined,
   };
+
+  // Parse nameEmail and add it to scanDetails for use in generateArtifacts
+  if (nameEmail) {
+    const [name, email] = nameEmail.split(':');
+    scanDetails.nameEmail = { name, email };
+  }
 
   const viewportSettings: ViewportSettingsClass = new ViewportSettingsClass(
     deviceChosen,
