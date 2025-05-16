@@ -287,6 +287,7 @@ export const setSentryUser = (userId: string) => {
     Sentry.setUser({ id: userId });
   }
 };
+
   // Legacy code start - Google Sheets submission
 export const formDataFields = {
   formUrl: `https://docs.google.com/forms/d/e/1FAIpQLSem5C8fyNs5TiU5Vv2Y63-SH7CHN86f-LEPxeN_1u_ldUbgUA/formResponse`, // prod

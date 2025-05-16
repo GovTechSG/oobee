@@ -1529,7 +1529,6 @@ const sendWcagBreakdownToSentry = async (
   try {
     // Initialize Sentry
     Sentry.init(sentryConfig);
-    
     // Set user ID for Sentry tracking
     const userData = getUserDataTxt();
     if (userData && userData.userId) {
@@ -1557,7 +1556,7 @@ const sendWcagBreakdownToSentry = async (
       if (formattedTag) {
         // Initialize with zero
         tags[formattedTag] = '0';
-        
+
         // Store in breakdown object with category information
         wcagCriteriaBreakdown[formattedTag] = {
           count: 0,

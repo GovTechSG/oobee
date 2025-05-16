@@ -28,6 +28,7 @@ import constants, {
   // Legacy code start - Google Sheets submission
   formDataFields,
   // Legacy code end - Google Sheets submission
+
   ScannerTypes,
   BrowserTypes,
 } from './constants.js';
@@ -1758,8 +1759,6 @@ export const submitForm = async (
   metadata: string,
 ) => {
 
-
-
   // Legacy code start - Google Sheets submission
     const additionalPageDataJson = JSON.stringify({
       redirectsScanned: numberOfRedirectsScanned,
@@ -1794,7 +1793,9 @@ export const submitForm = async (
         }
       }
     }
-    
+  } catch (legacyError) {
+    console.error('Error submitting legacy Google Sheets form:', legacyError);
+  }
   // Legacy code end - Google Sheets submission
 };
 
