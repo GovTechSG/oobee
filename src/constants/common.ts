@@ -25,10 +25,9 @@ import constants, {
   getDefaultEdgeDataDir,
   getDefaultChromiumDataDir,
   proxy,
-  sentryConfig,
-    // Legacy code start - Google Sheets submission
+  // Legacy code start - Google Sheets submission
   formDataFields,
-    // Legacy code end - Google Sheets submission
+  // Legacy code end - Google Sheets submission
   ScannerTypes,
   BrowserTypes,
 } from './constants.js';
@@ -1758,86 +1757,10 @@ export const submitForm = async (
   numberOfPagesNotScanned: number,
   metadata: string,
 ) => {
-  // Initialize Sentry
-  Sentry.init(sentryConfig);
 
-  // Format the data as you want it to appear in Sentry
-  const additionalPageData = {
-    pagesNotScanned: numberOfPagesNotScanned,
-    redirectsScanned: numberOfRedirectsScanned
-  };
 
-  // Extract issue occurrences from scan results if possible
-  const issueOccurrences = extractIssueOccurrences(scanResultsJson);
-  
-  // Determine if it's a government website
-  const isGov = entryUrl.includes('.gov');
-  
-  // Get email domain/tag
-  const emailTag = email.split('@')[1] || '';
-  
-  // Format timestamp 
-  const timestamp = new Date().toISOString();
-  
-  // Prepare redirect URL if different from entry URL
-  const redirectUrl = scannedUrl !== entryUrl ? scannedUrl : null;
-  
-  try {
-    // Capture the scan data as a Sentry event with each field as a separate entry
-    Sentry.captureEvent({
-      message: `Accessibility scan completed for ${entryUrl}`,
-      level: 'info',
-      tags: {
-        scanType: scanType,
-        browser: browserToRun,
-        isGov: isGov,
-        emailDomain: emailTag,
-      },
-      user: {
-        email: email,
-        username: name,
-      },
-      extra: {
-        // Top-level fields as shown in your screenshot
-        entryUrl: entryUrl,
-        websiteUrl: scannedUrl,
-        scanType: scanType,
-        numberOfPagesScanned: numberOfPagesScanned,
-        metadata: metadata ? JSON.parse(metadata) : {},
-        scanResults: scanResultsJson.length > 8000 ? 
-          scanResultsJson.substring(0, 8000) + '...[truncated]' : 
-          scanResultsJson,
-        
-        // Additional fields you requested
-        additionalPageData: additionalPageData,
-        additionalScan: additionalPageData,
-        additionalPagesData: additionalPageData,
-        
-        // Individual fields as requested
-        timestamp: timestamp,
-        redirectUrl: redirectUrl,
-        isGov: isGov,
-        emailTag: emailTag,
-        consolidatedScanType: scanType.toLowerCase(),
-        email: email,
-        name: name,
-        filledNoPagesScanned: numberOfPagesScanned > 0,
-        redirectsScanned: numberOfRedirectsScanned,
-        pagesNotScanned: numberOfPagesNotScanned,
-        issueOccurrences: issueOccurrences
-      }
-    });
-
-    // IMPORTANT: Wait for the event to be sent
-    await Sentry.flush(2000); // Wait up to 2 seconds for the event to be sent
-    
-    console.log('Scan data sent to Sentry successfully');
-  } catch (error) {
-    console.error('Error sending data to Sentry:', error);
-  }
 
   // Legacy code start - Google Sheets submission
-  try {
     const additionalPageDataJson = JSON.stringify({
       redirectsScanned: numberOfRedirectsScanned,
       pagesNotScanned: numberOfPagesNotScanned,
@@ -1871,10 +1794,7 @@ export const submitForm = async (
         }
       }
     }
-    console.log('Legacy Google Sheets form submitted successfully');
-  } catch (legacyError) {
-    console.error('Error submitting legacy Google Sheets form:', legacyError);
-  }
+    
   // Legacy code end - Google Sheets submission
 };
 

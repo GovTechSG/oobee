@@ -12,7 +12,7 @@ import { AsyncParser, ParserOptions } from '@json2csv/node';
 import zlib from 'zlib';
 import { Base64Encode } from 'base64-stream';
 import { pipeline } from 'stream/promises';
-import constants, { ScannerTypes, sentryConfig } from './constants/constants.js';
+import constants, { ScannerTypes, sentryConfig, setSentryUser } from './constants/constants.js';
 import { urlWithoutAuth } from './constants/common.js';
 // @ts-ignore
 import * as Sentry from '@sentry/node';
@@ -26,6 +26,8 @@ import {
   zipResults,
   getIssuesPercentage,
   getWcagCriteriaMap,
+  categorizeWcagCriteria,
+  getUserDataTxt,
 } from './utils.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
@@ -1521,20 +1523,32 @@ const sendWcagBreakdownToSentry = async (
     browser: string;
     email?: string;
     name?: string;
-  }
+  },
+  allIssues?: AllIssues
 ) => {
   try {
     // Initialize Sentry
     Sentry.init(sentryConfig);
     
-    console.log('Sending WCAG criteria breakdown to Sentry...');
+    // Set user ID for Sentry tracking
+    const userData = getUserDataTxt();
+    if (userData && userData.userId) {
+      setSentryUser(userData.userId);
+    }
     
     // Prepare tags for the event
     const tags: Record<string, string> = {};
-    const wcagCriteriaBreakdown: Record<string, number> = {};
+    const wcagCriteriaBreakdown: Record<string, any> = {};
     
     // Get dynamic WCAG criteria map once
     const wcagCriteriaMap = await getWcagCriteriaMap();
+    
+    // Categorize all WCAG criteria for reporting
+    const wcagIds = Array.from(new Set([
+      ...Object.keys(wcagCriteriaMap),
+      ...Array.from(wcagBreakdown.keys())
+    ]));
+    const categorizedWcag = await categorizeWcagCriteria(wcagIds);
     
     // First ensure all WCAG criteria are included in the tags with a value of 0
     // This ensures criteria with no violations are still reported
@@ -1543,7 +1557,12 @@ const sendWcagBreakdownToSentry = async (
       if (formattedTag) {
         // Initialize with zero
         tags[formattedTag] = '0';
-        wcagCriteriaBreakdown[formattedTag] = 0;
+        
+        // Store in breakdown object with category information
+        wcagCriteriaBreakdown[formattedTag] = {
+          count: 0,
+          category: categorizedWcag[wcagId] || 'mustFix' // Default to mustFix if not found
+        };
       }
     }
     
@@ -1554,43 +1573,92 @@ const sendWcagBreakdownToSentry = async (
         // Add as a tag with the count as value
         tags[formattedTag] = String(count);
         
-        // Store in breakdown object for the extra data
-        wcagCriteriaBreakdown[formattedTag] = count;
+        // Update count in breakdown object
+        if (wcagCriteriaBreakdown[formattedTag]) {
+          wcagCriteriaBreakdown[formattedTag].count = count;
+        } else {
+          // If somehow this wasn't in our initial map
+          wcagCriteriaBreakdown[formattedTag] = {
+            count,
+            category: categorizedWcag[wcagId] || 'mustFix'
+          };
+        }
       }
     }
     
-    // Calculate the WCAG passing percentage
-    const totalCriteria = Object.keys(wcagCriteriaMap).length;
-    const violatedCriteria = wcagBreakdown.size;
-    const passingPercentage = Math.round(((totalCriteria - violatedCriteria) / totalCriteria) * 100);
+    // Calculate category counts based on actual issue counts from the report
+    // rather than occurrence counts from wcagBreakdown
+    const categoryCounts = {
+      mustFix: 0,
+      goodToFix: 0,
+      needsReview: 0
+    };
+
+    if (allIssues) {
+      // Use the actual report data for the counts
+      categoryCounts.mustFix = allIssues.items.mustFix.rules.length;
+      categoryCounts.goodToFix = allIssues.items.goodToFix.rules.length;
+      categoryCounts.needsReview = allIssues.items.needsReview.rules.length;
+    } else {
+      // Fallback to the old way if allIssues not provided
+      Object.values(wcagCriteriaBreakdown).forEach(item => {
+        if (item.count > 0 && categoryCounts[item.category] !== undefined) {
+          categoryCounts[item.category] += 1; // Count rules, not occurrences
+        }
+      });
+    }
     
-    // Add the percentage as a tag
-    tags['WCAG-Percentage-Passed'] = String(passingPercentage);
+    // Add category counts as tags
+    tags['WCAG-MustFix-Count'] = String(categoryCounts.mustFix);
+    tags['WCAG-GoodToFix-Count'] = String(categoryCounts.goodToFix);
+    tags['WCAG-NeedsReview-Count'] = String(categoryCounts.needsReview);
     
+    // Also add occurrence counts for reference
+    if (allIssues) {
+      tags['WCAG-MustFix-Occurrences'] = String(allIssues.items.mustFix.totalItems);
+      tags['WCAG-GoodToFix-Occurrences'] = String(allIssues.items.goodToFix.totalItems);
+      tags['WCAG-NeedsReview-Occurrences'] = String(allIssues.items.needsReview.totalItems);
+    }
+
     // Send the event to Sentry
     await Sentry.captureEvent({
-      message: `WCAG Accessibility Scan Results for ${scanInfo.entryUrl}`,
+      message: "Accessibility Scan Completed",
       level: 'info',
       tags: {
         ...tags,
         event_type: 'accessibility_scan',
         scanType: scanInfo.scanType,
         browser: scanInfo.browser,
-      },
-      user: scanInfo.email && scanInfo.name ? {
-        email: scanInfo.email,
-        username: scanInfo.name
-      } : undefined,
-      extra: {
         entryUrl: scanInfo.entryUrl,
+      },
+      user: {
+        ...(scanInfo.email && scanInfo.name ? {
+          email: scanInfo.email,
+          username: scanInfo.name
+        } : {}),
+        ...(userData && userData.userId ? { id: userData.userId } : {})
+      },
+      extra: {
         wcagBreakdown: wcagCriteriaBreakdown,
-        wcagPassPercentage: passingPercentage
+        reportCounts: allIssues ? {
+          mustFix: {
+            issues: allIssues.items.mustFix.rules.length,
+            occurrences: allIssues.items.mustFix.totalItems
+          },
+          goodToFix: {
+            issues: allIssues.items.goodToFix.rules.length,
+            occurrences: allIssues.items.goodToFix.totalItems
+          },
+          needsReview: {
+            issues: allIssues.items.needsReview.rules.length,
+            occurrences: allIssues.items.needsReview.totalItems
+          }
+        } : undefined
       }
     });
     
     // Wait for events to be sent
     await Sentry.flush(2000);
-    console.log('WCAG criteria breakdown sent to Sentry successfully');
   } catch (error) {
     console.error('Error sending WCAG breakdown to Sentry:', error);
   }
@@ -1921,11 +1989,9 @@ const generateArtifacts = async (
       entryUrl: urlScanned,
       scanType: scanType,
       browser: scanDetails.deviceChosen,
-      ...(scanDetails.nameEmail && {
-        email: scanDetails.nameEmail.email,
-        name: scanDetails.nameEmail.name
-      })
-    });
+      email: scanDetails.nameEmail?.email,
+      name: scanDetails.nameEmail?.name
+    }, allIssues);
   } catch (error) {
     console.error('Error sending WCAG data to Sentry:', error);
   }

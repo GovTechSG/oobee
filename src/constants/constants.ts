@@ -276,9 +276,16 @@ export const impactOrder = {
 };
 
 export const sentryConfig = {
-  dsn: "https://e4ab99e457c531e7bde4a8dc3dd2b1ab@o4509047624761344.ingest.us.sentry.io/4509192349548544",
+  dsn: "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168",
   tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
   profilesSampleRate: 1.0, // Capture 100% of profiles
+};
+
+// Function to set Sentry user ID from userData.txt
+export const setSentryUser = (userId: string) => {
+  if (userId) {
+    Sentry.setUser({ id: userId });
+  }
 };
   // Legacy code start - Google Sheets submission
 export const formDataFields = {

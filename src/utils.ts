@@ -3,6 +3,7 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs-extra';
 import axe, { Rule } from 'axe-core';
+import { v4 as uuidv4 } from 'uuid';
 import constants, {
   BrowserTypes,
   destinationPath,
@@ -97,6 +98,11 @@ export const getUserDataTxt = () => {
   // check if textFilePath exists
   if (fs.existsSync(textFilePath)) {
     const userData = JSON.parse(fs.readFileSync(textFilePath, 'utf8'));
+    // If userId doesn't exist, generate one and save it
+    if (!userData.userId) {
+      userData.userId = uuidv4();
+      fs.writeFileSync(textFilePath, JSON.stringify(userData, null, 2));
+    }
     return userData;
   }
   return null;
@@ -109,13 +115,18 @@ export const writeToUserDataTxt = async (key: string, value: string): Promise<vo
   if (fs.existsSync(textFilePath)) {
     const userData = JSON.parse(fs.readFileSync(textFilePath, 'utf8'));
     userData[key] = value;
+    // Ensure userId exists
+    if (!userData.userId) {
+      userData.userId = uuidv4();
+    }
     fs.writeFileSync(textFilePath, JSON.stringify(userData, null, 2));
   } else {
     const textFilePathDir = path.dirname(textFilePath);
     if (!fs.existsSync(textFilePathDir)) {
       fs.mkdirSync(textFilePathDir, { recursive: true });
     }
-    fs.appendFileSync(textFilePath, JSON.stringify({ [key]: value }, null, 2));
+    // Initialize with userId
+    fs.appendFileSync(textFilePath, JSON.stringify({ [key]: value, userId: uuidv4() }, null, 2));
   }
 };
 
@@ -776,4 +787,232 @@ export const retryFunction = async <T>(func: () => Promise<T>, maxAttempt: numbe
     }
   }
   throw new Error('Maximum number of attempts reached');
+};
+
+/**
+ * Determines which WCAG criteria might appear in the "needsReview" category
+ * based on axe-core's rule configuration.
+ * 
+ * This dynamically analyzes the rules that might produce "incomplete" results which
+ * get categorized as "needsReview" during scans.
+ * 
+ * @param enableWcagAaa Whether to include WCAG AAA criteria
+ * @param disableOobee Whether to disable custom Oobee rules
+ * @returns A map of WCAG criteria IDs to whether they may produce needsReview results
+ */
+export const getPotentialNeedsReviewWcagCriteria = async (
+  enableWcagAaa: boolean = true,
+  disableOobee: boolean = false
+): Promise<Record<string, boolean>> => {
+  // Reuse configuration setup from other functions
+  const axeConfig = getAxeConfiguration({
+    enableWcagAaa,
+    gradingReadabilityFlag: '',
+    disableOobee,
+  });
+
+  // Configure axe-core with our settings
+  axe.configure(axeConfig);
+  
+  // Get all rules from axe-core
+  const allRules = axe.getRules();
+  
+  // Set to store rule IDs that might produce incomplete results
+  const rulesLikelyToProduceIncomplete = new Set<string>();
+  
+  // Dynamically analyze each rule and its checks to determine if it might produce incomplete results
+  for (const rule of allRules) {
+    try {
+      // Skip disabled rules
+      const customRule = axeConfig.rules.find(r => r.id === rule.ruleId);
+      if (customRule && customRule.enabled === false) continue;
+      
+      // Skip frame-tested rule as it's handled specially
+      if (rule.ruleId === 'frame-tested') continue;
+      
+      // Get the rule object from axe-core's internal data
+      const ruleObj = (axe as any)._audit?.rules?.find(r => r.id === rule.ruleId);
+      if (!ruleObj) continue;
+      
+      // For each check in the rule, determine if it might produce an "incomplete" result
+      const checks = [
+        ...(ruleObj.any || []),
+        ...(ruleObj.all || []),
+        ...(ruleObj.none || [])
+      ];
+      
+      // Get check details from axe-core's internal data
+      for (const checkId of checks) {
+        const check = (axe as any)._audit?.checks?.[checkId];
+        if (!check) continue;
+        
+        // A check can produce incomplete results if:
+        // 1. It has an "incomplete" message
+        // 2. Its evaluate function explicitly returns undefined
+        // 3. It is known to need human verification (accessibility issues that are context-dependent)
+        const hasIncompleteMessage = check.messages && 'incomplete' in check.messages;
+        
+        // Many checks are implemented as strings that are later evaluated to functions
+        const evaluateCode = check.evaluate ? check.evaluate.toString() : '';
+        const explicitlyReturnsUndefined = evaluateCode.includes('return undefined') || 
+                                          evaluateCode.includes('return;');
+        
+        // Some checks use specific patterns that indicate potential for incomplete results
+        const indicatesManualVerification = 
+          evaluateCode.includes('return undefined') ||
+          evaluateCode.includes('this.data(') ||
+          evaluateCode.includes('options.reviewOnFail') ||
+          evaluateCode.includes('incomplete') ||
+          (check.metadata && check.metadata.incomplete === true);
+        
+        if (hasIncompleteMessage || explicitlyReturnsUndefined || indicatesManualVerification) {
+          rulesLikelyToProduceIncomplete.add(rule.ruleId);
+          break; // One check is enough to mark the rule
+        }
+      }
+      
+      // Also check rule-level metadata for indicators of potential incomplete results
+      if (ruleObj.metadata) {
+        if (ruleObj.metadata.incomplete === true ||
+            (ruleObj.metadata.messages && 'incomplete' in ruleObj.metadata.messages)) {
+          rulesLikelyToProduceIncomplete.add(rule.ruleId);
+        }
+      }
+    } catch (e) {
+      // Silently continue if we encounter errors analyzing a rule
+      // This is a safeguard against unexpected changes in axe-core's internal structure
+    }
+  }
+  
+  // Also check custom Oobee rules if they're enabled
+  if (!disableOobee) {
+    for (const rule of axeConfig.rules || []) {
+      if (!rule.enabled) continue;
+      
+      // Check if the rule's metadata indicates it might produce incomplete results
+      try {
+        const hasIncompleteMessage = 
+          ((rule as any)?.metadata?.messages?.incomplete !== undefined) ||
+          (axeConfig.checks || []).some(check => 
+            check.id === rule.id && 
+            (check.metadata?.messages?.incomplete !== undefined));
+        
+        if (hasIncompleteMessage) {
+          rulesLikelyToProduceIncomplete.add(rule.id);
+        }
+      } catch (e) {
+        // Continue if we encounter errors
+      }
+    }
+  }
+  
+  // Map from WCAG criteria IDs to whether they might produce needsReview results
+  const potentialNeedsReviewCriteria: Record<string, boolean> = {};
+  
+  // Process each rule to map to WCAG criteria
+  for (const rule of allRules) {
+    if (rule.ruleId === 'frame-tested') continue;
+    
+    const tags = rule.tags || [];
+    if (tags.includes('experimental') || tags.includes('deprecated')) continue;
+    
+    // Map rule to WCAG criteria
+    for (const tag of tags) {
+      if (/^wcag\d+$/.test(tag)) {
+        const mightNeedReview = rulesLikelyToProduceIncomplete.has(rule.ruleId);
+        
+        // If we haven't seen this criterion before or we're updating it to true
+        if (mightNeedReview || !potentialNeedsReviewCriteria[tag]) {
+          potentialNeedsReviewCriteria[tag] = mightNeedReview;
+        }
+      }
+    }
+  }
+  
+  return potentialNeedsReviewCriteria;
+};
+
+/**
+ * Categorizes a WCAG criterion into one of: "mustFix", "goodToFix", or "needsReview"
+ * for use in Sentry reporting
+ * 
+ * @param wcagId The WCAG criterion ID (e.g., "wcag144")
+ * @param enableWcagAaa Whether WCAG AAA criteria are enabled
+ * @param disableOobee Whether Oobee custom rules are disabled
+ * @returns The category: "mustFix", "goodToFix", or "needsReview"
+ */
+export const categorizeWcagCriterion = async (
+  wcagId: string,
+  enableWcagAaa: boolean = true,
+  disableOobee: boolean = false
+): Promise<'mustFix' | 'goodToFix' | 'needsReview'> => {
+  // First check if this criterion might produce "needsReview" results
+  const needsReviewMap = await getPotentialNeedsReviewWcagCriteria(enableWcagAaa, disableOobee);
+  if (needsReviewMap[wcagId]) {
+    return 'needsReview';
+  }
+  
+  // Get the WCAG criteria map to check the level
+  const wcagCriteriaMap = await getWcagCriteriaMap(enableWcagAaa, disableOobee);
+  const criterionInfo = wcagCriteriaMap[wcagId];
+  
+  if (!criterionInfo) {
+    // If we can't find info, default to mustFix for safety
+    return 'mustFix';
+  }
+  
+  // Check if it's a level A or AA criterion (mustFix) or AAA (goodToFix)
+  if (criterionInfo.level === 'a' || criterionInfo.level === 'aa') {
+    return 'mustFix';
+  } else {
+    return 'goodToFix';
+  }
+};
+
+/**
+ * Batch categorizes multiple WCAG criteria for Sentry reporting
+ * 
+ * @param wcagIds Array of WCAG criterion IDs (e.g., ["wcag144", "wcag143"])
+ * @param enableWcagAaa Whether WCAG AAA criteria are enabled
+ * @param disableOobee Whether Oobee custom rules are disabled
+ * @returns Object mapping each criterion to its category
+ */
+export const categorizeWcagCriteria = async (
+  wcagIds: string[],
+  enableWcagAaa: boolean = true,
+  disableOobee: boolean = false
+): Promise<Record<string, 'mustFix' | 'goodToFix' | 'needsReview'>> => {
+  // Get both maps once to avoid repeated expensive calls
+  const [needsReviewMap, wcagCriteriaMap] = await Promise.all([
+    getPotentialNeedsReviewWcagCriteria(enableWcagAaa, disableOobee),
+    getWcagCriteriaMap(enableWcagAaa, disableOobee)
+  ]);
+  
+  const result: Record<string, 'mustFix' | 'goodToFix' | 'needsReview'> = {};
+  
+  wcagIds.forEach(wcagId => {
+    // First check if this criterion might produce "needsReview" results
+    if (needsReviewMap[wcagId]) {
+      result[wcagId] = 'needsReview';
+      return;
+    }
+    
+    // Get criterion info
+    const criterionInfo = wcagCriteriaMap[wcagId];
+    
+    if (!criterionInfo) {
+      // If we can't find info, default to mustFix for safety
+      result[wcagId] = 'mustFix';
+      return;
+    }
+    
+    // Check if it's a level A or AA criterion (mustFix) or AAA (goodToFix)
+    if (criterionInfo.level === 'a' || criterionInfo.level === 'aa') {
+      result[wcagId] = 'mustFix';
+    } else {
+      result[wcagId] = 'goodToFix';
+    }
+  });
+  
+  return result;
 };
