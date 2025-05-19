@@ -1881,21 +1881,27 @@ export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
     page.waitForLoadState('networkidle'), // Wait for network requests to settle
     new Promise(resolve => setTimeout(resolve, timeout)), // Hard timeout as a fallback
     page.evaluate(OBSERVER_TIMEOUT => {
-      return new Promise(resolve => {
+      return new Promise<string>(resolve => {
         // Skip mutation check for PDFs
         if (document.contentType === 'application/pdf') {
           resolve('Skipping DOM mutation check for PDF.');
           return;
         }
 
+        const root = document.documentElement || document.body;
+        if (!(root instanceof Node)) {
+          // Not a valid DOM root—treat as loaded
+          resolve('No valid root to observe; treating as loaded.');
+          return;
+        }
+
         let timeout: NodeJS.Timeout;
         let mutationCount = 0;
-        const MAX_MUTATIONS = 250; // Limit max mutations
+        const MAX_MUTATIONS = 250;
         const mutationHash: Record<string, number> = {};
 
         const observer = new MutationObserver(mutationsList => {
           clearTimeout(timeout);
-
           mutationCount++;
           if (mutationCount > MAX_MUTATIONS) {
             observer.disconnect();
@@ -1903,24 +1909,20 @@ export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
             return;
           }
 
-          mutationsList.forEach(mutation => {
+          for (const mutation of mutationsList) {
             if (mutation.target instanceof Element) {
-              Array.from(mutation.target.attributes).forEach(attr => {
-                const mutationKey = `${mutation.target.nodeName}-${attr.name}`;
-
-                if (mutationKey) {
-                  mutationHash[mutationKey] = (mutationHash[mutationKey] || 0) + 1;
-
-                  if (mutationHash[mutationKey] >= 10) {
-                    observer.disconnect();
-                    resolve(`Repeated mutation detected for ${mutationKey}, exiting.`);
-                  }
+              for (const attr of Array.from(mutation.target.attributes)) {
+                const key = `${mutation.target.nodeName}-${attr.name}`;
+                mutationHash[key] = (mutationHash[key] || 0) + 1;
+                if (mutationHash[key] >= 10) {
+                  observer.disconnect();
+                  resolve(`Repeated mutation detected for ${key}, exiting.`);
+                  return;
                 }
-              });
+              }
             }
-          });
+          }
 
-          // If no mutations occur for 1 second, resolve
           timeout = setTimeout(() => {
             observer.disconnect();
             resolve('DOM stabilized after mutations.');
@@ -1933,9 +1935,10 @@ export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
           resolve('Observer timeout reached, exiting.');
         }, OBSERVER_TIMEOUT);
 
-        observer.observe(document.documentElement, {
+        // Only observe if root is a Node
+        observer.observe(root, {
           childList: true,
-          subtree: true,
+          subtree:   true,
           attributes: true,
         });
       });
