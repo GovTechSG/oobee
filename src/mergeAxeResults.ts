@@ -1541,6 +1541,7 @@ const sendWcagBreakdownToSentry = async (
     name?: string;
   },
   allIssues?: AllIssues,
+  pagesScannedCount: number = 0,
 ) => {
   try {
     // Initialize Sentry
@@ -1632,6 +1633,12 @@ const sendWcagBreakdownToSentry = async (
       tags['WCAG-MustFix-Occurrences'] = String(allIssues.items.mustFix.totalItems);
       tags['WCAG-GoodToFix-Occurrences'] = String(allIssues.items.goodToFix.totalItems);
       tags['WCAG-NeedsReview-Occurrences'] = String(allIssues.items.needsReview.totalItems);
+      
+      // Add number of pages scanned tag
+      tags['Pages-Scanned-Count'] = String(allIssues.totalPagesScanned);
+    } else if (pagesScannedCount > 0) {
+      // Still add the pages scanned count even if we don't have allIssues
+      tags['Pages-Scanned-Count'] = String(pagesScannedCount);
     }
 
     // Send the event to Sentry
@@ -2020,6 +2027,7 @@ const generateArtifacts = async (
         name: scanDetails.nameEmail?.name,
       },
       allIssues,
+      pagesScanned.length,
     );
   } catch (error) {
     console.error('Error sending WCAG data to Sentry:', error);
