@@ -18,8 +18,6 @@ import { minimatch } from 'minimatch';
 import { globSync, GlobOptionsWithFileTypesFalse } from 'glob';
 import { LaunchOptions, Locator, Page, devices, webkit } from 'playwright';
 import printMessage from 'print-message';
-// @ts-ignore
-import * as Sentry from '@sentry/node';
 import constants, {
   getDefaultChromeDataDir,
   getDefaultEdgeDataDir,
@@ -28,7 +26,6 @@ import constants, {
   // Legacy code start - Google Sheets submission
   formDataFields,
   // Legacy code end - Google Sheets submission
-
   ScannerTypes,
   BrowserTypes,
 } from './constants.js';
@@ -1758,81 +1755,42 @@ export const submitForm = async (
   numberOfPagesNotScanned: number,
   metadata: string,
 ) => {
-
   // Legacy code start - Google Sheets submission
-    const additionalPageDataJson = JSON.stringify({
-      redirectsScanned: numberOfRedirectsScanned,
-      pagesNotScanned: numberOfPagesNotScanned,
-    });
+  const additionalPageDataJson = JSON.stringify({
+    redirectsScanned: numberOfRedirectsScanned,
+    pagesNotScanned: numberOfPagesNotScanned,
+  });
 
-    let finalUrl =
-      `${formDataFields.formUrl}?` +
-      `${formDataFields.entryUrlField}=${entryUrl}&` +
-      `${formDataFields.scanTypeField}=${scanType}&` +
-      `${formDataFields.emailField}=${email}&` +
-      `${formDataFields.nameField}=${name}&` +
-      `${formDataFields.resultsField}=${encodeURIComponent(scanResultsJson)}&` +
-      `${formDataFields.numberOfPagesScannedField}=${numberOfPagesScanned}&` +
-      `${formDataFields.additionalPageDataField}=${encodeURIComponent(additionalPageDataJson)}&` +
-      `${formDataFields.metadataField}=${encodeURIComponent(metadata)}`;
+  let finalUrl =
+    `${formDataFields.formUrl}?` +
+    `${formDataFields.entryUrlField}=${entryUrl}&` +
+    `${formDataFields.scanTypeField}=${scanType}&` +
+    `${formDataFields.emailField}=${email}&` +
+    `${formDataFields.nameField}=${name}&` +
+    `${formDataFields.resultsField}=${encodeURIComponent(scanResultsJson)}&` +
+    `${formDataFields.numberOfPagesScannedField}=${numberOfPagesScanned}&` +
+    `${formDataFields.additionalPageDataField}=${encodeURIComponent(additionalPageDataJson)}&` +
+    `${formDataFields.metadataField}=${encodeURIComponent(metadata)}`;
 
-    if (scannedUrl !== entryUrl) {
-      finalUrl += `&${formDataFields.redirectUrlField}=${scannedUrl}`;
-    }
+  if (scannedUrl !== entryUrl) {
+    finalUrl += `&${formDataFields.redirectUrlField}=${scannedUrl}`;
+  }
 
-    if (proxy) {
-      await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
-    } else {
-      try {
-        await axios.get(finalUrl, { timeout: 2000 });
-      } catch (error) {
-        if (error.code === 'ECONNABORTED') {
-          if (browserToRun || constants.launcher === webkit) {
-            await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
-          }
+  if (proxy) {
+    await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
+  } else {
+    try {
+      await axios.get(finalUrl, { timeout: 2000 });
+    } catch (error) {
+      if (error.code === 'ECONNABORTED') {
+        if (browserToRun || constants.launcher === webkit) {
+          await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
         }
       }
     }
-  } catch (legacyError) {
-    console.error('Error submitting legacy Google Sheets form:', legacyError);
   }
-  // Legacy code end - Google Sheets submission
 };
-
-// Helper function to extract issue occurrences from scan results
-function extractIssueOccurrences(scanResultsJson: string): number {
-  try {
-    const results = JSON.parse(scanResultsJson);
-    // Count total occurrences from all issues in the scan results
-    // This may need adjustment based on your specific JSON structure
-    let totalOccurrences = 0;
-    
-    // Try to parse the format shown in your screenshot
-    if (typeof results === 'object') {
-      // Loop through all keys that have "occurrences" properties
-      Object.keys(results).forEach(key => {
-        if (results[key] && typeof results[key] === 'object' && 'occurrences' in results[key]) {
-          totalOccurrences += parseInt(results[key].occurrences, 10) || 0;
-        }
-      });
-      
-      // If we found any occurrences, return the total
-      if (totalOccurrences > 0) {
-        return totalOccurrences;
-      }
-    }
-    
-    // Fallback to direct occurrences property if available
-    if (results && results.occurrences) {
-      return parseInt(results.occurrences, 10) || 0;
-    }
-    
-    return 0;
-  } catch (e) {
-    console.error('Error extracting issue occurrences:', e);
-    return 0;
-  }
-}
+// Legacy code end - Google Sheets submission
 
 export async function initModifiedUserAgent(
   browser?: string,
