@@ -482,8 +482,6 @@ const crawlDomain = async ({
       async crawlingContext => {
         const { page, request } = crawlingContext;
 
-        request.skipNavigation = true;
-
         await page.evaluate(() => {
           return new Promise(resolve => {
             let timeout;
@@ -514,9 +512,11 @@ const crawlDomain = async ({
               resolve('Observer timeout reached.');
             }, OBSERVER_TIMEOUT);
     
-            // **HERE**: select the real DOM node inside evaluate
-            const root = document.documentElement;
-            observer.observe(root, { childList: true, subtree: true });
+            const root = document.documentElement || document.body || document;
+            if (!root || typeof observer.observe !== 'function') {
+              resolve('No root node to observe.');
+              return;
+            }
           });
         });
 
