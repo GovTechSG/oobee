@@ -6,12 +6,9 @@ import which from 'which';
 import os from 'os';
 import { spawnSync, execSync } from 'child_process';
 import { chromium } from 'playwright';
+import * as Sentry from '@sentry/node';
 import { silentLogger } from '../logs.js';
 import { PageInfo } from '../mergeAxeResults.js';
-import * as https from 'https';
-import * as Sentry from '@sentry/node';
-import { makeNodeTransport } from '@sentry/node';
-import type { NodeOptions } from '@sentry/node';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -278,25 +275,11 @@ export const impactOrder = {
   critical: 3,
 };
 
-// Insecure HTTPS agent to bypass cert chain issues
-const insecureAgent = new https.Agent({
-  rejectUnauthorized: false,
-});
-
-// Create a transport factory with a type cast to bypass TS limitation
-const customTransport = () =>
-  makeNodeTransport({
-    httpAgent: insecureAgent,
-    httpsAgent: insecureAgent,
-  } as any); // 👈 bypass TS here since it's valid at runtime
-
-export const sentryConfig: NodeOptions = {
-  dsn: process.env.OOBEE_SENTRY_DSN || 'https://example@o.sentry.io/project',
-  tracesSampleRate: 1.0,
-  profilesSampleRate: 1.0,
-  transport: customTransport,
+export const sentryConfig = {
+  dsn: process.env.OOBEE_SENTRY_DSN || "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168",
+  tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
+  profilesSampleRate: 1.0, // Capture 100% of profiles
 };
-
 
 // Function to set Sentry user ID from userData.txt
 export const setSentryUser = (userId: string) => {
