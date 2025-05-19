@@ -1533,6 +1533,7 @@ function populateScanPagesDetail(allIssues: AllIssues): void {
 // Send WCAG criteria breakdown to Sentry
 const sendWcagBreakdownToSentry = async (
   wcagBreakdown: Map<string, number>,
+  ruleIdJson: any,
   scanInfo: {
     entryUrl: string;
     scanType: string;
@@ -1662,6 +1663,7 @@ const sendWcagBreakdownToSentry = async (
         ...(userData && userData.userId ? { id: userData.userId } : {}),
       },
       extra: {
+        additionalScanMetadata: ruleIdJson != null ? JSON.stringify(ruleIdJson)  : "{}",
         wcagBreakdown: wcagCriteriaBreakdown,
         reportCounts: allIssues
           ? {
@@ -2013,12 +2015,16 @@ const generateArtifacts = async (
       printMessage([`Error in zipping results: ${error}`]);
     });
 
+  // Generate scrubbed HTML Code Snippets
+  const ruleIdJson = createRuleIdJson(allIssues);
+
   // At the end of the function where results are generated, add:
   try {
     // Always send WCAG breakdown to Sentry, even if no violations were found
     // This ensures that all criteria are reported, including those with 0 occurrences
     await sendWcagBreakdownToSentry(
       wcagOccurrencesMap,
+      ruleIdJson,
       {
         entryUrl: urlScanned,
         scanType,
@@ -2033,7 +2039,7 @@ const generateArtifacts = async (
     console.error('Error sending WCAG data to Sentry:', error);
   }
 
-  return createRuleIdJson(allIssues);
+  return ruleIdJson;
 };
 
 export default generateArtifacts;
