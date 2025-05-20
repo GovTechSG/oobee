@@ -111,11 +111,10 @@ jobs:
       - name: Locate signing identity
         id: find_identity
         run: |
-          security find-identity -v -p codesigning build.keychain \
-            | grep "Developer ID Application:" \
-            | sed -E 's/^[[:space:]]*[0-9]+\) ([^"]+).*$/\1/' \
-            > identity.txt
-          echo "::set-output name=id::$(cat identity.txt)"
+          ID=$(security find-identity -v -p codesigning build.keychain \
+               | grep "Developer ID Application:" \
+               | sed -E 's/^[[:space:]]*[0-9]+\) ([^"]+).*$/\1/')
+          echo "id=$ID" >> $GITHUB_OUTPUT
 
       - name: Sign required binaries for MacOS
         run: |
