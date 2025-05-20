@@ -74,40 +74,43 @@ jobs:
         run: |
           ./install_oobee_dependencies.command
 
-      - name: Decode cert & key
+      - name: Decode & import certs into temporary keychain
         run: |
-          echo "$CER_B64" | openssl base64 -d -A > developer_id_application.cer
-          echo "$P12_B64" | openssl base64 -d -A > developer_id_application.p12
+          # --- prepare tmp dir ---
+          mkdir -p /tmp/signing
 
-      - name: Create temporary keychain
-        run: |
+          # --- decode into /tmp ---
+          echo "$CER_B64" | openssl base64 -d -A > /tmp/signing/developer_id_application.cer
+          echo "$P12_B64" | openssl base64 -d -A > /tmp/signing/developer_id_application.p12
+
+          # --- create & unlock keychain ---
           security create-keychain -p "" build.keychain
           security set-keychain-settings -lut 7200 build.keychain
           security list-keychains -s build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
 
-
-      - name: Import Developer ID cert & key
-        run: |
-          security import developer_id_application.cer \
+          # --- import cert + key, grant codesign access ---
+          security import /tmp/signing/developer_id_application.cer \
             -k build.keychain \
             -T /usr/bin/codesign
-          security import developer_id_application.p12 \
+          security import /tmp/signing/developer_id_application.p12 \
             -k build.keychain \
             -P "$P12_PASSWORD" \
             -T /usr/bin/codesign
 
-          # 1) Unlock it
+          # 1) Unlock it (just to be safe)
           security unlock-keychain -p "" build.keychain
 
           # 2) Allow codesign to use the key without prompting
           security set-key-partition-list \
             -S apple-tool:,apple: \
-            -s \
-            -k "" \
+            -s -k "" \
             build.keychain
 
+          # --- shred entire tmp dir ---
+          shred -u -z -v /tmp/signing/* && rm -rf /tmp/signing
+          
       - name: Locate signing identity
         id: find_identity
         run: |
