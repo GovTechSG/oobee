@@ -377,7 +377,7 @@ In scanPagesSummary.json and scanPagesDetail,json, within each `pagesNotScanned`
 | 101  | 101 – Switching Protocols                      |
 | 102  | 102 – Processing                               |
 | 103  | 103 – Early Hints                              |
-| 200  | 200 – However Page Could Not Be Scanned        |
+| 200  | Oobee was not able to scan the page due to access restrictions or compatibility issues        |
 | 204  | 204 – No Content                               |
 | 205  | 205 – Reset Content                            |
 | 300  | 300 – Multiple Choices                         |

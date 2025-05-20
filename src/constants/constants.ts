@@ -497,7 +497,7 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   599: 'Uncommon Response Status Code Received',
 
   // This is Status OK but thrown when the crawler cannot scan the page
-  200: '200 - However Page Could Not Be Scanned', 
+  200: 'Oobee was not able to scan the page due to access restrictions or compatibility issues', 
   
   // 1xx - Informational
   100: '100 - Continue',
