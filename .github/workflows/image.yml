@@ -108,8 +108,8 @@ jobs:
             -s -k "" \
             build.keychain
 
-          # --- shred entire tmp dir ---
-          shred -u -z -v /tmp/signing/* && rm -rf /tmp/signing
+          # --- delete entire tmp dir ---
+          rm -rf -v /tmp/signing/* && rm -rf /tmp/signing
           
       - name: Locate signing identity
         id: find_identity
