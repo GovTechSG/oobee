@@ -138,6 +138,10 @@ jobs:
             fi
           done
 
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain build.keychain
+        
       - name: Zip entire Purple folder (Mac)
         run: |
           zip oobee-portable-mac.zip -y -r ./
