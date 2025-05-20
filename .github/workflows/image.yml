@@ -44,7 +44,11 @@ jobs:
             oobee-portable-windows.zip
 
   mac-install-oobee:
-    runs-on: self-hosted
+    runs-on: macos-latest
+    env:
+      CER_B64:     ${{ secrets.ORG_DEVELOPER_ID_APPLICATION_CERT_CER }}
+      P12_B64:     ${{ secrets.ORG_DEVELOPER_ID_APPLICATION_PRIVATEKEY_P12 }}
+      P12_PASSWORD: ${{ secrets.ORG_DEVELOPER_ID_APPLICATION_PRIVATEKEY_P12_PASSWORD }}
     environment: macos
 
     steps:
@@ -69,6 +73,28 @@ jobs:
       - name: Install Purple dependencies for MacOS
         run: |
           ./install_oobee_dependencies.command
+
+      - name: Decode cert & key
+        run: |
+          echo "$CER_B64" | openssl base64 -d -A > developer_id_application.cer
+          echo "$P12_B64" | openssl base64 -d -A > developer_id_application.p12
+
+      - name: Create temporary keychain
+        run: |
+          security create-keychain -p "" build.keychain
+          security set-keychain-settings -lut 7200 build.keychain
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+
+      - name: Import Developer ID cert & key
+        run: |
+          security import developer_id_application.cer \
+            -k build.keychain
+          security import developer_id_application.p12 \
+            -k build.keychain \
+            -P "$P12_PASSWORD" \
+            -A /usr/bin/codesign
 
       - name: Sign required binaries for MacOS
         run: |
