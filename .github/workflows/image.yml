@@ -87,14 +87,35 @@ jobs:
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
 
+
       - name: Import Developer ID cert & key
         run: |
           security import developer_id_application.cer \
-            -k build.keychain
+            -k build.keychain \
+            -T /usr/bin/codesign
           security import developer_id_application.p12 \
             -k build.keychain \
             -P "$P12_PASSWORD" \
-            -A /usr/bin/codesign
+            -T /usr/bin/codesign
+
+          # 1) Unlock it
+          security unlock-keychain -p "" build.keychain
+
+          # 2) Allow codesign to use the key without prompting
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "" \
+            build.keychain
+
+      - name: Locate signing identity
+        id: find_identity
+        run: |
+          security find-identity -v -p codesigning build.keychain \
+            | grep "Developer ID Application:" \
+            | sed -E 's/^[[:space:]]*[0-9]+\) ([^"]+).*$/\1/' \
+            > identity.txt
+          echo "::set-output name=id::$(cat identity.txt)"
 
       - name: Sign required binaries for MacOS
         run: |
