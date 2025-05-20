@@ -1532,6 +1532,7 @@ function populateScanPagesDetail(allIssues: AllIssues): void {
 
 // Send WCAG criteria breakdown to Sentry
 const sendWcagBreakdownToSentry = async (
+  appVersion: string,
   wcagBreakdown: Map<string, number>,
   ruleIdJson: any,
   scanInfo: {
@@ -1556,6 +1557,9 @@ const sendWcagBreakdownToSentry = async (
     // Prepare tags for the event
     const tags: Record<string, string> = {};
     const wcagCriteriaBreakdown: Record<string, any> = {};
+
+    // Tag app version
+    tags['version'] = appVersion;
 
     // Get dynamic WCAG criteria map once
     const wcagCriteriaMap = await getWcagCriteriaMap();
@@ -2023,6 +2027,7 @@ const generateArtifacts = async (
     // Always send WCAG breakdown to Sentry, even if no violations were found
     // This ensures that all criteria are reported, including those with 0 occurrences
     await sendWcagBreakdownToSentry(
+      oobeeAppVersion,
       wcagOccurrencesMap,
       ruleIdJson,
       {
