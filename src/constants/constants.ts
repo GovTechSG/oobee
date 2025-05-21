@@ -564,3 +564,64 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   511: '511 - Network Authentication Required',
 
 };
+
+export const pdfCoverPageHtml = process.env.INSPECT_PLUS
+  ? '<html lang="en"></html>'
+  : `
+  <!doctype html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Oobee Scan Summary</title>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        font-family: 'Open Sans', sans-serif;
+      }
+      .cover-content {
+        text-align: center;
+        max-width: 80%;
+      }
+      h1 {
+        font-size: 32px;
+        margin-bottom: 24px;
+        color: #333;
+      }
+      .logo {
+        margin-bottom: 40px;
+        width: 120px;
+        height: auto;
+      }
+      .subtitle {
+        font-size: 20px;
+        color: #555;
+        margin-bottom: 16px;
+      }
+      .date {
+        margin-top: 32px;
+        font-size: 16px;
+        color: #777;
+      }
+      .page-break {
+        page-break-after: always;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="cover-content">
+      <img class="logo" src="data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M23.5 6C11.7707 6 10 11.1369 10 19.23V28.77C10 36.8631 11.7707 42 23.5 42C35.2293 42 37 36.8631 37 28.77V19.23C37 11.1369 35.2293 6 23.5 6ZM25.4903 14.5985V35.0562H21.5097V12.9438H27.8925L25.4903 14.5985Z' fill='%239021A6'/%3E%3C/svg%3E" alt="">
+      <h1>Accessibility Scan Summary</h1>
+      <p class="subtitle">Comprehensive analysis of WCAG compliance and accessibility issues</p>
+      <p class="date">Generated on ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+    </div>
+    <div class="page-break"></div>
+  </body>
+  </html>
+`;
