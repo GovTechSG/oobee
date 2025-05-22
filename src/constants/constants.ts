@@ -352,7 +352,7 @@ const wcagLinks = {
   'WCAG 1.2.2': 'https://www.w3.org/TR/WCAG22/#captions-prerecorded',
   'WCAG 1.3.1': 'https://www.w3.org/TR/WCAG22/#info-and-relationships',
   // 'WCAG 1.3.4': 'https://www.w3.org/TR/WCAG22/#orientation', - TODO: review for veraPDF
-  'WCAG 1.3.5': 'https://www.w3.org/TR/WCAG22/#use-of-color',
+  'WCAG 1.3.5': 'https://www.w3.org/TR/WCAG22/#identify-input-purpose',
   'WCAG 1.4.1': 'https://www.w3.org/TR/WCAG22/#use-of-color',
   'WCAG 1.4.2': 'https://www.w3.org/TR/WCAG22/#audio-control',
   'WCAG 1.4.3': 'https://www.w3.org/TR/WCAG22/#contrast-minimum',
@@ -360,7 +360,7 @@ const wcagLinks = {
   'WCAG 1.4.6': 'https://www.w3.org/TR/WCAG22/#contrast-enhanced', // AAA
   // 'WCAG 1.4.10': 'https://www.w3.org/TR/WCAG22/#reflow', - TODO: review for veraPDF
   'WCAG 1.4.12': 'https://www.w3.org/TR/WCAG22/#text-spacing',
-  'WCAG 2.1.1': 'https://www.w3.org/TR/WCAG22/#pause-stop-hide',
+  'WCAG 2.1.1': 'https://www.w3.org/TR/WCAG22/#keyboard',
   'WCAG 2.2.1': 'https://www.w3.org/TR/WCAG22/#timing-adjustable',
   'WCAG 2.2.2': 'https://www.w3.org/TR/WCAG22/#pause-stop-hide',
   'WCAG 2.2.4': 'https://www.w3.org/TR/WCAG22/#interruptions', // AAA
@@ -370,7 +370,7 @@ const wcagLinks = {
   'WCAG 2.4.9': 'https://www.w3.org/TR/WCAG22/#link-purpose-link-only', // AAA
   'WCAG 2.5.8': 'https://www.w3.org/TR/WCAG22/#target-size-minimum',
   'WCAG 3.1.1': 'https://www.w3.org/TR/WCAG22/#language-of-page',
-  'WCAG 3.1.2': 'https://www.w3.org/TR/WCAG22/#labels-or-instructions',
+  'WCAG 3.1.2': 'https://www.w3.org/TR/WCAG22/#language-of-parts',
   'WCAG 3.1.5': 'https://www.w3.org/TR/WCAG22/#reading-level', // AAA
   'WCAG 3.2.5': 'https://www.w3.org/TR/WCAG22/#change-on-request', // AAA
   'WCAG 3.3.2': 'https://www.w3.org/TR/WCAG22/#labels-or-instructions',
