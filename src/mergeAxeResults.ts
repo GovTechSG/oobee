@@ -430,7 +430,10 @@ const writeSummaryHTML = async (
   const template = ejs.compile(ejsString, {
     filename: path.join(dirname, './static/ejs/summary.ejs'),
   });
-  const html = template(allIssues);
+  const html = template({
+    ...allIssues,
+    isInspectPlus: process.env.INSPECT_PLUS === 'true'
+  });
   fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
 };
 
