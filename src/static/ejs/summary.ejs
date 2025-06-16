@@ -14,7 +14,7 @@
     <%- include('partials/styles/styles') %>
   </head>
   <body class="d-flex flex-column">
-    <%- include('partials/summaryHeader') %> <%- include('partials/summaryMain') %> <%-
+    <%- include('partials/summaryHeader', { isInspectPlus }) %> <%- include('partials/summaryMain', { isInspectPlus }) %> <%-
     include('partials/scripts/popper') %> <%- include('partials/scripts/bootstrap') %> <%-
     include('partials/scripts/highlightjs') %> <%- include('partials/scripts/utils') %> <%-
     include('partials/scripts/ruleOffcanvas') %> <%- include('partials/scripts/summaryScanResults', { isInspectPlus })
