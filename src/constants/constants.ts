@@ -221,6 +221,7 @@ export const guiInfoStatusTypes = {
 
 let launchOptionsArgs: string[] = [];
 
+fs.mkdirSync('/tmp/oobee/crashpad', { recursive: true });
 // Check if running in docker container
 if (fs.existsSync('/.dockerenv')) {
   launchOptionsArgs = [
