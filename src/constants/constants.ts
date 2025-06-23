@@ -30,7 +30,7 @@ export const blackListedFileExtensions = [
   'zip',
   'webp',
   'json',
-  'xml'
+  'xml',
 ];
 
 export const getIntermediateScreenshotsPath = (datasetsPath: string): string =>
@@ -223,7 +223,12 @@ let launchOptionsArgs: string[] = [];
 
 // Check if running in docker container
 if (fs.existsSync('/.dockerenv')) {
-  launchOptionsArgs = ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'];
+  launchOptionsArgs = [
+    '--disable-gpu',
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
+    '--homedir=/tmp/oobee/home',
+  ];
 }
 
 export const getProxy = (): { type: string; url: string } | null => {
@@ -276,7 +281,7 @@ export const impactOrder = {
 };
 
 /**
- * Suppresses the "Setting the NODE_TLS_REJECT_UNAUTHORIZED 
+ * Suppresses the "Setting the NODE_TLS_REJECT_UNAUTHORIZED
  * environment variable to '0' is insecure" warning,
  * then disables TLS validation globally.
  */
@@ -300,7 +305,9 @@ export function suppressTlsRejectWarning(): void {
 suppressTlsRejectWarning();
 
 export const sentryConfig = {
-  dsn: process.env.OOBEE_SENTRY_DSN || "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168",
+  dsn:
+    process.env.OOBEE_SENTRY_DSN ||
+    'https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168',
   tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
   profilesSampleRate: 1.0, // Capture 100% of profiles
 };
@@ -312,7 +319,7 @@ export const setSentryUser = (userId: string) => {
   }
 };
 
-  // Legacy code start - Google Sheets submission
+// Legacy code start - Google Sheets submission
 export const formDataFields = {
   formUrl: `https://docs.google.com/forms/d/e/1FAIpQLSem5C8fyNs5TiU5Vv2Y63-SH7CHN86f-LEPxeN_1u_ldUbgUA/formResponse`, // prod
   entryUrlField: 'entry.1562345227',
@@ -325,7 +332,7 @@ export const formDataFields = {
   additionalPageDataField: 'entry.2090887881',
   metadataField: 'entry.1027769131',
 };
-  // Legacy code end - Google Sheets submission
+// Legacy code end - Google Sheets submission
 
 export const sitemapPaths = [
   '/sitemap.xml',
@@ -487,7 +494,7 @@ export enum RuleFlags {
 }
 
 // Note: Not all status codes will appear as Crawler will handle it as best effort first. E.g. try to handle redirect
-export const STATUS_CODE_METADATA: Record<number,string> = {
+export const STATUS_CODE_METADATA: Record<number, string> = {
   // Custom Codes for Oobee's use
   0: 'Page Excluded',
   1: 'Not A Supported Document',
@@ -497,8 +504,8 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   599: 'Uncommon Response Status Code Received',
 
   // This is Status OK but thrown when the crawler cannot scan the page
-  200: 'Oobee was not able to scan the page due to access restrictions or compatibility issues', 
-  
+  200: 'Oobee was not able to scan the page due to access restrictions or compatibility issues',
+
   // 1xx - Informational
   100: '100 - Continue',
   101: '101 - Switching Protocols',
@@ -518,7 +525,7 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   305: '305 - Use Proxy',
   307: '307 - Temporary Redirect',
   308: '308 - Permanent Redirect',
-  
+
   // 4xx - Client Error
   400: '400 - Bad Request',
   401: '401 - Unauthorized',
@@ -562,5 +569,4 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   508: '508 - Loop Detected',
   510: '510 - Not Extended',
   511: '511 - Network Authentication Required',
-
 };
