@@ -228,6 +228,7 @@ if (fs.existsSync('/.dockerenv')) {
     '--no-sandbox',
     '--disable-dev-shm-usage',
     '--homedir=/tmp/oobee/home',
+    '--crash-dump-directory=/tmp/oobee/crashpad'
   ];
 }
 
