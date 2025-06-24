@@ -134,6 +134,9 @@
 
     /* WOGAA Brand Colours */
     --wogaa-blue-100: #056BE7;
+    --wogaa-red-100: #C22A3E;
+    --woggaa-yellow-100: #CF8100;
+    --wogga-blue-150: #033D84;
 
     /* Accents - RGBY */
     --coral-red-50: #ffb7a6;
@@ -1100,6 +1103,26 @@
     background-color: var(--a11y-black-25);
   }
 
+  .rule-items-count.mustFix.inspect-plus {
+    background-color: var(--wogaa-red-100);
+    color: var(--true-white);
+  }
+
+  .rule-items-count.passed.inspect-plus {
+    background-color: var(--leaf-green-100);
+    color: var(--true-white);
+  }
+
+  .rule-items-count.goodToFix.inspect-plus {
+    background-color: var(--woggaa-yellow-100);
+    color: var(--true-white);
+  }
+
+  .rule-items-count.needsReview.inspect-plus {
+    background-color: var(--wogga-blue-150);
+    color: var(--true-white);
+  }
+  
   #expandedRule {
     width: 55%;
     overflow-y: auto;
