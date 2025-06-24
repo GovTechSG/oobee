@@ -25,9 +25,11 @@
               </svg>
             </div>
             <ul class="unbulleted-list">
-              <% Object.keys(items).forEach((category)=> { %> <%- include("components/summaryScanResults", { category:
-                  category }) %>
-                  <% }) %>
+                <% Object.keys(items).forEach((category) => { %>
+                <% if (!(isInspectPlus && category === 'passed')) { %>
+                  <%- include("components/summaryScanResults", { category: category }) %>
+                <% } %>
+                <% }) %>
             </ul>
           </div>
         </div>

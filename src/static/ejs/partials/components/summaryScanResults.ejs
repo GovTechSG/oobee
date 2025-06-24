@@ -10,7 +10,7 @@
   >
   <span><%= items[category].rules.length %></span>
 </li>
-<% if (category !== 'passed') { %> 
+<% if (category !== 'passed' && !(isInspectPlus === true && category === 'needsReview')) { %>
   <hr/>
 <% } %>
 

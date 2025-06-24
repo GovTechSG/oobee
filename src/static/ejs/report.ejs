@@ -23,7 +23,7 @@
   </head>
 
   <body class="d-flex flex-column">
-    <%- include('partials/header') %> <%- include('partials/main') %> <%-
+    <%- include('partials/header', { isInspectPlus }) %> <%- include('partials/main', { isInspectPlus }) %> <%-
     include('partials/scripts/popper') %> <%- include('partials/scripts/bootstrap') %> <%-
     include('partials/scripts/highlightjs') %> <%- include('partials/scripts/utils') %> <%-
     include('partials/scripts/scanAboutScript') %> <%-
@@ -33,6 +33,7 @@
     <!-- search feat changes -->
     <%- include('partials/scripts/reportSearch') %>
     <script>
+      const isInspectPlus = <%- JSON.stringify(isInspectPlus) %>;
       function initTooltips() {
         const tooltipTriggerList = [].slice.call(
           document.querySelectorAll('[data-bs-toggle="tooltip"]'),
@@ -48,7 +49,12 @@
       const scanDataWCAGCompliance = () => {
         const passPecentage = document.getElementById('passPercentage');
         passPecentage.innerHTML = (scanData.wcagPassPercentage.totalWcagChecksAA - scanData.wcagPassPercentage.totalWcagViolationsAA) + ' / ' + scanData.wcagPassPercentage.totalWcagChecksAA + ' of automated checks';
-        const wcagBarProgess = document.getElementById('wcag-compliance-passes-bar-progress');
+        var wcagBarProgess;
+        if (isInspectPlus) {
+          wcagBarProgess = document.getElementById('wcag-inspect-plus-compliance-passes-bar-progress');
+        } else {
+          wcagBarProgess = document.getElementById('wcag-compliance-passes-bar-progress');
+        }
         wcagBarProgess.style.width = `${scanData.wcagPassPercentage.passPercentageAA}%`; // Set this to your desired width
 
         const wcagLinksList = document.getElementById('wcagLinksList');
@@ -129,7 +135,7 @@
 
             const spanTitle = document.createElement('span');
             spanTitle.id = `${category}Title`;
-            spanTitle.className = 'd-flex align-items-center category-name fw-bold d-inline mb-0';
+            spanTitle.className = `d-flex align-items-center category-name ${isInspectPlus ? 'category-name-inspect-plus' : ''} fw-bold d-inline mb-0`;
             spanTitle.textContent = formattedCategoryTitles[category];
 
             const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

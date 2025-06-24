@@ -1,4 +1,5 @@
 <header>
+  <% if (!isInspectPlus) { %>
   <svg
     xmlns="http://www.w3.org/2000/svg"
     xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -204,6 +205,8 @@
       />
     </g>
   </svg>
+  <% } %>
+
   <h1 class="d-inline mb-0 ms-3">
     <span class="d-md-none">A11y</span><span class="d-none d-md-inline">Accessibility</span> Site
     Report
