@@ -292,7 +292,11 @@ const compileHtmlWithEJS = async (
     filename: path.join(dirname, './static/ejs/report.ejs'),
   });
 
-  const html = template({ ...allIssues, storagePath: JSON.stringify(storagePath) });
+  const html = template({
+    ...allIssues,
+    storagePath: JSON.stringify(storagePath),
+    isInspectPlus: process.env.INSPECT_PLUS === 'true',
+  });
   await fs.writeFile(htmlFilePath, html);
 
   let htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
@@ -430,7 +434,10 @@ const writeSummaryHTML = async (
   const template = ejs.compile(ejsString, {
     filename: path.join(dirname, './static/ejs/summary.ejs'),
   });
-  const html = template(allIssues);
+  const html = template({
+    ...allIssues,
+    isInspectPlus: process.env.INSPECT_PLUS === 'true',
+  });
   fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
 };
 
@@ -1638,7 +1645,7 @@ const sendWcagBreakdownToSentry = async (
       tags['WCAG-MustFix-Occurrences'] = String(allIssues.items.mustFix.totalItems);
       tags['WCAG-GoodToFix-Occurrences'] = String(allIssues.items.goodToFix.totalItems);
       tags['WCAG-NeedsReview-Occurrences'] = String(allIssues.items.needsReview.totalItems);
-      
+
       // Add number of pages scanned tag
       tags['Pages-Scanned-Count'] = String(allIssues.totalPagesScanned);
     } else if (pagesScannedCount > 0) {
@@ -1667,7 +1674,7 @@ const sendWcagBreakdownToSentry = async (
         ...(userData && userData.userId ? { id: userData.userId } : {}),
       },
       extra: {
-        additionalScanMetadata: ruleIdJson != null ? JSON.stringify(ruleIdJson)  : "{}",
+        additionalScanMetadata: ruleIdJson != null ? JSON.stringify(ruleIdJson) : '{}',
         wcagBreakdown: wcagCriteriaBreakdown,
         reportCounts: allIssues
           ? {
