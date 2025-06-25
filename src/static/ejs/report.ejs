@@ -205,7 +205,7 @@
 
             const spanTitle = document.createElement('span');
             spanTitle.id = `${category}Title`;
-            spanTitle.className = 'd-flex align-items-center category-name fw-bold d-inline mb-0';
+            spanTitle.className = `d-flex align-items-center category-name fw-bold d-inline mb-0 ${isInspectPlus ? "inspect-plus" : ""}`;
             spanTitle.textContent = formattedCategoryTitles[category];
 
             const spanInfo = document.createElement('span');
