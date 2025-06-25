@@ -28,7 +28,7 @@
     include('partials/scripts/highlightjs') %> <%- include('partials/scripts/utils') %> <%-
     include('partials/scripts/scanAboutScript') %> <%-
     include('partials/scripts/categorySelectorDropdownScript') %> <%-
-    include('partials/scripts/categorySummary', { isInspectPlus }) %> <%- include('partials/scripts/ruleOffcanvas') %>
+    include('partials/scripts/categorySummary', { isInspectPlus }) %> <%- include('partials/scripts/ruleOffcanvas', { isInspectPlus }) %>
     <%- include('partials/scripts/screenshotLightbox')%>
     <!-- search feat changes -->
     <%- include('partials/scripts/reportSearch') %>
@@ -135,7 +135,7 @@
 
             const spanTitle = document.createElement('span');
             spanTitle.id = `${category}Title`;
-            spanTitle.className = `d-flex align-items-center category-name ${isInspectPlus ? 'category-name-inspect-plus' : ''} fw-bold d-inline mb-0`;
+            spanTitle.className = `d-flex align-items-center category-name ${isInspectPlus ? 'inspect-plus' : ''} fw-bold d-inline mb-0`;
             spanTitle.textContent = formattedCategoryTitles[category];
 
             const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

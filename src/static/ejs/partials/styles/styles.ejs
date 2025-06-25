@@ -924,15 +924,15 @@
     background-image: var(--passed-icon);
   }
 
-  .category-selector.mustFix .category-name-inspect-plus::before {
+  .category-selector.mustFix .category-name.inspect-plus::before {
     background-image: var(--must-fix-inspect-plus-icon);
   }
 
-  .category-selector.goodToFix .category-name-inspect-plus::before {
+  .category-selector.goodToFix .category-name.inspect-plus::before {
     background-image: var(--good-to-fix-inspect-plus-icon);
   }
 
-  .category-selector.needsReview .category-name-inspect-plus::before {
+  .category-selector.needsReview .category-name.inspect-plus::before {
     background-image: var(--needs-review-inspect-plus-icon);
   }
 
@@ -1314,6 +1314,18 @@
     background-image: var(--needs-review-icon);
   }
 
+  #expandedRuleCategoryContent .mustFix .accordion-button .counter.inspect-plus::before {
+    background-image: var(--must-fix-inspect-plus-icon);
+  }
+
+  #expandedRuleCategoryContent .goodToFix .accordion-button .counter.inspect-plus::before {
+    background-image: var(--good-to-fix-inspect-plus-icon);
+  }
+
+  #expandedRuleCategoryContent .needsReview .accordion-button .counter.inspect-plus::before {
+    background-image: var(--needs-review-inspect-plus-icon);
+  }
+
   #expandedRuleCategoryContent .mustFix .accordion-body .card {
     border-top: 0.25rem solid var(--coral-red-100);
   }
@@ -1356,6 +1368,18 @@
 
   #expandedRuleCategoryContent .needsReview .accordion-body .card .needsReview::before {
     background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M17.1429 0H2.85714C1.27919 0 0 1.27919 0 2.85714V17.1429C0 18.7208 1.27919 20 2.85714 20H17.1429C18.7208 20 20 18.7208 20 17.1429V2.85714C20 1.27919 18.7208 0 17.1429 0Z' fill='%23c9c8c6'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M8.09759 7.26594C8.23445 6.67496 8.46462 6.23328 8.7881 5.9409C9.14891 5.65474 9.57815 5.51166 10.0758 5.51166C10.5984 5.51166 11.0152 5.64852 11.3262 5.92224C11.6372 6.19596 11.7928 6.53188 11.7928 6.93002C11.7928 7.22862 11.7057 7.48367 11.5315 7.69518C11.4195 7.84448 11.0712 8.15552 10.4864 8.6283C9.90785 9.11353 9.51594 9.54277 9.31065 9.91602C9.12403 10.3079 9.03072 10.7745 9.03072 11.3157V11.7449L9.04938 11.8569C9.04938 11.9316 9.06026 12 9.08204 12.0622C9.10381 12.1244 9.12558 12.1742 9.14736 12.2115C9.16913 12.2488 9.20645 12.2815 9.25933 12.3095C9.31221 12.3375 9.35264 12.3593 9.38064 12.3748C9.40863 12.3904 9.45995 12.4012 9.5346 12.4075C9.60925 12.4137 9.66058 12.4168 9.68857 12.4168H9.85187H10.0012C10.2065 12.4168 10.3589 12.409 10.4584 12.3935C10.5579 12.3779 10.6466 12.3313 10.7243 12.2535C10.8021 12.1757 10.841 12.056 10.841 11.8942C10.841 11.6827 10.8534 11.465 10.8783 11.2411C10.897 11.0109 10.9343 10.8305 10.9903 10.6998C11.0712 10.5008 11.3324 10.2208 11.7741 9.86003C12.6077 9.15707 13.1427 8.61587 13.3791 8.23639C13.6279 7.83204 13.7523 7.41524 13.7523 6.986C13.7523 6.17729 13.4102 5.48678 12.7259 4.91446C12.0603 4.30482 11.1458 4 9.9825 4C8.88763 4 8.00428 4.2986 7.33243 4.8958C6.71656 5.41835 6.36198 6.07154 6.26866 6.85537C6.25622 6.89269 6.25 6.9549 6.25 7.04199C6.25 7.29705 6.3402 7.51633 6.52061 7.69984C6.70101 7.88336 6.91563 7.97512 7.16446 7.97512C7.37597 7.97512 7.56571 7.90824 7.73367 7.77449C7.90163 7.64075 8.0105 7.47123 8.06026 7.26594H8.09759ZM10.0012 13.2939C9.62791 13.2939 9.30754 13.4246 9.04005 13.6858C8.77255 13.9471 8.6388 14.2644 8.6388 14.6376C8.6388 15.0047 8.77255 15.3235 9.04005 15.5941C9.30754 15.8647 9.62791 16 10.0012 16C10.3744 16 10.6948 15.8647 10.9623 15.5941C11.2298 15.3235 11.3635 15.0047 11.3635 14.6376C11.3635 14.2644 11.2298 13.9471 10.9623 13.6858C10.6948 13.4246 10.3744 13.2939 10.0012 13.2939Z' fill='white'/%3E%3C/svg%3E%0A");
+  }
+
+  #expandedRuleCategoryContent .mustFix .accordion-body .card .needsReview.inspect-plus::before {
+    background-image: var(--must-fix-inspect-plus-icon)
+  }
+
+  #expandedRuleCategoryContent .goodToFix .accordion-body .card .needsReview.inspect-plus::before {
+    background-image: var(--good-to-fix-inspect-plus-icon)
+  }
+
+  #expandedRuleCategoryContent .needsReview .accordion-body .card .needsReview.inspect-plus::before {
+    background-image: var(--needs-review-inspect-plus-icon)
   }
 
   .page-item-card-section-title {
@@ -1465,6 +1489,18 @@
 
   #expandedRuleCategoryContent .needsReview .page-accordion-content-title::before {
     background-image: var(--needs-review-icon);
+  }
+
+  #expandedRuleCategoryContent .mustFix .page-accordion-content-title.inspect-plus::before {
+    background-image: var(--must-fix-inspect-plus-icon);
+  }
+
+  #expandedRuleCategoryContent .goodToFix .page-accordion-content-title.inspect-plus::before {
+    background-image: var(--good-to-fix-inspect-plus-icon);
+  }
+
+  #expandedRuleCategoryContent .needsReview .page-accordion-content-title.inspect-plus::before {
+    background-image: var(--needs-review-inspect-plus-icon);
   }
 
   #expandedRuleCategoryContent .page-items-count {

@@ -125,7 +125,7 @@ category summary is clicked %>
             <button id="${category}OffCanvasButtonSelector" aria-label="${getFormattedCategoryTitle(category)}, ${
               ruleInCategory.totalItems
               } ${ruleInCategory.totalItems === 1 ? 'occurrence' : 'occurrences'}" class="${category} category-selector">
-              <span class="d-flex align-items-center category-name">${getFormattedCategoryTitle(
+              <span class="d-flex align-items-center category-name ${isInspectPlus ? "inspect-plus" : ""}">${getFormattedCategoryTitle(
                 category,
               )}</span>
               <span class="category-information">${ruleInCategory.totalItems} ${ruleInCategory.totalItems === 1 ? 'occurrence' : 'occurrences'}</span>
@@ -397,7 +397,7 @@ category summary is clicked %>
                   >
                     <span class="sr-only visually-hidden">${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}</span>
                     <div class="me-3">${page.metadata ? page.metadata : page.pageTitle}</div>
-                    <div class="ms-auto counter">${pageItemsCount}</div>
+                    <div class="ms-auto counter ${isInspectPlus ? "inspect-plus" : ""}">${pageItemsCount}</div>
                   ${normalMode ? '</button>' : '</div>'}
                 </div>
                 <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
@@ -412,7 +412,7 @@ category summary is clicked %>
                       `
                       : `<a href="${page.url}" target="_blank">${page.url}</a>`
                     }
-                    <div class="page-accordion-content-title">
+                    <div class="page-accordion-content-title ${isInspectPlus ? "inspect-plus" : ""}">
                       <span>${getFormattedCategoryTitle(category)} elements</span>
                       <span class="page-items-count">${pageItemsCount}</span>
                     </div>
@@ -553,7 +553,7 @@ category summary is clicked %>
           itemCard = createElementFromString(`
             <li>
               <div class="card mt-3">
-                ${item.displayNeedsReview ? `<div class="needsReview">This occurrence might be a false positive that needs to be verified by a human.</div>` : ``}
+                ${item.displayNeedsReview ? `<div class="needsReview ${isInspectPlus ? "inspect-plus" : ""}">This occurrence might be a false positive that needs to be verified by a human.</div>` : ``}
                 <div class="p-3">
                   ${item.screenshotPath
                     ?
