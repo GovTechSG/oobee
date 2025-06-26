@@ -234,8 +234,8 @@ if (fs.existsSync('/.dockerenv')) {
     '--disable-dev-shm-usage',
     '--disable-features=PaintHolding,VizDisplayCompositor,CompositingModeSwitcher',
     '--enable-features=UseSkiaRenderer',
-    '--use-gl=disabled ',
-    '--disable-gpu-compositing ',
+    '--use-gl=disabled',
+    '--disable-gpu-compositing',
     '--ozone-platform=headless',
     '--no-zygote',
   ];
