@@ -222,8 +222,24 @@ export const guiInfoStatusTypes = {
 let launchOptionsArgs: string[] = [];
 
 // Check if running in docker container
+
 if (fs.existsSync('/.dockerenv')) {
-  launchOptionsArgs = ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'];
+  launchOptionsArgs = [
+    '--headless=new',
+    '--no-sandbox',
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--disable-accelerated-2d-canvas',
+    '--disable-gl-drawing-for-tests',
+    '--disable-dev-shm-usage',
+    '--disable-features=PaintHolding,VizDisplayCompositor,CompositingModeSwitcher',
+    '--enable-features=UseSkiaRenderer',
+    '--use-gl=disabled ',
+    '--disable-gpu-compositing ',
+    '--ozone-platform=headless',
+    '--no-zygote',
+  ];
+
 }
 
 export const getProxy = (): { type: string; url: string } | null => {
