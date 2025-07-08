@@ -251,6 +251,9 @@ const crawlDomain = async ({
     return true;
   };
 
+  // Elements that should not be clicked or enqueued
+  const notMatchingSelectorPattern = `a[href*="#"],a[href^="mailto:"]`;
+
   const enqueueProcess = async (
     page: Page,
     enqueueLinks: (options: EnqueueLinksOptions) => Promise<BatchAddRequestsResult>,
@@ -259,7 +262,7 @@ const crawlDomain = async ({
     try {
       await enqueueLinks({
         // set selector matches anchor elements with href but not contains # or starting with mailto:
-        selector: 'a:not(a[href*="#"],a[href^="mailto:"])',
+        selector: `a:not(${notMatchingSelectorPattern})`,
         strategy,
         requestQueue,
         transformRequestFunction: (req: RequestOptions): RequestOptions | null => {
@@ -390,6 +393,26 @@ const crawlDomain = async ({
         currentElementIndex += 1;
         let newUrlFoundInElement: string = null;
         if (await element.isVisible()) {
+
+           // This is to exclude elements that match the notMatchingSelectorPattern
+          const isExcludedBySelector = await page.evaluate(
+              ({ el, notMatchPattern }) => {
+                  try {
+                      return el.matches(notMatchPattern);
+                  } catch {
+                      return false;
+                  }
+              },
+              {
+                  el: element,
+                  notMatchPattern: notMatchingSelectorPattern,
+              }
+          );
+
+          if (isExcludedBySelector) {
+              continue; // Skip this element
+          }
+
           // Find url in html elements without clicking them
           await page
             .evaluate(element => {
