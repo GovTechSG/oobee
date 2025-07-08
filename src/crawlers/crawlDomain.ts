@@ -252,7 +252,43 @@ const crawlDomain = async ({
   };
 
   // Elements that should not be clicked or enqueued
-  const notMatchingSelectorPattern = `a[href*="#"],a[href^="mailto:"]`;
+  // With reference from https://chromeenterprise.google/policies/url-patterns/
+  const notMatchingSelectorPattern = `
+    a[href*="#"],
+    a[href^="mailto:"],
+    a[href^="tel:"],
+    a[href^="sms:"],
+    a[href^="skype:"],
+    a[href^="zoommtg:"],
+    a[href^="msteams:"],
+    a[href^="whatsapp:"],
+    a[href^="slack:"],
+    a[href^="viber:"],
+    a[href^="tg:"],
+    a[href^="line:"],
+    a[href^="meet:"],
+    a[href^="facetime:"],
+    a[href^="imessage:"],
+    a[href^="discord:"],
+    a[href^="sgnl:"],
+    a[href^="webex:"],
+    a[href^="intent:"]
+    a[href^="msteams:"],
+    a[href^="ms-outlook:"],
+    a[href^="ms-onedrive:"],
+    a[href^="ms-word:"],
+    a[href^="ms-excel:"],
+    a[href^="ms-powerpoint:"],
+    a[href^="ms-office:"],
+    a[href^="onenote:"],
+    a[href^="vs:"],
+    a[href^="chrome-extension:"],
+    a[href^="chrome-search:"],
+    a[href^="chrome:"],
+    a[href^="chrome-untrusted:"],
+    a[href^="devtools:"],
+    a[href^="isolated-app:"]
+  `.replace(/\s+/g, '');
 
   const enqueueProcess = async (
     page: Page,
