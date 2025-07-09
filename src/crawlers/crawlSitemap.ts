@@ -8,7 +8,7 @@ import {
   isUrlPdf,
 } from './commonCrawlerFunc.js';
 
-import constants, { STATUS_CODE_METADATA, guiInfoStatusTypes, UrlsCrawled } from '../constants/constants.js';
+import constants, { STATUS_CODE_METADATA, guiInfoStatusTypes, UrlsCrawled, disallowedListOfPatterns } from '../constants/constants.js';
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
@@ -216,22 +216,32 @@ const crawlSitemap = async (
       },
       
     ],
+    preNavigationHooks: [
+      async ({ request, page }, gotoOptions) => {
+        // Check for chrome-extension:// scheme before navigation
+        const isNotSupportedDocument = disallowedListOfPatterns.some(pattern =>
+          request.url.toLowerCase().startsWith(pattern)
+        );
 
-    preNavigationHooks: isBasicAuth
-      ? [
-        async ({ page }) => {
+        if (isNotSupportedDocument) {
+          request.skipNavigation = true;
+          // Save the reason for skipping
+          request.userData.isNotSupportedDocument = true;
+
+          return;
+        }
+
+        // Existing logic for setting headers if basic auth
+        if (isBasicAuth) {
           await page.setExtraHTTPHeaders({
             Authorization: authHeader,
             ...extraHTTPHeaders,
           });
-        },
-      ]
-      : [
-        async () => {
+        } else {
           preNavigationHooks(extraHTTPHeaders);
-          // insert other code here
-        },
-      ],
+        }
+      }
+    ],
     requestHandlerTimeoutSecs: 90,
     requestHandler: async ({ page, request, response, sendRequest }) => {
       await waitForPageLoaded(page, 10000);
@@ -254,8 +264,9 @@ const crawlSitemap = async (
         return;
       }
 
+      // Log documents that are not supported
       if (request.skipNavigation && actualUrl === "about:blank") {
-        if (!isScanPdfs) {
+        if (request.userData.isNotSupportedDocument || !isScanPdfs) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,

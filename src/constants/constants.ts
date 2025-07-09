@@ -564,3 +564,46 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   511: '511 - Network Authentication Required',
 
 };
+
+  // Elements that should not be clicked or enqueued
+  // With reference from https://chromeenterprise.google/policies/url-patterns/
+export const disallowedListOfPatterns = [
+  "#",
+  "mailto:",
+  "tel:",
+  "sms:",
+  "skype:",
+  "zoommtg:",
+  "msteams:",
+  "whatsapp:",
+  "slack:",
+  "viber:",
+  "tg:",
+  "line:",
+  "meet:",
+  "facetime:",
+  "imessage:",
+  "discord:",
+  "sgnl:",
+  "webex:",
+  "intent:",
+  "ms-outlook:",
+  "ms-onedrive:",
+  "ms-word:",
+  "ms-excel:",
+  "ms-powerpoint:",
+  "ms-office:",
+  "onenote:",
+  "vs:",
+  "chrome-extension:",
+  "chrome-search:",
+  "chrome:",
+  "chrome-untrusted:",
+  "devtools:",
+  "isolated-app:"
+];
+
+export const disallowedSelectorPatterns = disallowedListOfPatterns
+  .map(pattern => `a[href^="${pattern}"]`)
+  .join(',')
+  .replace(/\s+/g, '');
