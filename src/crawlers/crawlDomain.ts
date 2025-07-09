@@ -11,6 +11,7 @@ import {
   createCrawleeSubFolders,
   runAxeScript,
   isUrlPdf,
+  shouldSkipClickDueToDisallowedHref,
 } from './commonCrawlerFunc.js';
 import constants, {
   UrlsCrawled,
@@ -19,6 +20,8 @@ import constants, {
   cssQuerySelectors,
   RuleFlags,
   STATUS_CODE_METADATA,
+  disallowedListOfPatterns,
+  disallowedSelectorPatterns
 } from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
@@ -251,45 +254,6 @@ const crawlDomain = async ({
     return true;
   };
 
-  // Elements that should not be clicked or enqueued
-  // With reference from https://chromeenterprise.google/policies/url-patterns/
-  const notMatchingSelectorPattern = `
-    a[href*="#"],
-    a[href^="mailto:"],
-    a[href^="tel:"],
-    a[href^="sms:"],
-    a[href^="skype:"],
-    a[href^="zoommtg:"],
-    a[href^="msteams:"],
-    a[href^="whatsapp:"],
-    a[href^="slack:"],
-    a[href^="viber:"],
-    a[href^="tg:"],
-    a[href^="line:"],
-    a[href^="meet:"],
-    a[href^="facetime:"],
-    a[href^="imessage:"],
-    a[href^="discord:"],
-    a[href^="sgnl:"],
-    a[href^="webex:"],
-    a[href^="intent:"]
-    a[href^="msteams:"],
-    a[href^="ms-outlook:"],
-    a[href^="ms-onedrive:"],
-    a[href^="ms-word:"],
-    a[href^="ms-excel:"],
-    a[href^="ms-powerpoint:"],
-    a[href^="ms-office:"],
-    a[href^="onenote:"],
-    a[href^="vs:"],
-    a[href^="chrome-extension:"],
-    a[href^="chrome-search:"],
-    a[href^="chrome:"],
-    a[href^="chrome-untrusted:"],
-    a[href^="devtools:"],
-    a[href^="isolated-app:"]
-  `.replace(/\s+/g, '');
-
   const enqueueProcess = async (
     page: Page,
     enqueueLinks: (options: EnqueueLinksOptions) => Promise<BatchAddRequestsResult>,
@@ -298,7 +262,7 @@ const crawlDomain = async ({
     try {
       await enqueueLinks({
         // set selector matches anchor elements with href but not contains # or starting with mailto:
-        selector: `a:not(${notMatchingSelectorPattern})`,
+        selector: `a:not(${disallowedSelectorPatterns})`,
         strategy,
         requestQueue,
         transformRequestFunction: (req: RequestOptions): RequestOptions | null => {
@@ -346,7 +310,10 @@ const crawlDomain = async ({
       const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
       const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl, blacklistedPatterns);
       const isNotFollowStrategy: boolean = !isFollowStrategy(newPageUrl, initialPageUrl, strategy);
-      return isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
+      const isNotSupportedDocument: boolean  = disallowedListOfPatterns.some(pattern =>
+          newPageUrl.toLowerCase().startsWith(pattern)
+    );
+      return isNotSupportedDocument || isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
     };
     const setPageListeners = (page: Page): void => {
       // event listener to handle new page popups upon button click
@@ -429,26 +396,6 @@ const crawlDomain = async ({
         currentElementIndex += 1;
         let newUrlFoundInElement: string = null;
         if (await element.isVisible()) {
-
-           // This is to exclude elements that match the notMatchingSelectorPattern
-          const isExcludedBySelector = await page.evaluate(
-              ({ el, notMatchPattern }) => {
-                  try {
-                      return el.matches(notMatchPattern);
-                  } catch {
-                      return false;
-                  }
-              },
-              {
-                  el: element,
-                  notMatchPattern: notMatchingSelectorPattern,
-              }
-          );
-
-          if (isExcludedBySelector) {
-              continue; // Skip this element
-          }
-
           // Find url in html elements without clicking them
           await page
             .evaluate(element => {
@@ -490,6 +437,13 @@ const crawlDomain = async ({
             });
           } else if (!newUrlFoundInElement) {
             try {
+              const shouldSkip = await shouldSkipClickDueToDisallowedHref(page, element);
+              if (shouldSkip) {
+                const elementHtml = await page.evaluate(el => el.outerHTML, element);
+                silentLogger.info('Skipping a click due to disallowed href nearby. Element HTML:', elementHtml);
+                continue;
+              }
+
               // Find url in html elements by manually clicking them. New page navigation/popups will be handled by event listeners above
               await element.click({ force: true });
               await page.waitForTimeout(1000); // Add a delay of 1 second between each Element click

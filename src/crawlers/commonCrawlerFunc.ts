@@ -1,8 +1,9 @@
 import crawlee, { CrawlingContext, PlaywrightGotoOptions, Request } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
-import { BrowserContext, Page } from 'playwright';
+import { BrowserContext, ElementHandle, Page } from 'playwright';
 import {
   axeScript,
+  disallowedListOfPatterns,
   guiInfoStatusTypes,
   RuleFlags,
   saflyIconSelector,
@@ -508,3 +509,47 @@ export const isUrlPdf = (url: string) => {
   const parsedUrl = new URL(url);
   return /\.pdf($|\?|#)/i.test(parsedUrl.pathname) || /\.pdf($|\?|#)/i.test(parsedUrl.href);
 };
+
+export async function shouldSkipClickDueToDisallowedHref(
+  page: Page,
+  element: ElementHandle
+): Promise<boolean> {
+  return await page.evaluate(
+    ({ el, disallowedPrefixes }) => {
+      function isDisallowedHref(href: string | null): boolean {
+        if (!href) return false;
+        href = href.toLowerCase();
+        return disallowedPrefixes.some((prefix: string) => href.startsWith(prefix));
+      }
+
+      const castEl = el as HTMLElement;
+
+      // Check descendant <a href="">
+      const descendants = castEl.querySelectorAll('a[href]');
+      for (const a of descendants) {
+        const href = a.getAttribute('href');
+        if (isDisallowedHref(href)) {
+          return true;
+        }
+      }
+
+      // Check self and ancestors for disallowed <a>
+      let current: HTMLElement | null = castEl;
+      while (current) {
+        if (
+          current.tagName === 'A' &&
+          isDisallowedHref(current.getAttribute('href'))
+        ) {
+          return true;
+        }
+        current = current.parentElement;
+      }
+
+      return false;
+    },
+    {
+      el: element,
+      disallowedPrefixes: disallowedListOfPatterns,
+    }
+  );
+}
