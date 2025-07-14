@@ -7,7 +7,12 @@ import { fileTypeFromBuffer } from 'file-type';
 import mime from 'mime-types';
 import https from 'https';
 import type { BatchAddRequestsResult } from '@crawlee/types';
-import { createCrawleeSubFolders, runAxeScript, isUrlPdf } from './commonCrawlerFunc.js';
+import {
+  createCrawleeSubFolders,
+  runAxeScript,
+  isUrlPdf,
+  shouldSkipClickDueToDisallowedHref,
+} from './commonCrawlerFunc.js';
 import constants, {
   UrlsCrawled,
   blackListedFileExtensions,
@@ -15,6 +20,8 @@ import constants, {
   cssQuerySelectors,
   RuleFlags,
   STATUS_CODE_METADATA,
+  disallowedListOfPatterns,
+  disallowedSelectorPatterns,
 } from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
@@ -255,7 +262,7 @@ const crawlDomain = async ({
     try {
       await enqueueLinks({
         // set selector matches anchor elements with href but not contains # or starting with mailto:
-        selector: 'a:not(a[href*="#"],a[href^="mailto:"])',
+        selector: `a:not(${disallowedSelectorPatterns})`,
         strategy,
         requestQueue,
         transformRequestFunction: (req: RequestOptions): RequestOptions | null => {
@@ -303,7 +310,10 @@ const crawlDomain = async ({
       const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
       const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl, blacklistedPatterns);
       const isNotFollowStrategy: boolean = !isFollowStrategy(newPageUrl, initialPageUrl, strategy);
-      return isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
+      const isNotSupportedDocument: boolean = disallowedListOfPatterns.some(pattern =>
+        newPageUrl.toLowerCase().startsWith(pattern),
+      );
+      return isNotSupportedDocument || isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
     };
     const setPageListeners = (page: Page): void => {
       // event listener to handle new page popups upon button click
@@ -427,6 +437,16 @@ const crawlDomain = async ({
             });
           } else if (!newUrlFoundInElement) {
             try {
+              const shouldSkip = await shouldSkipClickDueToDisallowedHref(page, element);
+              if (shouldSkip) {
+                const elementHtml = await page.evaluate(el => el.outerHTML, element);
+                silentLogger.info(
+                  'Skipping a click due to disallowed href nearby. Element HTML:',
+                  elementHtml,
+                );
+                continue;
+              }
+
               // Find url in html elements by manually clicking them. New page navigation/popups will be handled by event listeners above
               await element.click({ force: true });
               await page.waitForTimeout(1000); // Add a delay of 1 second between each Element click

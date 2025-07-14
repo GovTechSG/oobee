@@ -1,0 +1,43 @@
+name: Bump Package Version
+
+on:
+  workflow_dispatch:  # Trigger manually from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Get current version
+        id: current
+        run: |
+          current_version=$(node -p "require('./package.json').version")
+          echo "version=$current_version" >> "$GITHUB_OUTPUT"
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          new_version=$(npm version patch --no-git-tag-version)
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version ${{ steps.current.outputs.version }} → ${{ steps.bump.outputs.version }}"
+          git push origin HEAD

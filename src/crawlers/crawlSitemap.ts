@@ -12,6 +12,7 @@ import constants, {
   STATUS_CODE_METADATA,
   guiInfoStatusTypes,
   UrlsCrawled,
+  disallowedListOfPatterns,
 } from '../constants/constants.js';
 import {
   getLinksFromSitemap,

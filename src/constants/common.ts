@@ -385,105 +385,86 @@ const checkUrlConnectivityWithBrowser = async (
 ) => {
   const res = new RES();
 
-  let viewport = null;
-  let userAgent = null;
-
-  if (Object.keys(playwrightDeviceDetailsObject).length > 0) {
-    if ('viewport' in playwrightDeviceDetailsObject) {
-      viewport = playwrightDeviceDetailsObject.viewport;
-    }
-
-    if ('userAgent' in playwrightDeviceDetailsObject) {
-      userAgent = playwrightDeviceDetailsObject.userAgent;
-    }
+  const data = sanitizeUrlInput(url);
+  if (!data.isValid) {
+    res.status = constants.urlCheckStatuses.invalidUrl.code;
+    return res;
   }
 
-  // Validate the connectivity of URL if the string format is url format
-  const data = sanitizeUrlInput(url);
+  let viewport = null;
+  let userAgent = null;
+  if ('viewport' in playwrightDeviceDetailsObject) viewport = playwrightDeviceDetailsObject.viewport;
+  if ('userAgent' in playwrightDeviceDetailsObject) userAgent = playwrightDeviceDetailsObject.userAgent;
 
-  if (data.isValid) {
-    let browserContext;
+  // Ensure Accept header for non-html content fallback
+  extraHTTPHeaders['Accept'] ||= 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
 
-    try {
-      // Temporary browserContextLaunchOptions to force headless mode during connectivity check
-      // If a user selects cli options h=no, the connectivity check should still proceed in headless
-      const launchOptions = getPlaywrightLaunchOptions(browserToRun);
-      const browserContextLaunchOptions = {
-        ...launchOptions,
-        args: [...launchOptions.args, '--headless=new'],
-      };
+  const launchOptions = getPlaywrightLaunchOptions(browserToRun);
+  const browserContextLaunchOptions = {
+    ...launchOptions,
+    args: [...launchOptions.args, '--headless=new'],
+  };
 
-      browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
-        ...browserContextLaunchOptions,
-        ...(viewport && { viewport }),
-        ...(userAgent && { userAgent }),
-        ...(extraHTTPHeaders && { extraHTTPHeaders }),
-      });
-    } catch (err) {
-      printMessage([`Unable to launch browser\n${err}`], messageOptions);
-      res.status = constants.urlCheckStatuses.browserError.code;
-      return res;
-    }
+  let browserContext;
+  try {
+    browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
+      ...browserContextLaunchOptions,
+      ...(viewport && { viewport }),
+      ...(userAgent && { userAgent }),
+      ...(extraHTTPHeaders && { extraHTTPHeaders }),
+    });
+  } catch (err) {
+    printMessage([`Unable to launch browser\n${err}`], messageOptions);
+    res.status = constants.urlCheckStatuses.browserError.code;
+    return res;
+  }
 
-    // const context = await browser.newContext();
+  try {
     const page = await browserContext.newPage();
 
-    // method will not throw an error when any valid HTTP status code is returned by the remote server, including 404 "Not Found" and 500 "Internal Server Error".
-    // navigation to about:blank or navigation to the same URL with a different hash, which would succeed and return null.
-    try {
-      // playwright headless mode does not support navigation to pdf document
-      if (isUrlPdf(url)) {
-        // make http request to url to check
-        return await requestToUrl(url, false, extraHTTPHeaders);
-      }
-
-      const response = await page.goto(url, {
-        timeout: 30000,
-        ...(proxy && { waitUntil: 'commit' }),
-      });
-
-      try {
-        await page.waitForLoadState('networkidle', { timeout: 10000 });
-      } catch {
-        silentLogger.info('Unable to detect networkidle');
-      }
-
-      // This response state doesn't seem to work with the new headless=new flag
-      if (response.status() === 401) {
-        res.status = constants.urlCheckStatuses.unauthorised.code;
-      } else {
-        res.status = constants.urlCheckStatuses.success.code;
-      }
-
-      // set redirect link or final url
-      if (isCustomFlow) {
-        res.url = url;
-      } else {
-        res.url = page.url();
-      }
-
-      res.content = await page.content();
-
-      const contentType = response?.headers?.()['content-type'] || '';
-      if (contentType.includes('xml')) {
-        const responseFromUrl = await requestToUrl(res.url, true, extraHTTPHeaders);
-
-        res.content = responseFromUrl.content;
-      }
-    } catch (error) {
-      // But this does work with the headless=new flag
-      if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
-        res.status = constants.urlCheckStatuses.unauthorised.code;
-      } else {
-        // enters here if input is not a URL or not using http/https protocols
-        res.status = constants.urlCheckStatuses.systemError.code;
-      }
-    } finally {
-      await browserContext.close();
+    // Skip Playwright for PDF (use raw request instead)
+    if (isUrlPdf(url)) {
+      return await requestToUrl(url, false, extraHTTPHeaders);
     }
-  } else {
-    // enters here if input is not a URL or not using http/https protocols
-    res.status = constants.urlCheckStatuses.invalidUrl.code;
+
+    const response = await page.goto(url, {
+      timeout: 30000,
+      ...(proxy && { waitUntil: 'commit' }),
+    });
+
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 10000 });
+    } catch {
+      silentLogger.info('Unable to detect networkidle');
+    }
+
+    const status = response.status();
+    res.status = status === 401
+      ? constants.urlCheckStatuses.unauthorised.code
+      : constants.urlCheckStatuses.success.code;
+
+    // Store final navigated URL
+    res.url = isCustomFlow ? url : page.url();
+
+    // Check content type to determine how to extract content
+    const contentType = response.headers()['content-type'] || '';
+
+    if (contentType.includes('xml') || res.url.endsWith('.xml')) {
+      // Fetch raw content to avoid Playwright's HTML-wrapped <pre> behavior
+      const rawResponse = await requestToUrl(res.url, true, extraHTTPHeaders);
+      res.content = rawResponse.content;
+    } else {
+      res.content = await page.content(); // rendered DOM
+    }
+
+  } catch (error) {
+    if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
+      res.status = constants.urlCheckStatuses.unauthorised.code;
+    } else {
+      res.status = constants.urlCheckStatuses.systemError.code;
+    }
+  } finally {
+    await browserContext.close();
   }
 
   return res;
