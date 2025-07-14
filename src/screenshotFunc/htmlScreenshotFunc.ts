@@ -2,7 +2,7 @@
 import { createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { silentLogger } from '../logs.js';
+// import { silentLogger } from '../logs.js';
 import { Result } from 'axe-core';
 import { Page } from 'playwright';
 import { NodeResultWithScreenshot, ResultWithScreenshot } from '../crawlers/commonCrawlerFunc.js';
@@ -21,9 +21,11 @@ export const takeScreenshotForHTMLElements = async (
 
   for (const violation of violations) {
     if (screenshotCount >= maxScreenshots) {
+      /*
       silentLogger.warn(
         `Skipping screenshots for ${violation.id} as maxScreenshots (${maxScreenshots}) exceeded. You can increase it by specifying a higher value when calling takeScreenshotForHTMLElements.`,
       );
+      */
       newViolations.push(violation);
       continue;
     }
@@ -57,13 +59,13 @@ export const takeScreenshotForHTMLElements = async (
               nodeWithScreenshotPath.screenshotPath = screenshotPath;
               screenshotCount++;
             } else {
-              silentLogger.info(`Element at ${currLocator} is not visible`);
+              // silentLogger.info(`Element at ${currLocator} is not visible`);
             }
 
             break; // Stop looping after finding the first visible locator
           }
         } catch (e) {
-          silentLogger.info(`Unable to take element screenshot at ${selector}`);
+          // silentLogger.info(`Unable to take element screenshot at ${selector}`);
         }
       }
       newViolationNodes.push(nodeWithScreenshotPath);
