@@ -179,6 +179,7 @@ export const basicAuthRegex = /^.*\/\/.*:.*@.*$/i;
 // for crawlers
 export const axeScript = path.join(dirname, '../../node_modules/axe-core/axe.min.js');
 export class UrlsCrawled {
+  siteName: string;
   toScan: string[] = [];
   scanned: PageInfo[] = [];
   invalid: PageInfo[] = [];

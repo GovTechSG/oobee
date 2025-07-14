@@ -8,7 +8,11 @@ import {
   isUrlPdf,
 } from './commonCrawlerFunc.js';
 
-import constants, { STATUS_CODE_METADATA, guiInfoStatusTypes, UrlsCrawled } from '../constants/constants.js';
+import constants, {
+  STATUS_CODE_METADATA,
+  guiInfoStatusTypes,
+  UrlsCrawled,
+} from '../constants/constants.js';
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
@@ -165,7 +169,6 @@ const crawlSitemap = async (
     },
     requestList,
     postNavigationHooks: [
-
       async ({ page }) => {
         try {
           // Wait for a quiet period in the DOM, but with safeguards
@@ -173,32 +176,32 @@ const crawlSitemap = async (
             return new Promise(resolve => {
               let timeout;
               let mutationCount = 0;
-              const MAX_MUTATIONS     = 250;   // stop if things never quiet down
-              const OBSERVER_TIMEOUT  = 5000;  // hard cap on total wait
-      
+              const MAX_MUTATIONS = 250; // stop if things never quiet down
+              const OBSERVER_TIMEOUT = 5000; // hard cap on total wait
+
               const observer = new MutationObserver(() => {
                 clearTimeout(timeout);
-      
+
                 mutationCount++;
                 if (mutationCount > MAX_MUTATIONS) {
                   observer.disconnect();
                   resolve('Too many mutations, exiting.');
                   return;
                 }
-      
+
                 // restart quiet‑period timer
                 timeout = setTimeout(() => {
                   observer.disconnect();
                   resolve('DOM stabilized.');
                 }, 1000);
               });
-      
+
               // overall timeout in case the page never settles
               timeout = setTimeout(() => {
                 observer.disconnect();
                 resolve('Observer timeout reached.');
               }, OBSERVER_TIMEOUT);
-      
+
               const root = document.documentElement || document.body || document;
               if (!root || typeof observer.observe !== 'function') {
                 resolve('No root node to observe.');
@@ -214,24 +217,23 @@ const crawlSitemap = async (
           throw err; // Rethrow unknown errors
         }
       },
-      
     ],
 
     preNavigationHooks: isBasicAuth
       ? [
-        async ({ page }) => {
-          await page.setExtraHTTPHeaders({
-            Authorization: authHeader,
-            ...extraHTTPHeaders,
-          });
-        },
-      ]
+          async ({ page }) => {
+            await page.setExtraHTTPHeaders({
+              Authorization: authHeader,
+              ...extraHTTPHeaders,
+            });
+          },
+        ]
       : [
-        async () => {
-          preNavigationHooks(extraHTTPHeaders);
-          // insert other code here
-        },
-      ],
+          async () => {
+            preNavigationHooks(extraHTTPHeaders);
+            // insert other code here
+          },
+        ],
     requestHandlerTimeoutSecs: 90,
     requestHandler: async ({ page, request, response, sendRequest }) => {
       await waitForPageLoaded(page, 10000);
@@ -254,7 +256,7 @@ const crawlSitemap = async (
         return;
       }
 
-      if (request.skipNavigation && actualUrl === "about:blank") {
+      if (request.skipNavigation && actualUrl === 'about:blank') {
         if (!isScanPdfs) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
@@ -303,11 +305,7 @@ const crawlSitemap = async (
         }
 
         // This logic is different from crawlDomain, as it also checks if the pae is redirected before checking if it is excluded using exclusions.txt
-        if (
-          isRedirected &&
-          blacklistedPatterns &&
-          isSkippedUrl(actualUrl, blacklistedPatterns)
-        ) {
+        if (isRedirected && blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
           urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
@@ -324,7 +322,7 @@ const crawlSitemap = async (
         }
 
         const results = await runAxeScript({ includeScreenshots, page, randomToken });
-        
+
         guiInfoLog(guiInfoStatusTypes.SCANNED, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
@@ -335,6 +333,10 @@ const crawlSitemap = async (
           pageTitle: results.pageTitle,
           actualUrl: actualUrl, // i.e. actualUrl
         });
+
+        if (urlsCrawled.siteName === undefined) {
+          urlsCrawled.siteName = results.pageTitle || '';
+        }
 
         urlsCrawled.scannedRedirects.push({
           fromUrl: urlWithoutAuth(request.url),
@@ -354,16 +356,17 @@ const crawlSitemap = async (
         if (isScanHtml) {
           // carry through the HTTP status metadata
           const status = response?.status();
-          const metadata = typeof status === 'number'
-          ? (STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599])
-          : STATUS_CODE_METADATA[2];
+          const metadata =
+            typeof status === 'number'
+              ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
+              : STATUS_CODE_METADATA[2];
 
-            urlsCrawled.invalid.push({
+          urlsCrawled.invalid.push({
             actualUrl,
             url: request.url,
             pageTitle: request.url,
             metadata,
-            httpStatusCode: typeof status === 'number' ? status : 0
+            httpStatusCode: typeof status === 'number' ? status : 0,
           });
         }
       }
@@ -384,16 +387,17 @@ const crawlSitemap = async (
       });
 
       const status = response?.status();
-      const metadata = typeof status === 'number'
-      ? (STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599])
-      : STATUS_CODE_METADATA[2];
+      const metadata =
+        typeof status === 'number'
+          ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
+          : STATUS_CODE_METADATA[2];
 
       urlsCrawled.error.push({
         url: request.url,
         pageTitle: request.url,
         actualUrl: request.url,
         metadata,
-        httpStatusCode: typeof status === 'number' ? status : 0
+        httpStatusCode: typeof status === 'number' ? status : 0,
       });
       crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
     },
@@ -429,6 +433,8 @@ const crawlSitemap = async (
   if (!fromCrawlIntelligentSitemap) {
     guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
   }
+
+  printMessage([`Site Title: ${urlsCrawled.siteName ?? '(No title found)'}`], messageOptions);
 
   return urlsCrawled;
 };

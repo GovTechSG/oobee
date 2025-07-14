@@ -3,7 +3,11 @@ import printMessage from 'print-message';
 import fs from 'fs';
 import path from 'path';
 import { createCrawleeSubFolders, runAxeScript, isUrlPdf } from './commonCrawlerFunc.js';
-import constants, { guiInfoStatusTypes, basicAuthRegex } from '../constants/constants.js';
+import constants, {
+  guiInfoStatusTypes,
+  basicAuthRegex,
+  UrlsCrawled,
+} from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
   messageOptions,
@@ -35,7 +39,7 @@ const crawlLocalFile = async (
   urlsCrawledFromIntelligent: any = null, // optional
 ) => {
   let dataset: any;
-  let urlsCrawled: any;
+  let urlsCrawled: UrlsCrawled;
   let linksFromSitemap = [];
 
   // Boolean to omit axe scan for basic auth URL
@@ -168,6 +172,10 @@ const crawlLocalFile = async (
       actualUrl: actualUrl, // i.e. actualUrl
     });
 
+    if (urlsCrawled.siteName === undefined) {
+      urlsCrawled.siteName = results.pageTitle || '';
+    }
+
     urlsCrawled.scannedRedirects.push({
       fromUrl: request.url,
       toUrl: actualUrl, // i.e. actualUrl
@@ -178,7 +186,11 @@ const crawlLocalFile = async (
 
     await dataset.pushData(results);
   } else {
-    urlsCrawled.scanned.push({ url: trimmedUrl, pageTitle: pdfFileName });
+    urlsCrawled.scanned.push({
+      url: trimmedUrl,
+      pageTitle: pdfFileName,
+      actualUrl: '',
+    });
 
     await runPdfScan(randomToken);
     // transform result format
@@ -192,6 +204,9 @@ const crawlLocalFile = async (
     // push results for each pdf document to key value store
     await Promise.all(pdfResults.map(result => dataset.pushData(result)));
   }
+  
+  printMessage([`Site Title: ${urlsCrawled.siteName ?? '(No title found)'}`], messageOptions);
+
   return urlsCrawled;
 };
 export default crawlLocalFile;

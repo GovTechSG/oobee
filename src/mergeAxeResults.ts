@@ -78,6 +78,7 @@ type AllIssues = {
     htmlETL: any;
     rules: string[];
   };
+  siteName: string;
   startTime: Date;
   endTime: Date;
   urlScanned: string;
@@ -1638,7 +1639,7 @@ const sendWcagBreakdownToSentry = async (
       tags['WCAG-MustFix-Occurrences'] = String(allIssues.items.mustFix.totalItems);
       tags['WCAG-GoodToFix-Occurrences'] = String(allIssues.items.goodToFix.totalItems);
       tags['WCAG-NeedsReview-Occurrences'] = String(allIssues.items.needsReview.totalItems);
-      
+
       // Add number of pages scanned tag
       tags['Pages-Scanned-Count'] = String(allIssues.totalPagesScanned);
     } else if (pagesScannedCount > 0) {
@@ -1667,7 +1668,7 @@ const sendWcagBreakdownToSentry = async (
         ...(userData && userData.userId ? { id: userData.userId } : {}),
       },
       extra: {
-        additionalScanMetadata: ruleIdJson != null ? JSON.stringify(ruleIdJson)  : "{}",
+        additionalScanMetadata: ruleIdJson != null ? JSON.stringify(ruleIdJson) : '{}',
         wcagBreakdown: wcagCriteriaBreakdown,
         reportCounts: allIssues
           ? {
@@ -1766,6 +1767,7 @@ const generateArtifacts = async (
       htmlETL: oobeeAiHtmlETL,
       rules: oobeeAiRules,
     },
+    siteName: pagesScanned[0]?.pageTitle ?? '',
     startTime: scanDetails.startTime ? scanDetails.startTime : new Date(),
     endTime: scanDetails.endTime ? scanDetails.endTime : new Date(),
     urlScanned,
