@@ -211,23 +211,23 @@ Create <code>cypress.config.js</code> with the following contents, and change yo
         e2e: {
             setupNodeEvents(on, _config) {
                 on("task", {
-                    getPurpleA11yScripts() {
+                    getOobeeA11yScripts() {
                         return oobeeA11y.getScripts();
                     },
                     gradeReadability(sentences) {
                         return oobeeA11y.gradeReadability(sentences);
                     },
-                    async pushPurpleA11yScanResults({res, metadata, elementsToClick}) {
+                    async pushOobeeA11yScanResults({res, metadata, elementsToClick}) {
                         return await oobeeA11y.pushScanResults(res, metadata, elementsToClick);
                     },
                     returnResultsDir() {
                         return `results/${oobeeA11y.randomToken}_${oobeeA11y.scanDetails.urlsCrawled.scanned.length}pages/report.html`;
                     },
-                    finishPurpleA11yTestCase() {
+                    finishOobeeA11yTestCase() {
                         oobeeA11y.testThresholds();
                         return null;
                     },
-                    async terminatePurpleA11y() {
+                    async terminateOobeeA11y() {
                         return await oobeeA11y.terminate();
                     },
                 });
@@ -237,8 +237,8 @@ Create <code>cypress.config.js</code> with the following contents, and change yo
 
 Create a sub-folder and file <code>cypress/support/e2e.js</code> with the following contents:
 
-    Cypress.Commands.add("injectPurpleA11yScripts", () => {
-        cy.task("getPurpleA11yScripts").then((s) => {
+    Cypress.Commands.add("injectOobeeA11yScripts", () => {
+        cy.task("getOobeeA11yScripts").then((s) => {
             cy.window().then((win) => {
                 win.eval(s);
             });
@@ -259,7 +259,7 @@ Create a sub-folder and file <code>cypress/support/e2e.js</code> with the follow
                         elementsToScan,
                         gradingReadabilityFlag,
                     );
-                    cy.task("pushPurpleA11yScanResults", {
+                    cy.task("pushOobeeA11yScanResults", {
                         res,
                         metadata,
                         elementsToClick,
@@ -268,12 +268,12 @@ Create a sub-folder and file <code>cypress/support/e2e.js</code> with the follow
                     });
                 },
             );
-            cy.task("finishPurpleA11yTestCase"); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
+            cy.task("finishOobeeA11yTestCase"); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
         });
     });
 
-    Cypress.Commands.add("terminatePurpleA11y", () => {
-        cy.task("terminatePurpleA11y");
+    Cypress.Commands.add("terminateOobeeA11y", () => {
+        cy.task("terminateOobeeA11y");
     });
 
 Create <code>cypress/e2e/spec.cy.js</code> with the following contents:
@@ -283,7 +283,7 @@ Create <code>cypress/e2e/spec.cy.js</code> with the following contents:
             cy.visit(
                 "https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm"
             );
-            cy.injectPurpleA11yScripts();
+            cy.injectOobeeA11yScripts();
             cy.runOobeeA11yScan();
              cy.get("button[onclick=\"toggleSecondSection()\"]").click();
             // Run a scan on <input> and <button> elements
@@ -293,7 +293,7 @@ Create <code>cypress/e2e/spec.cy.js</code> with the following contents:
                 metadata: "Clicked button"
             });
 
-            cy.terminatePurpleA11y();
+            cy.terminateOobeeA11y();
         });
     });
 
@@ -399,23 +399,23 @@ Create <code>cypress.config.ts</code> with the following contents, and change yo
         e2e: {
             setupNodeEvents(on, _config) {
                 on("task", {
-                    getPurpleA11yScripts(): string {
+                    getOobeeA11yScripts(): string {
                         return oobeeA11y.getScripts();
                     },
                     gradeReadability(sentences: string[]): string {
                         return oobeeA11y.gradeReadability(sentences);
                     },
-                    async pushPurpleA11yScanResults({res, metadata, elementsToClick}: { res: any, metadata: any, elementsToClick: any[] }): Promise<{ mustFix: number, goodToFix: number }> {
+                    async pushOobeeA11yScanResults({res, metadata, elementsToClick}: { res: any, metadata: any, elementsToClick: any[] }): Promise<{ mustFix: number, goodToFix: number }> {
                         return await oobeeA11y.pushScanResults(res, metadata, elementsToClick);
                     },
                     returnResultsDir(): string {
                         return `results/${oobeeA11y.randomToken}_${oobeeA11y.scanDetails.urlsCrawled.scanned.length}pages/reports/report.html`;
                     },
-                    finishPurpleA11yTestCase(): null {
+                    finishOobeeA11yTestCase(): null {
                         oobeeA11y.testThresholds();
                         return null;
                     },
-                    async terminatePurpleA11y(): Promise<string> {
+                    async terminateOobeeA11y(): Promise<string> {
                         return await oobeeA11y.terminate();
                     },
                 });
@@ -427,8 +427,8 @@ Create <code>cypress.config.ts</code> with the following contents, and change yo
 
 Create a sub-folder and file <code>src/cypress/support/e2e.ts</code> with the following contents:
 
-    Cypress.Commands.add("injectPurpleA11yScripts", () => {
-        cy.task("getPurpleA11yScripts").then((s: string) => {
+    Cypress.Commands.add("injectOobeeA11yScripts", () => {
+        cy.task("getOobeeA11yScripts").then((s: string) => {
             cy.window().then((win) => {
                 win.eval(s);
             });
@@ -449,7 +449,7 @@ Create a sub-folder and file <code>src/cypress/support/e2e.ts</code> with the fo
                         elementsToScan,
                         gradingReadabilityFlag,
                     );
-                    cy.task("pushPurpleA11yScanResults", {
+                    cy.task("pushOobeeA11yScanResults", {
                         res,
                         metadata,
                         elementsToClick,
@@ -458,12 +458,12 @@ Create a sub-folder and file <code>src/cypress/support/e2e.ts</code> with the fo
                     });
                 },
             );
-            cy.task("finishPurpleA11yTestCase"); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
+            cy.task("finishOobeeA11yTestCase"); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
         });
     });
 
-    Cypress.Commands.add("terminatePurpleA11y", () => {
-        cy.task("terminatePurpleA11y");
+    Cypress.Commands.add("terminateOobeeA11y", () => {
+        cy.task("terminateOobeeA11y");
     });
 
 Create <code>src/cypress/e2e/spec.cy.ts</code> with the following contents:
@@ -473,7 +473,7 @@ Create <code>src/cypress/e2e/spec.cy.ts</code> with the following contents:
             cy.visit(
                 "https://govtechsg.github.io/purple-banner-embeds/oobee-integrated-scan-example.htm"
             );
-            cy.injectPurpleA11yScripts();
+            cy.injectOobeeA11yScripts();
             cy.runOobeeA11yScan();
              cy.get("button[onclick=\"toggleSecondSection()\"]").click();
             // Run a scan on <input> and <button> elements
@@ -483,7 +483,7 @@ Create <code>src/cypress/e2e/spec.cy.ts</code> with the following contents:
                 metadata: "Clicked button"
             });
 
-            cy.terminatePurpleA11y();
+            cy.terminateOobeeA11y();
         });
     });
 
@@ -492,12 +492,12 @@ Create <code>cypress.d.ts</code> in the root directory with the following conten
 ```
 declare namespace Cypress {
   interface Chainable<Subject> {
-    injectPurpleA11yScripts(): Chainable<void>;
-    runOobeeA11yScan(options?: PurpleA11yScanOptions): Chainable<void>;
-    terminatePurpleA11y(): Chainable<any>;
+    injectOobeeA11yScripts(): Chainable<void>;
+    runOobeeA11yScan(options?: OobeeScanOptions): Chainable<void>;
+    terminateOobeeA11y(): Chainable<any>;
   }
 
-  interface PurpleA11yScanOptions {
+  interface OobeeScanOptions {
     elementsToScan?: string[];
     elementsToClick?: string[];
     metadata?: string;
@@ -794,7 +794,7 @@ You will see Oobee results generated in <code>results</code> folder.
                 // where -m "..." are the headers needed in the format "header1 value1, header2 value2" etc
                 // where -u ".../loginSuccess/" is the destination page after login
                 const command = `npm run cli -- -c website -u "https://authenticationtest.com/loginSuccess/" -p 1 -k "Your Name:email@domain.com" -m "${formattedCookies}"`;
-                console.log(`Executing PurpleA11y scan command:\n> ${command}\n`);
+                console.log(`Executing OobeeA11y scan command:\n> ${command}\n`);
                 runOobeeA11yScan(command);
             })
             .catch(err => {
@@ -865,7 +865,7 @@ You will see Oobee results generated in <code>results</code> folder.
                 // where -m "..." are the headers needed in the format "header1 value1, header2 value2" etc
                 // where -u ".../loginSuccess/" is the destination page after login
                 const command: string = `npm run cli -- -c website -u "https://authenticationtest.com/loginSuccess/" -p 1 -k "Your Name:email@domain.com" -m "${formattedCookies}"`;
-                console.log(`Executing PurpleA11y scan command:\n> ${command}\n`);
+                console.log(`Executing OobeeA11y scan command:\n> ${command}\n`);
                 runOobeeA11yScan(command);
             })
             .catch((err: Error) => {
