@@ -53,7 +53,7 @@ Returns an instance of Oobee
 - `scanAboutMetadata` (optional)
   - Include additional information in the Scan About section of the report by passing in a JSON object.
 - `zip` (optional)
-  - Name of the generated zip of Oobee results at the end of scan. Defaults to "oobee-scan-results".
+  - Name of the generated zip of Oobee results at the end of scan. Defaults to "oobee-scan-results.zip".
 - `deviceChosen` (optional)
   - Name of the device to scan on. Example: `iPhone 13 Pro Max`
 - `strategy` (optional)
@@ -185,7 +185,7 @@ Create <code>cypress.config.js</code> with the following contents, and change yo
     // additional information to include in the "Scan About" section of the report
     const scanAboutMetadata = { browser: 'Chrome (Desktop)' };
     // name of the generated zip of the results at the end of scan
-    const resultsZipName = "oobee-scan-results"
+    const resultsZipName = "oobee-scan-results.zip";
 
     const oobeeA11y = await oobeeA11yInit({
       entryUrl: "https://govtechsg.github.io", // initial url to start scan
@@ -245,7 +245,7 @@ Create a sub-folder and file <code>cypress/support/e2e.js</code> with the follow
         });
     });
 
-    Cypress.Commands.add("runPurpleA11yScan", (items={}) => {
+    Cypress.Commands.add("runOobeeA11yScan", (items={}) => {
         cy.window().then(async (win) => {
             const { elementsToScan, elementsToClick, metadata } = items;
 
@@ -284,10 +284,10 @@ Create <code>cypress/e2e/spec.cy.js</code> with the following contents:
                 "https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm"
             );
             cy.injectPurpleA11yScripts();
-            cy.runPurpleA11yScan();
+            cy.runOobeeA11yScan();
              cy.get("button[onclick=\"toggleSecondSection()\"]").click();
             // Run a scan on <input> and <button> elements
-            cy.runPurpleA11yScan({
+            cy.runOobeeA11yScan({
                 elementsToScan: ["input", "button"],
                 elementsToClick: ["button[onclick=\"toggleSecondSection()\"]"],
                 metadata: "Clicked button"
@@ -373,7 +373,7 @@ Create <code>cypress.config.ts</code> with the following contents, and change yo
     // additional information to include in the "Scan About" section of the report
     const scanAboutMetadata: ScanAboutMetadata = { browser: 'Chrome (Desktop)' };
     // name of the generated zip of the results at the end of scan
-    const resultsZipName: string = "oobee-scan-results"
+    const resultsZipName: string = "oobee-scan-results.zip"
 
     const oobeeA11y = await oobeeA11yInit({
         "https://govtechsg.github.io", // initial url to start scan
@@ -435,7 +435,7 @@ Create a sub-folder and file <code>src/cypress/support/e2e.ts</code> with the fo
         });
     });
 
-    Cypress.Commands.add("runPurpleA11yScan", (items={}) => {
+    Cypress.Commands.add("runOobeeA11yScan", (items={}) => {
         cy.window().then(async (win) => {
             const { elementsToScan, elementsToClick, metadata } = items;
 
@@ -474,10 +474,10 @@ Create <code>src/cypress/e2e/spec.cy.ts</code> with the following contents:
                 "https://govtechsg.github.io/purple-banner-embeds/oobee-integrated-scan-example.htm"
             );
             cy.injectPurpleA11yScripts();
-            cy.runPurpleA11yScan();
+            cy.runOobeeA11yScan();
              cy.get("button[onclick=\"toggleSecondSection()\"]").click();
             // Run a scan on <input> and <button> elements
-            cy.runPurpleA11yScan({
+            cy.runOobeeA11yScan({
                 elementsToScan: ["input", "button"],
                 elementsToClick: ["button[onclick=\"toggleSecondSection()\"]"],
                 metadata: "Clicked button"
@@ -493,7 +493,7 @@ Create <code>cypress.d.ts</code> in the root directory with the following conten
 declare namespace Cypress {
   interface Chainable<Subject> {
     injectPurpleA11yScripts(): Chainable<void>;
-    runPurpleA11yScan(options?: PurpleA11yScanOptions): Chainable<void>;
+    runOobeeA11yScan(options?: PurpleA11yScanOptions): Chainable<void>;
     terminatePurpleA11y(): Chainable<any>;
   }
 
@@ -535,7 +535,7 @@ Navigate to <code>node_modules/@govtechsg/oobee</code> and run <code>npm install
     npm run build
     cd ../../..
 
-On your project's root folder, create a Playwright test file <code>oobeeA11y-playwright-demo.js</code>:
+On your project's root folder, create a Playwright test file <code>oobee-playwright-demo.js</code>:
 
     import { chromium } from "playwright";
     import oobeeA11yInit from "@govtechsg/oobee";
@@ -547,6 +547,8 @@ On your project's root folder, create a Playwright test file <code>oobeeA11y-pla
     const thresholds = { mustFix: 20, goodToFix: 25 };
     // additional information to include in the "Scan About" section of the report
     const scanAboutMetadata = { browser: 'Chrome (Desktop)' };
+    // name of the generated zip of the results at the end of scan
+    const resultsZipName = "oobee-scan-results.zip";
 
     const oobeeA11y = await oobeeA11yInit({
         entryUrl: "https://govtechsg.github.io", // initial url to start scan
@@ -572,7 +574,7 @@ On your project's root folder, create a Playwright test file <code>oobeeA11y-pla
         const context = await browser.newContext();
         const page = await context.newPage();
 
-        const runPurpleA11yScan = async (elementsToScan, gradingReadabilityFlag) => {
+        const runOobeeA11yScan = async (elementsToScan, gradingReadabilityFlag) => {
             const scanRes = await page.evaluate(
                 async ({ elementsToScan, gradingReadabilityFlag }) => await runA11yScan(elementsToScan, gradingReadabilityFlag),
                 { elementsToScan, gradingReadabilityFlag },
@@ -587,11 +589,11 @@ On your project's root folder, create a Playwright test file <code>oobeeA11y-pla
         const sentences = await page.evaluate(() => extractText());
         const gradingReadabilityFlag = await oobeeA11y.gradeReadability(sentences);
 
-        await runPurpleA11yScan([], gradingReadabilityFlag);;
+        await runOobeeA11yScan([], gradingReadabilityFlag);
 
         await page.getByRole('button', { name: 'Click Me' }).click();
         // Run a scan on <input> and <button> elements
-        await runPurpleA11yScan(['input', 'button'])
+        await runOobeeA11yScan(['input', 'button'])
 
 
         // ---------------------
@@ -600,7 +602,7 @@ On your project's root folder, create a Playwright test file <code>oobeeA11y-pla
         await oobeeA11y.terminate();
     })();
 
-Run your test with <code>node oobeeA11y-playwright-demo.js</code> .
+Run your test with <code>node oobee-playwright-demo.js</code> .
 
 You will see Oobee results generated in <code>results</code> folder.
 
@@ -637,7 +639,7 @@ Navigate to <code>node_modules/@govtechsg/oobee</code> and run <code>npm install
     npm run build
     cd ../../..
 
-Create a sub-folder and Playwright test file <code>src/oobeeA11y-playwright-demo.ts</code> with the following contents:
+Create a sub-folder and Playwright test file <code>src/oobee-playwright-demo.ts</code> with the following contents:
 
     import { Browser, BrowserContext, Page, chromium } from "playwright";
     import oobeeA11yInit from "@govtechsg/oobee";
@@ -668,6 +670,8 @@ Create a sub-folder and Playwright test file <code>src/oobeeA11y-playwright-demo
     const thresholds: Thresholds = { mustFix: 20, goodToFix: 25 };
     // additional information to include in the "Scan About" section of the report
     const scanAboutMetadata: ScanAboutMetadata = { browser: 'Chrome (Desktop)' };
+    // name of the generated zip of the results at the end of scan
+    const resultsZipName: string = "oobee-scan-results.zip";
 
     const oobeeA11y = await oobeeA11yInit({
         entryUrl: "https://govtechsg.github.io", // initial url to start scan
@@ -693,7 +697,7 @@ Create a sub-folder and Playwright test file <code>src/oobeeA11y-playwright-demo
         const context: BrowserContext = await browser.newContext();
         const page: Page = await context.newPage();
 
-        const runPurpleA11yScan = async (elementsToScan?: string[], gradingReadabilityFlag?: string) => {
+        const runOobeeA11yScan = async (elementsToScan?: string[], gradingReadabilityFlag?: string) => {
             const scanRes = await page.evaluate(
                 async ({ elementsToScan, gradingReadabilityFlag }) => await runA11yScan(elementsToScan, gradingReadabilityFlag),
                 { elementsToScan, gradingReadabilityFlag },
@@ -708,11 +712,11 @@ Create a sub-folder and Playwright test file <code>src/oobeeA11y-playwright-demo
         const sentences = await page.evaluate(() => extractText());
         const gradingReadabilityFlag = await oobeeA11y.gradeReadability(sentences);
 
-        await runPurpleA11yScan([], gradingReadabilityFlag);
+        await runOobeeA11yScan([], gradingReadabilityFlag);
 
         await page.getByRole('button', { name: 'Click Me' }).click();
         // Run a scan on <input> and <button> elements
-        await runPurpleA11yScan(['input', 'button'])
+        await runOobeeA11yScan(['input', 'button'])
 
 
         // ---------------------
@@ -722,7 +726,7 @@ Create a sub-folder and Playwright test file <code>src/oobeeA11y-playwright-demo
     })();
 
 Compile your typescript code with <code>npx tsc</code>.  
-Run your test with <code>node dist/oobeeA11y-playwright-demo.js</code>.
+Run your test with <code>node dist/oobee-playwright-demo.js</code>.
 
 You will see Oobee results generated in <code>results</code> folder.
 
@@ -765,7 +769,7 @@ You will see Oobee results generated in <code>results</code> folder.
         return formattedCookies;
     };
 
-    const runPurpleA11yScan = command => {
+    const runOobeeA11yScan = command => {
         exec(command, (error, stdout, stderr) => {
             if (error) {
                 console.error(`Error: ${error.message}`);
@@ -791,7 +795,7 @@ You will see Oobee results generated in <code>results</code> folder.
                 // where -u ".../loginSuccess/" is the destination page after login
                 const command = `npm run cli -- -c website -u "https://authenticationtest.com/loginSuccess/" -p 1 -k "Your Name:email@domain.com" -m "${formattedCookies}"`;
                 console.log(`Executing PurpleA11y scan command:\n> ${command}\n`);
-                runPurpleA11yScan(command);
+                runOobeeA11yScan(command);
             })
             .catch(err => {
                 console.error('Error:', err);
@@ -836,7 +840,7 @@ You will see Oobee results generated in <code>results</code> folder.
         return formattedCookies;
     };
 
-    const runPurpleA11yScan = (command: string): void => {
+    const runOobeeA11yScan = (command: string): void => {
         exec(command, (error, stdout, stderr) => {
             if (error) {
                 console.error(`Error: ${error.message}`);
@@ -862,7 +866,7 @@ You will see Oobee results generated in <code>results</code> folder.
                 // where -u ".../loginSuccess/" is the destination page after login
                 const command: string = `npm run cli -- -c website -u "https://authenticationtest.com/loginSuccess/" -p 1 -k "Your Name:email@domain.com" -m "${formattedCookies}"`;
                 console.log(`Executing PurpleA11y scan command:\n> ${command}\n`);
-                runPurpleA11yScan(command);
+                runOobeeA11yScan(command);
             })
             .catch((err: Error) => {
                 console.error('Error:', err);
