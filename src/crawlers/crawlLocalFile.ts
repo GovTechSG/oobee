@@ -166,10 +166,6 @@ const crawlLocalFile = async (
       actualUrl: actualUrl, // i.e. actualUrl
     });
 
-    if (urlsCrawled.siteName === undefined) {
-      urlsCrawled.siteName = results.pageTitle || '';
-    }
-
     urlsCrawled.scannedRedirects.push({
       fromUrl: request.url,
       toUrl: actualUrl, // i.e. actualUrl

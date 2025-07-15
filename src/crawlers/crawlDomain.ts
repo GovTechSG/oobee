@@ -755,10 +755,6 @@ const crawlDomain = async ({
                 actualUrl: actualUrl, // i.e. actualUrl
               });
 
-              if (urlsCrawled.siteName === undefined) {
-                urlsCrawled.siteName = results.pageTitle || '';
-              }
-
               urlsCrawled.scannedRedirects.push({
                 fromUrl: urlWithoutAuth(request.url),
                 toUrl: actualUrl, // i.e. actualUrl

@@ -1767,7 +1767,7 @@ const generateArtifacts = async (
       htmlETL: oobeeAiHtmlETL,
       rules: oobeeAiRules,
     },
-    siteName: pagesScanned[0]?.pageTitle ?? '',
+    siteName: (pagesScanned[0]?.pageTitle ?? '').replace(/^\d+\s*:\s*/, '').trim(),
     startTime: scanDetails.startTime ? scanDetails.startTime : new Date(),
     endTime: scanDetails.endTime ? scanDetails.endTime : new Date(),
     urlScanned,
