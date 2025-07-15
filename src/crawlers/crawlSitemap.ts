@@ -1,5 +1,4 @@
 import crawlee, { LaunchContext, Request, RequestList } from 'crawlee';
-import printMessage from 'print-message';
 import fs from 'fs';
 import {
   createCrawleeSubFolders,
@@ -17,7 +16,6 @@ import constants, {
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
-  messageOptions,
   isSkippedUrl,
   urlWithoutAuth,
   waitForPageLoaded,
@@ -132,14 +130,11 @@ const crawlSitemap = async (
   const { playwrightDeviceDetailsObject } = viewportSettings;
   const { maxConcurrency } = constants;
 
-  printMessage(['Fetching URLs. This might take some time...'], { border: false });
-
   finalLinks = [...finalLinks, ...linksFromSitemap];
 
   const requestList = await RequestList.open({
     sources: finalLinks,
   });
-  printMessage(['Fetch URLs completed. Beginning scan'], messageOptions);
 
   let userDataDir = '';
   if (userDataDirectory) {
@@ -434,8 +429,6 @@ const crawlSitemap = async (
   if (!fromCrawlIntelligentSitemap) {
     guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
   }
-
-  printMessage([`Site Title: ${urlsCrawled.siteName ?? '(No title found)'}`], messageOptions);
 
   return urlsCrawled;
 };

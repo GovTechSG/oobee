@@ -1,5 +1,4 @@
 import { Request, RequestList } from 'crawlee';
-import printMessage from 'print-message';
 import fs from 'fs';
 import path from 'path';
 import { createCrawleeSubFolders, runAxeScript, isUrlPdf } from './commonCrawlerFunc.js';
@@ -10,7 +9,6 @@ import constants, {
 } from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
-  messageOptions,
   isFilePath,
   convertLocalFileToPath,
   convertPathToLocalFile,
@@ -128,15 +126,11 @@ const crawlLocalFile = async (
 
   const uuidToPdfMapping: Record<string, string> = {}; // key and value of string type
 
-  printMessage(['Fetching URLs. This might take some time...'], { border: false });
-
   finalLinks = [...finalLinks, ...linksFromSitemap];
 
   await RequestList.open({
     sources: finalLinks,
   });
-
-  printMessage(['Fetch URLs completed. Beginning scan'], messageOptions);
 
   const request = linksFromSitemap[0];
   const pdfFileName = path.basename(request.url);
@@ -189,7 +183,7 @@ const crawlLocalFile = async (
     urlsCrawled.scanned.push({
       url: trimmedUrl,
       pageTitle: pdfFileName,
-      actualUrl: '',
+      actualUrl: trimmedUrl,
     });
 
     await runPdfScan(randomToken);
@@ -204,8 +198,6 @@ const crawlLocalFile = async (
     // push results for each pdf document to key value store
     await Promise.all(pdfResults.map(result => dataset.pushData(result)));
   }
-  
-  printMessage([`Site Title: ${urlsCrawled.siteName ?? '(No title found)'}`], messageOptions);
 
   return urlsCrawled;
 };
