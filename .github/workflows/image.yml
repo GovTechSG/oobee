@@ -120,22 +120,43 @@ jobs:
           echo "id=$ID" >> $GITHUB_OUTPUT
 
       - name: Sign all Mach-O binaries (deep)
+        shell: bash
         run: |
-          CERT=$(security find-identity -v -p codesigning build.keychain \
-          | grep "Developer ID Application" \
-          | sed -E 's/^[[:space:]]*[0-9]+\) ([^"]+).*$/\1/')
+          set -euo pipefail
 
-          # find Mach-O files (execs, dylibs, node native add-ons)
+          # Ensure the build keychain is available & unlocked in THIS step
+          security list-keychains -d user -s build.keychain
+          security default-keychain -d user -s build.keychain
+          security unlock-keychain -p "" build.keychain
+
+          echo "Available signing identities in build.keychain:"
+          security find-identity -v -p codesigning build.keychain || true
+
+          # Extract the FULL identity name (between the quotes)
+          CERTIFICATE_NAME=$(security find-identity -v -p codesigning build.keychain \
+            | awk -F\" '/Developer ID Application:/{print $2; exit}')
+
+          if [[ -z "${CERTIFICATE_NAME}" ]]; then
+            echo "ERROR: No 'Developer ID Application' identity found in build.keychain."
+            exit 1
+          fi
+          echo "Using identity: ${CERTIFICATE_NAME}"
+
+          # Ensure we can re-sign files (node_modules sometimes read-only)
+          chmod -R u+w "$GITHUB_WORKSPACE/oobee"
+
+          # Sign all Mach-O (exec bits OR dylib OR node native addons)
           while IFS= read -r f; do
             echo "Signing $f"
-            codesign --force --options runtime --timestamp --sign "$CERT" "$f"
-          done < <( \
-            find "$GITHUB_WORKSPACE/oobee" -type f \( -perm -111 -o -name "*.dylib" -o -name "*.node" \) \
-            ! -path "*/.git/*" \
+            codesign --force --options runtime --timestamp --sign "${CERTIFICATE_NAME}" "$f"
+          done < <(
+            find "$GITHUB_WORKSPACE/oobee" -type f \
+              \( -perm -111 -o -name "*.dylib" -o -name "*.node" \) \
+              ! -path "*/.git/*"
           )
 
-          # verify (non-fatal summary)
-          codesign --verify --deep --strict --verbose=2 "$GITHUB_WORKSPACE/oobee" || true
+          echo "Verifying signatures..."
+          codesign --verify --deep --strict --verbose=2 "$GITHUB_WORKSPACE/oobee"
 
       - name: Cleanup keychain
         if: always()
