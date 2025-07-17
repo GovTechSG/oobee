@@ -23,8 +23,9 @@ const logFormat = printf(({ timestamp, level, message }) => {
 // All logs in combined.txt, error in errors.txt
 
 const consoleLogger = createLogger({
+  silent: !(process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE),
   format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
-  transports: [new transports.Console()],
+  transports: process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE ? [new transports.Console()] : [],
 });
 
 // No display in consoles, this will mostly be used within the interactive script to avoid disrupting the flow
@@ -33,7 +34,7 @@ const consoleLogger = createLogger({
 const silentLogger = createLogger({
   format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
   transports: [
-    process.env.OOBEE_VERBOSE
+    process.env.OOBEE_VERBOSE || process.env.RUNNING_FROM_PH_GUI
       ? new transports.Console({ handleExceptions: true })
       : new transports.File({ filename: 'errors.txt', level: 'warn', handleExceptions: true }),
   ].filter(Boolean),

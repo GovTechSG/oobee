@@ -685,7 +685,7 @@ async function compressJsonFileStreaming(inputPath: string, outputPath: string) 
   // Pipe the streams:
   //   read -> gzip -> base64 -> write
   await pipeline(readStream, gzip, base64Encode, writeStream);
-  console.log(`File successfully compressed and saved to ${outputPath}`);
+  consoleLogger.info(`File successfully compressed and saved to ${outputPath}`);
 }
 
 const writeJsonFileAndCompressedJsonFile = async (
