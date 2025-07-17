@@ -131,7 +131,6 @@ const extractFileNames = async (directory: string): Promise<string[]> => {
     .then(allFiles => allFiles.filter(file => path.extname(file).toLowerCase() === '.json'))
     .catch(readdirError => {
       consoleLogger.info('An error has occurred when retrieving files, please try again.');
-      silentLogger.error(`(extractFileNames) - ${readdirError}`);
       throw readdirError;
     });
 };
@@ -141,7 +140,6 @@ const parseContentToJson = async rPath =>
     .then(content => JSON.parse(content))
     .catch(parseError => {
       consoleLogger.info('An error has occurred when parsing the content, please try again.');
-      silentLogger.error(`(parseContentToJson) - ${parseError}`);
     });
 
 const writeCsv = async (allIssues, storagePath) => {
@@ -1847,7 +1845,6 @@ const generateArtifacts = async (
     }),
   ).catch(flattenIssuesError => {
     consoleLogger.info('An error has occurred when flattening the issues, please try again.');
-    silentLogger.error(flattenIssuesError.stack);
   });
 
   flattenAndSortResults(allIssues, isCustomFlow);
@@ -1889,7 +1886,11 @@ const generateArtifacts = async (
   );
 
   consoleLogger.info(`Site Name: ${allIssues.siteName}`);
-      
+  consoleLogger.info(`URL: ${allIssues.urlScanned}`);
+  consoleLogger.info(`Pages Scanned: ${allIssues.totalPagesScanned}`);
+  consoleLogger.info(`Start Time: ${allIssues.startTime}`);
+  consoleLogger.info(`End Time: ${allIssues.endTime}`);
+
   const getAxeImpactCount = (allIssues: AllIssues) => {
     const impactCount = {
       critical: 0,
