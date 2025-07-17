@@ -219,7 +219,7 @@ export const init = async ({
         try {
           await page.locator(elem).click();
         } catch (e) {
-          silentLogger.info(e);
+          // do nothing if element is not found or not clickable
         }
       });
 

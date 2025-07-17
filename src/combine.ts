@@ -73,7 +73,6 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     blacklistedPatterns = getBlackListedPatterns(blacklistedPatternsFilename);
   } catch (error) {
     consoleLogger.error(error);
-    silentLogger.error(error);
     process.exit(1);
   }
 
@@ -203,7 +202,6 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
     default:
       consoleLogger.error(`type: ${type} not defined`);
-      silentLogger.error(`type: ${type} not defined`);
       process.exit(1);
   }
 

@@ -40,7 +40,7 @@ import {
   mapPdfScanResults,
   doPdfScreenshots,
 } from './pdfScanFunc.js';
-import { silentLogger, guiInfoLog } from '../logs.js';
+import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
@@ -168,7 +168,7 @@ const crawlDomain = async ({
   const httpHeadCache = new Map<string, boolean>();
   const isProcessibleUrl = async (url: string): Promise<boolean> => {
     if (httpHeadCache.has(url)) {
-      silentLogger.info(`Skipping request as URL has been processed before ${url}}`);
+      consoleLogger.info(`Skipping request as URL has been processed before: ${url}}`);
       return false; // return false to avoid processing the same url again
     }
 
@@ -183,14 +183,14 @@ const crawlDomain = async ({
 
       // Check if the response suggests it's a downloadable file based on Content-Disposition header
       if (contentDisposition.includes('attachment')) {
-        silentLogger.info(`Skipping URL due to attachment header: ${url}`);
+        consoleLogger.info(`Skipping URL due to attachment header: ${url}`);
         httpHeadCache.set(url, false);
         return false;
       }
 
       // Check if the MIME type suggests it's a downloadable file
       if (contentType.startsWith('application/') || contentType.includes('octet-stream')) {
-        silentLogger.info(`Skipping potential downloadable file: ${contentType} at URL ${url}`);
+        consoleLogger.info(`Skipping potential downloadable file: ${contentType} at URL ${url}`);
         httpHeadCache.set(url, false);
         return false;
       }
@@ -198,14 +198,14 @@ const crawlDomain = async ({
       // Use the mime-types library to ensure it's processible content (e.g., HTML or plain text)
       const mimeType = mime.lookup(contentType);
       if (mimeType && !mimeType.startsWith('text/html') && !mimeType.startsWith('text/')) {
-        silentLogger.info(`Detected non-processible MIME type: ${mimeType} at URL ${url}`);
+        consoleLogger.info(`Detected non-processible MIME type: ${mimeType} at URL ${url}`);
         httpHeadCache.set(url, false);
         return false;
       }
 
       // Additional check for zip files by their magic number (PK\x03\x04)
       if (url.endsWith('.zip')) {
-        silentLogger.info(`Checking for zip file magic number at URL ${url}`);
+        consoleLogger.info(`Checking for zip file magic number at URL ${url}`);
 
         // Download the first few bytes of the file to check for the magic number
         const byteResponse = await axios.get(url, {
@@ -216,11 +216,11 @@ const crawlDomain = async ({
 
         const magicNumber = byteResponse.data.toString('hex');
         if (magicNumber === '504b0304') {
-          silentLogger.info(`Skipping zip file at URL ${url}`);
+          consoleLogger.info(`Skipping zip file at URL ${url}`);
           httpHeadCache.set(url, false);
           return false;
         }
-        silentLogger.info(
+        consoleLogger.info(
           `Not skipping ${url}, magic number does not match ZIP file: ${magicNumber}`,
         );
       }
@@ -238,12 +238,12 @@ const crawlDomain = async ({
         !fileType.mime.startsWith('text/html') &&
         !fileType.mime.startsWith('text/')
       ) {
-        silentLogger.info(`Detected downloadable file of type ${fileType.mime} at URL ${url}`);
+        consoleLogger.info(`Detected downloadable file of type ${fileType.mime} at URL ${url}`);
         httpHeadCache.set(url, false);
         return false;
       }
     } catch (e) {
-      // silentLogger.error(`Error checking the MIME type of ${url}: ${e.message}`);
+      // consoleLogger.error(`Error checking the MIME type of ${url}: ${e.message}`);
       // If an error occurs (e.g., a network issue), assume the URL is processible
       httpHeadCache.set(url, true);
       return true;
@@ -269,7 +269,7 @@ const crawlDomain = async ({
           try {
             req.url = req.url.replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
           } catch (e) {
-            silentLogger.error(e);
+            consoleLogger.error(e);
           }
           if (urlsCrawled.scanned.some(item => item.url === req.url)) {
             req.skipNavigation = true;
@@ -291,7 +291,7 @@ const crawlDomain = async ({
         try {
           await customEnqueueLinksByClickingElements(page, browserContext);
         } catch (e) {
-          silentLogger.info(e);
+          // do nothing;
         }
       }
     } catch {
@@ -440,7 +440,7 @@ const crawlDomain = async ({
               const shouldSkip = await shouldSkipClickDueToDisallowedHref(page, element);
               if (shouldSkip) {
                 const elementHtml = await page.evaluate(el => el.outerHTML, element);
-                silentLogger.info(
+                consoleLogger.info(
                   'Skipping a click due to disallowed href nearby. Element HTML:',
                   elementHtml,
                 );
@@ -798,7 +798,7 @@ const crawlDomain = async ({
       } catch (e) {
         try {
           if (!e.message.includes('page.evaluate')) {
-            silentLogger.info(e);
+            // do nothing;
             guiInfoLog(guiInfoStatusTypes.ERROR, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,

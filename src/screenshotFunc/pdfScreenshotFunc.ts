@@ -12,7 +12,7 @@ import { Canvas, createCanvas, SKRSContext2D } from '@napi-rs/canvas';
 import assert from 'assert';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { silentLogger } from '../logs.js';
+import { consoleLogger, silentLogger } from '../logs.js';
 import { TransformedRuleObject } from '../crawlers/pdfScanFunc.js';
 import { IBboxLocation, StructureTree, ViewportSize } from '../types/types.js';
 
@@ -213,7 +213,7 @@ const annotateAndSave = (origCanvas: Canvas, screenshotPath: string, viewport: V
     try {
       fs.writeFileSync(indexedScreenshotPath, croppedImage);
     } catch (e) {
-      silentLogger.error('Error in writing screenshot:', e);
+      consoleLogger.error('Error in writing screenshot:', e);
     }
 
     canvasFactory.destroy({ canvas: croppedCanvas, context: croppedCtx });

@@ -783,7 +783,7 @@ export const retryFunction = async <T>(func: () => Promise<T>, maxAttempt: numbe
       const result = await func();
       return result;
     } catch (error) {
-      silentLogger.error(`(Attempt count: ${attemptCount} of ${maxAttempt}) ${error}`);
+      // do nothing, just retry  
     }
   }
   throw new Error('Maximum number of attempts reached');

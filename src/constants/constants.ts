@@ -7,7 +7,7 @@ import os from 'os';
 import { spawnSync, execSync } from 'child_process';
 import { chromium } from 'playwright';
 import * as Sentry from '@sentry/node';
-import { silentLogger } from '../logs.js';
+import { consoleLogger, silentLogger } from '../logs.js';
 import { PageInfo } from '../mergeAxeResults.js';
 
 const filename = fileURLToPath(import.meta.url);
@@ -128,7 +128,7 @@ export const getDefaultChromiumDataDir = () => {
         defaultChromiumDataDir = '/tmp';
       }
 
-      silentLogger.warn(`Using Chromium support directory at ${defaultChromiumDataDir}`);
+      consoleLogger.info(`Using Chromium support directory at ${defaultChromiumDataDir}`);
     }
 
     if (defaultChromiumDataDir && fs.existsSync(defaultChromiumDataDir)) {

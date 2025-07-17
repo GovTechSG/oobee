@@ -29,7 +29,7 @@ import constants, {
   ScannerTypes,
   BrowserTypes,
 } from './constants.js';
-import { silentLogger } from '../logs.js';
+import { consoleLogger, silentLogger } from '../logs.js';
 import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
 import { randomThreeDigitNumberString } from '../utils.js';
 import { Answers, Data } from '../index.js';
@@ -370,7 +370,6 @@ const requestToUrl = async (
       } else {
         res.status = constants.urlCheckStatuses.systemError.code;
       }
-      silentLogger.error(error);
     });
   return res;
 };
@@ -435,7 +434,7 @@ const checkUrlConnectivityWithBrowser = async (
     try {
       await page.waitForLoadState('networkidle', { timeout: 10000 });
     } catch {
-      silentLogger.info('Unable to detect networkidle');
+      consoleLogger.info('Unable to detect networkidle');
     }
 
     const status = response.status();
@@ -643,7 +642,7 @@ export const getUrlsFromRobotsTxt = async (url: string, browserToRun: string): P
       robotsTxt = await getRobotsTxtViaAxios(robotsUrl);
     }
   } catch (e) {
-    silentLogger.info(e);
+    // if robots.txt is not found, do nothing
   }
   console.log('robotsTxt', robotsTxt);
   if (!robotsTxt) {
@@ -1000,7 +999,7 @@ export const getLinksFromSitemap = async (
 
     switch (sitemapType) {
       case constants.xmlSitemapTypes.xmlIndex:
-        silentLogger.info(`This is a XML format sitemap index.`);
+        consoleLogger.info(`This is a XML format sitemap index.`);
         for (const childSitemapUrl of $('loc')) {
           const childSitemapUrlText = $(childSitemapUrl).text();
           if (isLimitReached()) {
@@ -1014,19 +1013,19 @@ export const getLinksFromSitemap = async (
         }
         break;
       case constants.xmlSitemapTypes.xml:
-        silentLogger.info(`This is a XML format sitemap.`);
+        consoleLogger.info(`This is a XML format sitemap.`);
         await processXmlSitemap($, sitemapType, 'loc', 'lastmod', 'url');
         break;
       case constants.xmlSitemapTypes.rss:
-        silentLogger.info(`This is a RSS format sitemap.`);
+        consoleLogger.info(`This is a RSS format sitemap.`);
         await processXmlSitemap($, sitemapType, 'link', 'pubDate', 'item');
         break;
       case constants.xmlSitemapTypes.atom:
-        silentLogger.info(`This is a Atom format sitemap.`);
+        consoleLogger.info(`This is a Atom format sitemap.`);
         await processXmlSitemap($, sitemapType, 'link', 'published', 'entry');
         break;
       default:
-        silentLogger.info(`This is an unrecognised XML sitemap format.`);
+        consoleLogger.info(`This is an unrecognised XML sitemap format.`);
         processNonStandardSitemap(data);
     }
   };
@@ -1034,7 +1033,7 @@ export const getLinksFromSitemap = async (
   try {
     await fetchUrls(sitemapUrl);
   } catch (e) {
-    silentLogger.error(e);
+    consoleLogger.error(e);
   }
 
   const requestList = Object.values(urls);
@@ -1243,7 +1242,7 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
           try {
             fs.copyFileSync(dir, path.join(destProfileDir, 'Cookies'));
           } catch (err) {
-            silentLogger.error(err);
+            consoleLogger.error(err);
             if (err.code === 'EBUSY') {
               console.log(
                 `Unable to copy the file for ${profileName} because it is currently in use.`,
@@ -1265,7 +1264,7 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
     return success;
   }
 
-  silentLogger.warn('Unable to find Chrome profile cookies file in the system.');
+  consoleLogger.warn('Unable to find Chrome profile cookies file in the system.');
   printMessage(['Unable to find Chrome profile cookies file in the system.'], messageOptions);
   return false;
 };
@@ -1319,7 +1318,7 @@ const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, des
           try {
             fs.copyFileSync(dir, path.join(destProfileDir, 'Cookies'));
           } catch (err) {
-            silentLogger.error(err);
+            consoleLogger.error(err);
             if (err.code === 'EBUSY') {
               console.log(
                 `Unable to copy the file for ${profileName} because it is currently in use.`,
@@ -1338,7 +1337,7 @@ const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, des
     });
     return success;
   }
-  silentLogger.warn('Unable to find Edge profile cookies file in the system.');
+  consoleLogger.warn('Unable to find Edge profile cookies file in the system.');
   printMessage(['Unable to find Edge profile cookies file in the system.'], messageOptions);
   return false;
 };
@@ -1364,7 +1363,7 @@ const cloneLocalStateFile = (options: GlobOptionsWithFileTypesFalse, destDir: st
       try {
         fs.copyFileSync(dir, path.join(destDir, 'Local State'));
       } catch (err) {
-        silentLogger.error(err);
+        consoleLogger.error(err);
         if (err.code === 'EBUSY') {
           console.log(`Unable to copy the file because it is currently in use.`);
           console.log('Please close any applications that might be using this file and try again.');
@@ -1379,7 +1378,7 @@ const cloneLocalStateFile = (options: GlobOptionsWithFileTypesFalse, destDir: st
     });
     return success;
   }
-  silentLogger.warn('Unable to find local state file in the system.');
+  consoleLogger.warn('Unable to find local state file in the system.');
   printMessage(['Unable to find local state file in the system.'], messageOptions);
   return false;
 };
@@ -1542,7 +1541,7 @@ export const deleteClonedChromeProfiles = (randomToken?: string): void => {
         try {
           fs.rmSync(dir, { recursive: true });
         } catch (err) {
-          silentLogger.error(
+          consoleLogger.error(
             `CHROME Unable to delete ${dir} folder in the Chrome data directory. ${err}`,
           );
         }
@@ -1551,7 +1550,7 @@ export const deleteClonedChromeProfiles = (randomToken?: string): void => {
     return;
   }
 
-  silentLogger.warn('Unable to find oobee directory in the Chrome data directory.');
+  consoleLogger.warn('Unable to find oobee directory in the Chrome data directory.');
   console.warn('Unable to find oobee directory in the Chrome data directory.');
 };
 
@@ -1586,7 +1585,7 @@ export const deleteClonedEdgeProfiles = (randomToken?: string): void => {
         try {
           fs.rmSync(dir, { recursive: true });
         } catch (err) {
-          silentLogger.error(
+          consoleLogger.error(
             `EDGE Unable to delete ${dir} folder in the Chrome data directory. ${err}`,
           );
         }
@@ -1618,7 +1617,7 @@ export const deleteClonedChromiumProfiles = (randomToken?: string): void => {
         try {
           fs.rmSync(dir, { recursive: true });
         } catch (err) {
-          silentLogger.error(
+          consoleLogger.error(
             `CHROMIUM Unable to delete ${dir} folder in the Chromium data directory. ${err}`,
           );
         }
@@ -1627,7 +1626,7 @@ export const deleteClonedChromiumProfiles = (randomToken?: string): void => {
     return;
   }
 
-  silentLogger.warn('Unable to find oobee directory in Chromium support directory');
+  consoleLogger.warn('Unable to find oobee directory in Chromium support directory');
   console.warn('Unable to find oobee directory in Chromium support directory');
 };
 
@@ -1704,10 +1703,10 @@ export const submitFormViaPlaywright = async (
     try {
       await page.waitForLoadState('networkidle', { timeout: 10000 });
     } catch {
-      silentLogger.info('Unable to detect networkidle');
+      consoleLogger.info('Unable to detect networkidle');
     }
   } catch (error) {
-    silentLogger.error(error);
+    consoleLogger.error(error);
   } finally {
     await browserContext.close();
     if (proxy && browserToRun === BrowserTypes.EDGE) {

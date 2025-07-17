@@ -2,7 +2,7 @@ import fs from 'fs';
 import { chromium, Page } from 'playwright';
 import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
 import constants, { guiInfoStatusTypes, sitemapPaths } from '../constants/constants.js';
-import { silentLogger, guiInfoLog } from '../logs.js';
+import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
 import { EnqueueStrategy } from 'crawlee';
@@ -80,7 +80,7 @@ const crawlIntelligentSitemap = async (
       }
       return false;
     } catch (e) {
-      silentLogger.error(e);
+      consoleLogger.error(e);
       return false;
     }
   };
@@ -88,7 +88,7 @@ const crawlIntelligentSitemap = async (
   try {
     sitemapUrl = await findSitemap(url);
   } catch (error) {
-    silentLogger.error(error);
+    consoleLogger.error(error);
   }
 
   if (!sitemapExist) {

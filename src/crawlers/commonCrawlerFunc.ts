@@ -8,7 +8,7 @@ import {
   RuleFlags,
   saflyIconSelector,
 } from '../constants/constants.js';
-import { guiInfoLog, silentLogger } from '../logs.js';
+import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
@@ -306,7 +306,7 @@ export const runAxeScript = async ({
       });
     });
   } catch (e) {
-    silentLogger.warn(`Error while checking for DOM mutations: ${e}`);
+    // do nothing, just continue
   }
 
   // Omit logging of browser console errors to reduce unnecessary verbosity
@@ -460,9 +460,9 @@ export const runAxeScript = async ({
   try {
     pageTitle = await page.evaluate(() => document.title);
   } catch (e) {
-    silentLogger.warn(`Error while getting page title: ${e}`);
+    consoleLogger.info(`Error while getting page title: ${e}`);
     if (page.isClosed()) {
-      silentLogger.info(`Page was closed for ${requestUrl}, creating new page`);
+      consoleLogger.info(`Page was closed for ${requestUrl}, creating new page`);
       page = await browserContext.newPage();
       await page.goto(requestUrl, { waitUntil: 'domcontentloaded' });
       pageTitle = await page.evaluate(() => document.title);
