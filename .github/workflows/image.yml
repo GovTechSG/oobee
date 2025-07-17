@@ -119,24 +119,22 @@ jobs:
                | sed -E 's/^[[:space:]]*[0-9]+\) ([^"]+).*$/\1/')
           echo "id=$ID" >> $GITHUB_OUTPUT
 
-      - name: Sign required binaries for MacOS
+      - name: Sign all Mach-O binaries (deep)
         run: |
-          # Find a valid code signing certificate in your keychain for distribution outside Mac App Store
-          CERTIFICATE=$(security find-identity -v -p codesigning -s - | tail -n +2 | grep -o '"Developer ID Application:[^"]*"' | sed 's/"//g')
+          CERT="${{ steps.find_identity.outputs.id }}"
+          echo "Using identity: $CERT"
 
-          # Paths to the binaries you want to sign only ending with .node
-          BINARIES=($(find . -type f \( -name "*.node" -o -name "*.sh" -o -name "*.command" \) ! -path "*.framework/*" ! -path "*.dSYM/*"))
+          # find Mach-O files (execs, dylibs, node native add-ons)
+          while IFS= read -r f; do
+            echo "Signing $f"
+            codesign --force --options runtime --timestamp --sign "$CERT" "$f"
+          done < <( \
+            find "$GITHUB_WORKSPACE/oobee" -type f \( -perm -111 -o -name "*.dylib" -o -name "*.node" \) \
+            ! -path "*/.git/*" \
+          )
 
-          # Loop through the binary paths and sign each one with a secure timestamp
-          for binary in "${BINARIES[@]}"; do
-            # Check if the binary is already signed
-            codesign --timestamp -f -s "$CERTIFICATE" "$binary"
-            if [ $? -eq 0 ]; then
-              echo "Successfully signed (with secure timestamp): $binary"
-            else
-              echo "Failed to sign: $binary"
-            fi
-          done
+          # verify (non-fatal summary)
+          codesign --verify --deep --strict --verbose=2 "$GITHUB_WORKSPACE/oobee" || true
 
       - name: Cleanup keychain
         if: always()
