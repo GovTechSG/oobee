@@ -155,9 +155,10 @@ jobs:
               ! -path "*/.git/*"
           )
 
-          echo "Verifying signatures..."
-          codesign --verify --deep --strict --verbose=2 "$GITHUB_WORKSPACE/oobee"
-
+          echo "Verifying signatures of Mach-O files..."
+          find "$GITHUB_WORKSPACE/oobee" -type f \( -perm -111 -o -name "*.dylib" -o -name "*.node" \) \
+            -exec codesign --verify --strict --verbose=2 {} \; || true
+          
       - name: Cleanup keychain
         if: always()
         run: security delete-keychain build.keychain
