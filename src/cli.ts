@@ -26,6 +26,7 @@ import constants, { ScannerTypes } from './constants/constants.js';
 import { cliOptions, messageOptions } from './constants/cliFunctions.js';
 import combineRun from './combine.js';
 import { Answers } from './index.js';
+import { consoleLogger } from './logs.js';
 
 const appVersion = getVersion();
 const yargs = _yargs(hideBin(process.argv));
@@ -240,6 +241,9 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     isCustomFlow,
     parseHeaders(updatedArgvs.header),
   );
+
+  consoleLogger.info(`Connectivity Respnse Code: ${res.status}`);
+
   switch (res.status) {
     case statuses.success.code: {
       updatedArgvs.finalUrl = res.url;
