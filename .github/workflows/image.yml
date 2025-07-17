@@ -121,8 +121,9 @@ jobs:
 
       - name: Sign all Mach-O binaries (deep)
         run: |
-          CERT="${{ steps.find_identity.outputs.id }}"
-          echo "Using identity: $CERT"
+          CERT=$(security find-identity -v -p codesigning build.keychain \
+          | grep "Developer ID Application" \
+          | sed -E 's/^[[:space:]]*[0-9]+\) ([^"]+).*$/\1/')
 
           # find Mach-O files (execs, dylibs, node native add-ons)
           while IFS= read -r f; do
