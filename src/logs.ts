@@ -25,7 +25,8 @@ const logFormat = printf(({ timestamp, level, message }) => {
 const consoleLogger = createLogger({
   silent: !(process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE),
   format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
-  transports: process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE ? [new transports.Console()] : [],
+  transports:
+    process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE ? [new transports.Console()] : [],
 });
 
 // No display in consoles, this will mostly be used within the interactive script to avoid disrupting the flow

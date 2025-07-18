@@ -1558,7 +1558,7 @@ const sendWcagBreakdownToSentry = async (
     const wcagCriteriaBreakdown: Record<string, any> = {};
 
     // Tag app version
-    tags['version'] = appVersion;
+    tags.version = appVersion;
 
     // Get dynamic WCAG criteria map once
     const wcagCriteriaMap = await getWcagCriteriaMap();
@@ -2049,6 +2049,9 @@ const generateArtifacts = async (
   } catch (error) {
     console.error('Error sending WCAG data to Sentry:', error);
   }
+
+  if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE)
+    console.log('Report generated successfully');
 
   return ruleIdJson;
 };
