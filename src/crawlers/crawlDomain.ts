@@ -74,6 +74,7 @@ const crawlDomain = async ({
   includeScreenshots,
   followRobots,
   extraHTTPHeaders,
+  scanDuration = 0,
   safeMode = false,
   fromCrawlIntelligentSitemap = false,
   datasetFromIntelligent = null,
@@ -94,12 +95,14 @@ const crawlDomain = async ({
   includeScreenshots: boolean;
   followRobots: boolean;
   extraHTTPHeaders: Record<string, string>;
+  scanDuration?: number; 
   safeMode?: boolean;
   fromCrawlIntelligentSitemap?: boolean;
   datasetFromIntelligent?: crawlee.Dataset;
   urlsCrawledFromIntelligent?: UrlsCrawled;
   ruleset?: RuleFlags[];
 }) => {
+  const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
   let urlsCrawled: UrlsCrawled;
   let requestQueue: crawlee.RequestQueue;
@@ -612,7 +615,13 @@ const crawlDomain = async ({
           return;
         }
 
-        if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) {
+        const hasExceededDuration =
+          scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
+
+        if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
+          if (hasExceededDuration) {
+            console.log(`Scan duration of ${scanDuration}s exceeded. Aborting crawl.`);
+          }
           isAbortingScanNow = true;
           crawler.autoscaledPool.abort();
           return;
@@ -892,6 +901,10 @@ const crawlDomain = async ({
     guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
   }
 
+  if (scanDuration > 0) {
+    const elapsed = Math.round((Date.now() - crawlStartTime) / 1000);
+    console.log(`Scan ended after ${elapsed}s. Limit: ${scanDuration}s.`);
+  }
   return urlsCrawled;
 };
 

@@ -1,4 +1,4 @@
-import { Request, RequestList } from 'crawlee';
+import { Request, RequestList, Dataset } from 'crawlee';
 import fs from 'fs';
 import path from 'path';
 import { createCrawleeSubFolders, runAxeScript, isUrlPdf } from './commonCrawlerFunc.js';
@@ -7,6 +7,7 @@ import constants, {
   basicAuthRegex,
   UrlsCrawled,
 } from '../constants/constants.js';
+import { ViewportSettingsClass } from '../combine.js';
 import {
   getPlaywrightLaunchOptions,
   isFilePath,
@@ -18,27 +19,47 @@ import { runPdfScan, mapPdfScanResults, doPdfScreenshots } from './pdfScanFunc.j
 import { guiInfoLog } from '../logs.js';
 import crawlSitemap from './crawlSitemap.js';
 
-const crawlLocalFile = async (
-  sitemapUrl: string,
-  randomToken: string,
-  host: string,
-  viewportSettings: any,
-  maxRequestsPerCrawl: number,
-  browser: string,
-  userDataDirectory: string,
-  specifiedMaxConcurrency: number,
-  fileTypes: string,
-  blacklistedPatterns: string[],
-  includeScreenshots: boolean,
-  extraHTTPHeaders: any,
-  fromCrawlIntelligentSitemap: boolean = false, // optional
-  userUrlInputFromIntelligent: any = null, // optional
-  datasetFromIntelligent: any = null, // optional
-  urlsCrawledFromIntelligent: any = null, // optional
-) => {
+export const crawlLocalFile = async ({
+  url,
+  randomToken,
+  host,
+  viewportSettings,
+  maxRequestsPerCrawl,
+  browser,
+  userDataDirectory,
+  specifiedMaxConcurrency,
+  fileTypes,
+  blacklistedPatterns,
+  includeScreenshots,
+  extraHTTPHeaders,
+  scanDuration = 0,
+  fromCrawlIntelligentSitemap = false,
+  userUrlInputFromIntelligent = null,
+  datasetFromIntelligent = null,
+  urlsCrawledFromIntelligent = null,
+}: {
+  url: string;
+  randomToken: string;
+  host: string;
+  viewportSettings: ViewportSettingsClass;
+  maxRequestsPerCrawl: number;
+  browser: string;
+  userDataDirectory: string;
+  specifiedMaxConcurrency: number;
+  fileTypes: string;
+  blacklistedPatterns: string[];
+  includeScreenshots: boolean;
+  extraHTTPHeaders: Record<string, string>;
+  scanDuration?: number;
+  fromCrawlIntelligentSitemap?: boolean;
+  userUrlInputFromIntelligent?: string | null;
+  datasetFromIntelligent?: Dataset | null;
+  urlsCrawledFromIntelligent?: UrlsCrawled | null;
+}) => {
   let dataset: any;
   let urlsCrawled: UrlsCrawled;
   let linksFromSitemap = [];
+  let sitemapUrl = url; 
 
   // Boolean to omit axe scan for basic auth URL
   let isBasicAuth: boolean;
@@ -84,7 +105,7 @@ const crawlLocalFile = async (
     // Non XML file
   } else {
     // Put it to crawlSitemap function to handle xml files
-    const updatedUrlsCrawled = await crawlSitemap(
+    const updatedUrlsCrawled = await crawlSitemap({
       sitemapUrl,
       randomToken,
       host,
@@ -97,12 +118,13 @@ const crawlLocalFile = async (
       blacklistedPatterns,
       includeScreenshots,
       extraHTTPHeaders,
-      (fromCrawlIntelligentSitemap = false), // optional
-      (userUrlInputFromIntelligent = null), // optional
-      (datasetFromIntelligent = null), // optional
-      (urlsCrawledFromIntelligent = null), // optional
-      true,
-    );
+      scanDuration,
+      fromCrawlIntelligentSitemap,
+      userUrlInputFromIntelligent,
+      datasetFromIntelligent,
+      urlsCrawledFromIntelligent,
+      crawledFromLocalFile: true,
+    });
 
     urlsCrawled = { ...urlsCrawled, ...updatedUrlsCrawled };
     return urlsCrawled;
@@ -140,6 +162,8 @@ const crawlLocalFile = async (
   fs.writeFileSync(destinationFilePath, data);
   uuidToPdfMapping[pdfFileName] = trimmedUrl;
 
+  let shouldAbort = false;
+
   if (!isUrlPdf(request.url)) {
     await initModifiedUserAgent(browser);
     const browserContext = await constants.launcher.launchPersistentContext('', {
@@ -148,9 +172,24 @@ const crawlLocalFile = async (
       ...playwrightDeviceDetailsObject,
     });
 
+    const timeoutId = scanDuration > 0
+    ? setTimeout(() => {
+        console.warn(`Scan duration of ${scanDuration}s exceeded. Aborting crawl.`);
+        shouldAbort = true;
+      }, scanDuration * 1000)
+    : null;
+
     const page = await browserContext.newPage();
     request.url = convertPathToLocalFile(request.url);
     await page.goto(request.url);
+
+    if (shouldAbort) {
+      console.warn('Scan aborted due to timeout before page scan.');
+      await dataset.pushData({ scanned: [], scannedRedirects: [] });
+      await browserContext.close().catch(() => {});
+      return urlsCrawled;
+    }
+
     const results = await runAxeScript({ includeScreenshots, page, randomToken });
 
     const actualUrl = page.url() || request.loadedUrl || request.url;

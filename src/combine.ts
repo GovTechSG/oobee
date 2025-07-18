@@ -61,6 +61,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     zip,
     ruleset, // Enable custom checks, Enable WCAG AAA: if checked, = 'enable-wcag-aaa')
     generateJsonFiles,
+    scanDuration
   } = envDetails;
 
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
@@ -126,8 +127,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       break;
 
     case ScannerTypes.SITEMAP:
-      urlsCrawledObj = await crawlSitemap(
-        url,
+        urlsCrawledObj = await crawlSitemap({
+        sitemapUrl: url,
         randomToken,
         host,
         viewportSettings,
@@ -139,11 +140,12 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         blacklistedPatterns,
         includeScreenshots,
         extraHTTPHeaders,
-      );
+        scanDuration,
+      });
       break;
 
     case ScannerTypes.LOCALFILE:
-      urlsCrawledObj = await crawlLocalFile(
+      urlsCrawledObj = await crawlLocalFile({
         url,
         randomToken,
         host,
@@ -156,7 +158,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         blacklistedPatterns,
         includeScreenshots,
         extraHTTPHeaders,
-      );
+        scanDuration,
+      });
       break;
 
     case ScannerTypes.INTELLIGENT:
@@ -176,6 +179,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         followRobots,
         extraHTTPHeaders,
         safeMode,
+        scanDuration
       );
       break;
 
@@ -195,6 +199,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         includeScreenshots,
         followRobots,
         extraHTTPHeaders,
+        scanDuration,
         safeMode,
         ruleset,
       });

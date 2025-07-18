@@ -24,6 +24,7 @@ const crawlIntelligentSitemap = async (
   followRobots: boolean,
   extraHTTPHeaders: Record<string, string>,
   safeMode: boolean,
+  scanDuration: number
 ) => {
   let urlsCrawledFinal;
   let urlsCrawled;
@@ -114,7 +115,7 @@ const crawlIntelligentSitemap = async (
   }
   console.log(`Sitemap found at ${sitemapUrl}`);
   // run crawlSitemap then crawDomain subsequently if urlsCrawled.scanned.length < maxRequestsPerCrawl
-  urlsCrawledFinal = await crawlSitemap(
+    urlsCrawledFinal = await crawlSitemap({
     sitemapUrl,
     randomToken,
     host,
@@ -128,11 +129,12 @@ const crawlIntelligentSitemap = async (
     includeScreenshots,
     extraHTTPHeaders,
     fromCrawlIntelligentSitemap,
-    url,
-    dataset, // for crawlSitemap to add on to
-    urlsCrawled, // for crawlSitemap to add on to
-    false,
-  );
+    userUrlInputFromIntelligent: url,
+    datasetFromIntelligent: dataset,
+    urlsCrawledFromIntelligent: urlsCrawled,
+    crawledFromLocalFile: false,
+    scanDuration,
+  });
 
   if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
     // run crawl domain starting from root website, only on pages not scanned before

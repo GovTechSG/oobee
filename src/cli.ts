@@ -195,6 +195,23 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     }
     return true;
   })
+  .coerce('l', (option) => {
+    const duration = Number(option);
+    if (isNaN(duration) || duration < 0) {
+      printMessage(
+        ['Invalid scan duration. Please provide a positive number of seconds.'],
+        messageOptions,
+      );
+      process.exit(1);
+    }
+    return duration;
+  })
+  .check(argvs => {
+    if (argvs.scanner === ScannerTypes.CUSTOM && argvs.scanDuration > 0) {
+      throw new Error('-l or --scanDuration is not allowed for custom flow scans.');
+    }
+    return true;
+  })
   .conflicts('d', 'w')
   .parse() as unknown as Answers;
 
@@ -390,6 +407,7 @@ const optionsAnswer: Answers = {
   playwrightDeviceDetailsObject: options.playwrightDeviceDetailsObject,
   ruleset: options.ruleset,
   generateJsonFiles: options.generateJsonFiles,
+  scanDuration: options.scanDuration,
 };
 
 await scanInit(optionsAnswer);

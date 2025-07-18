@@ -1,4 +1,4 @@
-import crawlee, { LaunchContext, Request, RequestList } from 'crawlee';
+import crawlee, { LaunchContext, Request, RequestList, Dataset } from 'crawlee';
 import fs from 'fs';
 import {
   createCrawleeSubFolders,
@@ -27,25 +27,46 @@ import { handlePdfDownload, runPdfScan, mapPdfScanResults } from './pdfScanFunc.
 import { guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 
-const crawlSitemap = async (
-  sitemapUrl: string,
-  randomToken: string,
-  _host: string,
-  viewportSettings: ViewportSettingsClass,
-  maxRequestsPerCrawl: number,
-  browser: string,
-  userDataDirectory: string,
-  specifiedMaxConcurrency: number,
-  fileTypes: string,
-  blacklistedPatterns: string[],
-  includeScreenshots: boolean,
-  extraHTTPHeaders: Record<string, string>,
-  fromCrawlIntelligentSitemap = false, // optional
-  userUrlInputFromIntelligent: string = null, // optional
-  datasetFromIntelligent: crawlee.Dataset = null, // optional
-  urlsCrawledFromIntelligent: UrlsCrawled = null, // optional
-  crawledFromLocalFile = false, // optional
-) => {
+const crawlSitemap = async ({
+  sitemapUrl,
+  randomToken,
+  host,
+  viewportSettings,
+  maxRequestsPerCrawl,
+  browser,
+  userDataDirectory,
+  specifiedMaxConcurrency,
+  fileTypes,
+  blacklistedPatterns,
+  includeScreenshots,
+  extraHTTPHeaders,
+  scanDuration = 0,
+  fromCrawlIntelligentSitemap = false,
+  userUrlInputFromIntelligent = null,
+  datasetFromIntelligent = null,
+  urlsCrawledFromIntelligent = null,
+  crawledFromLocalFile = false,
+}: {
+  sitemapUrl: string;
+  randomToken: string;
+  host: string;
+  viewportSettings: ViewportSettingsClass;
+  maxRequestsPerCrawl: number;
+  browser: string;
+  userDataDirectory: string;
+  specifiedMaxConcurrency: number;
+  fileTypes: string;
+  blacklistedPatterns: string[];
+  includeScreenshots: boolean;
+  extraHTTPHeaders: Record<string, string>;
+  scanDuration?: number;
+  fromCrawlIntelligentSitemap?: boolean;
+  userUrlInputFromIntelligent?: string;
+  datasetFromIntelligent?: Dataset;
+  urlsCrawledFromIntelligent?: UrlsCrawled;
+  crawledFromLocalFile?: boolean;
+}) => {
+  const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
   let urlsCrawled: UrlsCrawled;
 
@@ -276,8 +297,14 @@ const crawlSitemap = async (
 
       const actualUrl = page.url() || request.loadedUrl || request.url;
 
-      if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) {
-        crawler.autoscaledPool.abort();
+      const hasExceededDuration =
+        scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
+
+      if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
+        if (hasExceededDuration) {
+          console.log(`Scan duration of ${scanDuration}s exceeded. Aborting crawl.`);
+        }
+        crawler.autoscaledPool.abort(); // ✅ stops new requests
         return;
       }
 
@@ -307,6 +334,8 @@ const crawlSitemap = async (
           metadata: STATUS_CODE_METADATA[1],
           httpStatusCode: 0,
         });
+
+        return;
       }
 
       const contentType = response?.headers?.()['content-type'] || '';
@@ -452,6 +481,11 @@ const crawlSitemap = async (
 
   if (!fromCrawlIntelligentSitemap) {
     guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
+  }
+
+  if (scanDuration > 0) {
+    const elapsed = Math.round((Date.now() - crawlStartTime) / 1000);
+    console.log(`Scan ended after ${elapsed}s (limit: ${scanDuration}s).`);
   }
 
   return urlsCrawled;

@@ -331,5 +331,14 @@ To obtain the JSON files, you need to base64-decode the file followed by gunzip.
       throw new Error(`Invalid value "${value}" for --generate. Use "yes", "y", "no", or "n".`);
     },
   },
+  l: {
+    alias: 'scanDuration',
+    describe: 'Maximum scan duration in seconds (0 means unlimited)',
+    type: 'number',
+    requiresArg: true,
+    default: 0,
+    demandOption: false,
+    coerce: val => Number(val),
+  },
 };
 

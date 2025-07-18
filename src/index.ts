@@ -50,6 +50,7 @@ export type Answers = {
   zip: string;
   ruleset: RuleFlags[];
   generateJsonFiles: boolean;
+  scanDuration?: number;
 };
 
 export type Data = {
@@ -80,6 +81,7 @@ export type Data = {
   zip?: string;
   ruleset: RuleFlags[];
   generateJsonFiles: boolean;
+  scanDuration: number;
 };
 
 const userData = getUserDataTxt();

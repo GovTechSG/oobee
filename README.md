@@ -387,6 +387,8 @@ Options:
                                      (linux) base64 -d scanData.json.gz.b64 |
                                      gunzip > scanData.json\n
                                      [string] [choices: "yes", "no"] [default: "no"]
+  -l, --scanDuration                 Maximum scan duration in seconds (0 means u
+                                     nlimited)             [number] [default: 0]
 
 Examples:
   To scan sitemap of website:', 'npm run cli -- -c [ 1 | sitemap ] -u <url_lin
