@@ -620,7 +620,7 @@ const crawlDomain = async ({
 
         if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
           if (hasExceededDuration) {
-            console.log(`Scan duration of ${scanDuration}s exceeded. Aborting crawl.`);
+            console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting website crawl.`);
           }
           isAbortingScanNow = true;
           crawler.autoscaledPool.abort();
@@ -903,7 +903,7 @@ const crawlDomain = async ({
 
   if (scanDuration > 0) {
     const elapsed = Math.round((Date.now() - crawlStartTime) / 1000);
-    console.log(`Scan ended after ${elapsed}s. Limit: ${scanDuration}s.`);
+    console.log(`Crawl ended after ${elapsed}s. Limit: ${scanDuration}s.`);
   }
   return urlsCrawled;
 };

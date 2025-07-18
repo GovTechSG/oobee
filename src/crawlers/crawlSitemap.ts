@@ -302,7 +302,7 @@ const crawlSitemap = async ({
 
       if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
         if (hasExceededDuration) {
-          console.log(`Scan duration of ${scanDuration}s exceeded. Aborting crawl.`);
+          console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting sitemap crawl.`);
         }
         crawler.autoscaledPool.abort(); // ✅ stops new requests
         return;
@@ -485,7 +485,7 @@ const crawlSitemap = async ({
 
   if (scanDuration > 0) {
     const elapsed = Math.round((Date.now() - crawlStartTime) / 1000);
-    console.log(`Scan ended after ${elapsed}s (limit: ${scanDuration}s).`);
+    console.log(`Crawl ended after ${elapsed}s (limit: ${scanDuration}s).`);
   }
 
   return urlsCrawled;

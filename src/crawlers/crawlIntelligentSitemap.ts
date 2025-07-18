@@ -26,45 +26,40 @@ const crawlIntelligentSitemap = async (
   safeMode: boolean,
   scanDuration: number
 ) => {
+  const startTime = Date.now(); // Track start time
+
   let urlsCrawledFinal;
-  let urlsCrawled;
+  let urlsCrawled = { ...constants.urlsCrawledObj };
   let dataset;
   let sitemapExist = false;
   const fromCrawlIntelligentSitemap = true;
   let sitemapUrl;
 
-  urlsCrawled = { ...constants.urlsCrawledObj };
   ({ dataset } = await createCrawleeSubFolders(randomToken));
-
   if (!fs.existsSync(randomToken)) {
     fs.mkdirSync(randomToken);
   }
 
   function getHomeUrl(parsedUrl: string) {
     const urlObject = new URL(parsedUrl);
-    if (urlObject.username !== '' && urlObject.password !== '') {
+    if (urlObject.username && urlObject.password) {
       return `${urlObject.protocol}//${urlObject.username}:${urlObject.password}@${urlObject.hostname}${urlObject.port ? `:${urlObject.port}` : ''}`;
     }
-
     return `${urlObject.protocol}//${urlObject.hostname}${urlObject.port ? `:${urlObject.port}` : ''}`;
   }
 
   async function findSitemap(link: string) {
     const homeUrl = getHomeUrl(link);
-    let sitemapLinkFound = false;
     let sitemapLink = '';
-    const chromiumBrowser = await chromium.launch(
-      {
-        headless: false,
-        channel: 'chrome',
-        args: ['--headless=new', '--no-sandbox']
-      });
-
+    const chromiumBrowser = await chromium.launch({
+      headless: false,
+      channel: 'chrome',
+      args: ['--headless=new', '--no-sandbox'],
+    });
     const page = await chromiumBrowser.newPage();
     for (const path of sitemapPaths) {
       sitemapLink = homeUrl + path;
-      sitemapLinkFound = await checkUrlExists(page, sitemapLink);
-      if (sitemapLinkFound) {
+      if (await checkUrlExists(page, sitemapLink)) {
         sitemapExist = true;
         break;
       }
@@ -76,10 +71,7 @@ const crawlIntelligentSitemap = async (
   const checkUrlExists = async (page: Page, parsedUrl: string) => {
     try {
       const response = await page.goto(parsedUrl);
-      if (response.ok()) {
-        return true;
-      }
-      return false;
+      return response.ok();
     } catch (e) {
       consoleLogger.error(e);
       return false;
@@ -94,8 +86,7 @@ const crawlIntelligentSitemap = async (
 
   if (!sitemapExist) {
     console.log('Unable to find sitemap. Commencing website crawl instead.');
-    // run crawlDomain as per normal
-    urlsCrawledFinal = await crawlDomain({
+    return await crawlDomain({
       url,
       randomToken,
       host,
@@ -110,12 +101,13 @@ const crawlIntelligentSitemap = async (
       includeScreenshots,
       followRobots,
       extraHTTPHeaders,
+      safeMode,
+      scanDuration, // Use full duration since no sitemap
     });
-    return urlsCrawledFinal;
   }
+
   console.log(`Sitemap found at ${sitemapUrl}`);
-  // run crawlSitemap then crawDomain subsequently if urlsCrawled.scanned.length < maxRequestsPerCrawl
-    urlsCrawledFinal = await crawlSitemap({
+  urlsCrawledFinal = await crawlSitemap({
     sitemapUrl,
     randomToken,
     host,
@@ -136,8 +128,14 @@ const crawlIntelligentSitemap = async (
     scanDuration,
   });
 
-  if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
-    // run crawl domain starting from root website, only on pages not scanned before
+  const elapsed = Date.now() - startTime;
+  const remainingScanDuration = Math.max(scanDuration - elapsed / 1000, 0); // in seconds
+
+  if (
+    urlsCrawledFinal.scanned.length < maxRequestsPerCrawl &&
+    remainingScanDuration > 0
+  ) {
+    console.log(`Continuing crawl from root website. Remaining scan time: ${remainingScanDuration.toFixed(1)}s`);
     urlsCrawledFinal = await crawlDomain({
       url,
       randomToken,
@@ -155,12 +153,16 @@ const crawlIntelligentSitemap = async (
       extraHTTPHeaders,
       safeMode,
       fromCrawlIntelligentSitemap,
-      datasetFromIntelligent: dataset, // for crawlDomain to add on to
-      urlsCrawledFromIntelligent: urlsCrawledFinal, // urls for crawlDomain to exclude
+      datasetFromIntelligent: dataset,
+      urlsCrawledFromIntelligent: urlsCrawledFinal,
+      scanDuration: remainingScanDuration,
     });
+  } else if (remainingScanDuration <= 0) {
+    console.log(`Crawl duration exceeded before more pages could be found (limit: ${scanDuration}s).`);
   }
 
   guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
   return urlsCrawledFinal;
 };
+
 export default crawlIntelligentSitemap;
