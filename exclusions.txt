@@ -1,4 +1,5 @@
 \.*login.singpass.gov.sg\.*
+\.*login.id.singpass.gov.sg\.*
 \.*auth.singpass.gov.sg\.*
 \.*form.gov.sg\.*
 \.*login.microsoftonline.com\.*

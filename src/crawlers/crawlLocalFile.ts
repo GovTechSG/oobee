@@ -174,7 +174,7 @@ export const crawlLocalFile = async ({
 
     const timeoutId = scanDuration > 0
     ? setTimeout(() => {
-        console.warn(`Crawl duration of ${scanDuration}s exceeded. Aborting local file scan.`);
+        console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting local file scan.`);
         shouldAbort = true;
       }, scanDuration * 1000)
     : null;

@@ -304,7 +304,7 @@ const crawlSitemap = async ({
         if (hasExceededDuration) {
           console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting sitemap crawl.`);
         }
-        crawler.autoscaledPool.abort(); // ✅ stops new requests
+        crawler.autoscaledPool.abort(); // stops new requests
         return;
       }
 
