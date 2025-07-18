@@ -531,7 +531,6 @@ const crawlDomain = async ({
             const root = document.documentElement || document.body || document;
             if (!root || typeof observer.observe !== 'function') {
               resolve('No root node to observe.');
-              return;
             }
           });
         });
@@ -667,7 +666,7 @@ const crawlDomain = async ({
           urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // because about:blank is not useful
+            actualUrl, // because about:blank is not useful
             metadata: STATUS_CODE_METADATA[1],
             httpStatusCode: 0,
           });
@@ -683,7 +682,7 @@ const crawlDomain = async ({
           urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl,
+            actualUrl,
             metadata: STATUS_CODE_METADATA[0],
             httpStatusCode: 0,
           });
@@ -752,7 +751,7 @@ const crawlDomain = async ({
               urlsCrawled.scanned.push({
                 url: urlWithoutAuth(request.url),
                 pageTitle: results.pageTitle,
-                actualUrl: actualUrl, // i.e. actualUrl
+                actualUrl, // i.e. actualUrl
               });
 
               urlsCrawled.scannedRedirects.push({
@@ -787,7 +786,7 @@ const crawlDomain = async ({
           urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl, // because about:blank is not useful
+            actualUrl, // because about:blank is not useful
             metadata: STATUS_CODE_METADATA[1],
             httpStatusCode: 0,
           });

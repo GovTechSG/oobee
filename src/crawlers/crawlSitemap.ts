@@ -201,7 +201,6 @@ const crawlSitemap = async (
               const root = document.documentElement || document.body || document;
               if (!root || typeof observer.observe !== 'function') {
                 resolve('No root node to observe.');
-                return;
               }
             });
           });
@@ -214,25 +213,53 @@ const crawlSitemap = async (
         }
       },
     ],
+    preNavigationHooks: [
+      async ({ request, page }, gotoOptions) => {
+        const url = request.url.toLowerCase();
 
-    preNavigationHooks: isBasicAuth
-      ? [
-          async ({ page }) => {
-            await page.setExtraHTTPHeaders({
-              Authorization: authHeader,
-              ...extraHTTPHeaders,
-            });
-          },
-        ]
-      : [
-          async () => {
-            preNavigationHooks(extraHTTPHeaders);
-            // insert other code here
-          },
-        ],
+        const isNotSupportedDocument = disallowedListOfPatterns.some(pattern =>
+          url.startsWith(pattern),
+        );
+
+        if (isNotSupportedDocument) {
+          request.skipNavigation = true;
+          request.userData.isNotSupportedDocument = true;
+
+          // Log for verification (optional, but not required for correctness)
+          // console.log(`[SKIP] Not supported: ${request.url}`);
+
+          return;
+        }
+
+        // Set headers if basic auth
+        if (isBasicAuth) {
+          await page.setExtraHTTPHeaders({
+            Authorization: authHeader,
+            ...extraHTTPHeaders,
+          });
+        } else {
+          preNavigationHooks(extraHTTPHeaders);
+        }
+      },
+    ],
     requestHandlerTimeoutSecs: 90,
     requestHandler: async ({ page, request, response, sendRequest }) => {
-      await waitForPageLoaded(page, 10000);
+      // Log documents that are not supported
+      if (request.userData?.isNotSupportedDocument) {
+        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+          numScanned: urlsCrawled.scanned.length,
+          urlScanned: request.url,
+        });
+        urlsCrawled.userExcluded.push({
+          url: request.url,
+          pageTitle: request.url,
+          actualUrl: request.url, // because about:blank is not useful
+          metadata: STATUS_CODE_METADATA[1],
+          httpStatusCode: 0,
+        });
+
+        return;
+      }
 
       // Set basic auth header if needed
       if (isBasicAuth) {
@@ -245,6 +272,8 @@ const crawlSitemap = async (
         request.url = currentUrl.href;
       }
 
+      await waitForPageLoaded(page, 10000);
+
       const actualUrl = page.url() || request.loadedUrl || request.url;
 
       if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) {
@@ -253,32 +282,31 @@ const crawlSitemap = async (
       }
 
       if (request.skipNavigation && actualUrl === 'about:blank') {
-        if (!isScanPdfs) {
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.userExcluded.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl: request.url, // because about:blank is not useful
-            metadata: STATUS_CODE_METADATA[1],
-            httpStatusCode: 0,
-          });
+        if (isScanPdfs) {
+          // pushes download promise into pdfDownloads
+          const { pdfFileName, url } = handlePdfDownload(
+            randomToken,
+            pdfDownloads,
+            request,
+            sendRequest,
+            urlsCrawled,
+          );
 
+          uuidToPdfMapping[pdfFileName] = url;
           return;
         }
-        // pushes download promise into pdfDownloads
-        const { pdfFileName, url } = handlePdfDownload(
-          randomToken,
-          pdfDownloads,
-          request,
-          sendRequest,
-          urlsCrawled,
-        );
 
-        uuidToPdfMapping[pdfFileName] = url;
-        return;
+        guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+          numScanned: urlsCrawled.scanned.length,
+          urlScanned: request.url,
+        });
+        urlsCrawled.userExcluded.push({
+          url: request.url,
+          pageTitle: request.url,
+          actualUrl: request.url, // because about:blank is not useful
+          metadata: STATUS_CODE_METADATA[1],
+          httpStatusCode: 0,
+        });
       }
 
       const contentType = response?.headers?.()['content-type'] || '';
@@ -305,7 +333,7 @@ const crawlSitemap = async (
           urlsCrawled.userExcluded.push({
             url: request.url,
             pageTitle: request.url,
-            actualUrl: actualUrl,
+            actualUrl,
             metadata: STATUS_CODE_METADATA[0],
             httpStatusCode: 0,
           });
@@ -327,7 +355,7 @@ const crawlSitemap = async (
         urlsCrawled.scanned.push({
           url: urlWithoutAuth(request.url),
           pageTitle: results.pageTitle,
-          actualUrl: actualUrl, // i.e. actualUrl
+          actualUrl, // i.e. actualUrl
         });
 
         urlsCrawled.scannedRedirects.push({
