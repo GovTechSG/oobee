@@ -209,8 +209,8 @@ export const getWcagPassPercentage = (
   totalWcagViolationsAAandAAA: number;
 } => {
   // These AAA rules should not be counted as WCAG Pass Percentage only contains A and AA
-  const wcagAAALinks = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5', 'WCAG 3.2.5'];
-  const wcagAAA = ['wcag146', 'wcag224', 'wcag249', 'wcag315', 'wcag325'];
+  const wcagAAALinks = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5', 'WCAG 3.2.5', 'WCAG 2.1.3'];
+  const wcagAAA = ['wcag146', 'wcag224', 'wcag249', 'wcag315', 'wcag325', 'wcag213'];
 
   const wcagLinksAAandAAA = constants.wcagLinks;
 

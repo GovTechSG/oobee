@@ -362,6 +362,7 @@ const wcagLinks = {
   // 'WCAG 1.4.10': 'https://www.w3.org/TR/WCAG22/#reflow', - TODO: review for veraPDF
   'WCAG 1.4.12': 'https://www.w3.org/TR/WCAG22/#text-spacing',
   'WCAG 2.1.1': 'https://www.w3.org/TR/WCAG22/#keyboard',
+  'WCAG 2.1.3': 'https://www.w3.org/WAI/WCAG22/Understanding/keyboard-no-exception.html', // AAA
   'WCAG 2.2.1': 'https://www.w3.org/TR/WCAG22/#timing-adjustable',
   'WCAG 2.2.2': 'https://www.w3.org/TR/WCAG22/#pause-stop-hide',
   'WCAG 2.2.4': 'https://www.w3.org/TR/WCAG22/#interruptions', // AAA
