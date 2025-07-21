@@ -872,6 +872,15 @@ const crawlDomain = async ({
     },
     maxRequestsPerCrawl: Infinity,
     maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
+    ...(process.env.OOBEE_FAST_CRAWLER && {
+      autoscaledPoolOptions: {
+        minConcurrency: specifiedMaxConcurrency ? Math.min(specifiedMaxConcurrency, 10) : 10,
+        maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
+        desiredConcurrencyRatio: 0.98, // Increase threshold for scaling up
+        scaleUpStepRatio: 0.99,        // Scale up faster
+        scaleDownStepRatio: 0.1,       // Scale down slower
+      },
+    }),
   });
 
   await crawler.run();

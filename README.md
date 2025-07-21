@@ -84,7 +84,8 @@ verapdf --version
 | Variable Name | Description | Default |
 | ------------- | ----------- | ------- |
 | OOBEE_VERBOSE | When set to `true`, log output goes to console | `false` |
-| RUNNING_FROM_PH_GUI | Legacy, replaced by OOBEE_VERBOSE | `false` |
+| OOBEE_FAST_CRAWLER| When set to `true`, increases scan concurrency at a rapid rate.  Experimental, may cause system stability issues. | `false`|
+| OOBEE_VALIDATE_URL| When set to `true`, validates if URLs are valid and exits. | `false` |
 | WARN_LEVEL | Only used in tests. |  |
 
 #### Environment variables used internally (Do not set)
