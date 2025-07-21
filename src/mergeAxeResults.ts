@@ -1890,6 +1890,8 @@ const generateArtifacts = async (
   consoleLogger.info(`Pages Scanned: ${allIssues.totalPagesScanned}`);
   consoleLogger.info(`Start Time: ${allIssues.startTime}`);
   consoleLogger.info(`End Time: ${allIssues.endTime}`);
+  const elapsedSeconds = (new Date(allIssues.endTime).getTime() - new Date(allIssues.startTime).getTime()) / 1000;
+  consoleLogger.info(`Elapsed Time: ${elapsedSeconds}s`);
 
   const getAxeImpactCount = (allIssues: AllIssues) => {
     const impactCount = {
