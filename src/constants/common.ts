@@ -54,8 +54,9 @@ export const validateDirPath = (dirPath: string): string => {
   }
 };
 
-export class RES {
+ export class RES {
   status: number;
+  httpStatus?: number;
   url: string;
   content: string;
   constructor(res?: Partial<RES>) {
@@ -441,6 +442,9 @@ const checkUrlConnectivityWithBrowser = async (
     res.status = status === 401
       ? constants.urlCheckStatuses.unauthorised.code
       : constants.urlCheckStatuses.success.code;
+
+    // Store the status code
+    res.httpStatus = response?.status?.() ?? 0;
 
     // Store final navigated URL
     res.url = isCustomFlow ? url : page.url();
@@ -1824,7 +1828,11 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   }
 
   // Set new headless mode as Chrome 132 does not support headless=old
-  if (process.env.CRAWLEE_HEADLESS === '1') constants.launchOptionsArgs.push('--headless=new');
+  // Also mute audio
+  if (process.env.CRAWLEE_HEADLESS === '1') {
+    constants.launchOptionsArgs.push('--headless=new');
+    constants.launchOptionsArgs.push('--mute-audio');
+  }
 
   const options: LaunchOptions = {
     // Drop the --use-mock-keychain flag to allow MacOS devices

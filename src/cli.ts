@@ -259,27 +259,31 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     parseHeaders(updatedArgvs.header),
   );
 
-  consoleLogger.info(`Connectivity Respnse Code: ${res.status}`);
+  if (res.httpStatus) consoleLogger.info(`Connectivity Check HTTP Response Code: ${res.httpStatus}`);
 
   switch (res.status) {
     case statuses.success.code: {
       updatedArgvs.finalUrl = res.url;
-      if (process.env.VALIDATE_URL_PH_GUI) {
+      if (process.env.OOBEE_VALIDATE_URL) {
         console.log('Url is valid');
         process.exit(0);
       }
+
       break;
     }
     case statuses.unauthorised.code: {
       printMessage([statuses.unauthorised.message], messageOptions);
+      consoleLogger.info(statuses.unauthorised.message);
       process.exit(res.status);
     }
     case statuses.cannotBeResolved.code: {
       printMessage([statuses.cannotBeResolved.message], messageOptions);
+      consoleLogger.info(statuses.cannotBeResolved.message);
       process.exit(res.status);
     }
     case statuses.systemError.code: {
       printMessage([statuses.systemError.message], messageOptions);
+      consoleLogger.info(statuses.systemError.message);
       process.exit(res.status);
     }
     case statuses.invalidUrl.code: {
@@ -288,6 +292,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
         updatedArgvs.scanner !== ScannerTypes.LOCALFILE
       ) {
         printMessage([statuses.invalidUrl.message], messageOptions);
+        consoleLogger.info(statuses.invalidUrl.message);
         process.exit(res.status);
       }
 
@@ -295,29 +300,35 @@ const scanInit = async (argvs: Answers): Promise<string> => {
       if (finalFilePath) {
         updatedArgvs.isLocalFileScan = true;
         updatedArgvs.finalUrl = finalFilePath;
-        if (process.env.VALIDATE_URL_PH_GUI) {
+
+        if (process.env.OOBEE_VALIDATE_URL) {
           console.log('Url is valid');
           process.exit(0);
         }
       } else if (updatedArgvs.scanner === ScannerTypes.LOCALFILE) {
         printMessage([statuses.notALocalFile.message], messageOptions);
+        consoleLogger.info(statuses.notALocalFile.message);
         process.exit(statuses.notALocalFile.code);
       } else if (updatedArgvs.scanner !== ScannerTypes.SITEMAP) {
         printMessage([statuses.notASitemap.message], messageOptions);
+        consoleLogger.info(statuses.notASitemap.message);
         process.exit(statuses.notASitemap.code);
       }
       break;
     }
     case statuses.notASitemap.code: {
       printMessage([statuses.notASitemap.message], messageOptions);
+      consoleLogger.info(statuses.notASitemap.message);
       process.exit(res.status);
     }
     case statuses.notALocalFile.code: {
       printMessage([statuses.notALocalFile.message], messageOptions);
+      consoleLogger.info(statuses.notALocalFile.message);
       process.exit(res.status);
     }
     case statuses.browserError.code: {
       printMessage([statuses.browserError.message], messageOptions);
+      consoleLogger.info(statuses.browserError.message);
       process.exit(res.status);
     }
     default:
