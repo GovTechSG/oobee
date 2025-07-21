@@ -44,6 +44,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | WCAG 1.4.6  | AAA   | Yes      |             |              |
 | WCAG 1.4.12 | AA    | Yes      |             |              |
 | WCAG 2.1.1  | A     | Yes      |             |              |
+| WCAG 2.1.3  | AAA   | Yes *    |             |              |
 | WCAG 2.2.1  | A     | Yes      |             |              |
 | WCAG 2.2.2  | A     | Yes      |             |              |
 | WCAG 2.2.4  | AAA   |          | Yes         |              |
@@ -60,12 +61,14 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | WCAG 4.1.2  | A     | Yes      |             |              |
 | Best Practice|      |          | Yes         |              |
 
+* The WCAG 2.1.3 check is done by 'Scrollable region must have keyboard access' which is a WCAG 2.1.1 (Must Fix) rule.
+
 ### Summary of WCAG Clauses Supported
 | Level | Count |
 |-------|-------|
 | A     | 15    |
 | AA    | 5     |
-| AAA   | 5     |
+| AAA   | 6     |
 
 
 ## WCAG 2.0 Level A
@@ -120,7 +123,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | no-autoplay-audio           | Ensures `<video>` or `<audio>` elements do not autoplay audio for more than 3 seconds without a control mechanism to stop or mute the audio           | Must Fix    | WCAG 1.4.2             |
 | object-alt                  | Ensures `<object>` elements have alternate text                                                                                                       | Must Fix    | WCAG 1.1.1             |
 | role-img-alt                | Ensures [role="img"] elements have alternate text                                                                                                     | Must Fix    | WCAG 1.1.1             |
-| scrollable-region-focusable | Ensure elements that have scrollable content are accessible by keyboard                                                                               | Must Fix    | WCAG 2.1.1             |
+| scrollable-region-focusable | Ensure elements that have scrollable content are accessible by keyboard                                                                               | Must Fix    | WCAG 2.1.1, WCAG 2.1.3 |
 | select-name                 | Ensures select element has an accessible name                                                                                                         | Must Fix    | WCAG 4.1.2             |
 | server-side-image-map       | Ensures that server-side image maps are not used                                                                                                      | Must Fix    | WCAG 2.1.1             |
 | svg-img-alt                 | Ensures `<svg>` elements with an img, graphics-document or graphics-symbol role have an accessible text                                               | Must Fix    | WCAG 1.1.1             |
