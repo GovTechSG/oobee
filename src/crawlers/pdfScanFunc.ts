@@ -12,6 +12,7 @@ import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import constants, {
   getExecutablePath,
   guiInfoStatusTypes,
+  STATUS_CODE_METADATA,
   UrlsCrawled,
 } from '../constants/constants.js';
 
@@ -296,6 +297,7 @@ export const handlePdfDownload = (
               url: request.url,
               pageTitle: url,
               actualUrl: url,
+              metadata: STATUS_CODE_METADATA[1],
             });
           }
 
