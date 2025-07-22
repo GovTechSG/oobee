@@ -2,9 +2,6 @@ import crawlee, { EnqueueStrategy } from 'crawlee';
 import fs from 'fs';
 import type { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
 import type { EnqueueLinksOptions, RequestOptions } from 'crawlee';
-import axios from 'axios';
-import { fileTypeFromBuffer } from 'file-type';
-import mime from 'mime-types';
 import https from 'https';
 import type { BatchAddRequestsResult } from '@crawlee/types';
 import {
@@ -167,95 +164,6 @@ const crawlDomain = async ({
       label: url,
     });
   }
-
-  const httpHeadCache = new Map<string, boolean>();
-  const isProcessibleUrl = async (url: string): Promise<boolean> => {
-    if (httpHeadCache.has(url)) {
-      consoleLogger.info(`Skipping request as URL has been processed before: ${url}}`);
-      return false; // return false to avoid processing the same url again
-    }
-
-    try {
-      // Send a HEAD request to check headers without downloading the file
-      const headResponse = await axios.head(url, {
-        headers: { Authorization: authHeader },
-        httpsAgent,
-      });
-      const contentType = headResponse.headers['content-type'] || '';
-      const contentDisposition = headResponse.headers['content-disposition'] || '';
-
-      // Check if the response suggests it's a downloadable file based on Content-Disposition header
-      if (contentDisposition.includes('attachment')) {
-        consoleLogger.info(`Skipping URL due to attachment header: ${url}`);
-        httpHeadCache.set(url, false);
-        return false;
-      }
-
-      // Check if the MIME type suggests it's a downloadable file
-      if (contentType.startsWith('application/') || contentType.includes('octet-stream')) {
-        consoleLogger.info(`Skipping potential downloadable file: ${contentType} at URL ${url}`);
-        httpHeadCache.set(url, false);
-        return false;
-      }
-
-      // Use the mime-types library to ensure it's processible content (e.g., HTML or plain text)
-      const mimeType = mime.lookup(contentType);
-      if (mimeType && !mimeType.startsWith('text/html') && !mimeType.startsWith('text/')) {
-        consoleLogger.info(`Detected non-processible MIME type: ${mimeType} at URL ${url}`);
-        httpHeadCache.set(url, false);
-        return false;
-      }
-
-      // Additional check for zip files by their magic number (PK\x03\x04)
-      if (url.endsWith('.zip')) {
-        consoleLogger.info(`Checking for zip file magic number at URL ${url}`);
-
-        // Download the first few bytes of the file to check for the magic number
-        const byteResponse = await axios.get(url, {
-          headers: { Range: 'bytes=0-3', Authorization: authHeader },
-          responseType: 'arraybuffer',
-          httpsAgent,
-        });
-
-        const magicNumber = byteResponse.data.toString('hex');
-        if (magicNumber === '504b0304') {
-          consoleLogger.info(`Skipping zip file at URL ${url}`);
-          httpHeadCache.set(url, false);
-          return false;
-        }
-        consoleLogger.info(
-          `Not skipping ${url}, magic number does not match ZIP file: ${magicNumber}`,
-        );
-      }
-
-      // If you want more robust checks, you can download a portion of the content and use the file-type package to detect file types by content
-      const response = await axios.get(url, {
-        headers: { Range: 'bytes=0-4100', Authorization: authHeader },
-        responseType: 'arraybuffer',
-        httpsAgent,
-      });
-
-      const fileType = await fileTypeFromBuffer(response.data);
-      if (
-        fileType &&
-        !fileType.mime.startsWith('text/html') &&
-        !fileType.mime.startsWith('text/')
-      ) {
-        consoleLogger.info(`Detected downloadable file of type ${fileType.mime} at URL ${url}`);
-        httpHeadCache.set(url, false);
-        return false;
-      }
-    } catch (e) {
-      // consoleLogger.error(`Error checking the MIME type of ${url}: ${e.message}`);
-      // If an error occurs (e.g., a network issue), assume the URL is processible
-      httpHeadCache.set(url, true);
-      return true;
-    }
-
-    // If none of the conditions to skip are met, allow processing of the URL
-    httpHeadCache.set(url, true);
-    return true;
-  };
 
   const enqueueProcess = async (
     page: Page,
@@ -555,33 +463,18 @@ const crawlDomain = async ({
         }
       },
     ],
-    preNavigationHooks: isBasicAuth
-      ? [
-          async ({ page, request }) => {
-            await page.setExtraHTTPHeaders({
-              Authorization: authHeader,
-              ...extraHTTPHeaders,
-            });
-            const processible = await isProcessibleUrl(request.url);
-            if (!processible) {
-              request.skipNavigation = true;
-              return null;
-            }
-          },
-        ]
-      : [
-          async ({ page, request }) => {
-            await page.setExtraHTTPHeaders({
-              ...extraHTTPHeaders,
-            });
-
-            const processible = await isProcessibleUrl(request.url);
-            if (!processible) {
-              request.skipNavigation = true;
-              return null;
-            }
-          },
-        ],
+    preNavigationHooks: [ async({ page, request}) => {
+      if (isBasicAuth) {
+        await page.setExtraHTTPHeaders({
+          Authorization: authHeader,
+          ...extraHTTPHeaders,
+        });
+      } else {
+        await page.setExtraHTTPHeaders({
+          ...extraHTTPHeaders,
+        });
+      }
+    }],
     requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
     requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
       const browserContext: BrowserContext = page.context();
