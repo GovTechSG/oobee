@@ -20,6 +20,7 @@ import { findElementByCssSelector } from './custom/findElementByCssSelector.js';
 import { getAxeConfiguration } from './custom/getAxeConfiguration.js';
 import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
 import xPathToCss from './custom/xPathToCss.js';
+import type { Response as PlaywrightResponse } from 'playwright';
 
 // types
 interface AxeResultsWithScreenshot extends AxeResults {
@@ -553,3 +554,36 @@ export async function shouldSkipClickDueToDisallowedHref(
     }
   );
 }
+
+/**
+ * Check if response should be skipped based on content headers.
+ * @param response - Playwright Response object
+ * @param requestUrl - Optional: request URL for logging
+ * @returns true if the content should be skipped
+ */
+export const shouldSkipDueToUnsupportedContent = (
+  response: PlaywrightResponse,
+  requestUrl: string = ''
+): boolean => {
+  if (!response) return false;
+
+  const headers = response.headers();
+  const contentDisposition = headers['content-disposition'] || '';
+  const contentType = headers['content-type'] || '';
+
+  if (contentDisposition.includes('attachment')) {
+    // consoleLogger.info(`Skipping attachment (content-disposition) at ${requestUrl}`);
+    return true;
+  }
+
+  if (
+    contentType.startsWith('application/') ||
+    contentType.includes('octet-stream') ||
+    (!contentType.startsWith('text/') && !contentType.includes('html'))
+  ) {
+    // consoleLogger.info(`Skipping non-processible content-type "${contentType}" at ${requestUrl}`);
+    return true;
+  }
+
+  return false;
+};

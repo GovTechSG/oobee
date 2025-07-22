@@ -9,6 +9,7 @@ import {
   runAxeScript,
   isUrlPdf,
   shouldSkipClickDueToDisallowedHref,
+  shouldSkipDueToUnsupportedContent,
 } from './commonCrawlerFunc.js';
 import constants, {
   UrlsCrawled,
@@ -532,7 +533,7 @@ const crawlDomain = async ({
         }
 
         // handle pdfs
-        if (request.skipNavigation && actualUrl === 'about:blank') {
+        if (shouldSkipDueToUnsupportedContent(response, request.url) || request.skipNavigation && actualUrl === 'about:blank') {
           if (!isScanPdfs) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
