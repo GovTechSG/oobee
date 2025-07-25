@@ -165,9 +165,13 @@ export const crawlLocalFile = async ({
   let shouldAbort = false;
 
   if (!isUrlPdf(request.url)) {
-    await initModifiedUserAgent(browser);
-    const browserContext = await constants.launcher.launchPersistentContext('', {
-      headless: false,
+    await initModifiedUserAgent(browser, playwrightDeviceDetailsObject, userDataDirectory);
+    const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
+      ? userDataDirectory
+      : '';
+
+    const browserContext = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
+      headless: process.env.CRAWLEE_HEADLESS === '1',
       ...getPlaywrightLaunchOptions(browser),
       ...playwrightDeviceDetailsObject,
     });

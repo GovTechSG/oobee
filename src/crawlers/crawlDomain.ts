@@ -40,6 +40,8 @@ import {
 } from './pdfScanFunc.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
+import * as path from 'path';
+import fsp from 'fs/promises';
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
@@ -125,8 +127,6 @@ const crawlDomain = async ({
   const isScanPdfs = ['all', 'pdf-only'].includes(fileTypes);
   const { maxConcurrency } = constants;
   const { playwrightDeviceDetailsObject } = viewportSettings;
-
-  const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
   // Boolean to omit axe scan for basic auth URL
   let isBasicAuth = false;
@@ -377,31 +377,41 @@ const crawlDomain = async ({
 
   let isAbortingScanNow = false;
 
-  let userDataDir = '';
-  if (userDataDirectory) {
-    userDataDir = process.env.CRAWLEE_HEADLESS !== '0' ? userDataDirectory : '';
-  }
-
-  await initModifiedUserAgent(browser, playwrightDeviceDetailsObject);
+  await initModifiedUserAgent(browser, playwrightDeviceDetailsObject, userDataDirectory);
 
   const crawler = new crawlee.PlaywrightCrawler({
     launchContext: {
       launcher: constants.launcher,
       launchOptions: getPlaywrightLaunchOptions(browser),
       // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
-      ...(process.env.CRAWLEE_HEADLESS === '0' && { userDataDir }),
+      ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
     },
     retryOnBlocked: true,
     browserPoolOptions: {
       useFingerprints: false,
       preLaunchHooks: [
         async (_pageId, launchContext) => {
+          const baseDir = userDataDirectory; // e.g., /Users/young/.../Chrome/oobee-...
+
+          // Ensure base exists
+          await fsp.mkdir(baseDir, { recursive: true });
+
+          // Create a unique subdir per browser
+          const subProfileDir = path.join(baseDir, `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+          await fsp.mkdir(subProfileDir, { recursive: true });
+
+          // Assign to Crawlee's launcher
+          launchContext.userDataDir = subProfileDir;
+
+          // Safely extend launchOptions
           launchContext.launchOptions = {
             ...launchContext.launchOptions,
-            bypassCSP: true,
             ignoreHTTPSErrors: true,
             ...playwrightDeviceDetailsObject,
           };
+
+          // Optionally log for debugging
+          // console.log(`[HOOK] Using userDataDir: ${subProfileDir}`);
         },
       ],
     },

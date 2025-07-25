@@ -95,7 +95,6 @@ const startScanQuestions = [
         browserToRun,
         clonedBrowserDataDir,
         playwrightDeviceDetailsObject,
-        answers.scanner === ScannerTypes.CUSTOM,
         parseHeaders(answers.header),
       );
 

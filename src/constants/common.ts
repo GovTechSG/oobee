@@ -380,7 +380,6 @@ const checkUrlConnectivityWithBrowser = async (
   browserToRun: string,
   clonedDataDir: string,
   playwrightDeviceDetailsObject: DeviceDescriptor,
-  isCustomFlow: boolean,
   extraHTTPHeaders: Record<string, string>,
 ) => {
   const res = new RES();
@@ -393,8 +392,8 @@ const checkUrlConnectivityWithBrowser = async (
 
   let viewport = null;
   let userAgent = null;
-  if ('viewport' in playwrightDeviceDetailsObject) viewport = playwrightDeviceDetailsObject.viewport;
-  if ('userAgent' in playwrightDeviceDetailsObject) userAgent = playwrightDeviceDetailsObject.userAgent;
+  if (playwrightDeviceDetailsObject && 'viewport' in playwrightDeviceDetailsObject) viewport = playwrightDeviceDetailsObject.viewport;
+  if (playwrightDeviceDetailsObject && 'userAgent' in playwrightDeviceDetailsObject) userAgent = playwrightDeviceDetailsObject.userAgent;
 
   // Ensure Accept header for non-html content fallback
   extraHTTPHeaders['Accept'] ||= 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
@@ -447,7 +446,7 @@ const checkUrlConnectivityWithBrowser = async (
     res.httpStatus = response?.status?.() ?? 0;
 
     // Store final navigated URL
-    res.url = isCustomFlow ? url : page.url();
+    res.url = page.url();
 
     // Check content type to determine how to extract content
     const contentType = response.headers()['content-type'] || '';
@@ -501,7 +500,6 @@ export const checkUrl = async (
   browser: string,
   clonedDataDir: string,
   playwrightDeviceDetailsObject: DeviceDescriptor,
-  isCustomFlow: boolean,
   extraHTTPHeaders: Record<string, string>,
 ) => {
   const res = await checkUrlConnectivityWithBrowser(
@@ -509,7 +507,6 @@ export const checkUrl = async (
     browser,
     clonedDataDir,
     playwrightDeviceDetailsObject,
-    isCustomFlow,
     extraHTTPHeaders,
   );
 
@@ -555,18 +552,16 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   if (isEmptyObject(argv)) {
     throw Error('No inputs should be provided');
   }
-  const {
+  let {
     scanner,
     headless,
     url,
     deviceChosen,
     customDevice,
     viewportWidth,
-    playwrightDeviceDetailsObject,
     maxpages,
     strategy,
     isLocalFileScan,
-    finalUrl,
     browserToRun,
     nameEmail,
     customFlowLabel,
@@ -578,11 +573,20 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     followRobots,
     header,
     safeMode,
+    exportDirectory,
     zip,
     ruleset,
     generateJsonFiles,
     scanDuration
   } = argv;
+
+  // Set exported directory
+  if (exportDirectory) {
+    constants.exportDirectory = exportDirectory;
+  } else {
+    // Implicitly is the current working directory
+    constants.exportDirectory = process.cwd();
+  }
 
   // construct filename for scan results
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
@@ -601,9 +605,21 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     await getUrlsFromRobotsTxt(url, browserToRun);
   }
 
+  // Creating the playwrightDeviceDetailObject
+  deviceChosen = customDevice === 'Desktop' || customDevice === 'Mobile' ? customDevice : deviceChosen;
+  
+  const playwrightDeviceDetailsObject = getPlaywrightDeviceDetailsObject(
+    deviceChosen,
+    customDevice,
+    viewportWidth,
+  );
+
+  const { browserToRun: resolvedBrowser, clonedBrowserDataDir } = getBrowserToRun(browserToRun, true);
+  browserToRun = resolvedBrowser;
+  
   return {
     type: scanner,
-    url: finalUrl,
+    url: url,
     entryUrl: url,
     isHeadless: headless,
     deviceChosen,
@@ -626,6 +642,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     followRobots,
     extraHTTPHeaders: parseHeaders(header),
     safeMode,
+    userDataDirectory: getClonedProfilesWithRandomToken(browserToRun, resultFilename),
     zip,
     ruleset,
     generateJsonFiles,
@@ -1781,7 +1798,9 @@ export const submitForm = async (
 export async function initModifiedUserAgent(
   browser?: string,
   playwrightDeviceDetailsObject?: object,
+  userDataDirectory?: string,
 ) {
+
   const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
 
   // If headless mode is enabled, ensure the headless flag is set.
@@ -1798,7 +1817,11 @@ export async function initModifiedUserAgent(
   };
 
   // Launch a temporary persistent context with an empty userDataDir to mimic your production browser setup.
-  const browserContext = await constants.launcher.launchPersistentContext('', launchOptions);
+  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
+  ? userDataDirectory
+  : '';
+
+  const browserContext = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, launchOptions);
   const page = await browserContext.newPage();
 
   // Retrieve the default user agent.

@@ -15,7 +15,7 @@ import { pipeline } from 'stream/promises';
 // @ts-ignore
 import * as Sentry from '@sentry/node';
 import constants, { ScannerTypes, sentryConfig, setSentryUser } from './constants/constants.js';
-import { urlWithoutAuth } from './constants/common.js';
+import { urlWithoutAuth, getPlaywrightLaunchOptions } from './constants/common.js';
 
 import {
   createScreenshotsFolder,
@@ -971,20 +971,19 @@ if (os.platform() === 'linux') {
   browserChannel = 'chromium';
 }
 
-const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filename = 'summary') => {
+const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filename = 'summary', browser: string, userDataDirectory: string) => {
   const htmlFilePath = `${storagePath}/${filename}.html`;
   const fileDestinationPath = `${storagePath}/${filename}.pdf`;
-  const browser = await chromium.launch({
-    headless: false,
-    channel: browserChannel,
-    args: ['--headless=new', '--no-sandbox'],
-  });
 
-  const context = await browser.newContext({
-    ignoreHTTPSErrors: true,
-    serviceWorkers: 'block',
-  });
-
+  ///
+  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
+    ? userDataDirectory
+    : '';
+  const context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
+        headless: process.env.CRAWLEE_HEADLESS === '1',
+        ...getPlaywrightLaunchOptions(browser),
+      });
+  ///
   const page = await context.newPage();
 
   const data = fs.readFileSync(htmlFilePath, { encoding: 'utf-8' });
@@ -1008,8 +1007,7 @@ const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filena
 
   await page.close();
 
-  await context.close();
-  await browser.close();
+  await context.close().catch(() => {});
 
   if (pagesScanned < 2000) {
     fs.unlinkSync(htmlFilePath);
@@ -1998,7 +1996,8 @@ const generateArtifacts = async (
     ]);
   }
 
-  await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length), 1);
+  // Should consider refactor constants.userDataDirectory to be a parameter in future
+  await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length, 'summary', browserChannel, constants.userDataDirectory), 1);
 
   // Take option if set
   if (typeof zip === 'string') {

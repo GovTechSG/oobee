@@ -12,11 +12,8 @@ import {
   getFileSitemap,
   validEmail,
   validName,
-  getBrowserToRun,
-  getPlaywrightDeviceDetailsObject,
   deleteClonedProfiles,
   getScreenToScan,
-  getClonedProfilesWithRandomToken,
   validateDirPath,
   validateFilePath,
   validateCustomFlowLabel,
@@ -225,37 +222,18 @@ const scanInit = async (argvs: Answers): Promise<string> => {
 
   // Cannot use data.browser and data.isHeadless as the connectivity check comes first before prepareData
   setHeadlessMode(updatedArgvs.browserToRun, updatedArgvs.headless);
-
-  // let chromeDataDir = null;
-  // let edgeDataDir = null;
-  // Empty string for profile directory will use incognito mode in playwright
-  let clonedDataDir = '';
   const statuses = constants.urlCheckStatuses;
 
-  const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(updatedArgvs.browserToRun, true);
-  updatedArgvs.browserToRun = browserToRun;
-  clonedDataDir = clonedBrowserDataDir;
+  const data = await prepareData(updatedArgvs);
 
-  if (updatedArgvs.customDevice === 'Desktop' || updatedArgvs.customDevice === 'Mobile') {
-    updatedArgvs.deviceChosen = argvs.customDevice;
-    delete updatedArgvs.customDevice;
-  }
-
-  // Creating the playwrightDeviceDetailObject
-  // for use in crawlDomain & crawlSitemap's preLaunchHook
-  updatedArgvs.playwrightDeviceDetailsObject = getPlaywrightDeviceDetailsObject(
-    updatedArgvs.deviceChosen,
-    updatedArgvs.customDevice,
-    updatedArgvs.viewportWidth,
-  );
-
+  constants.userDataDirectory = data.userDataDirectory;
+  
   const res = await checkUrl(
-    updatedArgvs.scanner,
-    updatedArgvs.url,
-    updatedArgvs.browserToRun,
-    clonedDataDir,
-    updatedArgvs.playwrightDeviceDetailsObject,
-    isCustomFlow,
+    data.type,
+    data.entryUrl,
+    data.browser,
+    data.userDataDirectory,
+    data.playwrightDeviceDetailsObject,
     parseHeaders(updatedArgvs.header),
   );
 
@@ -263,7 +241,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
 
   switch (res.status) {
     case statuses.success.code: {
-      updatedArgvs.finalUrl = res.url;
+      data.url = res.url;
       if (process.env.OOBEE_VALIDATE_URL) {
         console.log('Url is valid');
         process.exit(0);
@@ -298,8 +276,8 @@ const scanInit = async (argvs: Answers): Promise<string> => {
 
       const finalFilePath = getFileSitemap(updatedArgvs.url);
       if (finalFilePath) {
-        updatedArgvs.isLocalFileScan = true;
-        updatedArgvs.finalUrl = finalFilePath;
+        data.isLocalFileScan = true;
+        data.url = finalFilePath;
 
         if (process.env.OOBEE_VALIDATE_URL) {
           console.log('Url is valid');
@@ -335,25 +313,9 @@ const scanInit = async (argvs: Answers): Promise<string> => {
       break;
   }
 
-  if (updatedArgvs.scanner === ScannerTypes.WEBSITE && !updatedArgvs.strategy) {
-    updatedArgvs.strategy = 'same-domain';
-  }
+  deleteClonedProfiles(data.browser, data.randomToken);
 
-  const data = await prepareData(updatedArgvs);
-
-  // File clean up after url check
-  // files will clone a second time below if url check passes
   if (process.env.OOBEE_VERBOSE) {
-    deleteClonedProfiles(data.browser, data.randomToken);
-  } else {
-    deleteClonedProfiles(data.browser); // first deletion
-  }
-
-  if (updatedArgvs.exportDirectory) {
-    constants.exportDirectory = updatedArgvs.exportDirectory;
-  }
-
-  if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE) {
     const randomTokenMessage = {
       type: 'randomToken',
       payload: `${data.randomToken}`,
@@ -364,25 +326,16 @@ const scanInit = async (argvs: Answers): Promise<string> => {
   }
 
   const screenToScan = getScreenToScan(
-    updatedArgvs.deviceChosen,
-    updatedArgvs.customDevice,
-    updatedArgvs.viewportWidth,
+    data.deviceChosen,
+    data.customDevice,
+    data.viewportWidth,
   );
-
-  // Clone profiles a second time
-  clonedDataDir = getClonedProfilesWithRandomToken(data.browser, data.randomToken);
-  data.userDataDirectory = clonedDataDir;
 
   printMessage([`Oobee version: ${appVersion}`, 'Starting scan...'], messageOptions);
 
   await combineRun(data, screenToScan);
 
-  // Delete cloned directory
-  if (process.env.OOBEE_VERBOSE) {
-    deleteClonedProfiles(data.browser, data.randomToken);
-  } else {
-    deleteClonedProfiles(data.browser); // second deletion
-  }
+  deleteClonedProfiles(data.browser, data.randomToken);
 
   // Delete dataset and request queues
   cleanUp(data.randomToken);

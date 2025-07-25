@@ -466,6 +466,7 @@ export default {
   reserveFileNameKeywords,
   wcagLinks,
   robotsTxtUrls: null,
+  userDataDirectory: null, // This will be set later in the code
 };
 
 export const rootPath = dirname;

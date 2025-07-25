@@ -33,9 +33,6 @@ export const isWhitelistedContentType = (contentType: string): boolean => {
 };
 
 export const getStoragePath = (randomToken: string): string => {
-  if (process.env.OOBEE_VERBOSE_STORAGE_PATH) {
-    return `${process.env.OOBEE_VERBOSE_STORAGE_PATH}/${randomToken}`;
-  }
   if (constants.exportDirectory === process.cwd()) {
     return `results/${randomToken}`;
   }
