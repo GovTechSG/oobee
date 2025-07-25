@@ -33,7 +33,7 @@ jobs:
               npm run cli -- \
               -u "${{ vars.OOBEE_SCAN_URL }}" \
               -c 2 \
-              -p "${{ vars.OOBEE_SCAN_MAX_NUM_PAGES }}" \
+              -p 2 \
               -t "${{ vars.OOBEE_SCAN_MAX_CONCURRENCY }}" \
               -k "${{ github.actor }}:${{ github.actor }}@users.noreply.github.com" \
               -b chromium \
