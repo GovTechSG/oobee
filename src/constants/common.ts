@@ -447,17 +447,8 @@ const checkUrlConnectivityWithBrowser = async (
 
     // Store final navigated URL
     res.url = page.url();
-
-    // Check content type to determine how to extract content
-    const contentType = response.headers()['content-type'] || '';
-
-    if (contentType.includes('xml') || res.url.endsWith('.xml')) {
-      // Fetch raw content to avoid Playwright's HTML-wrapped <pre> behavior
-      const rawResponse = await requestToUrl(res.url, true, extraHTTPHeaders);
-      res.content = rawResponse.content;
-    } else {
-      res.content = await page.content(); // rendered DOM
-    }
+    // Get content
+    res.content = await page.content();
 
   } catch (error) {
     if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
@@ -465,6 +456,7 @@ const checkUrlConnectivityWithBrowser = async (
     } else {
       res.status = constants.urlCheckStatuses.systemError.code;
     }
+    
   } finally {
     await browserContext.close();
   }
@@ -779,6 +771,7 @@ export const getLinksFromSitemap = async (
   isIntelligent: boolean,
   username: string,
   password: string,
+  extraHTTPHeaders: Record<string, string>,
 ) => {
   const scannedSitemaps = new Set<string>();
   const urls: Record<string, Request> = {}; // dictionary of requests to urls to be scanned
@@ -895,6 +888,8 @@ export const getLinksFromSitemap = async (
 
     let parsedUrl;
 
+    let authHeader = '';
+
     if (scannedSitemaps.has(url)) {
       // Skip processing if the sitemap has already been scanned
       return;
@@ -918,6 +913,10 @@ export const getLinksFromSitemap = async (
         isBasicAuth = true;
         username = decodeURIComponent(parsedUrl.username);
         password = decodeURIComponent(parsedUrl.password);
+
+        // Create auth header
+        authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+
         parsedUrl.username = '';
         parsedUrl.password = '';
       }
@@ -932,10 +931,24 @@ export const getLinksFromSitemap = async (
         {
           ...getPlaywrightLaunchOptions(browser),
           // Not necessary to parse http_credentials as I am parsing it directly in URL
+          // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
+          ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
         },
       );
 
       const page = await browserContext.newPage();
+      
+      if (isBasicAuth) {
+        await page.setExtraHTTPHeaders({
+          Authorization: authHeader,
+          ...extraHTTPHeaders,
+        });
+      } else {
+        await page.setExtraHTTPHeaders({
+          ...extraHTTPHeaders,
+        });
+      }
+
       await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
       if (constants.launcher === webkit) {
         data = await page.locator('body').innerText();
@@ -965,35 +978,14 @@ export const getLinksFromSitemap = async (
         addToUrlList(url);
         return;
       }
-      if (proxy) {
-        await getDataUsingPlaywright();
-      } else {
-        try {
-          const instance = axios.create({
-            httpsAgent: new https.Agent({
-              rejectUnauthorized: false,
-              keepAlive: true,
-            }),
-            auth: {
-              username,
-              password,
-            },
-          });
-          try {
-            data = await (await instance.get(url, { timeout: 80000 })).data;
-          } catch {
-            return; // to skip the error
-          }
-        } catch (error) {
-          if (error.code === 'ECONNABORTED') {
-            await getDataUsingPlaywright();
-          }
-        }
-      }
+
+      await getDataUsingPlaywright();
+
     } else {
       url = convertLocalFileToPath(url);
       data = fs.readFileSync(url, 'utf8');
     }
+
     const $ = cheerio.load(data, { xml: true });
 
     // This case is when the document is not an XML format document

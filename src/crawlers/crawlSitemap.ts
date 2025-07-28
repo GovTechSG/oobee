@@ -125,6 +125,7 @@ const crawlSitemap = async ({
     fromCrawlIntelligentSitemap,
     username,
     password,
+    extraHTTPHeaders,
   );
   /**
    * Regex to match http://username:password@hostname.com
