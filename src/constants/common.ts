@@ -544,9 +544,11 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
 
   const resolvedUserDataDirectory = getClonedProfilesWithRandomToken(browserToRun, resultFilename);
 
+  const extraHTTPHeaders = parseHeaders(header)
+
   if (followRobots) {
     constants.robotsTxtUrls = {};
-    await getUrlsFromRobotsTxt(url, browserToRun, resolvedUserDataDirectory);
+    await getUrlsFromRobotsTxt(url, browserToRun, resolvedUserDataDirectory, extraHTTPHeaders);
   }
 
   return {
@@ -572,7 +574,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     includeScreenshots: !(additional === 'none'),
     metadata,
     followRobots,
-    extraHTTPHeaders: parseHeaders(header),
+    extraHTTPHeaders: extraHTTPHeaders,
     safeMode,
     userDataDirectory: resolvedUserDataDirectory,
     zip,
@@ -582,7 +584,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   };
 };
 
-export const getUrlsFromRobotsTxt = async (url: string, browserToRun: string, userDataDirectory: string): Promise<void> => {
+export const getUrlsFromRobotsTxt = async (url: string, browserToRun: string, userDataDirectory: string, extraHTTPHeaders: Record<string, string>): Promise<void> => {
   if (!constants.robotsTxtUrls) return;
 
   const domain = new URL(url).origin;
@@ -591,7 +593,7 @@ export const getUrlsFromRobotsTxt = async (url: string, browserToRun: string, us
 
   let robotsTxt: string;
   try {
-    robotsTxt = await getRobotsTxtViaPlaywright(robotsUrl, browserToRun, userDataDirectory);
+    robotsTxt = await getRobotsTxtViaPlaywright(robotsUrl, browserToRun, userDataDirectory, extraHTTPHeaders);
     consoleLogger.info(`Fetched robots.txt from ${robotsUrl}`);
   } catch (e) {
     // if robots.txt is not found, do nothing
@@ -650,8 +652,8 @@ export const getUrlsFromRobotsTxt = async (url: string, browserToRun: string, us
   constants.robotsTxtUrls[domain] = { disallowedUrls, allowedUrls };
 };
 
-const getRobotsTxtViaPlaywright = async (robotsUrl: string, browser: string, userDataDirectory: string): Promise<string> => {
-  
+const getRobotsTxtViaPlaywright = async (robotsUrl: string, browser: string, userDataDirectory: string, extraHTTPHeaders: Record<string, string>): Promise<string> => {
+
   let robotsDataDir = '';
   // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
   if (process.env.CRAWLEE_HEADLESS === '1') {
@@ -667,6 +669,9 @@ const getRobotsTxtViaPlaywright = async (robotsUrl: string, browser: string, use
   });
 
   const page = await browserContext.newPage();
+  await page.setExtraHTTPHeaders({
+        ...extraHTTPHeaders,
+  });
   await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
   const robotsTxt: string | null = await page.evaluate(() => document.body.textContent);
   return robotsTxt;

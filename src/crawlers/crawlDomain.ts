@@ -705,7 +705,7 @@ const crawlDomain = async ({
           });
         }
 
-        if (followRobots) await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory);
+        if (followRobots) await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory, extraHTTPHeaders);
         await enqueueProcess(page, enqueueLinks, browserContext);
       } catch (e) {
         try {
