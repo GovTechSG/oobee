@@ -866,7 +866,8 @@ export const getLinksFromSitemap = async (
       const page = await browserContext.newPage();
 
       await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-      if (constants.launcher === webkit) {
+
+      if (await page.locator('body').count() > 0) {
         data = await page.locator('body').innerText();
       } else {
         const urlSet = page.locator('urlset');
