@@ -252,10 +252,16 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         metadata,
       );
     } else {
+
+      // No page were scanned because the URL loaded does not meet the crawler requirements
       printMessage([`No pages were scanned.`], alertMessageOptions);
+      process.exit(1);
     }
   } else {
+
+    // No page were scanned because the URL loaded does not meet the crawler requirements
     printMessage([`No pages were scanned.`], alertMessageOptions);
+    process.exit(1);
   }
 };
 
