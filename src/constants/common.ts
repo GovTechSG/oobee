@@ -521,6 +521,30 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   // construct filename for scan results
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
   const domain = argv.isLocalFileScan ? path.basename(argv.url) : new URL(argv.url).hostname;
+
+  const extraHTTPHeaders = parseHeaders(header);
+
+  // Set default username and password for basic auth
+  let username = '';
+  let password = '';
+
+  // Remove credentials from URL if not a local file scan
+  url = argv.isLocalFileScan 
+    ? url 
+    : (() => {
+        const temp = new URL(url);
+        username = temp.username;
+        password = temp.password;
+
+        if (username !== '' || password !== '') {
+          extraHTTPHeaders['Authorization'] = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+        } 
+
+        temp.username = '';
+        temp.password = '';
+        return temp.toString();
+      })();
+
   const sanitisedLabel = customFlowLabel ? `_${customFlowLabel.replaceAll(' ', '_')}` : '';
   let resultFilename: string;
   const randomThreeDigitNumber = randomThreeDigitNumberString();
@@ -543,8 +567,6 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   browserToRun = resolvedBrowser;
 
   const resolvedUserDataDirectory = getClonedProfilesWithRandomToken(browserToRun, resultFilename);
-
-  const extraHTTPHeaders = parseHeaders(header)
 
   if (followRobots) {
     constants.robotsTxtUrls = {};

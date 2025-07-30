@@ -234,7 +234,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     data.browser,
     data.userDataDirectory,
     data.playwrightDeviceDetailsObject,
-    parseHeaders(updatedArgvs.header),
+    data.extraHTTPHeaders
   );
 
   if (res.httpStatus) consoleLogger.info(`Connectivity Check HTTP Response Code: ${res.httpStatus}`);
