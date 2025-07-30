@@ -1841,7 +1841,7 @@ export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
 
         let timeout: NodeJS.Timeout;
         let mutationCount = 0;
-        const MAX_MUTATIONS = 250;
+        const MAX_MUTATIONS = 500;
         const mutationHash: Record<string, number> = {};
 
         const observer = new MutationObserver(mutationsList => {

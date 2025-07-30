@@ -206,7 +206,7 @@ const crawlSitemap = async ({
             return new Promise(resolve => {
               let timeout;
               let mutationCount = 0;
-              const MAX_MUTATIONS = 250; // stop if things never quiet down
+              const MAX_MUTATIONS = 500; // stop if things never quiet down
               const OBSERVER_TIMEOUT = 5000; // hard cap on total wait
 
               const observer = new MutationObserver(() => {

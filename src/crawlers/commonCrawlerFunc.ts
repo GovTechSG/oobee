@@ -254,7 +254,7 @@ export const runAxeScript = async ({
       return new Promise(resolve => {
         let timeout: NodeJS.Timeout;
         let mutationCount = 0;
-        const MAX_MUTATIONS = 250;
+        const MAX_MUTATIONS = 500;
         const MAX_SAME_MUTATION_LIMIT = 10;
         const mutationHash: Record<string, number> = {};
 
