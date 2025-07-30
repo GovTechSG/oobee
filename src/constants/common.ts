@@ -730,8 +730,6 @@ export const getLinksFromSitemap = async (
   userDataDirectory: string,
   userUrlInput: string,
   isIntelligent: boolean,
-  username: string,
-  password: string,
   extraHTTPHeaders: Record<string, string>,
 ) => {
   const scannedSitemaps = new Set<string>();
@@ -742,11 +740,6 @@ export const getLinksFromSitemap = async (
   const addToUrlList = (url: string) => {
     if (!url) return;
     if (isDisallowedInRobotsTxt(url)) return;
-
-    // add basic auth credentials to the URL
-    username !== '' && password !== ''
-      ? (url = addBasicAuthCredentials(url, username, password))
-      : url;
 
     url = convertPathToLocalFile(url);
 
@@ -760,13 +753,6 @@ export const getLinksFromSitemap = async (
       request.skipNavigation = true;
     }
     urls[url] = request;
-  };
-
-  const addBasicAuthCredentials = (url: string, username: string, password: string) => {
-    const urlObject = new URL(url);
-    urlObject.username = username;
-    urlObject.password = password;
-    return urlObject.toString();
   };
 
   const calculateCloseness = (sitemapUrl: string) => {
@@ -839,18 +825,10 @@ export const getLinksFromSitemap = async (
     finalUserDataDirectory = '';
   }
 
-  const fetchUrls = async (url: string) => {
+  const fetchUrls = async (url: string, extraHTTPHeaders: Record<string, string>) => {
     let data;
     let sitemapType;
-    let isBasicAuth = false;
-
-    let username = '';
-    let password = '';
-
-    let parsedUrl;
-
-    let authHeader = '';
-
+   
     if (scannedSitemaps.has(url)) {
       // Skip processing if the sitemap has already been scanned
       return;
@@ -866,21 +844,9 @@ export const getLinksFromSitemap = async (
       if (!fs.existsSync(url)) {
         return;
       }
-      parsedUrl = url;
+
     } else if (isValidHttpUrl(url)) {
-      parsedUrl = new URL(url);
-
-      if (parsedUrl.username !== '' && parsedUrl.password !== '') {
-        isBasicAuth = true;
-        username = decodeURIComponent(parsedUrl.username);
-        password = decodeURIComponent(parsedUrl.password);
-
-        // Create auth header
-        authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
-
-        parsedUrl.username = '';
-        parsedUrl.password = '';
-      }
+      // Do nothing, url is valid
     } else {
       printMessage([`Invalid Url/Filepath: ${url}`], messageOptions);
       return;
@@ -899,16 +865,9 @@ export const getLinksFromSitemap = async (
 
       const page = await browserContext.newPage();
       
-      if (isBasicAuth) {
-        await page.setExtraHTTPHeaders({
-          Authorization: authHeader,
+      await page.setExtraHTTPHeaders({
           ...extraHTTPHeaders,
-        });
-      } else {
-        await page.setExtraHTTPHeaders({
-          ...extraHTTPHeaders,
-        });
-      }
+      });
 
       await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
       if (constants.launcher === webkit) {
@@ -982,7 +941,7 @@ export const getLinksFromSitemap = async (
             break;
           }
           if (childSitemapUrlText.endsWith('.xml') || childSitemapUrlText.endsWith('.txt')) {
-            await fetchUrls(childSitemapUrlText); // Recursive call for nested sitemaps
+            await fetchUrls(childSitemapUrlText, extraHTTPHeaders); // Recursive call for nested sitemaps
           } else {
             addToUrlList(childSitemapUrlText); // Add regular URLs to the list
           }
@@ -1007,7 +966,7 @@ export const getLinksFromSitemap = async (
   };
 
   try {
-    await fetchUrls(sitemapUrl);
+    await fetchUrls(sitemapUrl, extraHTTPHeaders);
   } catch (e) {
     consoleLogger.error(e);
   }

@@ -128,43 +128,11 @@ const crawlDomain = async ({
   const { maxConcurrency } = constants;
   const { playwrightDeviceDetailsObject } = viewportSettings;
 
-  // Boolean to omit axe scan for basic auth URL
-  let isBasicAuth = false;
-  let authHeader = '';
-
-  // Test basic auth and add auth header if auth exist
-  const parsedUrl = new URL(url);
-  let username: string;
-  let password: string;
-  if (parsedUrl.username !== '' && parsedUrl.password !== '') {
-    isBasicAuth = true;
-    username = decodeURIComponent(parsedUrl.username);
-    password = decodeURIComponent(parsedUrl.password);
-
-    // Create auth header
-    authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
-
-    // Remove username from parsedUrl
-    parsedUrl.username = '';
-    parsedUrl.password = '';
-    // Send the finalUrl without credentials by setting auth header instead
-    const finalUrl = parsedUrl.toString();
-
-    await requestQueue.addRequest({
-      url: finalUrl,
-      skipNavigation: isUrlPdf(finalUrl),
-      headers: {
-        Authorization: authHeader,
-      },
-      label: finalUrl,
-    });
-  } else {
-    await requestQueue.addRequest({
-      url,
-      skipNavigation: isUrlPdf(url),
-      label: url,
-    });
-  }
+  await requestQueue.addRequest({
+    url,
+    skipNavigation: isUrlPdf(url),
+    label: url,
+  });
 
   const enqueueProcess = async (
     page: Page,
@@ -475,32 +443,14 @@ const crawlDomain = async ({
       },
     ],
     preNavigationHooks: [ async({ page, request}) => {
-      if (isBasicAuth) {
-        await page.setExtraHTTPHeaders({
-          Authorization: authHeader,
-          ...extraHTTPHeaders,
-        });
-      } else {
         await page.setExtraHTTPHeaders({
           ...extraHTTPHeaders,
         });
-      }
     }],
     requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
     requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
       const browserContext: BrowserContext = page.context();
       try {
-        // Set basic auth header if needed
-        if (isBasicAuth) {
-          await page.setExtraHTTPHeaders({
-            Authorization: authHeader,
-          });
-          const currentUrl = new URL(request.url);
-          currentUrl.username = username;
-          currentUrl.password = password;
-          request.url = currentUrl.href;
-        }
-
         await waitForPageLoaded(page, 10000);
         let actualUrl = page.url() || request.loadedUrl || request.url;
 

@@ -72,12 +72,6 @@ const crawlSitemap = async ({
   let dataset: crawlee.Dataset;
   let urlsCrawled: UrlsCrawled;
 
-  // Boolean to omit axe scan for basic auth URL
-  let isBasicAuth: boolean;
-  let basicAuthPage = 0;
-  let finalLinks = [];
-  let authHeader = '';
-
   if (fromCrawlIntelligentSitemap) {
     dataset = datasetFromIntelligent;
     urlsCrawled = urlsCrawledFromIntelligent;
@@ -90,30 +84,9 @@ const crawlSitemap = async ({
     }
   }
 
-  let parsedUrl;
-  let username = '';
-  let password = '';
-
   if (!crawledFromLocalFile && isFilePath(sitemapUrl)) {
     console.log('Local file crawling not supported for sitemap. Please provide a valid URL.');
     return;
-  }
-
-  if (isFilePath(sitemapUrl)) {
-    parsedUrl = sitemapUrl;
-  } else {
-    parsedUrl = new URL(sitemapUrl);
-    if (parsedUrl.username !== '' && parsedUrl.password !== '') {
-      isBasicAuth = true;
-      username = decodeURIComponent(parsedUrl.username);
-      password = decodeURIComponent(parsedUrl.password);
-
-      // Create auth header
-      authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
-
-      parsedUrl.username = '';
-      parsedUrl.password = '';
-    }
   }
 
   const linksFromSitemap = await getLinksFromSitemap(
@@ -123,29 +96,10 @@ const crawlSitemap = async ({
     userDataDirectory,
     userUrlInputFromIntelligent,
     fromCrawlIntelligentSitemap,
-    username,
-    password,
     extraHTTPHeaders,
   );
-  /**
-   * Regex to match http://username:password@hostname.com
-   * utilised in scan strategy to ensure subsequent URLs within the same domain are scanned.
-   * First time scan with original `url` containing credentials is strictly to authenticate for browser session
-   * subsequent URLs are without credentials.
-   * basicAuthPage is set to -1 for basic auth URL to ensure it is not counted towards maxRequestsPerCrawl
-   */
 
   sitemapUrl = encodeURI(sitemapUrl);
-
-  if (isBasicAuth) {
-    // request to basic auth URL to authenticate for browser session
-    finalLinks.push(new Request({ url: sitemapUrl, uniqueKey: `auth:${sitemapUrl}` }));
-    const finalUrl = `${sitemapUrl.split('://')[0]}://${sitemapUrl.split('@')[1]}`;
-
-    // obtain base URL without credentials so that subsequent URLs within the same domain can be scanned
-    finalLinks.push(new Request({ url: finalUrl }));
-    basicAuthPage = -2;
-  }
 
   const pdfDownloads: Promise<void>[] = [];
   const uuidToPdfMapping: Record<string, string> = {};
@@ -154,10 +108,8 @@ const crawlSitemap = async ({
   const { playwrightDeviceDetailsObject } = viewportSettings;
   const { maxConcurrency } = constants;
 
-  finalLinks = [...finalLinks, ...linksFromSitemap];
-
   const requestList = await RequestList.open({
-    sources: finalLinks,
+    sources: linksFromSitemap,
   });
 
   await initModifiedUserAgent(browser, playwrightDeviceDetailsObject, userDataDirectory);
@@ -265,15 +217,7 @@ const crawlSitemap = async ({
           return;
         }
 
-        // Set headers if basic auth
-        if (isBasicAuth) {
-          await page.setExtraHTTPHeaders({
-            Authorization: authHeader,
-            ...extraHTTPHeaders,
-          });
-        } else {
-          preNavigationHooks(extraHTTPHeaders);
-        }
+        preNavigationHooks(extraHTTPHeaders);
       },
     ],
     requestHandlerTimeoutSecs: 90,
@@ -293,17 +237,6 @@ const crawlSitemap = async ({
         });
 
         return;
-      }
-
-      // Set basic auth header if needed
-      if (isBasicAuth) {
-        await page.setExtraHTTPHeaders({
-          Authorization: authHeader,
-        });
-        const currentUrl = new URL(request.url);
-        currentUrl.username = username;
-        currentUrl.password = password;
-        request.url = currentUrl.href;
       }
 
       await waitForPageLoaded(page, 10000);
@@ -354,9 +287,7 @@ const crawlSitemap = async ({
       const contentType = response?.headers?.()['content-type'] || '';
       const status = response ? response.status() : 0;
 
-      if (basicAuthPage < 0) {
-        basicAuthPage += 1;
-      } else if (isScanHtml && status < 300 && isWhitelistedContentType(contentType)) {
+      if (isScanHtml && status < 300 && isWhitelistedContentType(contentType)) {
         const isRedirected = !areLinksEqual(page.url(), request.url);
         const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
           item => (item.actualUrl || item.url) === page.url(),
@@ -434,9 +365,6 @@ const crawlSitemap = async ({
       }
     },
     failedRequestHandler: async ({ request, response, error }) => {
-      if (isBasicAuth && request.url) {
-        request.url = `${request.url.split('://')[0]}://${request.url.split('@')[1]}`;
-      }
 
       // check if scanned pages have reached limit due to multi-instances of handler running
       if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) {

@@ -136,16 +136,6 @@ export const crawlLocalFile = async ({
     console.log(e);
   }
 
-  if (basicAuthRegex.test(sitemapUrl)) {
-    isBasicAuth = true;
-    // request to basic auth URL to authenticate for browser session
-    finalLinks.push(new Request({ url: sitemapUrl, uniqueKey: `auth:${sitemapUrl}` }));
-    const finalUrl = `${sitemapUrl.split('://')[0]}://${sitemapUrl.split('@')[1]}`;
-    // obtain base URL without credentials so that subsequent URLs within the same domain can be scanned
-    finalLinks.push(new Request({ url: finalUrl }));
-    basicAuthPage = -2;
-  }
-
   const uuidToPdfMapping: Record<string, string> = {}; // key and value of string type
 
   finalLinks = [...finalLinks, ...linksFromSitemap];
