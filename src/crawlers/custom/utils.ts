@@ -6,7 +6,7 @@ import path from 'path';
 import { runAxeScript } from '../commonCrawlerFunc.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
 import { guiInfoStatusTypes } from '../../constants/constants.js';
-import { isSkippedUrl, urlWithoutAuth } from '../../constants/common.js';
+import { isSkippedUrl } from '../../constants/common.js';
 
 //! For Cypress Test
 // env to check if Cypress test is running
@@ -77,8 +77,8 @@ export const screenshotFullPage = async (page, screenshotsDir: string, screensho
       window.scrollTo(0, 0);
     });
 
-    consoleLogger.info(`Screenshot page at: ${urlWithoutAuth(page.url())}`);
-    silentLogger.info(`Screenshot page at: ${urlWithoutAuth(page.url())}`);
+    consoleLogger.info(`Screenshot page at: ${page.url()}`);
+    silentLogger.info(`Screenshot page at: ${page.url()}`);
 
     await page.screenshot({
       timeout: 5000,
@@ -116,7 +116,7 @@ export const runAxeScan = async (
   await dataset.pushData(result);
 
   urlsCrawled.scanned.push({
-    url: urlWithoutAuth(page.url()),
+    url: page.url(),
     pageTitle: result.pageTitle,
     pageImagePath: customFlowDetails.pageImagePath,
   });

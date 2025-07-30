@@ -17,7 +17,6 @@ import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
   isSkippedUrl,
-  urlWithoutAuth,
   waitForPageLoaded,
   isFilePath,
   initModifiedUserAgent,
@@ -326,13 +325,13 @@ const crawlSitemap = async ({
         });
 
         urlsCrawled.scanned.push({
-          url: urlWithoutAuth(request.url),
+          url: request.url,
           pageTitle: results.pageTitle,
           actualUrl, // i.e. actualUrl
         });
 
         urlsCrawled.scannedRedirects.push({
-          fromUrl: urlWithoutAuth(request.url),
+          fromUrl: request.url,
           toUrl: actualUrl,
         });
 

@@ -7,7 +7,7 @@ import crawlIntelligentSitemap from './crawlers/crawlIntelligentSitemap.js';
 import generateArtifacts from './mergeAxeResults.js';
 import { getHost, createAndUpdateResultsFolders, createDetailsAndLogs } from './utils.js';
 import { ScannerTypes, UrlsCrawled } from './constants/constants.js';
-import { getBlackListedPatterns, submitForm, urlWithoutAuth } from './constants/common.js';
+import { getBlackListedPatterns, submitForm } from './constants/common.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import runCustom from './crawlers/runCustom.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
@@ -79,7 +79,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
   // remove basic-auth credentials from URL
   const finalUrl = !(type === ScannerTypes.SITEMAP || type === ScannerTypes.LOCALFILE)
-    ? urlWithoutAuth(url)
+    ? new URL(url)
     : new URL(pathToFileURL(url));
 
   // Use the string version of finalUrl to reduce logic at submitForm

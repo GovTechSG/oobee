@@ -15,7 +15,7 @@ import { pipeline } from 'stream/promises';
 // @ts-ignore
 import * as Sentry from '@sentry/node';
 import constants, { ScannerTypes, sentryConfig, setSentryUser } from './constants/constants.js';
-import { urlWithoutAuth, getPlaywrightLaunchOptions } from './constants/common.js';
+import { getPlaywrightLaunchOptions } from './constants/common.js';
 
 import {
   createScreenshotsFolder,
@@ -1722,11 +1722,6 @@ const generateArtifacts = async (
   const intermediateDatasetsPath = `${randomToken}/datasets/${randomToken}`;
   const oobeeAppVersion = getVersion();
   const storagePath = getStoragePath(randomToken);
-
-  urlScanned =
-    scanType === ScannerTypes.SITEMAP || scanType === ScannerTypes.LOCALFILE
-      ? urlScanned
-      : urlWithoutAuth(urlScanned);
 
   const formatAboutStartTime = (dateString: string) => {
     const utcStartTimeDate = new Date(dateString);

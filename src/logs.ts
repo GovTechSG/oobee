@@ -2,7 +2,6 @@
 /* eslint-disable no-shadow */
 import { createLogger, format, transports } from 'winston';
 import { guiInfoStatusTypes } from './constants/constants.js';
-import { urlWithoutAuth } from './constants/common.js';
 
 const { combine, timestamp, printf } = format;
 
@@ -54,7 +53,7 @@ export const guiInfoLog = (status: string, data: { numScanned?: number; urlScann
       case guiInfoStatusTypes.DUPLICATE:
         console.log(
           `crawling::${data.numScanned || 0}::${status}::${
-            urlWithoutAuth(data.urlScanned) || 'no url provided'
+            data.urlScanned || 'no url provided'
           }`,
         );
         break;

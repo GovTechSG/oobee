@@ -10,7 +10,6 @@ import {
   getBrowserToRun,
   getPlaywrightLaunchOptions,
   submitForm,
-  urlWithoutAuth,
 } from './constants/common.js';
 import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
 import { createAndUpdateResultsFolders, createDetailsAndLogs } from './utils.js';
@@ -245,7 +244,7 @@ export const init = async ({
       metadata,
     });
     urlsCrawled.scanned.push({
-      url: urlWithoutAuth(res.pageUrl).toString(),
+      url: res.pageUrl.toString(),
       actualUrl: 'tbd',
       pageTitle: `${pageIndex}: ${res.pageTitle}`,
     });

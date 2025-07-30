@@ -27,7 +27,6 @@ import {
   isSkippedUrl,
   isDisallowedInRobotsTxt,
   getUrlsFromRobotsTxt,
-  urlWithoutAuth,
   waitForPageLoaded,
   initModifiedUserAgent,
 } from '../constants/common.js';
@@ -612,13 +611,13 @@ const crawlDomain = async ({
               });
 
               urlsCrawled.scanned.push({
-                url: urlWithoutAuth(request.url),
+                url: request.url,
                 pageTitle: results.pageTitle,
                 actualUrl, // i.e. actualUrl
               });
 
               urlsCrawled.scannedRedirects.push({
-                fromUrl: urlWithoutAuth(request.url),
+                fromUrl: request.url,
                 toUrl: actualUrl, // i.e. actualUrl
               });
 
@@ -631,10 +630,10 @@ const crawlDomain = async ({
             if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
               guiInfoLog(guiInfoStatusTypes.SCANNED, {
                 numScanned: urlsCrawled.scanned.length,
-                urlScanned: urlWithoutAuth(request.url),
+                urlScanned: request.url,
               });
               urlsCrawled.scanned.push({
-                url: urlWithoutAuth(request.url),
+                url: request.url,
                 actualUrl: request.url,
                 pageTitle: results.pageTitle,
               });

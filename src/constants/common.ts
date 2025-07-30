@@ -1791,13 +1791,6 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   return options;
 };
 
-export const urlWithoutAuth = (url: string): string => {
-  const parsedUrl = new URL(url);
-  parsedUrl.username = '';
-  parsedUrl.password = '';
-  return parsedUrl.toString();
-};
-
 export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
   const OBSERVER_TIMEOUT = timeout; // Ensure observer timeout does not exceed the main timeout
 
