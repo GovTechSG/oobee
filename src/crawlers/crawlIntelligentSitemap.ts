@@ -7,6 +7,7 @@ import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
 import { EnqueueStrategy } from 'crawlee';
 import { ViewportSettingsClass } from '../combine.js';
+import { getPlaywrightLaunchOptions } from '../constants/common.js';
 
 const crawlIntelligentSitemap = async (
   url: string,
@@ -48,15 +49,21 @@ const crawlIntelligentSitemap = async (
     return `${urlObject.protocol}//${urlObject.hostname}${urlObject.port ? `:${urlObject.port}` : ''}`;
   }
 
-  async function findSitemap(link: string) {
+  async function findSitemap(link: string, userDataDirectory: string, extraHTTPHeaders: Record<string, string>) {
     const homeUrl = getHomeUrl(link);
     let sitemapLink = '';
-    const chromiumBrowser = await chromium.launch({
-      headless: false,
-      channel: 'chrome',
-      args: ['--headless=new', '--no-sandbox'],
+
+    const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
+        ? userDataDirectory
+        : '';
+    const context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
+        headless: process.env.CRAWLEE_HEADLESS === '1',
+        ...getPlaywrightLaunchOptions(browser),
+        ...(extraHTTPHeaders && { extraHTTPHeaders }),
     });
-    const page = await chromiumBrowser.newPage();
+
+    const page = await context.newPage();
+
     for (const path of sitemapPaths) {
       sitemapLink = homeUrl + path;
       if (await checkUrlExists(page, sitemapLink)) {
@@ -64,7 +71,8 @@ const crawlIntelligentSitemap = async (
         break;
       }
     }
-    await chromiumBrowser.close();
+    await page.close();
+    await context.close().catch(() => { });
     return sitemapExist ? sitemapLink : '';
   }
 
@@ -79,7 +87,7 @@ const crawlIntelligentSitemap = async (
   };
 
   try {
-    sitemapUrl = await findSitemap(url);
+    sitemapUrl = await findSitemap(url, userDataDirectory, extraHTTPHeaders);
   } catch (error) {
     consoleLogger.error(error);
   }

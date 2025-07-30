@@ -688,12 +688,11 @@ const getRobotsTxtViaPlaywright = async (robotsUrl: string, browser: string, use
 
   const browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
     ...getPlaywrightLaunchOptions(browser),
+    ...(extraHTTPHeaders && { extraHTTPHeaders }),
   });
 
   const page = await browserContext.newPage();
-  await page.setExtraHTTPHeaders({
-        ...extraHTTPHeaders,
-  });
+
   await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
   const robotsTxt: string | null = await page.evaluate(() => document.body.textContent);
   return robotsTxt;
@@ -860,14 +859,11 @@ export const getLinksFromSitemap = async (
           // Not necessary to parse http_credentials as I am parsing it directly in URL
           // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
           ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
+          ...(extraHTTPHeaders && { extraHTTPHeaders }),
         },
       );
 
       const page = await browserContext.newPage();
-      
-      await page.setExtraHTTPHeaders({
-          ...extraHTTPHeaders,
-      });
 
       await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
       if (constants.launcher === webkit) {

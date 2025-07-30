@@ -375,6 +375,7 @@ const crawlDomain = async ({
             ...launchContext.launchOptions,
             ignoreHTTPSErrors: true,
             ...playwrightDeviceDetailsObject,
+            ...(extraHTTPHeaders && { extraHTTPHeaders }),
           };
 
           // Optionally log for debugging
@@ -441,11 +442,6 @@ const crawlDomain = async ({
         }
       },
     ],
-    preNavigationHooks: [ async({ page, request}) => {
-        await page.setExtraHTTPHeaders({
-          ...extraHTTPHeaders,
-        });
-    }],
     requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
     requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
       const browserContext: BrowserContext = page.context();
