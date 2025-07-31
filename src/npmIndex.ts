@@ -200,11 +200,12 @@ export const init = async ({
     res: { pageUrl: string; pageTitle: string; axeScanResults: AxeResults },
     metadata: string,
     elementsToClick: string[],
+    randomToken: string,
   ) => {
     throwErrorIfTerminated();
     if (includeScreenshots) {
       // use chrome by default
-      const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(BrowserTypes.CHROME);
+      const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(BrowserTypes.CHROME, false, randomToken);
       const browserContext = await constants.launcher.launchPersistentContext(
         clonedBrowserDataDir,
         { viewport: viewportSettings, ...getPlaywrightLaunchOptions(browserToRun) },
@@ -236,7 +237,7 @@ export const init = async ({
       );
 
       await browserContext.close();
-      deleteClonedProfiles(browserToRun);
+      deleteClonedProfiles(browserToRun, randomToken);
     }
     const pageIndex = urlsCrawled.scanned.length + 1;
     const filteredResults = filterAxeResults(res.axeScanResults, res.pageTitle, {

@@ -15,7 +15,7 @@ import { pipeline } from 'stream/promises';
 // @ts-ignore
 import * as Sentry from '@sentry/node';
 import constants, { ScannerTypes, sentryConfig, setSentryUser } from './constants/constants.js';
-import { getPlaywrightLaunchOptions } from './constants/common.js';
+import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.js';
 
 import {
   createScreenshotsFolder,
@@ -961,21 +961,12 @@ const writeScanDetailsCsv = async (
   });
 };
 
-let browserChannel = 'chrome';
-
-if (os.platform() === 'win32') {
-  browserChannel = 'msedge';
-}
-
-if (os.platform() === 'linux') {
-  browserChannel = 'chromium';
-}
+let browserChannel = getBrowserToRun().browserToRun;
 
 const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filename = 'summary', browser: string, userDataDirectory: string) => {
   const htmlFilePath = `${storagePath}/${filename}.html`;
   const fileDestinationPath = `${storagePath}/${filename}.pdf`;
 
-  ///
   const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
     ? userDataDirectory
     : '';
@@ -983,7 +974,7 @@ const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filena
         headless: process.env.CRAWLEE_HEADLESS === '1',
         ...getPlaywrightLaunchOptions(browser),
       });
-  ///
+
   const page = await context.newPage();
 
   const data = fs.readFileSync(htmlFilePath, { encoding: 'utf-8' });

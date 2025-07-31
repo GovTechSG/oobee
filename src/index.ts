@@ -7,6 +7,7 @@ import {
   cleanUp,
   getUserDataTxt,
   writeToUserDataTxt,
+  randomThreeDigitNumberString,
 } from './utils.js';
 import {
   prepareData,
@@ -97,10 +98,7 @@ const runScan = async (answers: Answers) => {
     answers.customDevice,
     answers.viewportWidth,
   );
-  const { browserToRun } = getBrowserToRun(BrowserTypes.CHROME);
-  deleteClonedProfiles(browserToRun);
-  answers.browserToRun = browserToRun;
-
+    
   if (!answers.nameEmail) {
     answers.nameEmail = `${userData.name}:${userData.email}`;
   }
@@ -116,7 +114,7 @@ const runScan = async (answers: Answers) => {
   await combineRun(data, screenToScan);
 
   // Delete cloned directory
-  deleteClonedProfiles(data.browser);
+  deleteClonedProfiles(data.browser, data.randomToken);
 
   // Delete dataset and request queues
   cleanUp(data.randomToken);

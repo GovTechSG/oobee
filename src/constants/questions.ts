@@ -1,6 +1,6 @@
 import { Question } from 'inquirer';
 import { Answers } from '../index.js';
-import { getUserDataTxt, setHeadlessMode } from '../utils.js';
+import { getUserDataTxt, randomThreeDigitNumberString, setHeadlessMode } from '../utils.js';
 import {
   checkUrl,
   deleteClonedProfiles,
@@ -15,6 +15,7 @@ import {
   parseHeaders,
 } from './common.js';
 import constants, { BrowserTypes, ScannerTypes } from './constants.js';
+import { random } from 'lodash';
 
 const userData = getUserDataTxt();
 
@@ -78,8 +79,15 @@ const startScanQuestions = [
         process.exit(1);
       }
 
+      // construct filename for scan results
+      const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
+      const domain = new URL(url).hostname;
+      let resultFilename: string;
+      const randomThreeDigitNumber = randomThreeDigitNumberString();
+      resultFilename = `${date}_${time}_${domain}_${randomThreeDigitNumber}`;
+  
       const statuses = constants.urlCheckStatuses;
-      const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(BrowserTypes.CHROME);
+      const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(BrowserTypes.CHROME, false, resultFilename);
 
       setHeadlessMode(browserToRun, answers.headless);
 
@@ -98,7 +106,8 @@ const startScanQuestions = [
         parseHeaders(answers.header),
       );
 
-      deleteClonedProfiles(browserToRun);
+      deleteClonedProfiles(browserToRun, resultFilename);
+      
       switch (res.status) {
         case statuses.success.code:
           answers.finalUrl = res.url;

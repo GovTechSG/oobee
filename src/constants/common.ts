@@ -518,10 +518,6 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     constants.exportDirectory = process.cwd();
   }
 
-  // construct filename for scan results
-  const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
-  const domain = argv.isLocalFileScan ? path.basename(argv.url) : new URL(argv.url).hostname;
-
   const extraHTTPHeaders = parseHeaders(header);
 
   // Set default username and password for basic auth
@@ -545,14 +541,14 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
         return temp.toString();
       })();
 
+  // construct filename for scan results
+  const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
+  const domain = argv.isLocalFileScan ? path.basename(argv.url) : new URL(argv.url).hostname;
+
   const sanitisedLabel = customFlowLabel ? `_${customFlowLabel.replaceAll(' ', '_')}` : '';
   let resultFilename: string;
   const randomThreeDigitNumber = randomThreeDigitNumberString();
-  if (process.env.OOBEE_VERBOSE) {
-    resultFilename = `${date}_${time}${sanitisedLabel}_${domain}_${randomThreeDigitNumber}`;
-  } else {
-    resultFilename = `${date}_${time}${sanitisedLabel}_${domain}`;
-  }
+  resultFilename = `${date}_${time}${sanitisedLabel}_${domain}_${randomThreeDigitNumber}`;
 
   // Creating the playwrightDeviceDetailObject
   deviceChosen = customDevice === 'Desktop' || customDevice === 'Mobile' ? customDevice : deviceChosen;
@@ -563,7 +559,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     viewportWidth,
   );
 
-  const { browserToRun: resolvedBrowser, clonedBrowserDataDir } = getBrowserToRun(browserToRun, true);
+  const { browserToRun: resolvedBrowser, clonedBrowserDataDir } = getBrowserToRun(browserToRun, true, resultFilename);
   browserToRun = resolvedBrowser;
 
   const resolvedUserDataDirectory = getClonedProfilesWithRandomToken(browserToRun, resultFilename);
@@ -1012,20 +1008,26 @@ export const validName = (name: string) => {
  * @returns object consisting of browser to run and cloned data directory
  */
 export const getBrowserToRun = (
-  preferredBrowser: BrowserTypes,
+  preferredBrowser?: BrowserTypes,
   isCli = false,
+  randomToken?: string
 ): { browserToRun: BrowserTypes; clonedBrowserDataDir: string } => {
+
+  if (!randomToken) {
+    randomToken = '';
+  }
+  
   const platform = os.platform();
 
   // Prioritise Chrome on Windows and Mac platforms if user does not specify a browser
   if (!preferredBrowser && (os.platform() === 'win32' || os.platform() === 'darwin')) {
     preferredBrowser = BrowserTypes.CHROME;
+  } else {
+    printMessage([`Preferred browser ${preferredBrowser}`], messageOptions);
   }
 
-  printMessage([`Preferred browser ${preferredBrowser}`], messageOptions);
-
   if (preferredBrowser === BrowserTypes.CHROME) {
-    const chromeData = getChromeData();
+    const chromeData = getChromeData(randomToken);
     if (chromeData) return chromeData;
 
     if (platform === 'darwin') {
@@ -1039,7 +1041,7 @@ export const getBrowserToRun = (
       if (isCli)
         printMessage(['Unable to use Chrome, falling back to Edge browser...'], messageOptions);
 
-      const edgeData = getEdgeData();
+      const edgeData = getEdgeData(randomToken);
       if (edgeData) return edgeData;
 
       if (isCli)
@@ -1051,12 +1053,12 @@ export const getBrowserToRun = (
       printMessage(['Unable to use Chrome, falling back to Chromium browser...'], messageOptions);
     }
   } else if (preferredBrowser === BrowserTypes.EDGE) {
-    const edgeData = getEdgeData();
+    const edgeData = getEdgeData(randomToken);
     if (edgeData) return edgeData;
 
     if (isCli)
       printMessage(['Unable to use Edge, falling back to Chrome browser...'], messageOptions);
-    const chromeData = getChromeData();
+    const chromeData = getChromeData(randomToken);
     if (chromeData) return chromeData;
 
     if (platform === 'darwin') {
@@ -1087,7 +1089,7 @@ export const getBrowserToRun = (
   // defaults to chromium
   return {
     browserToRun: BrowserTypes.CHROMIUM,
-    clonedBrowserDataDir: cloneChromiumProfiles(),
+    clonedBrowserDataDir: cloneChromiumProfiles(randomToken),
   };
 };
 
@@ -1107,9 +1109,9 @@ export const getClonedProfilesWithRandomToken = (browser: string, randomToken: s
   return cloneChromiumProfiles(randomToken);
 };
 
-export const getChromeData = () => {
+export const getChromeData = (randomToken: string) => {
   const browserDataDir = getDefaultChromeDataDir();
-  const clonedBrowserDataDir = cloneChromeProfiles();
+  const clonedBrowserDataDir = cloneChromeProfiles(randomToken);
   if (browserDataDir && clonedBrowserDataDir) {
     const browserToRun = BrowserTypes.CHROME;
     return { browserToRun, clonedBrowserDataDir };
@@ -1117,9 +1119,9 @@ export const getChromeData = () => {
   return null;
 };
 
-export const getEdgeData = () => {
+export const getEdgeData = (randomToken: string) => {
   const browserDataDir = getDefaultEdgeDataDir();
-  const clonedBrowserDataDir = cloneEdgeProfiles();
+  const clonedBrowserDataDir = cloneEdgeProfiles(randomToken);
   if (browserDataDir && clonedBrowserDataDir) {
     const browserToRun = BrowserTypes.EDGE;
     return { browserToRun, clonedBrowserDataDir };
@@ -1323,7 +1325,7 @@ const cloneLocalStateFile = (options: GlobOptionsWithFileTypesFalse, destDir: st
  * @param {string} randomToken - random token to append to the cloned directory
  * @returns {string} cloned data directory, null if any of the sub files failed to copy
  */
-export const cloneChromeProfiles = (randomToken?: string): string => {
+export const cloneChromeProfiles = (randomToken: string): string => {
   const baseDir = getDefaultChromeDataDir();
 
   if (!baseDir) {
@@ -1332,18 +1334,10 @@ export const cloneChromeProfiles = (randomToken?: string): string => {
 
   let destDir;
 
-  if (randomToken) {
-    destDir = path.join(baseDir, `oobee-${randomToken}`);
-  } else {
-    destDir = path.join(baseDir, 'oobee');
-  }
+  destDir = path.join(baseDir, `oobee-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
-    if (process.env.OOBEE_VERBOSE) {
       deleteClonedChromeProfiles(randomToken);
-    } else {
-      deleteClonedChromeProfiles();
-    }
   }
 
   if (!fs.existsSync(destDir)) {
@@ -1364,7 +1358,7 @@ export const cloneChromeProfiles = (randomToken?: string): string => {
   return null;
 };
 
-export const cloneChromiumProfiles = (randomToken?: string): string => {
+export const cloneChromiumProfiles = (randomToken: string): string => {
   const baseDir = getDefaultChromiumDataDir();
 
   if (!baseDir) {
@@ -1373,10 +1367,10 @@ export const cloneChromiumProfiles = (randomToken?: string): string => {
 
   let destDir: string;
 
-  if (randomToken) {
-    destDir = path.join(baseDir, `oobee-${randomToken}`);
-  } else {
-    destDir = path.join(baseDir, 'oobee');
+  destDir = path.join(baseDir, `oobee-${randomToken}`);
+
+  if (fs.existsSync(destDir)) {
+      deleteClonedChromiumProfiles(randomToken);
   }
 
   if (!fs.existsSync(destDir)) {
@@ -1394,7 +1388,7 @@ export const cloneChromiumProfiles = (randomToken?: string): string => {
  * @param {string} randomToken - random token to append to the cloned directory
  * @returns {string} cloned data directory, null if any of the sub files failed to copy
  */
-export const cloneEdgeProfiles = (randomToken?: string): string => {
+export const cloneEdgeProfiles = (randomToken: string): string => {
   const baseDir = getDefaultEdgeDataDir();
 
   if (!baseDir) {
@@ -1403,18 +1397,10 @@ export const cloneEdgeProfiles = (randomToken?: string): string => {
 
   let destDir;
 
-  if (randomToken) {
-    destDir = path.join(baseDir, `oobee-${randomToken}`);
-  } else {
-    destDir = path.join(baseDir, 'oobee');
-  }
+  destDir = path.join(baseDir, `oobee-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
-    if (process.env.OOBEE_VERBOSE) {
       deleteClonedEdgeProfiles(randomToken);
-    } else {
-      deleteClonedEdgeProfiles();
-    }
   }
 
   if (!fs.existsSync(destDir)) {
@@ -1436,7 +1422,7 @@ export const cloneEdgeProfiles = (randomToken?: string): string => {
   return null;
 };
 
-export const deleteClonedProfiles = (browser: string, randomToken?: string): void => {
+export const deleteClonedProfiles = (browser: string, randomToken: string): void => {
   if (browser === BrowserTypes.CHROME) {
     deleteClonedChromeProfiles(randomToken);
   } else if (browser === BrowserTypes.EDGE) {
@@ -1491,9 +1477,7 @@ export const deleteClonedChromeProfiles = (randomToken?: string): void => {
  * @returns null
  */
 export const deleteClonedEdgeProfiles = (randomToken?: string): void => {
-  if (process.env.OOBEE_VERBOSE) {
-    return;
-  }
+
   const baseDir = getDefaultEdgeDataDir();
 
   if (!baseDir) {
@@ -1642,13 +1626,9 @@ export const submitFormViaPlaywright = async (
   } finally {
     await browserContext.close();
     if (proxy && browserToRun === BrowserTypes.EDGE) {
-      if (!process.env.OOBEE_VERBOSE) {
-        deleteClonedEdgeProfiles();
-      }
+        deleteClonedEdgeProfiles(clonedDir);
     } else if (proxy && browserToRun === BrowserTypes.CHROME) {
-      if (!process.env.OOBEE_VERBOSE) {
-        deleteClonedChromeProfiles();
-      }
+        deleteClonedChromeProfiles(clonedDir);
     }
   }
 };
