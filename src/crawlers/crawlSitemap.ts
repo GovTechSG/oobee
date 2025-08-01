@@ -19,7 +19,6 @@ import {
   isSkippedUrl,
   waitForPageLoaded,
   isFilePath,
-  initModifiedUserAgent,
 } from '../constants/common.js';
 import { areLinksEqual, isWhitelistedContentType, isFollowStrategy } from '../utils.js';
 import { handlePdfDownload, runPdfScan, mapPdfScanResults } from './pdfScanFunc.js';
@@ -111,7 +110,6 @@ const crawlSitemap = async ({
     sources: linksFromSitemap,
   });
 
-  await initModifiedUserAgent(browser, playwrightDeviceDetailsObject, userDataDirectory);
   const crawler = new crawlee.PlaywrightCrawler({
     launchContext: {
       launcher: constants.launcher,

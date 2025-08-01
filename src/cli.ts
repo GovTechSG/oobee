@@ -227,7 +227,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
   const data = await prepareData(updatedArgvs);
 
   constants.userDataDirectory = data.userDataDirectory;
-  
+
   const res = await checkUrl(
     data.type,
     data.entryUrl,

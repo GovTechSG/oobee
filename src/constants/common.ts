@@ -292,27 +292,18 @@ const checkUrlConnectivityWithBrowser = async (
     return res;
   }
 
-  let viewport = null;
-  let userAgent = null;
-  if (playwrightDeviceDetailsObject?.viewport) viewport = playwrightDeviceDetailsObject.viewport;
-  if (playwrightDeviceDetailsObject?.userAgent) userAgent = playwrightDeviceDetailsObject.userAgent;
-
   // Ensure Accept header for non-html content fallback
   extraHTTPHeaders['Accept'] ||= 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
 
-  const launchOptions = getPlaywrightLaunchOptions(browserToRun);
-  const browserContextLaunchOptions = {
-    ...launchOptions,
-    args: [...launchOptions.args, '--headless=new'],
-  };
+  await initModifiedUserAgent(browserToRun, playwrightDeviceDetailsObject, clonedDataDir);
 
   let browserContext;
   try {
     browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
-      ...browserContextLaunchOptions,
-      ...(viewport && { viewport }),
-      ...(userAgent && { userAgent }),
       ...(extraHTTPHeaders && { extraHTTPHeaders }),
+      ignoreHTTPSErrors: true,
+      ...getPlaywrightLaunchOptions(browserToRun),
+      ...playwrightDeviceDetailsObject,
     });
   } catch (err) {
     printMessage([`Unable to launch browser\n${err}`], messageOptions);
@@ -393,6 +384,7 @@ const checkUrlConnectivityWithBrowser = async (
     if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
       res.status = constants.urlCheckStatuses.unauthorised.code;
     } else {
+      console.log(error);
       res.status = constants.urlCheckStatuses.systemError.code;
     }
   } finally {
@@ -1690,6 +1682,7 @@ export async function initModifiedUserAgent(
   userDataDirectory?: string,
 ) {
 
+  console.log("Ran ")
   const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
 
   // If headless mode is enabled, ensure the headless flag is set.

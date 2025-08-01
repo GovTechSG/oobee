@@ -28,7 +28,6 @@ import {
   isDisallowedInRobotsTxt,
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
-  initModifiedUserAgent,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy } from '../utils.js';
 import {
@@ -343,8 +342,6 @@ const crawlDomain = async ({
   };
 
   let isAbortingScanNow = false;
-
-  await initModifiedUserAgent(browser, playwrightDeviceDetailsObject, userDataDirectory);
 
   const crawler = new crawlee.PlaywrightCrawler({
     launchContext: {
