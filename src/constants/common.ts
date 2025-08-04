@@ -1343,7 +1343,10 @@ export const cloneChromeProfiles = (randomToken: string): string => {
     return destDir;
   }
 
-  return null;
+  consoleLogger.error('Failed to clone Chrome profiles. You may be logged out of your accounts.');
+
+  // For future reference, return a null instead to halt the scan
+  return destDir;
 };
 
 export const cloneChromiumProfiles = (randomToken: string): string => {
@@ -1407,7 +1410,10 @@ export const cloneEdgeProfiles = (randomToken: string): string => {
     return destDir;
   }
 
-  return null;
+  consoleLogger.error('Failed to clone Edge profiles. You may be logged out of your accounts.');
+
+  // For future reference, return a null instead to halt the scan
+  return destDir;
 };
 
 export const deleteClonedProfiles = (browser: string, randomToken: string): void => {
