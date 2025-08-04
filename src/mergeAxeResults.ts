@@ -1710,7 +1710,7 @@ const generateArtifacts = async (
   zip: string = undefined, // optional
   generateJsonFiles = false,
 ) => {
-  const intermediateDatasetsPath = `${getStoragePath(randomToken)}/crawlee/datasets`;
+  const intermediateDatasetsPath = `${getStoragePath(randomToken)}/crawlee`;
   const oobeeAppVersion = getVersion();
   const storagePath = getStoragePath(randomToken);
 
@@ -1984,6 +1984,14 @@ const generateArtifacts = async (
 
   // Should consider refactor constants.userDataDirectory to be a parameter in future
   await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length, 'summary', browserChannel, constants.userDataDirectory), 1);
+
+  const foldersToRemove = ['crawlee', 'logs'];
+  for (const folder of foldersToRemove) {
+    const folderPath = path.join(storagePath, folder);
+    if (await fs.pathExists(folderPath)) {
+      await fs.remove(folderPath);
+    }
+  }
 
   // Take option if set
   if (typeof zip === 'string') {

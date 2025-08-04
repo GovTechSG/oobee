@@ -36,7 +36,7 @@ export const isWhitelistedContentType = (contentType: string): boolean => {
 export const getStoragePath = (randomToken: string): string => {
   // If exportDirectory is set, use it
   if (constants.exportDirectory) {
-    return path.join(constants.exportDirectory, randomToken);
+    return constants.exportDirectory;
   }
 
   // Otherwise, use the current working directory
@@ -752,7 +752,7 @@ export const zipResults = (zipName: string, resultsPath: string): void => {
   }
 
   // Check if user specified absolute or relative path
-  const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(resultsPath, zipName);
+  const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(process.cwd(), zipName);
 
 
   if (os.platform() === 'win32') {

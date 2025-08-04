@@ -502,10 +502,6 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     scanDuration
   } = argv;
 
-  // Set exported directory
-  if (exportDirectory) {
-    constants.exportDirectory = exportDirectory;
-  }
   const extraHTTPHeaders = parseHeaders(header);
 
   // Set default username and password for basic auth
@@ -538,6 +534,11 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   const randomThreeDigitNumber = randomThreeDigitNumberString();
   resultFilename = `${date}_${time}${sanitisedLabel}_${domain}_${randomThreeDigitNumber}`;
 
+  // Set exported directory
+  if (exportDirectory) {
+    constants.exportDirectory = path.join(exportDirectory, resultFilename);
+  }
+  
   // Creating the playwrightDeviceDetailObject
   deviceChosen = customDevice === 'Desktop' || customDevice === 'Mobile' ? customDevice : deviceChosen;
   
