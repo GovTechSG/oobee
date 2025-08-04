@@ -67,6 +67,12 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
 
+  if (process.env.CRAWLEE_SYSTEM_INFO_V2 === undefined) {
+  // Set the environment variable to enable system info v2
+  // Resolves issue with when wmic is not installed on Windows
+    process.env.CRAWLEE_SYSTEM_INFO_V2 = '1';
+  }
+  
   const host = type === ScannerTypes.SITEMAP || type === ScannerTypes.LOCALFILE ? '' : getHost(url);
 
   let blacklistedPatterns: string[] | null = null;
