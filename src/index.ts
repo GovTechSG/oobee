@@ -7,7 +7,6 @@ import {
   cleanUp,
   getUserDataTxt,
   writeToUserDataTxt,
-  randomThreeDigitNumberString,
 } from './utils.js';
 import {
   prepareData,

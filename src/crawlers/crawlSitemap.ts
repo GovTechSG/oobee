@@ -76,10 +76,6 @@ const crawlSitemap = async ({
   } else {
     ({ dataset } = await createCrawleeSubFolders(randomToken));
     urlsCrawled = { ...constants.urlsCrawledObj };
-
-    if (!fs.existsSync(randomToken)) {
-      fs.mkdirSync(randomToken);
-    }
   }
 
   if (!crawledFromLocalFile && isFilePath(sitemapUrl)) {

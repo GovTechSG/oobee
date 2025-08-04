@@ -73,9 +73,6 @@ export const crawlLocalFile = async ({
     ({ dataset } = await createCrawleeSubFolders(randomToken));
     urlsCrawled = { ...constants.urlsCrawledObj };
 
-    if (!fs.existsSync(randomToken)) {
-      fs.mkdirSync(randomToken);
-    }
   }
 
   // Check if the sitemapUrl is a local file and if it exists

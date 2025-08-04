@@ -452,7 +452,7 @@ const reserveFileNameKeywords = [
 
 export default {
   cliZipFileName: 'oobee-scan-results.zip',
-  exportDirectory: `${process.cwd()}`,
+  exportDirectory: undefined,
   maxRequestsPerCrawl,
   maxConcurrency: 25,
   urlsCrawledObj,

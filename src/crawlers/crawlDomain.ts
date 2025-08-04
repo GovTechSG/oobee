@@ -115,10 +115,6 @@ const crawlDomain = async ({
 
   ({ requestQueue } = await createCrawleeSubFolders(randomToken));
 
-  if (!fs.existsSync(randomToken)) {
-    fs.mkdirSync(randomToken);
-  }
-
   const pdfDownloads: Promise<void>[] = [];
   const uuidToPdfMapping: Record<string, string> = {};
   const isScanHtml = ['all', 'html-only'].includes(fileTypes);

@@ -11,6 +11,7 @@ import constants, {
 } from './constants/constants.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
+import { constant } from 'lodash';
 
 export const getVersion = () => {
   const loadJSON = (filePath: string): { version: string } =>
@@ -33,18 +34,52 @@ export const isWhitelistedContentType = (contentType: string): boolean => {
 };
 
 export const getStoragePath = (randomToken: string): string => {
-  if (constants.exportDirectory === process.cwd()) {
-    return `results/${randomToken}`;
+  
+  if (constants.exportDirectory) {
+    return path.join(constants.exportDirectory, randomToken);
   }
-  if (!path.isAbsolute(constants.exportDirectory)) {
-    constants.exportDirectory = path.resolve(process.cwd(), constants.exportDirectory);
-  }
-  return `${constants.exportDirectory}/${randomToken}`;
+
+  let storagePath = path.join(process.cwd(), 'results', randomToken);
+  // Ensure storagePath is writable and create subdir if possible
+    const isWritable = (() => {
+      try {
+        fs.accessSync(storagePath, fs.constants.W_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    
+    if (!isWritable) {
+      if (os.platform() === 'win32') {
+        // Use Documents folder on Windows
+        const documentsPath = path.join(process.env.USERPROFILE || process.env.HOMEPATH || '', 'Documents');
+        storagePath = path.join(documentsPath, 'Oobee', randomToken);
+      } else if (os.platform() === 'darwin') {
+        // Use Documents folder on Mac
+        const documentsPath = path.join(process.env.HOME || '', 'Documents');
+        storagePath = path.join(documentsPath, 'Oobee', randomToken);
+      } else {
+        // Use home directory for Linux/other
+        const homePath = process.env.HOME || '';
+        storagePath = path.join(homePath, 'Oobee', randomToken);
+      }
+      consoleLogger.warn(`Warning: Cannot write to cwd, writing to ${storagePath}`);
+  
+    }
+
+    if (!fs.existsSync(storagePath)) {
+      fs.mkdirSync(storagePath, { recursive: true });
+    }
+
+    constants.exportDirectory = storagePath;
+    return storagePath;
+
 };
 
 export const createDetailsAndLogs = async (randomToken: string): Promise<void> => {
   const storagePath = getStoragePath(randomToken);
-  const logPath = `logs/${randomToken}`;
+  const logPath = `${getStoragePath(randomToken)}/logs`;
   try {
     await fs.ensureDir(storagePath);
 
@@ -190,8 +225,11 @@ export const createScreenshotsFolder = (randomToken: string): void => {
   }
 };
 
-export const cleanUp = (pathToDelete: string): void => {
-  fs.removeSync(pathToDelete);
+export const cleanUp = (randomToken: string): void => {
+  fs.removeSync(randomToken);
+  fs.removeSync(path.join(process.env.APPDATA || '/tmp', randomToken));
+  fs.removeSync(path.join(getStoragePath(randomToken),'crawlee'));
+  fs.removeSync(path.join(getStoragePath(randomToken),'logs'));
 };
 
 export const getWcagPassPercentage = (
@@ -708,16 +746,18 @@ export const zipResults = (zipName: string, resultsPath: string): void => {
     fs.unlinkSync(zipName);
   }
 
+  // Check if user specified absolute or relative path
+  const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(resultsPath, zipName);
+
+
   if (os.platform() === 'win32') {
     execSync(
-      `Get-ChildItem -Path "${resultsPath}\\*.*" -Recurse | Compress-Archive -DestinationPath "${zipName}"`,
-      { shell: 'powershell.exe' },
+      `Get-ChildItem -Path "*.*" -Recurse | Compress-Archive -DestinationPath "${zipFilePath}"`,
+      { shell: 'powershell.exe', cwd: resultsPath },
     );
   } else {
     // Get zip command in Mac and Linux
     const command = '/usr/bin/zip';
-    // Check if user specified absolute or relative path
-    const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(process.cwd(), zipName);
 
     // To zip up files recursively (-r) in the results folder path and write it to user's specified path
     const args = ['-r', zipFilePath, '.'];

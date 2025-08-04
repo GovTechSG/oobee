@@ -21,6 +21,9 @@ import { getAxeConfiguration } from './custom/getAxeConfiguration.js';
 import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
 import xPathToCss from './custom/xPathToCss.js';
 import type { Response as PlaywrightResponse } from 'playwright';
+import path from 'path/win32';
+import fs from 'fs';
+import { getStoragePath } from '../utils.js';
 
 // types
 interface AxeResultsWithScreenshot extends AxeResults {
@@ -476,8 +479,11 @@ export const runAxeScript = async ({
 export const createCrawleeSubFolders = async (
   randomToken: string,
 ): Promise<{ dataset: crawlee.Dataset; requestQueue: crawlee.RequestQueue }> => {
-  const dataset = await crawlee.Dataset.open(randomToken);
-  const requestQueue = await crawlee.RequestQueue.open(randomToken);
+
+  const crawleeDir = path.join(getStoragePath(randomToken),"crawlee");
+
+  const dataset = await crawlee.Dataset.open(crawleeDir);
+  const requestQueue = await crawlee.RequestQueue.open(crawleeDir);
   return { dataset, requestQueue };
 };
 

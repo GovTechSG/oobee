@@ -37,9 +37,6 @@ const crawlIntelligentSitemap = async (
   let sitemapUrl;
 
   ({ dataset } = await createCrawleeSubFolders(randomToken));
-  if (!fs.existsSync(randomToken)) {
-    fs.mkdirSync(randomToken);
-  }
 
   function getHomeUrl(parsedUrl: string) {
     const urlObject = new URL(parsedUrl);

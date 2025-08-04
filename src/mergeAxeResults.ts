@@ -1710,7 +1710,7 @@ const generateArtifacts = async (
   zip: string = undefined, // optional
   generateJsonFiles = false,
 ) => {
-  const intermediateDatasetsPath = `${randomToken}/datasets/${randomToken}`;
+  const intermediateDatasetsPath = `${getStoragePath(randomToken)}/crawlee/datasets`;
   const oobeeAppVersion = getVersion();
   const storagePath = getStoragePath(randomToken);
 

@@ -119,7 +119,7 @@ export const validateFilePath = (filePath: string, cliDir: string) => {
 
     return absolutePath;
   } catch {
-    throw new Error(`Please ensure path provided exists: ${absolutePath}`);
+    throw new Error(`Please ensure path provided exists and writable: ${absolutePath}`);
   }
 };
 
@@ -505,11 +505,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   // Set exported directory
   if (exportDirectory) {
     constants.exportDirectory = exportDirectory;
-  } else {
-    // Implicitly is the current working directory
-    constants.exportDirectory = process.cwd();
   }
-
   const extraHTTPHeaders = parseHeaders(header);
 
   // Set default username and password for basic auth
@@ -1682,7 +1678,6 @@ export async function initModifiedUserAgent(
   userDataDirectory?: string,
 ) {
 
-  console.log("Ran ")
   const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
 
   // If headless mode is enabled, ensure the headless flag is set.
