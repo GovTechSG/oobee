@@ -21,9 +21,9 @@ import { getAxeConfiguration } from './custom/getAxeConfiguration.js';
 import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickableElements.js';
 import xPathToCss from './custom/xPathToCss.js';
 import type { Response as PlaywrightResponse } from 'playwright';
-import path from 'path/win32';
 import fs from 'fs';
 import { getStoragePath } from '../utils.js';
+import path from 'path';
 
 // types
 interface AxeResultsWithScreenshot extends AxeResults {
