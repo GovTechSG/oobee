@@ -12,17 +12,14 @@
   // extract tagname and attribute name from html tag
   // e.g. ["input", "type", "value", "role"] from <input type="text" value="..." role="..." />
   const getHtmlTagAndAttributes = (htmlString) => {
-    const regex = /<(\w+)(\s+(\w+)(\s*=\s*"[^"]*")?)*\s*\/?>/;
-    const match = htmlString.match(regex); // check if structure of html tag is valid
+    const tagMatch = htmlString.match(/^<\s*(\w+)/); // Get tag name
+    if (!tagMatch) return [];
 
-    if (match) {
-      const tagName = match[1];
-      const attributes = match[0]
-        .match(/\w+\s*=\s*"[^"]*"/g) // extract attributes e.g. ['type="text"', 'value="..."']
-        .map((attr) => attr.match(/(\w+)\s*=/)[1]); // get the name e.g. "type" from each
-      return [tagName, ...attributes];
-    }
-    return [];
+    const tagName = tagMatch[1];
+    const attrMatches = [...htmlString.matchAll(/(\w[\w-]*)\s*=\s*"[^"]*"/g)];
+    const attributes = attrMatches.map(match => match[1]);
+
+    return [tagName, ...attributes];
   };
 
   const rulesUsingRoles = [
