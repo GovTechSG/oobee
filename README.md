@@ -86,6 +86,7 @@ verapdf --version
 | OOBEE_VERBOSE | When set to `true`, log output goes to console | `false` |
 | OOBEE_FAST_CRAWLER| When set to `true`, increases scan concurrency at a rapid rate.  Experimental, may cause system stability issues on low-powered devices. | `false`|
 | OOBEE_VALIDATE_URL| When set to `true`, validates if URLs are valid and exits. | `false` |
+| OOBEE_LOGS_PATH | When set, logs are written to this path. |  |
 | WARN_LEVEL | Only used in tests. |  |
 
 #### Environment variables used internally (Do not set)

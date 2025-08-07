@@ -12,6 +12,7 @@ import constants, {
 import { consoleLogger, errorsTxtPath, silentLogger } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 import { constant } from 'lodash';
+import { errors } from 'playwright';
 
 export const getVersion = () => {
   const loadJSON = (filePath: string): { version: string } =>
@@ -243,28 +244,40 @@ export const cleanUp = (randomToken: string, isError: boolean = false): void => 
     consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
   }
 
+  let deleteErrorLogFile = true;
+
   if (isError) {
-    const storagePath = getStoragePath(randomToken);
+    let storagePath = getStoragePath(randomToken);
+
+    if (process.env.OOBEE_LOGS_PATH) {
+      storagePath = process.env.OOBEE_LOGS_PATH;
+    }
+
     if (fs.existsSync(errorsTxtPath)) {
       try {
-        fs.copyFileSync(errorsTxtPath, path.join(storagePath, `logs-${randomToken}.txt`));
+        const logFilePath = path.join(storagePath, `logs-${randomToken}.txt`);
+        fs.copyFileSync(errorsTxtPath, logFilePath);
+        console.log(`An error occured. Log file is located at: ${logFilePath}`);
       } catch (copyError) {
         consoleLogger.error(`Error copying errors file during cleanup: ${copyError.message}`);
+        console.log(`An error occured. Log file is located at: ${errorsTxtPath}`);
+        deleteErrorLogFile = false; // Do not delete the log file if copy failed
       }
     }
   } 
   
   // remove log from temporary location
-  
-  try {
-      if (fs.existsSync(errorsTxtPath)) {
-        fs.unlinkSync(errorsTxtPath);
-      }
-  } catch (error) {
-    consoleLogger.warn(`Unable to delete log file ${errorsTxtPath}: ${error.message}`);
+  if (deleteErrorLogFile) {
+    try {
+        if (fs.existsSync(errorsTxtPath)) {
+          fs.unlinkSync(errorsTxtPath);
+        }
+    } catch (error) {
+      consoleLogger.warn(`Unable to delete log file ${errorsTxtPath}: ${error.message}`);
+    }
   }
   
-  consoleLogger.info(`Clean up completed for randomToken: ${randomToken}`);
+  consoleLogger.info(`Clean up completed for: ${randomToken}`);
   process.exit(constants.urlCheckStatuses.terminationRequested.code);
 };
 

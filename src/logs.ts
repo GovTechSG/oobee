@@ -25,12 +25,14 @@ const logFormat = printf(({ timestamp, level, message }) => {
 const uuid = randomUUID();
 let basePath: string;
 
-if (process.platform === 'win32') {
+if (process.env.OOBEE_LOGS_PATH) {
+  basePath = process.env.OOBEE_LOGS_PATH;
+} else if (process.platform === 'win32') {
   basePath = path.join(process.env.APPDATA, 'Oobee');
 } else if (process.platform === 'darwin') {
   basePath = path.join(process.env.HOME, 'Library', 'Application Support', 'Oobee');
 } else {
-  basePath = '/tmp/Oobee';
+  basePath = path.join(process.cwd());
 }
 
 export const errorsTxtPath = path.join(basePath, `${uuid}.txt`);

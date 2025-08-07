@@ -333,7 +333,8 @@ const scanInit = async (argvs: Answers): Promise<string> => {
   );
 
   printMessage([`Oobee version: ${appVersion}`, 'Starting scan...'], messageOptions);
-
+  consoleLogger.info(`Oobee version: ${appVersion}`); 
+  
   await combineRun(data, screenToScan);
 
   deleteClonedProfiles(data.browser, data.randomToken);
