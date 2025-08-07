@@ -243,26 +243,29 @@ export const cleanUp = (randomToken: string, isError: boolean = false): void => 
     consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
   }
 
-  if (!isError) {
+  const logsPath = path.join(getStoragePath(randomToken), 'logs');
+  if (!isError || (isError && (!fs.existsSync(logsPath) || fs.readdirSync(logsPath).length === 0))) {
     try {
-      fs.rmSync(path.join(getStoragePath(randomToken), 'logs'), { recursive: true, force: true });
+      fs.rmSync(getStoragePath(randomToken), { recursive: true, force: true });
     } catch (error) {
-      consoleLogger.warn(`Unable to force remove logs folder: ${error.message}`);
+      consoleLogger.warn(`Unable to force remove results folder: ${error.message}`);
     }
   }
+  
+  consoleLogger.info(`Clean up completed for randomToken: ${randomToken}`);
+  process.exit(constants.urlCheckStatuses.terminationRequested.code);
 };
 
 export const listenForCleanUp = (randomToken: string): void => {
+  consoleLogger.info(`PID: ${process.pid}`);
   process.on('SIGINT', () => {
     consoleLogger.info('SIGINT received. Cleaning up and exiting.');
     cleanUp(randomToken, true);
-    process.exit(0);
   });
 
   process.on('SIGTERM', () => {
     consoleLogger.info('SIGTERM received. Cleaning up and exiting.');
     cleanUp(randomToken, true);
-    process.exit(0);
   });
 };
 

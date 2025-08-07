@@ -405,6 +405,7 @@ const urlCheckStatuses = {
   },
   axiosTimeout: { code: 18, message: 'Axios timeout exceeded. Falling back on browser checks.' },
   notALocalFile: { code: 19, message: 'Provided filepath is not a local html or sitemap file.' },
+  terminationRequested: { code: 15, message: 'Termination requested.' }
 };
 
 /* eslint-disable no-unused-vars */
