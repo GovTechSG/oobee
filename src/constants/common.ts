@@ -558,6 +558,9 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     await getUrlsFromRobotsTxt(url, browserToRun, resolvedUserDataDirectory, extraHTTPHeaders);
   }
 
+  constants.userDataDirectory = resolvedUserDataDirectory;
+  constants.randomToken = resultFilename;
+
   return {
     type: scanner,
     url: url,

@@ -9,9 +9,10 @@ import constants, {
   destinationPath,
   getIntermediateScreenshotsPath,
 } from './constants/constants.js';
-import { consoleLogger, silentLogger } from './logs.js';
+import { consoleLogger, errorsTxtPath, silentLogger } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 import { constant } from 'lodash';
+import { errors } from 'playwright';
 
 export const getVersion = () => {
   const loadJSON = (filePath: string): { version: string } =>
@@ -84,7 +85,7 @@ export const getStoragePath = (randomToken: string): string => {
 
 export const createDetailsAndLogs = async (randomToken: string): Promise<void> => {
   const storagePath = getStoragePath(randomToken);
-  const logPath = `${getStoragePath(randomToken)}/logs`;
+  const logPath = `${storagePath}}/logs`;
   try {
     await fs.ensureDir(storagePath);
 
@@ -230,11 +231,67 @@ export const createScreenshotsFolder = (randomToken: string): void => {
   }
 };
 
-export const cleanUp = (randomToken: string): void => {
-  fs.removeSync(randomToken);
-  fs.removeSync(path.join(process.env.APPDATA || '/tmp', randomToken));
-  fs.removeSync(path.join(getStoragePath(randomToken),'crawlee'));
-  fs.removeSync(path.join(getStoragePath(randomToken),'logs'));
+export const cleanUp = (randomToken: string, isError: boolean = false): void => {
+  try {
+    fs.rmSync(constants.userDataDirectory, { recursive: true, force: true });
+  } catch (error) {
+    consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
+  }
+  
+  try {
+    fs.rmSync(path.join(getStoragePath(randomToken), 'crawlee'), { recursive: true, force: true });
+  } catch (error) {
+    consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
+  }
+
+  let deleteErrorLogFile = true;
+
+  if (isError) {
+    let storagePath = getStoragePath(randomToken);
+
+    if (process.env.OOBEE_LOGS_PATH) {
+      storagePath = process.env.OOBEE_LOGS_PATH;
+    }
+
+    if (fs.existsSync(errorsTxtPath)) {
+      try {
+        const logFilePath = path.join(storagePath, `logs-${randomToken}.txt`);
+        fs.copyFileSync(errorsTxtPath, logFilePath);
+        console.log(`An error occured. Log file is located at: ${logFilePath}`);
+      } catch (copyError) {
+        consoleLogger.error(`Error copying errors file during cleanup: ${copyError.message}`);
+        console.log(`An error occured. Log file is located at: ${errorsTxtPath}`);
+        deleteErrorLogFile = false; // Do not delete the log file if copy failed
+      }
+    }
+  } 
+  
+  // remove log from temporary location
+  if (deleteErrorLogFile) {
+    try {
+        if (fs.existsSync(errorsTxtPath)) {
+          fs.unlinkSync(errorsTxtPath);
+        }
+    } catch (error) {
+      consoleLogger.warn(`Unable to delete log file ${errorsTxtPath}: ${error.message}`);
+    }
+  }
+  
+  consoleLogger.info(`Clean up completed for: ${randomToken}`);
+  process.exit(constants.urlCheckStatuses.terminationRequested.code);
+};
+
+export const listenForCleanUp = (randomToken: string): void => {
+  consoleLogger.info(`PID: ${process.pid}`);
+  process.on('SIGINT', () => {
+    consoleLogger.info('SIGINT received. Cleaning up and exiting.');
+    cleanUp(randomToken, true);
+  });
+
+  process.on('SIGTERM', () => {
+    consoleLogger.info('SIGTERM received. Cleaning up and exiting.');
+    cleanUp(randomToken, true);
+  });
 };
 
 export const getWcagPassPercentage = (

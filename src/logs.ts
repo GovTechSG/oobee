@@ -2,6 +2,8 @@
 /* eslint-disable no-shadow */
 import { createLogger, format, transports } from 'winston';
 import { guiInfoStatusTypes } from './constants/constants.js';
+import path from 'path';
+import { randomUUID } from 'crypto';
 
 const { combine, timestamp, printf } = format;
 
@@ -20,12 +22,32 @@ const logFormat = printf(({ timestamp, level, message }) => {
 // transport: storage device for logs
 // Enabled for console and storing into files; Files are overwritten each time
 // All logs in combined.txt, error in errors.txt
+const uuid = randomUUID();
+let basePath: string;
+
+if (process.env.OOBEE_LOGS_PATH) {
+  basePath = process.env.OOBEE_LOGS_PATH;
+} else if (process.platform === 'win32') {
+  basePath = path.join(process.env.APPDATA, 'Oobee');
+} else if (process.platform === 'darwin') {
+  basePath = path.join(process.env.HOME, 'Library', 'Application Support', 'Oobee');
+} else {
+  basePath = path.join(process.cwd());
+}
+
+export const errorsTxtPath = path.join(basePath, `${uuid}.txt`);
 
 const consoleLogger = createLogger({
   silent: !(process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE),
   format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
-  transports:
-    process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE ? [new transports.Console()] : [],
+  transports: [
+    new transports.Console({ level: 'info' }),
+    new transports.File({
+      filename: errorsTxtPath,
+      level: 'info',
+      handleExceptions: true,
+    }),
+  ],
 });
 
 // No display in consoles, this will mostly be used within the interactive script to avoid disrupting the flow
@@ -34,9 +56,10 @@ const consoleLogger = createLogger({
 const silentLogger = createLogger({
   format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
   transports: [
-    process.env.OOBEE_VERBOSE || process.env.RUNNING_FROM_PH_GUI
-      ? new transports.Console({ handleExceptions: true })
-      : new transports.File({ filename: 'errors.txt', level: 'warn', handleExceptions: true }),
+    new transports.File({ 
+      filename: errorsTxtPath,
+      level: 'warn', 
+      handleExceptions: true }),
   ].filter(Boolean),
 });
 
@@ -46,16 +69,17 @@ export const guiInfoLog = (status: string, data: { numScanned?: number; urlScann
     switch (status) {
       case guiInfoStatusTypes.COMPLETED:
         console.log('Scan completed');
+        silentLogger.info('Scan completed');
         break;
       case guiInfoStatusTypes.SCANNED:
       case guiInfoStatusTypes.SKIPPED:
       case guiInfoStatusTypes.ERROR:
       case guiInfoStatusTypes.DUPLICATE:
-        console.log(
-          `crawling::${data.numScanned || 0}::${status}::${
+        const msg = `crawling::${data.numScanned || 0}::${status}::${
             data.urlScanned || 'no url provided'
-          }`,
-        );
+          }`;
+        console.log(msg);
+        silentLogger.info(msg);
         break;
       default:
         console.log(`Status provided to gui info log not recognized: ${status}`);
@@ -63,5 +87,7 @@ export const guiInfoLog = (status: string, data: { numScanned?: number; urlScann
     }
   }
 };
+
+consoleLogger.info(`Logger writing to: ${errorsTxtPath}`);
 
 export { logFormat, consoleLogger, silentLogger };

@@ -233,7 +233,7 @@ const getVeraExecutable = () => {
     const veraPdfExeNotFoundError =
       'Could not find veraPDF executable.  Please ensure veraPDF is installed at current directory.';
     consoleLogger.error(veraPdfExeNotFoundError);
-    silentLogger.error(veraPdfExeNotFoundError);
+    consoleLogger.error(veraPdfExeNotFoundError);
   }
   return veraPdfExe;
 };
