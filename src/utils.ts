@@ -9,7 +9,7 @@ import constants, {
   destinationPath,
   getIntermediateScreenshotsPath,
 } from './constants/constants.js';
-import { consoleLogger, silentLogger } from './logs.js';
+import { consoleLogger, errorsTxtPath, silentLogger } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 import { constant } from 'lodash';
 
@@ -243,13 +243,25 @@ export const cleanUp = (randomToken: string, isError: boolean = false): void => 
     consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
   }
 
-  const logsPath = path.join(getStoragePath(randomToken), 'logs');
-  if (!isError || (isError && (!fs.existsSync(logsPath) || fs.readdirSync(logsPath).length === 0))) {
-    try {
-      fs.rmSync(getStoragePath(randomToken), { recursive: true, force: true });
-    } catch (error) {
-      consoleLogger.warn(`Unable to force remove results folder: ${error.message}`);
+  if (isError) {
+    const storagePath = getStoragePath(randomToken);
+    if (fs.existsSync(errorsTxtPath)) {
+      try {
+        fs.copyFileSync(errorsTxtPath, path.join(storagePath, `logs-${randomToken}.txt`));
+      } catch (copyError) {
+        consoleLogger.error(`Error copying errors file during cleanup: ${copyError.message}`);
+      }
     }
+  } 
+  
+  // remove log from temporary location
+  
+  try {
+      if (fs.existsSync(errorsTxtPath)) {
+        fs.unlinkSync(errorsTxtPath);
+      }
+  } catch (error) {
+    consoleLogger.warn(`Unable to delete log file ${errorsTxtPath}: ${error.message}`);
   }
   
   consoleLogger.info(`Clean up completed for randomToken: ${randomToken}`);

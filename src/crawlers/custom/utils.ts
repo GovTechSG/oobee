@@ -78,7 +78,7 @@ export const screenshotFullPage = async (page, screenshotsDir: string, screensho
     });
 
     consoleLogger.info(`Screenshot page at: ${page.url()}`);
-    silentLogger.info(`Screenshot page at: ${page.url()}`);
+    consoleLogger.info(`Screenshot page at: ${page.url()}`);
 
     await page.screenshot({
       timeout: 5000,
@@ -469,7 +469,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       consoleLogger.info(`Overlay state: ${existingOverlay}`);
     } catch {
       consoleLogger.info('Error in adding overlay menu to page');
-      silentLogger.info('Error in adding overlay menu to page');
+      consoleLogger.info('Error in adding overlay menu to page');
     }
   });
 

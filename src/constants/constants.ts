@@ -136,7 +136,7 @@ export const getDefaultChromiumDataDir = () => {
     }
     return null;
   } catch (error) {
-    silentLogger.error(`Error in getDefaultChromiumDataDir(): ${error}`);
+    consoleLogger.error(`Error in getDefaultChromiumDataDir(): ${error}`);
   }
 };
 
@@ -239,7 +239,7 @@ export const getProxy = (): { type: string; url: string } | null => {
         .split('\n');
     } catch (e) {
       console.log(e.toString());
-      silentLogger.error(e.toString());
+      consoleLogger.error(e.toString());
     }
 
     const getSettingValue = (settingName: string) =>

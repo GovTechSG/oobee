@@ -22,7 +22,7 @@ export const takeScreenshotForHTMLElements = async (
   for (const violation of violations) {
     if (screenshotCount >= maxScreenshots) {
       /*
-      silentLogger.warn(
+      consoleLogger.warn(
         `Skipping screenshots for ${violation.id} as maxScreenshots (${maxScreenshots}) exceeded. You can increase it by specifying a higher value when calling takeScreenshotForHTMLElements.`,
       );
       */
@@ -34,7 +34,7 @@ export const takeScreenshotForHTMLElements = async (
 
     // Check if rule ID is 'oobee-grading-text-contents' and skip screenshot logic
     if (rule === 'oobee-grading-text-contents') {
-      // silentLogger.info('Skipping screenshot for rule oobee-grading-text-contents');
+      // consoleLogger.info('Skipping screenshot for rule oobee-grading-text-contents');
       newViolations.push(violation); // Make sure it gets added
       continue;
     }
@@ -59,13 +59,13 @@ export const takeScreenshotForHTMLElements = async (
               nodeWithScreenshotPath.screenshotPath = screenshotPath;
               screenshotCount++;
             } else {
-              // silentLogger.info(`Element at ${currLocator} is not visible`);
+              // consoleLogger.info(`Element at ${currLocator} is not visible`);
             }
 
             break; // Stop looping after finding the first visible locator
           }
         } catch (e) {
-          // silentLogger.info(`Unable to take element screenshot at ${selector}`);
+          // consoleLogger.info(`Unable to take element screenshot at ${selector}`);
         }
       }
       newViolationNodes.push(nodeWithScreenshotPath);
