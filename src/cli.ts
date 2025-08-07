@@ -5,7 +5,7 @@ import printMessage from 'print-message';
 import { devices } from 'playwright';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { cleanUp, setHeadlessMode, getVersion, getStoragePath } from './utils.js';
+import { cleanUp, setHeadlessMode, getVersion, getStoragePath, listenForCleanUp } from './utils.js';
 import {
   checkUrl,
   prepareData,
@@ -226,7 +226,8 @@ const scanInit = async (argvs: Answers): Promise<string> => {
 
   const data = await prepareData(updatedArgvs);
 
-  constants.userDataDirectory = data.userDataDirectory;
+  // Executes cleanUp script if error encountered
+  listenForCleanUp(data.randomToken);
 
   const res = await checkUrl(
     data.type,

@@ -7,6 +7,7 @@ import {
   cleanUp,
   getUserDataTxt,
   writeToUserDataTxt,
+  listenForCleanUp,
 } from './utils.js';
 import {
   prepareData,
@@ -106,6 +107,10 @@ const runScan = async (answers: Answers) => {
   answers.metadata = '{}';
 
   const data: Data = await prepareData(answers);
+  
+  // Executes cleanUp script if error encountered
+  listenForCleanUp(data.randomToken);
+  
   data.userDataDirectory = getClonedProfilesWithRandomToken(data.browser, data.randomToken);
 
   printMessage(['Scanning website...'], messageOptions);

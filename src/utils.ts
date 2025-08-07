@@ -84,7 +84,7 @@ export const getStoragePath = (randomToken: string): string => {
 
 export const createDetailsAndLogs = async (randomToken: string): Promise<void> => {
   const storagePath = getStoragePath(randomToken);
-  const logPath = `${getStoragePath(randomToken)}/logs`;
+  const logPath = `${storagePath}}/logs`;
   try {
     await fs.ensureDir(storagePath);
 
@@ -230,11 +230,40 @@ export const createScreenshotsFolder = (randomToken: string): void => {
   }
 };
 
-export const cleanUp = (randomToken: string): void => {
-  fs.removeSync(randomToken);
-  fs.removeSync(path.join(process.env.APPDATA || '/tmp', randomToken));
-  fs.removeSync(path.join(getStoragePath(randomToken),'crawlee'));
-  fs.removeSync(path.join(getStoragePath(randomToken),'logs'));
+export const cleanUp = (randomToken: string, isError: boolean = false): void => {
+  try {
+    fs.rmSync(constants.userDataDirectory, { recursive: true, force: true });
+  } catch (error) {
+    consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
+  }
+  
+  try {
+    fs.rmSync(path.join(getStoragePath(randomToken), 'crawlee'), { recursive: true, force: true });
+  } catch (error) {
+    consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
+  }
+
+  if (!isError) {
+    try {
+      fs.rmSync(path.join(getStoragePath(randomToken), 'logs'), { recursive: true, force: true });
+    } catch (error) {
+      consoleLogger.warn(`Unable to force remove logs folder: ${error.message}`);
+    }
+  }
+};
+
+export const listenForCleanUp = (randomToken: string): void => {
+  process.on('SIGINT', () => {
+    consoleLogger.info('SIGINT received. Cleaning up and exiting.');
+    cleanUp(randomToken, true);
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', () => {
+    consoleLogger.info('SIGTERM received. Cleaning up and exiting.');
+    cleanUp(randomToken, true);
+    process.exit(0);
+  });
 };
 
 export const getWcagPassPercentage = (
