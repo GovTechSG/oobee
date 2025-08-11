@@ -231,22 +231,27 @@ export const createScreenshotsFolder = (randomToken: string): void => {
   }
 };
 
-export const cleanUp = (randomToken: string, isError: boolean = false): void => {
-  try {
+export const cleanUp = (randomToken?: string, isError: boolean = false): void => {
+
+  if (randomToken === undefined && constants.randomToken) {
+    randomToken = constants.randomToken;
+  }
+
+  if (constants.userDataDirectory) try {
     fs.rmSync(constants.userDataDirectory, { recursive: true, force: true });
   } catch (error) {
     consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
   }
-  
-  try {
-    fs.rmSync(path.join(getStoragePath(randomToken), 'crawlee'), { recursive: true, force: true });
-  } catch (error) {
-    consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
-  }
+
+  if (randomToken !== undefined) try {
+      fs.rmSync(path.join(getStoragePath(randomToken), 'crawlee'), { recursive: true, force: true });
+    } catch (error) {
+      consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
+    }
 
   let deleteErrorLogFile = true;
 
-  if (isError) {
+  if (isError && randomToken !== undefined) {
     let storagePath = getStoragePath(randomToken);
 
     if (process.env.OOBEE_LOGS_PATH) {
@@ -277,20 +282,29 @@ export const cleanUp = (randomToken: string, isError: boolean = false): void => 
     }
   }
   
-  consoleLogger.info(`Clean up completed for: ${randomToken}`);
-  process.exit(constants.urlCheckStatuses.terminationRequested.code);
+  if (randomToken) consoleLogger.info(`Clean up completed for: ${randomToken}`);
+};
+
+export const cleanUpAndExit = (
+  exitCode: number,
+  randomToken?: string,
+  isError: boolean = false,
+): void => {
+  cleanUp(randomToken, isError);
+  consoleLogger.info('Exiting with code:', exitCode);
+  process.exit(exitCode);
 };
 
 export const listenForCleanUp = (randomToken: string): void => {
   consoleLogger.info(`PID: ${process.pid}`);
   process.on('SIGINT', () => {
     consoleLogger.info('SIGINT received. Cleaning up and exiting.');
-    cleanUp(randomToken, true);
+    cleanUpAndExit(130, randomToken, true);
   });
 
   process.on('SIGTERM', () => {
     consoleLogger.info('SIGTERM received. Cleaning up and exiting.');
-    cleanUp(randomToken, true);
+    cleanUpAndExit(143, randomToken, true);
   });
 };
 

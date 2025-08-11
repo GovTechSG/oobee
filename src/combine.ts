@@ -5,7 +5,7 @@ import crawlDomain from './crawlers/crawlDomain.js';
 import crawlLocalFile from './crawlers/crawlLocalFile.js';
 import crawlIntelligentSitemap from './crawlers/crawlIntelligentSitemap.js';
 import generateArtifacts from './mergeAxeResults.js';
-import { getHost, createAndUpdateResultsFolders, createDetailsAndLogs, cleanUp } from './utils.js';
+import { getHost, createAndUpdateResultsFolders, createDetailsAndLogs, cleanUp, cleanUpAndExit } from './utils.js';
 import { ScannerTypes, UrlsCrawled } from './constants/constants.js';
 import { getBlackListedPatterns, submitForm } from './constants/common.js';
 import { consoleLogger, silentLogger } from './logs.js';
@@ -80,7 +80,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     blacklistedPatterns = getBlackListedPatterns(blacklistedPatternsFilename);
   } catch (error) {
     consoleLogger.error(error);
-    process.exit(1);
+    cleanUpAndExit(1);
   }
 
   // remove basic-auth credentials from URL
@@ -213,7 +213,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
     default:
       consoleLogger.error(`type: ${type} not defined`);
-      process.exit(1);
+      cleanUpAndExit(1);
   }
 
   scanDetails.endTime = new Date();
@@ -261,15 +261,13 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
       // No page were scanned because the URL loaded does not meet the crawler requirements
       printMessage([`No pages were scanned.`], alertMessageOptions);
-      cleanUp(randomToken);
-      process.exit(1);
+      cleanUpAndExit(1, randomToken, true);
     }
   } else {
 
     // No page were scanned because the URL loaded does not meet the crawler requirements
     printMessage([`No pages were scanned.`], alertMessageOptions);
-    cleanUp(randomToken);
-    process.exit(1);
+    cleanUpAndExit(1, randomToken, true);
   }
 };
 

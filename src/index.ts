@@ -8,6 +8,7 @@ import {
   getUserDataTxt,
   writeToUserDataTxt,
   listenForCleanUp,
+  cleanUpAndExit,
 } from './utils.js';
 import {
   prepareData,
@@ -117,13 +118,9 @@ const runScan = async (answers: Answers) => {
 
   await combineRun(data, screenToScan);
 
-  // Delete cloned directory
-  deleteClonedProfiles(data.browser, data.randomToken);
-
   // Delete dataset and request queues
-  cleanUp(data.randomToken);
+  cleanUpAndExit(0, data.randomToken);
 
-  process.exit(0);
 };
 
 if (userData) {

@@ -31,7 +31,7 @@ import constants, {
 } from './constants.js';
 import { consoleLogger, silentLogger } from '../logs.js';
 import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
-import { randomThreeDigitNumberString } from '../utils.js';
+import { cleanUpAndExit, randomThreeDigitNumberString } from '../utils.js';
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 
@@ -463,7 +463,7 @@ export const parseHeaders = (header?: string): Record<string, string> => {
         ],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     allHeaders[headerValuePair[0]] = headerValuePair[1]; // {"header": "value", "header2": "value2", ...}
   });

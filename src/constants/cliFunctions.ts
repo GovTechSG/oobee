@@ -1,6 +1,7 @@
 import { Options } from 'yargs';
 import printMessage from 'print-message';
 import { BrowserTypes, RuleFlags, ScannerTypes } from './constants.js';
+import { cleanUpAndExit } from '../utils.js';
 
 export const messageOptions = {
   border: false,
@@ -53,7 +54,7 @@ export const cliOptions: { [key: string]: Options } = {
             ],
             messageOptions,
           );
-          process.exit(1);
+          cleanUpAndExit(1);
           return null;
       }
     },
@@ -158,7 +159,7 @@ export const cliOptions: { [key: string]: Options } = {
             ],
             messageOptions,
           );
-          process.exit(1);
+          cleanUpAndExit(1);
           return null;
       }
     },
@@ -282,7 +283,7 @@ export const cliOptions: { [key: string]: Options } = {
           ],
           messageOptions,
         );
-        process.exit(1);
+        cleanUpAndExit(1);
       }
       if (userChoices.length > 1 && userChoices.includes('default')) {
         printMessage(
@@ -291,7 +292,7 @@ export const cliOptions: { [key: string]: Options } = {
           ],
           messageOptions,
         );
-        process.exit(1);
+        cleanUpAndExit(1);
       }
       return userChoices;
     },

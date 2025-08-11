@@ -15,6 +15,7 @@ import constants, {
   STATUS_CODE_METADATA,
   UrlsCrawled,
 } from '../constants/constants.js';
+import { cleanUpAndExit } from '../utils.js';
 
 const require = createRequire(import.meta.url);
 
@@ -355,7 +356,7 @@ export const runPdfScan = async (randomToken: string) => {
     'profiles/veraPDF-validation-profiles-rel-1.26/PDF_UA/WCAG-2-2.xml',
   )}"`;
   if (!veraPdfExe || !veraPdfProfile) {
-    process.exit(1);
+    cleanUpAndExit(1);
   }
 
   const intermediateFolder = randomToken; // NOTE: assumes this folder is already created for crawlee

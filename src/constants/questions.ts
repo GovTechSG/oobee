@@ -105,8 +105,6 @@ const startScanQuestions = [
         playwrightDeviceDetailsObject,
         parseHeaders(answers.header),
       );
-
-      deleteClonedProfiles(browserToRun, resultFilename);
       
       switch (res.status) {
         case statuses.success.code:

@@ -5,14 +5,13 @@ import printMessage from 'print-message';
 import { devices } from 'playwright';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { cleanUp, setHeadlessMode, getVersion, getStoragePath, listenForCleanUp } from './utils.js';
+import { cleanUp, setHeadlessMode, getVersion, getStoragePath, listenForCleanUp, cleanUpAndExit } from './utils.js';
 import {
   checkUrl,
   prepareData,
   getFileSitemap,
   validEmail,
   validName,
-  deleteClonedProfiles,
   getScreenToScan,
   validateDirPath,
   validateFilePath,
@@ -54,20 +53,20 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
         [`Invalid device. Please provide an existing device to start the scan.`],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return option;
   })
   .coerce('w', option => {
     if (!option || Number.isNaN(option)) {
       printMessage([`Invalid viewport width. Please provide a number. `], messageOptions);
-      process.exit(1);
+      cleanUpAndExit(1);
     } else if (option < 320 || option > 1080) {
       printMessage(
         ['Invalid viewport width! Please provide a viewport width between 320-1080 pixels.'],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return option;
   })
@@ -77,7 +76,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
         [`Invalid maximum number of pages. Please provide a positive integer.`],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return option;
   })
@@ -87,7 +86,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
         [`Invalid number for max concurrency. Please provide a positive integer.`],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return option;
   })
@@ -97,23 +96,23 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
         [`Invalid format. Please provide your name and email address separated by ":"`],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     const [name, email] = nameEmail.split(':');
     if (name === '' || name === undefined || name === null) {
       printMessage([`Please provide your name.`], messageOptions);
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     if (!validName(name)) {
       printMessage([`Invalid name. Please provide a valid name.`], messageOptions);
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     if (!validEmail(email)) {
       printMessage(
         [`Invalid email address. Please provide a valid email address.`],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return nameEmail;
   })
@@ -121,7 +120,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     const validationErrors = validateDirPath(option);
     if (validationErrors) {
       printMessage([`Invalid exportDirectory directory path. ${validationErrors}`], messageOptions);
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return option;
   })
@@ -133,7 +132,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
       return validateFilePath(option, dirname);
     } catch (err) {
       printMessage([`Invalid blacklistedPatternsFilename file path. ${err}`], messageOptions);
-      process.exit(1);
+      cleanUpAndExit(1);
     }
   })
   .coerce('i', option => {
@@ -143,7 +142,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
         [`Invalid value for fileTypes. Please provide valid keywords: ${choices.join(', ')}.`],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return option;
   })
@@ -151,7 +150,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     const { isValid, errorMessage } = validateCustomFlowLabel(option);
     if (!isValid) {
       printMessage([errorMessage], messageOptions);
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return option;
   })
@@ -162,7 +161,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
         [`Invalid value for additional. Please provide valid keywords: ${choices.join(', ')}.`],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return option;
   })
@@ -199,7 +198,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
         ['Invalid scan duration. Please provide a positive number of seconds.'],
         messageOptions,
       );
-      process.exit(1);
+      cleanUpAndExit(1);
     }
     return duration;
   })
@@ -245,7 +244,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
       data.url = res.url;
       if (process.env.OOBEE_VALIDATE_URL) {
         console.log('Url is valid');
-        process.exit(0);
+        cleanUpAndExit(0, data.randomToken);
       }
 
       break;
@@ -253,17 +252,17 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     case statuses.unauthorised.code: {
       printMessage([statuses.unauthorised.message], messageOptions);
       consoleLogger.info(statuses.unauthorised.message);
-      process.exit(res.status);
+      cleanUpAndExit(res.status);
     }
     case statuses.cannotBeResolved.code: {
       printMessage([statuses.cannotBeResolved.message], messageOptions);
       consoleLogger.info(statuses.cannotBeResolved.message);
-      process.exit(res.status);
+      cleanUpAndExit(res.status);
     }
     case statuses.systemError.code: {
       printMessage([statuses.systemError.message], messageOptions);
       consoleLogger.info(statuses.systemError.message);
-      process.exit(res.status);
+      cleanUpAndExit(res.status);
     }
     case statuses.invalidUrl.code: {
       if (
@@ -272,7 +271,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
       ) {
         printMessage([statuses.invalidUrl.message], messageOptions);
         consoleLogger.info(statuses.invalidUrl.message);
-        process.exit(res.status);
+        cleanUpAndExit(res.status);
       }
 
       const finalFilePath = getFileSitemap(updatedArgvs.url);
@@ -282,39 +281,37 @@ const scanInit = async (argvs: Answers): Promise<string> => {
 
         if (process.env.OOBEE_VALIDATE_URL) {
           console.log('Url is valid');
-          process.exit(0);
+          cleanUpAndExit(0);
         }
       } else if (updatedArgvs.scanner === ScannerTypes.LOCALFILE) {
         printMessage([statuses.notALocalFile.message], messageOptions);
         consoleLogger.info(statuses.notALocalFile.message);
-        process.exit(statuses.notALocalFile.code);
+        cleanUpAndExit(statuses.notALocalFile.code);
       } else if (updatedArgvs.scanner !== ScannerTypes.SITEMAP) {
         printMessage([statuses.notASitemap.message], messageOptions);
         consoleLogger.info(statuses.notASitemap.message);
-        process.exit(statuses.notASitemap.code);
+        cleanUpAndExit(statuses.notASitemap.code);
       }
       break;
     }
     case statuses.notASitemap.code: {
       printMessage([statuses.notASitemap.message], messageOptions);
       consoleLogger.info(statuses.notASitemap.message);
-      process.exit(res.status);
+      cleanUpAndExit(res.status);
     }
     case statuses.notALocalFile.code: {
       printMessage([statuses.notALocalFile.message], messageOptions);
       consoleLogger.info(statuses.notALocalFile.message);
-      process.exit(res.status);
+      cleanUpAndExit(res.status);
     }
     case statuses.browserError.code: {
       printMessage([statuses.browserError.message], messageOptions);
       consoleLogger.info(statuses.browserError.message);
-      process.exit(res.status);
+      cleanUpAndExit(res.status);
     }
     default:
       break;
   }
-
-  deleteClonedProfiles(data.browser, data.randomToken);
 
   if (process.env.OOBEE_VERBOSE) {
     const randomTokenMessage = {
@@ -336,11 +333,6 @@ const scanInit = async (argvs: Answers): Promise<string> => {
   consoleLogger.info(`Oobee version: ${appVersion}`); 
   
   await combineRun(data, screenToScan);
-
-  deleteClonedProfiles(data.browser, data.randomToken);
-
-  // Delete dataset and request queues
-  cleanUp(data.randomToken);
 
   return getStoragePath(data.randomToken);
 };
@@ -377,6 +369,6 @@ const optionsAnswer: Answers = {
 };
 
 await scanInit(optionsAnswer);
-process.exit(0);
+cleanUpAndExit(0);
 
 export default options;
