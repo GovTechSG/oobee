@@ -228,45 +228,68 @@ if (fs.existsSync('/.dockerenv')) {
   launchOptionsArgs = ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'];
 }
 
-export const getProxy = (): { type: string; url: string } | null => {
-  if (os.platform() === 'win32') {
-    let internetSettings: string[];
-    try {
-      internetSettings = execSync(
-        'Get-ItemProperty -Path "Registry::HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"',
-        { shell: 'powershell.exe' },
-      )
-        .toString()
-        .split('\n');
-    } catch (e) {
-      console.log(e.toString());
-      consoleLogger.error(e.toString());
-    }
+type ProxyInfo = { type: 'autoConfig' | 'manualProxy'; url: string } | null;
 
-    const getSettingValue = (settingName: string) =>
-      internetSettings
-        .find(s => s.startsWith(settingName))
-        // split only once at with ':' as the delimiter
-        ?.split(/:(.*)/s)[1]
-        ?.trim();
-
-    if (getSettingValue('AutoConfigURL')) {
-      return { type: 'autoConfig', url: getSettingValue('AutoConfigURL') };
+function queryRegKey(key: string): Record<string, string> {
+  try {
+    const out = execSync(`reg query "${key}"`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const values: Record<string, string> = {};
+    for (const line of out.split(/\r?\n/)) {
+      const parts = line.trim().split(/\s{2,}/);
+      if (parts.length >= 3) {
+        const [name, _type, ...rest] = parts;
+        values[name] = rest.join(' ');
+      }
     }
-    if (getSettingValue('ProxyEnable') === '1') {
-      return { type: 'manualProxy', url: getSettingValue('ProxyServer') };
-    }
-    return null;
+    return values;
+  } catch {
+    return {};
   }
-  // develop for mac
+}
+
+function parseDwordFlag(v: unknown): number {
+  if (v == null) return 0;
+  const s = String(v).trim();
+  // Handles "1", "0", "0x1", "0x0"
+  if (/^0x[0-9a-f]+$/i.test(s)) return parseInt(s, 16);
+  if (/^\d+$/.test(s)) return parseInt(s, 10);
+  return 0;
+}
+
+function normalizePacUrl(u: string): string {
+  const s = u.trim();
+  // If it lacks a scheme, assume http:// (Chrome requires a full URL)
+  return /^(https?|file):/i.test(s) ? s : `http://${s}`;
+}
+
+export const getProxy = (): ProxyInfo => {
+  if (os.platform() !== 'win32') return null;
+
+  const values = queryRegKey('HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings');
+  const pacUrlRaw = (values['AutoConfigURL'] || '').trim();
+  const proxyEnableRaw = (values['ProxyEnable'] || '').trim();
+  const proxyServerRaw = (values['ProxyServer'] || '').trim();
+
+  // 1) PAC beats manual proxy if present
+  if (pacUrlRaw) {
+    return { type: 'autoConfig', url: normalizePacUrl(pacUrlRaw) };
+  }
+
+  // 2) Manual proxy only if enabled
+  const enabled = parseDwordFlag(proxyEnableRaw) === 1;
+  if (enabled && proxyServerRaw) {
+    return { type: 'manualProxy', url: proxyServerRaw };
+  }
+
   return null;
 };
 
+// Usage
 export const proxy = getProxy();
 
-if (proxy && proxy.type === 'autoConfig') {
+if (proxy?.type === 'autoConfig') {
   launchOptionsArgs.push(`--proxy-pac-url=${proxy.url}`);
-} else if (proxy && proxy.type === 'manualProxy') {
+} else if (proxy?.type === 'manualProxy') {
   launchOptionsArgs.push(`--proxy-server=${proxy.url}`);
 }
 

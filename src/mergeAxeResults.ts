@@ -1988,6 +1988,12 @@ const generateArtifacts = async (
   // Should consider refactor constants.userDataDirectory to be a parameter in future
   await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length, 'summary', browserChannel, constants.userDataDirectory), 1);
 
+  try {
+    fs.rmSync(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
+  } catch (error) {
+    consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
+  }
+
   // Take option if set
   if (typeof zip === 'string') {
     constants.cliZipFileName = zip;

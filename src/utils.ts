@@ -1004,7 +1004,7 @@ export const zipResults = (zipName: string, resultsPath: string): void => {
 
   if (os.platform() === 'win32') {
     execSync(
-      `Get-ChildItem -Path "*.*" -Recurse | Compress-Archive -DestinationPath "${zipFilePath}"`,
+      `tar.exe -a -c -f "${zipFilePath}" *`,
       { shell: 'powershell.exe', cwd: resultsPath },
     );
   } else {
