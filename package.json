@@ -69,7 +69,8 @@
     "ansi-regex": "^5.0.1",
     "tough-cookie": "^5.0.0-rc.2",
     "micromatch": "github:micromatch/micromatch.git#4.0.8",
-    "brace-expansion": "^1.1.12"
+    "brace-expansion": "^1.1.12",
+    "tmp": "0.2.4"
   },
   "optionalDependencies": {
     "@napi-rs/canvas-darwin-arm64": "^0.1.53",
