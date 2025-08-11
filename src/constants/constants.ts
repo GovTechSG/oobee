@@ -5,10 +5,11 @@ import { globSync } from 'glob';
 import which from 'which';
 import os from 'os';
 import { spawnSync, execSync } from 'child_process';
-import { chromium } from 'playwright';
+import { Browser, BrowserContext, chromium } from 'playwright';
 import * as Sentry from '@sentry/node';
 import { consoleLogger, silentLogger } from '../logs.js';
 import { PageInfo } from '../mergeAxeResults.js';
+import { PlaywrightCrawler } from 'crawlee';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -469,6 +470,12 @@ export default {
   robotsTxtUrls: null,
   userDataDirectory: null, // This will be set later in the code
   randomToken: null, // This will be set later in the code
+  // Track all active Crawlee / Playwright resources for cleanup
+  resources: {
+      crawlers: new Set<PlaywrightCrawler>(),
+      browserContexts: new Set<BrowserContext>(),
+      browsers: new Set<Browser>(),
+    },
 };
 
 export const rootPath = dirname;

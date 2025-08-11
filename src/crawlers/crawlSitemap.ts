@@ -20,7 +20,7 @@ import {
   waitForPageLoaded,
   isFilePath,
 } from '../constants/common.js';
-import { areLinksEqual, isWhitelistedContentType, isFollowStrategy } from '../utils.js';
+import { areLinksEqual, isWhitelistedContentType, register } from '../utils.js';
 import { handlePdfDownload, runPdfScan, mapPdfScanResults } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
@@ -106,7 +106,7 @@ const crawlSitemap = async ({
     sources: linksFromSitemap,
   });
 
-  const crawler = new crawlee.PlaywrightCrawler({
+  const crawler = register(new crawlee.PlaywrightCrawler({
     launchContext: {
       launcher: constants.launcher,
       launchOptions: getPlaywrightLaunchOptions(browser),
@@ -395,7 +395,7 @@ const crawlSitemap = async ({
         scaleDownStepRatio: 0.1,       // Scale down slower
       },
     }),
-  });
+  }));
 
   await crawler.run();
 

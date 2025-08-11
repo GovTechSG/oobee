@@ -1,7 +1,7 @@
 /* eslint-env browser */
 import { chromium } from 'playwright';
 import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
-import { cleanUp, cleanUpAndExit } from '../utils.js';
+import { cleanUpAndExit, register} from '../utils.js';
 import constants, {
   getIntermediateScreenshotsPath,
   guiInfoStatusTypes,
@@ -81,6 +81,8 @@ const runCustom = async (
       viewport: null,
       ...viewportSettings.playwrightDeviceDetailsObject,
     });
+
+    register(context);
 
     // Detection of new page
     context.on('page', async newPage => {

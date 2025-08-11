@@ -8,6 +8,7 @@ import crawlSitemap from './crawlSitemap.js';
 import { EnqueueStrategy } from 'crawlee';
 import { ViewportSettingsClass } from '../combine.js';
 import { getPlaywrightLaunchOptions } from '../constants/common.js';
+import { register } from '../utils.js';
 
 const crawlIntelligentSitemap = async (
   url: string,
@@ -58,6 +59,7 @@ const crawlIntelligentSitemap = async (
         ...getPlaywrightLaunchOptions(browser),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
     });
+    register(context);
 
     const page = await context.newPage();
 

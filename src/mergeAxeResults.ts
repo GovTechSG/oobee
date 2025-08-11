@@ -29,6 +29,7 @@ import {
   getWcagCriteriaMap,
   categorizeWcagCriteria,
   getUserDataTxt,
+  register
 } from './utils.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
@@ -974,6 +975,8 @@ const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filena
         headless: process.env.CRAWLEE_HEADLESS === '1',
         ...getPlaywrightLaunchOptions(browser),
       });
+
+  register(context);
 
   const page = await context.newPage();
 

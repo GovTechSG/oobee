@@ -17,6 +17,7 @@ import {
 import { runPdfScan, mapPdfScanResults, doPdfScreenshots } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
 import crawlSitemap from './crawlSitemap.js';
+import { register } from '../utils.js';
 
 export const crawlLocalFile = async ({
   url,
@@ -160,6 +161,8 @@ export const crawlLocalFile = async ({
       ...getPlaywrightLaunchOptions(browser),
       ...playwrightDeviceDetailsObject,
     });
+
+    register(browserContext);
 
     const timeoutId = scanDuration > 0
     ? setTimeout(() => {

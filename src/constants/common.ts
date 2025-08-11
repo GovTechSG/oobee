@@ -31,7 +31,7 @@ import constants, {
 } from './constants.js';
 import { consoleLogger, silentLogger } from '../logs.js';
 import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
-import { cleanUpAndExit, randomThreeDigitNumberString } from '../utils.js';
+import { cleanUpAndExit, randomThreeDigitNumberString, register } from '../utils.js';
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 
@@ -305,6 +305,8 @@ const checkUrlConnectivityWithBrowser = async (
       ...getPlaywrightLaunchOptions(browserToRun),
       ...playwrightDeviceDetailsObject,
     });
+
+    register(browserContext);
   } catch (err) {
     printMessage([`Unable to launch browser\n${err}`], messageOptions);
     res.status = constants.urlCheckStatuses.browserError.code;
@@ -679,6 +681,8 @@ const getRobotsTxtViaPlaywright = async (robotsUrl: string, browser: string, use
     ...(extraHTTPHeaders && { extraHTTPHeaders }),
   });
 
+  register(browserContext);
+
   const page = await browserContext.newPage();
 
   await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
@@ -851,6 +855,7 @@ export const getLinksFromSitemap = async (
         },
       );
 
+      register(browserContext);
       const page = await browserContext.newPage();
 
       await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
@@ -1606,6 +1611,8 @@ export const submitFormViaPlaywright = async (
     },
   );
 
+  register(browserContext);
+
   const page = await browserContext.newPage();
 
   try {
@@ -1709,6 +1716,8 @@ export async function initModifiedUserAgent(
   : '';
 
   const browserContext = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, launchOptions);
+  register(browserContext);
+  
   const page = await browserContext.newPage();
 
   // Retrieve the default user agent.

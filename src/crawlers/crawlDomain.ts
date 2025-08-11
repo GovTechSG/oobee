@@ -29,7 +29,7 @@ import {
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
 } from '../constants/common.js';
-import { areLinksEqual, isFollowStrategy } from '../utils.js';
+import { areLinksEqual, isFollowStrategy, register } from '../utils.js';
 import {
   handlePdfDownload,
   runPdfScan,
@@ -339,7 +339,7 @@ const crawlDomain = async ({
 
   let isAbortingScanNow = false;
 
-  const crawler = new crawlee.PlaywrightCrawler({
+  const crawler = register(new crawlee.PlaywrightCrawler({
     launchContext: {
       launcher: constants.launcher,
       launchOptions: getPlaywrightLaunchOptions(browser),
@@ -723,7 +723,7 @@ const crawlDomain = async ({
         scaleDownStepRatio: 0.1,       // Scale down slower
       },
     }),
-  });
+  }));
 
   await crawler.run();
 
