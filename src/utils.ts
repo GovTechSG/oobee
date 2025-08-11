@@ -377,8 +377,10 @@ export async function stopAll({ mode = 'graceful', timeoutMs = 10_000 } = {}) {
 
 export const cleanUp = async (randomToken?: string, isError: boolean = false): Promise<void> => {
 
-  await stopAll({ mode: 'graceful', timeoutMs: 8000 });
-  await stopAll({ mode: 'teardown', timeoutMs: 4000 });
+  if (isError) {
+    await stopAll({ mode: 'graceful', timeoutMs: 8000 });
+    await stopAll({ mode: 'teardown', timeoutMs: 4000 });
+  }
   
   if (randomToken === undefined && constants.randomToken) {
     randomToken = constants.randomToken;
@@ -441,7 +443,7 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
         consoleLogger.warn(`Error deleting empty storage path ${storagePath}: ${error.message}`);
       }
     }
-    
+
     consoleLogger.info(`Clean up completed for: ${randomToken}`);
   } 
 
