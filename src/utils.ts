@@ -1005,7 +1005,7 @@ export const zipResults = (zipName: string, resultsPath: string): void => {
   if (os.platform() === 'win32') {
     execSync(
       `tar.exe -a -c -f "${zipFilePath}" *`,
-      { shell: 'powershell.exe', cwd: resultsPath },
+      { cwd: resultsPath },
     );
   } else {
     // Get zip command in Mac and Linux
