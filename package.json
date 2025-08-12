@@ -1,7 +1,7 @@
 {
   "name": "@govtechsg/oobee",
   "main": "dist/npmIndex.js",
-  "version": "0.10.62",
+  "version": "0.10.63",
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
   "dependencies": {
