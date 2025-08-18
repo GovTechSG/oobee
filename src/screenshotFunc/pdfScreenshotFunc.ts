@@ -151,7 +151,7 @@ export async function getPdfScreenshots(
         viewport,
       )(bboxesWithCoords[0]);
 
-      newItems[i].screenshotPath = finalScreenshotPath;
+      newItems[i].screenshotPath = path.join('elemScreenshots', 'pdf', finalScreenshotPath);
       newItems[i].page = parseInt(pageNum, 10);
 
       page.cleanup();
@@ -219,10 +219,7 @@ const annotateAndSave = (origCanvas: Canvas, screenshotPath: string, viewport: V
     canvasFactory.destroy({ canvas: croppedCanvas, context: croppedCtx });
     canvasFactory.destroy({ canvas: highlightCanvas, context: highlightCtx });
 
-    // current screenshot path leads to a temp dir, so modify to save the final file path
-    const [_, ...rest] = indexedScreenshotPath.split(path.sep);
-    const finalScreenshotPath = path.join(...rest);
-    return finalScreenshotPath;
+    return path.basename(indexedScreenshotPath);
   };
 };
 

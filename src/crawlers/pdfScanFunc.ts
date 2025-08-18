@@ -259,53 +259,7 @@ export const handlePdfDownload = (
 
   pdfDownloads.push(
     new Promise<void>(async resolve => {
-      let bufs: Buffer[] = [];
       let buf: Buffer;
-
-      if (isFilePath(url)) {
-        // Read from local file system
-        const filePath = new URL(url).pathname;
-        const pdfResponse = fs.createReadStream(filePath, { encoding: 'binary' });
-
-        const downloadFile = fs.createWriteStream(`${randomToken}/${pdfFileName}.pdf`, {
-          flags: 'a',
-        });
-
-        pdfResponse.on('data', (chunk: Buffer) => {
-          downloadFile.write(chunk, 'binary');
-          bufs.push(Buffer.from(chunk));
-        });
-
-        pdfResponse.on('end', () => {
-          downloadFile.end();
-          buf = Buffer.concat(bufs);
-
-          if (isPDF(buf)) {
-            guiInfoLog(guiInfoStatusTypes.SCANNED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
-            urlsCrawled.scanned.push({
-              url: request.url,
-              pageTitle,
-              actualUrl: url,
-            });
-          } else {
-            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
-            urlsCrawled.invalid.push({
-              url: request.url,
-              pageTitle: url,
-              actualUrl: url,
-              metadata: STATUS_CODE_METADATA[1],
-            });
-          }
-
-          resolve();
-        });
-      } else {
 
         // Download from remote URL
         const response = await sendRequest({ responseType: 'buffer' });
@@ -358,7 +312,7 @@ export const handlePdfDownload = (
         }
 
         resolve();
-      }
+
     }),
   );
 
@@ -514,7 +468,7 @@ const transformRule = async (
 export const doPdfScreenshots = async (randomToken: string, result: TranslatedObject) => {
   const { filePath, pageTitle } = result;
   const formattedPageTitle = pageTitle.replaceAll(' ', '_').split('.')[0];
-  const screenshotsDir = path.join(randomToken, 'elemScreenshots', 'pdf');
+  const screenshotsDir = path.join(getStoragePath(randomToken), 'elemScreenshots', 'pdf');
 
   ensureDirSync(screenshotsDir);
 

@@ -81,7 +81,20 @@ const startScanQuestions = [
 
       // construct filename for scan results
       const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
-      const domain = new URL(url).hostname;
+      let domain = '';
+      try {
+        domain = new URL(url).hostname;
+      } catch (error) {
+        // If the input is a local filepath, try to resolve it
+        const finalFilePath = getFileSitemap(url);
+        if (finalFilePath) {
+          answers.isLocalFileScan = true;
+          answers.finalUrl = finalFilePath;
+          return true;
+        }
+        return 'Invalid URL';
+      }
+      
       let resultFilename: string;
       const randomThreeDigitNumber = randomThreeDigitNumberString();
       resultFilename = `${date}_${time}_${domain}_${randomThreeDigitNumber}`;

@@ -485,7 +485,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     viewportWidth,
     maxpages,
     strategy,
-    isLocalFileScan,
+    isLocalFileScan = false,
     browserToRun,
     nameEmail,
     customFlowLabel,
@@ -509,6 +509,10 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   // Set default username and password for basic auth
   let username = '';
   let password = '';
+
+  if (isFilePath(url)) {
+    argv.isLocalFileScan = true;
+  }
 
   // Remove credentials from URL if not a local file scan
   url = argv.isLocalFileScan 
