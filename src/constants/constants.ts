@@ -141,14 +141,53 @@ export const getDefaultChromiumDataDir = () => {
   }
 };
 
-export const removeQuarantineFlag = function (searchPath: string) {
-  if (os.platform() === 'darwin') {
-    const execPaths = globSync(searchPath, { absolute: true, nodir: true });
-    if (execPaths.length > 0) {
-      execPaths.forEach(filePath => spawnSync('xattr', ['-d', 'com.apple.quarantine', filePath]));
+export function removeQuarantineFlag(searchPattern: string, allowedRoot = process.cwd()) {
+  if (os.platform() !== 'darwin') return;
+
+  const matches = globSync(searchPattern, {
+    absolute: true,
+    nodir: true,
+    dot: true,
+    follow: false, // don't follow symlinks
+  });
+
+  const root = path.resolve(allowedRoot);
+
+  for (const p of matches) {
+    const resolved = path.resolve(p);
+
+    // Ensure the file is under the allowed root (containment check)
+    if (!resolved.startsWith(root + path.sep)) continue;
+
+    // lstat: skip if not a regular file or if it's a symlink
+    let st: fs.Stats;
+    try {
+      st = fs.lstatSync(resolved);
+    } catch {
+      continue;
+    }
+    if (!st.isFile() || st.isSymbolicLink()) continue;
+
+    // basic filename sanity: no control chars
+    const base = path.basename(resolved);
+    if (/[\x00-\x1F]/.test(base)) continue;
+
+    // Use absolute binary path and terminate options with "--"
+    const proc = spawnSync('/usr/bin/xattr', ['-d', 'com.apple.quarantine', '--', resolved], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+
+    // Optional: inspect errors (common benign case is "No such xattr")
+    if (proc.status !== 0) {
+      const err = proc.stderr?.toString() || '';
+      // swallow benign errors; otherwise log if you have a logger
+      if (!/No such xattr/i.test(err)) {
+        // console.warn(`xattr failed for ${resolved}: ${err.trim()}`);
+      }
     }
   }
-};
+}
+
 
 export const getExecutablePath = function (dir: string, file: string): string {
   let execPaths = globSync(`${dir}/${file}`, { absolute: true, nodir: true });
@@ -230,21 +269,29 @@ if (fs.existsSync('/.dockerenv')) {
 
 type ProxyInfo = { type: 'autoConfig' | 'manualProxy'; url: string } | null;
 
+function isSafeRegPath(key: string): boolean {
+  // Allow only HKCU/HKLM roots and block control chars
+  if (!/^(HKCU|HKEY_CURRENT_USER|HKLM|HKEY_LOCAL_MACHINE)\\/.test(key)) return false;
+  if (/[\x00-\x1F]/.test(key)) return false;
+  return true;
+}
+
 function queryRegKey(key: string): Record<string, string> {
-  try {
-    const out = execSync(`reg query "${key}"`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    const values: Record<string, string> = {};
-    for (const line of out.split(/\r?\n/)) {
-      const parts = line.trim().split(/\s{2,}/);
-      if (parts.length >= 3) {
-        const [name, _type, ...rest] = parts;
-        values[name] = rest.join(' ');
-      }
+  if (!isSafeRegPath(key)) return {};
+
+  const proc = spawnSync('reg', ['query', key], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  if (proc.status !== 0) return {};
+
+  const out = proc.stdout || '';
+  const values: Record<string, string> = {};
+  for (const line of out.split(/\r?\n/)) {
+    const parts = line.trim().split(/\s{2,}/);
+    if (parts.length >= 3) {
+      const [name, _type, ...rest] = parts;
+      values[name] = rest.join(' ');
     }
-    return values;
-  } catch {
-    return {};
   }
+  return values;
 }
 
 function parseDwordFlag(v: unknown): number {

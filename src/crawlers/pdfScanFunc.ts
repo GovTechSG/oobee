@@ -15,7 +15,8 @@ import constants, {
   STATUS_CODE_METADATA,
   UrlsCrawled,
 } from '../constants/constants.js';
-import { cleanUpAndExit } from '../utils.js';
+import { cleanUpAndExit, getStoragePath } from '../utils.js';
+import { error } from 'console';
 
 const require = createRequire(import.meta.url);
 
@@ -305,14 +306,31 @@ export const handlePdfDownload = (
           resolve();
         });
       } else {
+
         // Download from remote URL
         const response = await sendRequest({ responseType: 'buffer' });
+        if (response.statusCode !== 200) {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: request.url, // because about:blank is not useful
+              metadata: STATUS_CODE_METADATA[response.statusCode] || STATUS_CODE_METADATA[1],
+              httpStatusCode: 0,
+            });
+
+          resolve();
+          return;
+        }
+
         buf = Buffer.isBuffer(response) ? response : response.body;
 
-        const downloadFile = fs.createWriteStream(`${randomToken}/${pdfFileName}.pdf`, {
-          flags: 'a',
+        const downloadFile = fs.createWriteStream(`${getStoragePath(randomToken)}/${pdfFileName}.pdf`, {
+          flags: 'w',
         });
-
         downloadFile.write(buf, 'binary');
         downloadFile.end();
 
@@ -335,6 +353,7 @@ export const handlePdfDownload = (
             url: request.url,
             pageTitle: url,
             actualUrl: url,
+            metadata: STATUS_CODE_METADATA[1],
           });
         }
 
@@ -351,15 +370,14 @@ export const runPdfScan = async (randomToken: string) => {
   const veraPdfExe = `"${execFile}"`;
   // const veraPdfProfile = getVeraProfile();
   const veraPdfProfile = `"${path.join(
-    execFile,
-    '..',
+    path.dirname(execFile),
     'profiles/veraPDF-validation-profiles-rel-1.26/PDF_UA/WCAG-2-2.xml',
   )}"`;
   if (!veraPdfExe || !veraPdfProfile) {
     cleanUpAndExit(1);
   }
 
-  const intermediateFolder = randomToken; // NOTE: assumes this folder is already created for crawlee
+  const intermediateFolder = getStoragePath(randomToken);
 
   // store in a intermediate folder as we transfer final results later
   const intermediateResultPath = `${intermediateFolder}/${constants.pdfScanResultFileName}`;
@@ -382,7 +400,7 @@ export const mapPdfScanResults = async (
   randomToken: string,
   uuidToUrlMapping: Record<string, string>,
 ) => {
-  const intermediateFolder = randomToken;
+  const intermediateFolder = getStoragePath(randomToken);
   const intermediateResultPath = `${intermediateFolder}/${constants.pdfScanResultFileName}`;
 
   const rawdata = fs.readFileSync(intermediateResultPath, 'utf-8');
@@ -419,7 +437,7 @@ export const mapPdfScanResults = async (
         uuidToUrlMapping[fileNameWithoutExt] || // uuid-based key like 'a9f7ebbd-5a90...'
         `file://${fileName}`; // fallback
 
-      const filePath = `${randomToken}/${rawFileName}`;
+      const filePath = path.join(getStoragePath(randomToken), rawFileName);
 
 
       const pageTitle = decodeURI(url).split('/').pop();

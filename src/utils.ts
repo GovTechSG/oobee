@@ -992,34 +992,48 @@ export const setThresholdLimits = (setWarnLevel: string): void => {
   process.env.WARN_LEVEL = setWarnLevel;
 };
 
+function assertSafeOutputPath(p: string) {
+  // basic guard: disallow weird control chars; allow absolute or relative
+  if (/[<>:"|?*\x00-\x1F]/.test(p)) {
+    throw new Error(`Refusing unsafe zip output path: ${p}`);
+  }
+}
+
 export const zipResults = (zipName: string, resultsPath: string): void => {
-  // Check prior zip file exist and remove
-  if (fs.existsSync(zipName)) {
-    fs.unlinkSync(zipName);
+  // Resolve and validate the output path
+  const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(process.cwd(), zipName);
+  assertSafeOutputPath(zipFilePath);
+
+  // Ensure parent dir exists
+  fs.mkdirSync(path.dirname(zipFilePath), { recursive: true });
+
+  // Remove any prior file atomically
+  try { fs.unlinkSync(zipFilePath); } catch { /* ignore if not exists */ }
+
+  // CWD must exist and be a directory
+  const stats = fs.statSync(resultsPath);
+  if (!stats.isDirectory()) {
+    throw new Error(`resultsPath is not a directory: ${resultsPath}`);
   }
 
-  // Check if user specified absolute or relative path
-  const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(process.cwd(), zipName);
-
-
   if (os.platform() === 'win32') {
-    execSync(
-      `tar.exe -a -c -f "${zipFilePath}" *`,
-      { cwd: resultsPath },
-    );
-  } else {
-    // Get zip command in Mac and Linux
-    const command = '/usr/bin/zip';
-
-    // To zip up files recursively (-r) in the results folder path and write it to user's specified path
-    const args = ['-r', zipFilePath, '.'];
-
-    // Change working directory only for the zip command
-    const options = {
+    // Use Windows bsdtar safely: tar.exe -a -c -f <zip> .
+    const proc = spawnSync('tar.exe', ['-a', '-c', '-f', zipFilePath, '.'], {
       cwd: resultsPath,
-    };
-
-    spawnSync(command, args, options);
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    if (proc.status !== 0) {
+      throw new Error(`tar.exe failed: ${proc.stderr?.toString() || 'unknown error'}`);
+    }
+  } else {
+    // Use system zip safely: /usr/bin/zip -r <zip> .
+    const proc = spawnSync('/usr/bin/zip', ['-r', zipFilePath, '.'], {
+      cwd: resultsPath,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    if (proc.status !== 0) {
+      throw new Error(`zip failed: ${proc.stderr?.toString() || 'unknown error'}`);
+    }
   }
 };
 
