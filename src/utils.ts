@@ -994,7 +994,15 @@ export const setThresholdLimits = (setWarnLevel: string): void => {
 
 function assertSafeOutputPath(p: string) {
   // basic guard: disallow weird control chars; allow absolute or relative
-  if (/[<>:"|?*\x00-\x1F]/.test(p)) {
+  // On Windows, allow the colon following a drive letter (e.g., "C:\")
+  let testPath = p;
+  if (process.platform === 'win32') {
+    const driveLetterMatch = p.match(/^[A-Za-z]:/);
+    if (driveLetterMatch) {
+      testPath = p.slice(driveLetterMatch[0].length);
+    }
+  }
+  if (/[<>:"|?*\x00-\x1F]/.test(testPath)) {
     throw new Error(`Refusing unsafe zip output path: ${p}`);
   }
 }
