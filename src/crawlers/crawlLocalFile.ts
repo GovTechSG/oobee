@@ -138,16 +138,15 @@ export const crawlLocalFile = async ({
   });
 
   const request = linksFromSitemap[0];
-  const pdfFileName = path.basename(request.url);
-  const trimmedUrl: string = request.url;
+  const pdfFileName = path.basename(url);
   const destinationFilePath: string = `${getStoragePath(randomToken)}/${pdfFileName}`;
-  const data: Buffer = fs.readFileSync(trimmedUrl);
+  const data: Buffer = fs.readFileSync(url);
   fs.writeFileSync(destinationFilePath, data);
-  uuidToPdfMapping[pdfFileName] = trimmedUrl;
+  uuidToPdfMapping[pdfFileName] = url;
 
   let shouldAbort = false;
 
-  if (!isUrlPdf(request.url)) {
+  if (!isUrlPdf(url)) {
     const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
       ? userDataDirectory
       : '';
@@ -168,8 +167,8 @@ export const crawlLocalFile = async ({
     : null;
 
     const page = await browserContext.newPage();
-    request.url = convertPathToLocalFile(request.url);
-    await page.goto(request.url);
+    url = convertPathToLocalFile(url);
+    await page.goto(url);
 
     if (shouldAbort) {
       console.warn('Scan aborted due to timeout before page scan.');
@@ -180,33 +179,33 @@ export const crawlLocalFile = async ({
 
     const results = await runAxeScript({ includeScreenshots, page, randomToken });
 
-    const actualUrl = page.url() || request.loadedUrl || request.url;
+    const actualUrl = page.url() || request.loadedUrl || url;
 
     guiInfoLog(guiInfoStatusTypes.SCANNED, {
       numScanned: urlsCrawled.scanned.length,
-      urlScanned: request.url,
+      urlScanned: url,
     });
 
     urlsCrawled.scanned.push({
-      url: request.url,
+      url: url,
       pageTitle: results.pageTitle,
       actualUrl: actualUrl, // i.e. actualUrl
     });
 
     urlsCrawled.scannedRedirects.push({
-      fromUrl: request.url,
+      fromUrl: url,
       toUrl: actualUrl, // i.e. actualUrl
     });
 
-    results.url = request.url;
+    results.url = url;
     results.actualUrl = actualUrl;
 
     await dataset.pushData(results);
   } else {
     urlsCrawled.scanned.push({
-      url: trimmedUrl,
+      url: url,
       pageTitle: pdfFileName,
-      actualUrl: trimmedUrl,
+      actualUrl: url,
     });
 
     await runPdfScan(randomToken);
