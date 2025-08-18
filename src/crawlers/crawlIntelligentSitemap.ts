@@ -41,9 +41,6 @@ const crawlIntelligentSitemap = async (
 
   function getHomeUrl(parsedUrl: string) {
     const urlObject = new URL(parsedUrl);
-    if (urlObject.username && urlObject.password) {
-      return `${urlObject.protocol}//${urlObject.username}:${urlObject.password}@${urlObject.hostname}${urlObject.port ? `:${urlObject.port}` : ''}`;
-    }
     return `${urlObject.protocol}//${urlObject.hostname}${urlObject.port ? `:${urlObject.port}` : ''}`;
   }
 
