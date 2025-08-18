@@ -21,7 +21,7 @@ import {
   isFilePath,
 } from '../constants/common.js';
 import { areLinksEqual, isWhitelistedContentType, register } from '../utils.js';
-import { handlePdfDownload, runPdfScan, mapPdfScanResults } from './pdfScanFunc.js';
+import { handlePdfDownload, runPdfScan, mapPdfScanResults, doPdfScreenshots } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import * as path from 'path';
@@ -412,11 +412,11 @@ const crawlSitemap = async ({
     const pdfResults = await mapPdfScanResults(randomToken, uuidToPdfMapping);
 
     // get screenshots from pdf docs
-    // if (includeScreenshots) {
-    //   await Promise.all(pdfResults.map(
-    //     async result => await doPdfScreenshots(randomToken, result)
-    //   ));
-    // }
+    if (includeScreenshots) {
+      await Promise.all(pdfResults.map(
+        async result => await doPdfScreenshots(randomToken, result)
+      ));
+    }
 
     // push results for each pdf document to key value store
     await Promise.all(pdfResults.map(result => dataset.pushData(result)));

@@ -5,7 +5,7 @@ import crawlDomain from './crawlers/crawlDomain.js';
 import crawlLocalFile from './crawlers/crawlLocalFile.js';
 import crawlIntelligentSitemap from './crawlers/crawlIntelligentSitemap.js';
 import generateArtifacts from './mergeAxeResults.js';
-import { getHost, createAndUpdateResultsFolders, createDetailsAndLogs, cleanUp, cleanUpAndExit } from './utils.js';
+import { getHost, createAndUpdateResultsFolders, cleanUpAndExit } from './utils.js';
 import { ScannerTypes, UrlsCrawled } from './constants/constants.js';
 import { getBlackListedPatterns, submitForm } from './constants/common.js';
 import { consoleLogger, silentLogger } from './logs.js';
@@ -218,7 +218,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
   scanDetails.endTime = new Date();
   scanDetails.urlsCrawled = urlsCrawledObj;
-  await createDetailsAndLogs(randomToken);
+
   if (scanDetails.urlsCrawled) {
     if (scanDetails.urlsCrawled.scanned.length > 0) {
       await createAndUpdateResultsFolders(randomToken);

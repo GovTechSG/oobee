@@ -34,6 +34,15 @@ export const isWhitelistedContentType = (contentType: string): boolean => {
   return whitelist.filter(type => contentType.trim().startsWith(type)).length === 1;
 };
 
+export const getPdfStoragePath = (randomToken: string): string => {
+  const storagePath = getStoragePath(randomToken);
+  const pdfStoragePath = path.join(storagePath, 'pdfs');
+  if (!fs.existsSync(pdfStoragePath)) {
+    fs.mkdirSync(pdfStoragePath, { recursive: true });
+  }
+  return pdfStoragePath;
+};
+
 export const getStoragePath = (randomToken: string): string => {
   // If exportDirectory is set, use it
   if (constants.exportDirectory) {
@@ -81,41 +90,6 @@ export const getStoragePath = (randomToken: string): string => {
   constants.exportDirectory = storagePath;
   return storagePath;
 
-};
-
-export const createDetailsAndLogs = async (randomToken: string): Promise<void> => {
-  const storagePath = getStoragePath(randomToken);
-  const logPath = `${storagePath}}/logs`;
-  try {
-    await fs.ensureDir(storagePath);
-
-    // update logs
-    await fs.ensureDir(logPath);
-    await fs.pathExists('errors.txt').then(async exists => {
-      if (exists) {
-        try {
-          await fs.copy('errors.txt', `${logPath}/${randomToken}.txt`);
-        } catch (error) {
-          if (error.code === 'EBUSY') {
-            consoleLogger.error(
-              `Unable to copy the file from 'errors.txt' to '${logPath}/${randomToken}.txt' because it is currently in use.`,
-            );
-            consoleLogger.error(
-              'Please close any applications that might be using this file and try again.',
-            );
-          } else {
-            consoleLogger.error(
-              `An unexpected error occurred while copying the file: ${error.message}`,
-            );
-          }
-        }
-      }
-    });
-  } catch (error) {
-    consoleLogger.error(
-      `An error occurred while setting up storage or log directories: ${error.message}`,
-    );
-  }
 };
 
 export const getUserDataFilePath = () => {
@@ -401,6 +375,12 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
       consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
     }
 
+    try {
+      fs.rmSync(path.join(storagePath, 'pdfs'), { recursive: true, force: true });
+    } catch (error) {
+      consoleLogger.warn(`Unable to force remove pdfs folder: ${error.message}`);
+    }
+    
     let deleteErrorLogFile = true;
 
     if (isError) {

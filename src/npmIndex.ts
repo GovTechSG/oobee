@@ -12,7 +12,7 @@ import {
   submitForm,
 } from './constants/common.js';
 import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
-import { createAndUpdateResultsFolders, createDetailsAndLogs } from './utils.js';
+import { createAndUpdateResultsFolders } from './utils.js';
 import generateArtifacts from './mergeAxeResults.js';
 import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { consoleLogger, silentLogger } from './logs.js';
@@ -271,7 +271,6 @@ export const init = async ({
     if (urlsCrawled.scanned.length === 0) {
       printMessage([`No pages were scanned.`], alertMessageOptions);
     } else {
-      await createDetailsAndLogs(randomToken);
       await createAndUpdateResultsFolders(randomToken);
       const pagesNotScanned = [
         ...scanDetails.urlsCrawled.error,

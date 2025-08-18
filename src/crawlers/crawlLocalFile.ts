@@ -18,7 +18,7 @@ import {
 import { runPdfScan, mapPdfScanResults, doPdfScreenshots } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
 import crawlSitemap from './crawlSitemap.js';
-import { getStoragePath, register } from '../utils.js';
+import { getPdfStoragePath, getStoragePath, register } from '../utils.js';
 
 export const crawlLocalFile = async ({
   url,
@@ -138,11 +138,6 @@ export const crawlLocalFile = async ({
   });
 
   const request = linksFromSitemap[0];
-  const pdfFileName = path.basename(url);
-  const destinationFilePath: string = `${getStoragePath(randomToken)}/${pdfFileName}`;
-  const data: Buffer = fs.readFileSync(url);
-  fs.writeFileSync(destinationFilePath, data);
-  uuidToPdfMapping[pdfFileName] = url;
 
   let shouldAbort = false;
 
@@ -202,6 +197,12 @@ export const crawlLocalFile = async ({
 
     await dataset.pushData(results);
   } else {
+
+    const pdfFileName = path.basename(url);
+    const destinationFilePath: string = path.join(getPdfStoragePath(randomToken), pdfFileName);
+    fs.copyFileSync(url, destinationFilePath);
+    uuidToPdfMapping[pdfFileName] = url;
+
     urlsCrawled.scanned.push({
       url: url,
       pageTitle: pdfFileName,

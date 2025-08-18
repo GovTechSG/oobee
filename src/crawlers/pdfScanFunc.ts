@@ -15,7 +15,7 @@ import constants, {
   STATUS_CODE_METADATA,
   UrlsCrawled,
 } from '../constants/constants.js';
-import { cleanUpAndExit, getStoragePath } from '../utils.js';
+import { cleanUpAndExit, getPdfStoragePath, getStoragePath } from '../utils.js';
 import { error } from 'console';
 
 const require = createRequire(import.meta.url);
@@ -282,7 +282,7 @@ export const handlePdfDownload = (
 
         buf = Buffer.isBuffer(response) ? response : response.body;
 
-        const downloadFile = fs.createWriteStream(`${getStoragePath(randomToken)}/${pdfFileName}.pdf`, {
+        const downloadFile = fs.createWriteStream(`${getPdfStoragePath(randomToken)}/${pdfFileName}.pdf`, {
           flags: 'w',
         });
         downloadFile.write(buf, 'binary');
@@ -331,7 +331,7 @@ export const runPdfScan = async (randomToken: string) => {
     cleanUpAndExit(1);
   }
 
-  const intermediateFolder = getStoragePath(randomToken);
+  const intermediateFolder = getPdfStoragePath(randomToken);
 
   // store in a intermediate folder as we transfer final results later
   const intermediateResultPath = `${intermediateFolder}/${constants.pdfScanResultFileName}`;
@@ -354,7 +354,7 @@ export const mapPdfScanResults = async (
   randomToken: string,
   uuidToUrlMapping: Record<string, string>,
 ) => {
-  const intermediateFolder = getStoragePath(randomToken);
+  const intermediateFolder = getPdfStoragePath(randomToken);
   const intermediateResultPath = `${intermediateFolder}/${constants.pdfScanResultFileName}`;
 
   const rawdata = fs.readFileSync(intermediateResultPath, 'utf-8');
@@ -391,7 +391,7 @@ export const mapPdfScanResults = async (
         uuidToUrlMapping[fileNameWithoutExt] || // uuid-based key like 'a9f7ebbd-5a90...'
         `file://${fileName}`; // fallback
 
-      const filePath = path.join(getStoragePath(randomToken), rawFileName);
+      const filePath = path.join(getPdfStoragePath(randomToken), rawFileName);
 
 
       const pageTitle = decodeURI(url).split('/').pop();
