@@ -1742,6 +1742,17 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     if (!finalArgs.includes('--mute-audio')) finalArgs.push('--mute-audio');
   }
 
+  if (process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD) {
+    const disableDownloadArgs = [
+        '--safebrowsing-disable-download-protection',
+        '--disable-features=DownloadInProgressEvent',
+    ];
+
+    for (const a of disableDownloadArgs) {
+        if (!finalArgs.includes(a)) finalArgs.push(a);
+    }
+  }
+
   // Map resolution to Playwright options
   let proxyOpt: ProxySettings | undefined;
   switch (resolution.kind) {

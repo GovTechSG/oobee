@@ -88,6 +88,8 @@ verapdf --version
 | OOBEE_VALIDATE_URL| When set to `true`, validates if URLs are valid and exits. | `false` |
 | OOBEE_LOGS_PATH | When set, logs are written to this path. |  |
 | WARN_LEVEL | Only used in tests. |  |
+| OOBEE_DISABLE_BROWSER_DOWNLOAD | Experimental flag to disable file downloads on Chrome/Chromium/Edge.  Does not affect Local File scan | |
+| OOBEE_SLOWMO | Experimental flag to slow down web browser behaviour by specified duration (in miliseconds) | |
 
 #### Environment variables used internally (Do not set)
 Do not set these environment variables or behaviour might change unexpectedly.
