@@ -33,6 +33,7 @@ import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
 import { cleanUpAndExit, randomThreeDigitNumberString, register } from '../utils.js';
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
+import { getProxyInfo, proxyInfoToArgs } from '../proxyService.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -1731,11 +1732,14 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     channel = browser;
   }
 
-  // push auto-detected proxy
-  if (!constants.launchOptionsArgs.find(arg => arg.startsWith('--proxy-auto-detect'))) {
-    constants.launchOptionsArgs.push('--proxy-auto-detect');
-  }
+  if (!constants.launchOptionsArgs.find(arg => arg.startsWith('--proxy'))) {
+    // Inject system proxy flags (single source of truth).
+    const proxyArgs = proxyInfoToArgs(getProxyInfo());    
+    constants.launchOptionsArgs.push(...proxyArgs);
 
+    // console.log('Injected proxy arguments:', proxyArgs);
+  }
+  
   // Set new headless mode as Chrome 132 does not support headless=old
   // Also mute audio
   if (process.env.CRAWLEE_HEADLESS === '1') {
