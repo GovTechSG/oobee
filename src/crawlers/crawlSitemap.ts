@@ -135,6 +135,7 @@ const crawlSitemap = async ({
             ...launchContext.launchOptions,
             ignoreHTTPSErrors: true,
             ...playwrightDeviceDetailsObject,
+            ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
           };
 
           // Optionally log for debugging
