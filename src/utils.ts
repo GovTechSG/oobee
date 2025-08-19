@@ -11,8 +11,8 @@ import constants, {
 } from './constants/constants.js';
 import { consoleLogger, errorsTxtPath, silentLogger } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
-import { constant } from 'lodash';
-import { errors } from 'playwright';
+import JSZip from 'jszip';
+import { createReadStream, createWriteStream } from 'fs';
 
 export const getVersion = () => {
   const loadJSON = (filePath: string): { version: string } =>
@@ -972,25 +972,9 @@ export const setThresholdLimits = (setWarnLevel: string): void => {
   process.env.WARN_LEVEL = setWarnLevel;
 };
 
-function assertSafeOutputPath(p: string) {
-  // basic guard: disallow weird control chars; allow absolute or relative
-  // On Windows, allow the colon following a drive letter (e.g., "C:\")
-  let testPath = p;
-  if (process.platform === 'win32') {
-    const driveLetterMatch = p.match(/^[A-Za-z]:/);
-    if (driveLetterMatch) {
-      testPath = p.slice(driveLetterMatch[0].length);
-    }
-  }
-  if (/[<>:"|?*\x00-\x1F]/.test(testPath)) {
-    throw new Error(`Refusing unsafe zip output path: ${p}`);
-  }
-}
-
-export const zipResults = (zipName: string, resultsPath: string): void => {
+export const zipResults = async (zipName: string, resultsPath: string): Promise<void> => {
   // Resolve and validate the output path
-  const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(process.cwd(), zipName);
-  assertSafeOutputPath(zipFilePath);
+  const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(resultsPath, zipName);
 
   // Ensure parent dir exists
   fs.mkdirSync(path.dirname(zipFilePath), { recursive: true });
@@ -1003,26 +987,38 @@ export const zipResults = (zipName: string, resultsPath: string): void => {
   if (!stats.isDirectory()) {
     throw new Error(`resultsPath is not a directory: ${resultsPath}`);
   }
-
-  if (os.platform() === 'win32') {
-    // Use Windows bsdtar safely: tar.exe -a -c -f <zip> .
-    const proc = spawnSync('tar.exe', ['-a', '-c', '-f', zipFilePath, '.'], {
-      cwd: resultsPath,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    if (proc.status !== 0) {
-      throw new Error(`tar.exe failed: ${proc.stderr?.toString() || 'unknown error'}`);
-    }
-  } else {
-    // Use system zip safely: /usr/bin/zip -r <zip> .
-    const proc = spawnSync('/usr/bin/zip', ['-r', zipFilePath, '.'], {
-      cwd: resultsPath,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    if (proc.status !== 0) {
-      throw new Error(`zip failed: ${proc.stderr?.toString() || 'unknown error'}`);
+  async function addFolderToZip(folderPath: string, zipFolder: JSZip): Promise<void> {
+    const items = await fs.readdir(folderPath);
+    for (const item of items) {
+      const fullPath = path.join(folderPath, item);
+      const stats = await fs.stat(fullPath);
+      if (stats.isDirectory()) {
+        const folder = zipFolder.folder(item);
+        await addFolderToZip(fullPath, folder);
+      } else {
+        // Add file as a stream so that it doesn't load the entire file into memory
+        zipFolder.file(item, createReadStream(fullPath));
+      }
     }
   }
+
+  await addFolderToZip(resultsPath, new JSZip());
+
+  const zip = new JSZip();
+  await addFolderToZip(resultsPath, zip);
+
+  const zipStream = zip.generateNodeStream({
+    type: 'nodebuffer',
+    streamFiles: true,
+    compression: 'DEFLATE',
+  });
+
+  await new Promise((resolve, reject) => {
+    const outStream = createWriteStream(zipFilePath);
+    zipStream.pipe(outStream)
+      .on('finish', resolve)
+      .on('error', reject);
+  });
 };
 
 // areLinksEqual compares 2 string URLs and ignores comparison of 'www.' and url protocol

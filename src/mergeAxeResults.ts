@@ -2007,6 +2007,10 @@ const generateArtifacts = async (
     if (!zip.endsWith('.zip')) {
       constants.cliZipFileName += '.zip';
     }
+
+    if (!path.isAbsolute(constants.cliZipFileName)) {
+      constants.cliZipFileName = path.join(storagePath, constants.cliZipFileName);
+    }
   }
 
   await fs
