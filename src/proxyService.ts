@@ -31,6 +31,13 @@ export interface ProxyInfo {
   password?: string;
 }
 
+interface ProxySettings {
+  server: string;
+  username?: string;
+  password?: string;
+  bypass?: string;
+}
+
 /* ============================ helpers ============================ */
 
 function stripScheme(u: string): string {
@@ -323,41 +330,72 @@ export function getProxyInfo(): ProxyInfo | null {
   return parseEnvProxyCommon(); // Linux/others
 }
 
+export function proxyInfoToPlaywright(info: ProxyInfo | null): ProxySettings | undefined {
+  if (!info) return;
+
+  if (info.http) {
+    return {
+      server: `http://${info.http}`,
+      username: info.username,
+      password: info.password,
+      bypass: info.bypassList,
+    };
+  }
+  if (info.https) {
+    return {
+      server: `http://${info.https}`,
+      username: info.username,
+      password: info.password,
+      bypass: info.bypassList,
+    };
+  }
+  if (info.socks) {
+    return {
+      server: `socks5://${info.socks}`,
+      username: info.username,
+      password: info.password,
+      bypass: info.bypassList,
+    };
+  }
+  if (info.pacUrl) {
+    // Playwright special: PAC supported via pac+ prefix
+    return {
+      server: `pac+${info.pacUrl}`,
+      bypass: info.bypassList,
+    };
+  }
+  if (info.autoDetect) {
+    // Not supported directly in Playwright
+    return;
+  }
+}
+
 export function proxyInfoToArgs(info: ProxyInfo | null): string[] {
   if (!info) return [];
 
-  // 1) PAC takes precedence
+  // PAC first
   if (info.pacUrl) {
     const args = [`--proxy-pac-url=${info.pacUrl}`];
     if (info.bypassList) args.push(`--proxy-bypass-list=${info.bypassList}`);
     return args;
   }
 
-  // 2) Manual proxies
   const parts: string[] = [];
   const haveGlobalCreds = !!(info.username && info.password);
 
-  if (info.http) {
-    parts.push(
-      haveGlobalCreds
-        ? `http=${withCreds(info.http, 'http', info.username, info.password)}`
-        : `http=${hasUserinfo(info.http) ? `http://${info.http}` : info.http}`
-    );
+  function build(proto: 'http' | 'https' | 'socks5', value: string): string {
+    if (/^[^@]+@/.test(value)) return `${proto}=${value}`;
+    if (haveGlobalCreds) {
+      const u = encodeURIComponent(info.username!);
+      const p = encodeURIComponent(info.password!);
+      return `${proto}=${u}:${p}@${value}`;
+    }
+    return `${proto}=${value}`;
   }
-  if (info.https) {
-    parts.push(
-      haveGlobalCreds
-        ? `https=${withCreds(info.https, 'https', info.username, info.password)}`
-        : `https=${hasUserinfo(info.https) ? `https://${info.https}` : info.https}`
-    );
-  }
-  if (info.socks) {
-    parts.push(
-      haveGlobalCreds
-        ? `socks5=${withCreds(info.socks, 'socks5', info.username, info.password)}`
-        : `socks5=${hasUserinfo(info.socks) ? `socks5://${info.socks}` : info.socks}`
-    );
-  }
+
+  if (info.http) parts.push(build('http', info.http));
+  if (info.https) parts.push(build('https', info.https));
+  if (info.socks) parts.push(build('socks5', info.socks));
 
   if (parts.length > 0) {
     const args = [`--proxy-server=${parts.join(';')}`];
@@ -365,7 +403,6 @@ export function proxyInfoToArgs(info: ProxyInfo | null): string[] {
     return args;
   }
 
-  // 3) Autodetect
   if (info.autoDetect) {
     const args = ['--proxy-auto-detect'];
     if (info.bypassList) args.push(`--proxy-bypass-list=${info.bypassList}`);

@@ -33,7 +33,7 @@ import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
 import { cleanUpAndExit, randomThreeDigitNumberString, register } from '../utils.js';
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
-import { getProxyInfo, proxyInfoToArgs } from '../proxyService.js';
+import { getProxyInfo, proxyInfoToArgs, proxyInfoToPlaywright } from '../proxyService.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -1722,26 +1722,21 @@ export async function initModifiedUserAgent(
   // console.log('Modified User Agent:', modifiedUA);
 }
 
+const cacheProxyInfo = getProxyInfo();
+
 /**
  * @param {string} browser browser name ("chrome" or "edge", null for chromium, the default Playwright browser)
  * @returns playwright launch options object. For more details: https://playwright.dev/docs/api/class-browsertype#browser-type-launch
  */
 export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
-  let channel: string;
+  let channel: string | undefined;
   if (browser) {
     channel = browser;
   }
 
-  if (!constants.launchOptionsArgs.find(arg => arg.startsWith('--proxy'))) {
-    // Inject system proxy flags (single source of truth).
-    const proxyArgs = proxyInfoToArgs(getProxyInfo());    
-    constants.launchOptionsArgs.push(...proxyArgs);
+  const proxySettings = proxyInfoToPlaywright(cacheProxyInfo);
 
-    // console.log('Injected proxy arguments:', proxyArgs);
-  }
-  
   // Set new headless mode as Chrome 132 does not support headless=old
-  // Also mute audio
   if (process.env.CRAWLEE_HEADLESS === '1') {
     if (!constants.launchOptionsArgs.includes('--headless=new')) {
       constants.launchOptionsArgs.push('--headless=new');
@@ -1752,31 +1747,28 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   }
 
   const options: LaunchOptions = {
-    // Drop the --use-mock-keychain flag to allow MacOS devices
-    // to use the cloned cookies.
     ignoreDefaultArgs: ['--use-mock-keychain', '--headless'],
-    // necessary from Chrome 132 to use our own headless=new flag
     args: constants.launchOptionsArgs,
     headless: false,
-    ...(channel && { channel }), // Having no channel is equivalent to "chromium"
+    ...(channel && { channel }),
+    ...(proxySettings ? { proxy: proxySettings } : {}),
   };
 
-  // Necessary as Chrome 132 does not support headless=old
-  options.headless = false;
-
-  // Experimental: Slow down to wait for server-side rendering, useful in proxied environment. Value of 1000 ms recommended
-  if (!options.slowMo && 
-      process.env.OOBEE_SLOWMO &&
-      Number(process.env.OOBEE_SLOWMO) >= 1
-    ) {
+  // Experimental: Slow down if requested
+  if (
+    !options.slowMo &&
+    process.env.OOBEE_SLOWMO &&
+    Number(process.env.OOBEE_SLOWMO) >= 1
+  ) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
   }
 
+  // Edge on Windows should not be headless
   if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
-    // edge should be in non-headless mode
     options.headless = false;
   }
+
   return options;
 };
 
