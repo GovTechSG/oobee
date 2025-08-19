@@ -33,7 +33,7 @@ import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
 import { cleanUpAndExit, randomThreeDigitNumberString, register } from '../utils.js';
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
-import { getProxyInfo, proxyInfoToArgs, proxyInfoToPlaywright } from '../proxyService.js';
+import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -1729,42 +1729,50 @@ const cacheProxyInfo = getProxyInfo();
  * @returns playwright launch options object. For more details: https://playwright.dev/docs/api/class-browsertype#browser-type-launch
  */
 export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
-  let channel: string | undefined;
-  if (browser) {
-    channel = browser;
+  const channel = browser || undefined;
+
+  const resolution = proxyInfoToResolution(cacheProxyInfo);
+
+  // Start with your base args
+  const finalArgs = [...constants.launchOptionsArgs];
+
+  // Headless flags (unchanged)
+  if (process.env.CRAWLEE_HEADLESS === '1') {
+    if (!finalArgs.includes('--headless=new')) finalArgs.push('--headless=new');
+    if (!finalArgs.includes('--mute-audio')) finalArgs.push('--mute-audio');
   }
 
-  const proxySettings = proxyInfoToPlaywright(cacheProxyInfo);
-
-  // Set new headless mode as Chrome 132 does not support headless=old
-  if (process.env.CRAWLEE_HEADLESS === '1') {
-    if (!constants.launchOptionsArgs.includes('--headless=new')) {
-      constants.launchOptionsArgs.push('--headless=new');
+  // Map resolution to Playwright options
+  let proxyOpt: ProxySettings | undefined;
+  switch (resolution.kind) {
+    case 'manual':
+      proxyOpt = resolution.settings;
+      break;
+    case 'pac': {
+      finalArgs.push(`--proxy-pac-url=${resolution.pacUrl}`);
+      if (resolution.bypass) finalArgs.push(`--proxy-bypass-list=${resolution.bypass}`);
+      break;
     }
-    if (!constants.launchOptionsArgs.includes('--mute-audio')) {
-      constants.launchOptionsArgs.push('--mute-audio');
-    }
+    case 'none':
+      // nothing
+      break;
   }
 
   const options: LaunchOptions = {
     ignoreDefaultArgs: ['--use-mock-keychain', '--headless'],
-    args: constants.launchOptionsArgs,
+    args: finalArgs,
     headless: false,
     ...(channel && { channel }),
-    ...(proxySettings ? { proxy: proxySettings } : {}),
+    ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
 
-  // Experimental: Slow down if requested
-  if (
-    !options.slowMo &&
-    process.env.OOBEE_SLOWMO &&
-    Number(process.env.OOBEE_SLOWMO) >= 1
-  ) {
+  // SlowMo (unchanged)
+  if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
   }
 
-  // Edge on Windows should not be headless
+  // Edge on Windows should not be headless (unchanged)
   if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
     options.headless = false;
   }

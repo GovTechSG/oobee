@@ -31,12 +31,18 @@ export interface ProxyInfo {
   password?: string;
 }
 
-interface ProxySettings {
+export interface ProxySettings {
   server: string;
   username?: string;
   password?: string;
   bypass?: string;
 }
+
+// New discriminated union that the launcher can switch on
+export type ProxyResolution =
+  | { kind: 'manual'; settings: ProxySettings }   // Playwright proxy option
+  | { kind: 'pac'; pacUrl: string; bypass?: string } // Use --proxy-pac-url
+  | { kind: 'none' };    
 
 /* ============================ helpers ============================ */
 
@@ -55,14 +61,6 @@ function readCredsFromEnv(): { username?: string; password?: string } {
 }
 function hasUserinfo(v: string | undefined): boolean {
   return !!(v && /@/.test(v.split('/')[0]));
-}
-function withCreds(valueHostPort: string, scheme: 'http'|'https'|'socks5', username?: string, password?: string): string {
-  if (!username || !password || hasUserinfo(valueHostPort)) {
-    return `${scheme}://${valueHostPort}`;
-  }
-  const u = encodeURIComponent(username);
-  const p = encodeURIComponent(password);
-  return `${scheme}://${u}:${p}@${valueHostPort}`;
 }
 function pick(map: Record<string, string>, keys: string[]): string | undefined {
   for (const k of keys) {
@@ -330,84 +328,42 @@ export function getProxyInfo(): ProxyInfo | null {
   return parseEnvProxyCommon(); // Linux/others
 }
 
-export function proxyInfoToPlaywright(info: ProxyInfo | null): ProxySettings | undefined {
-  if (!info) return;
+export function proxyInfoToResolution(info: ProxyInfo | null): ProxyResolution {
+  if (!info) return { kind: 'none' };
 
+  // Prefer manual proxies first (these work with Playwright's proxy option)
   if (info.http) {
-    return {
+    return { kind: 'manual', settings: {
       server: `http://${info.http}`,
       username: info.username,
       password: info.password,
       bypass: info.bypassList,
-    };
+    }};
   }
   if (info.https) {
-    return {
+    return { kind: 'manual', settings: {
       server: `http://${info.https}`,
       username: info.username,
       password: info.password,
       bypass: info.bypassList,
-    };
+    }};
   }
   if (info.socks) {
-    return {
+    return { kind: 'manual', settings: {
       server: `socks5://${info.socks}`,
       username: info.username,
       password: info.password,
       bypass: info.bypassList,
-    };
+    }};
   }
+
+  // PAC → handle via Chromium args; do NOT try proxy.server = 'pac+...'
   if (info.pacUrl) {
-    // Playwright special: PAC supported via pac+ prefix
-    return {
-      server: `pac+${info.pacUrl}`,
-      bypass: info.bypassList,
-    };
-  }
-  if (info.autoDetect) {
-    // Not supported directly in Playwright
-    return;
-  }
-}
-
-export function proxyInfoToArgs(info: ProxyInfo | null): string[] {
-  if (!info) return [];
-
-  // PAC first
-  if (info.pacUrl) {
-    const args = [`--proxy-pac-url=${info.pacUrl}`];
-    if (info.bypassList) args.push(`--proxy-bypass-list=${info.bypassList}`);
-    return args;
+    // Minor hardening: prefer 127.0.0.1 over localhost for loopback PAC
+    const pacUrl = info.pacUrl.replace('://localhost', '://127.0.0.1');
+    return { kind: 'pac', pacUrl, bypass: info.bypassList };
   }
 
-  const parts: string[] = [];
-  const haveGlobalCreds = !!(info.username && info.password);
-
-  function build(proto: 'http' | 'https' | 'socks5', value: string): string {
-    if (/^[^@]+@/.test(value)) return `${proto}=${value}`;
-    if (haveGlobalCreds) {
-      const u = encodeURIComponent(info.username!);
-      const p = encodeURIComponent(info.password!);
-      return `${proto}=${u}:${p}@${value}`;
-    }
-    return `${proto}=${value}`;
-  }
-
-  if (info.http) parts.push(build('http', info.http));
-  if (info.https) parts.push(build('https', info.https));
-  if (info.socks) parts.push(build('socks5', info.socks));
-
-  if (parts.length > 0) {
-    const args = [`--proxy-server=${parts.join(';')}`];
-    if (info.bypassList) args.push(`--proxy-bypass-list=${info.bypassList}`);
-    return args;
-  }
-
-  if (info.autoDetect) {
-    const args = ['--proxy-auto-detect'];
-    if (info.bypassList) args.push(`--proxy-bypass-list=${info.bypassList}`);
-    return args;
-  }
-
-  return [];
+  // Auto-detect not supported directly
+  return { kind: 'none' };
 }
