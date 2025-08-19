@@ -100,7 +100,7 @@ const startScanQuestions = [
       resultFilename = `${date}_${time}_${domain}_${randomThreeDigitNumber}`;
   
       const statuses = constants.urlCheckStatuses;
-      const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(BrowserTypes.CHROME, false, resultFilename);
+      const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(resultFilename, BrowserTypes.CHROME, false);
 
       setHeadlessMode(browserToRun, answers.headless);
 

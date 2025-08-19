@@ -22,14 +22,13 @@ import constants, {
   getDefaultChromeDataDir,
   getDefaultEdgeDataDir,
   getDefaultChromiumDataDir,
-  proxy,
   // Legacy code start - Google Sheets submission
   formDataFields,
   // Legacy code end - Google Sheets submission
   ScannerTypes,
   BrowserTypes,
 } from './constants.js';
-import { consoleLogger, silentLogger } from '../logs.js';
+import { consoleLogger } from '../logs.js';
 import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
 import { cleanUpAndExit, randomThreeDigitNumberString, register } from '../utils.js';
 import { Answers, Data } from '../index.js';
@@ -554,7 +553,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     viewportWidth,
   );
 
-  const { browserToRun: resolvedBrowser, clonedBrowserDataDir } = getBrowserToRun(browserToRun, true, resultFilename);
+  const { browserToRun: resolvedBrowser, clonedBrowserDataDir } = getBrowserToRun(resultFilename, browserToRun, true);
   browserToRun = resolvedBrowser;
 
   const resolvedUserDataDirectory = getClonedProfilesWithRandomToken(browserToRun, resultFilename);
@@ -1009,14 +1008,10 @@ export const validName = (name: string) => {
  * @returns object consisting of browser to run and cloned data directory
  */
 export const getBrowserToRun = (
+  randomToken: string,
   preferredBrowser?: BrowserTypes,
   isCli = false,
-  randomToken?: string
 ): { browserToRun: BrowserTypes; clonedBrowserDataDir: string } => {
-
-  if (!randomToken) {
-    randomToken = '';
-  }
   
   const platform = os.platform();
 
@@ -1601,15 +1596,8 @@ export const submitFormViaPlaywright = async (
   userDataDirectory: string,
   finalUrl: string,
 ) => {
-  const dirName = `clone-${Date.now()}`;
-  let clonedDir = null;
-  if (proxy && browserToRun === BrowserTypes.EDGE) {
-    clonedDir = cloneEdgeProfiles(dirName);
-  } else if (proxy && browserToRun === BrowserTypes.CHROME) {
-    clonedDir = cloneChromeProfiles(dirName);
-  }
   const browserContext = await constants.launcher.launchPersistentContext(
-    clonedDir || userDataDirectory,
+    userDataDirectory,
     {
       ...getPlaywrightLaunchOptions(browserToRun),
     },
@@ -1622,7 +1610,7 @@ export const submitFormViaPlaywright = async (
   try {
     await page.goto(finalUrl, {
       timeout: 30000,
-      ...(proxy && { waitUntil: 'commit' }),
+      waitUntil: 'commit',
     });
 
     try {
@@ -1634,11 +1622,6 @@ export const submitFormViaPlaywright = async (
     consoleLogger.error(error);
   } finally {
     await browserContext.close();
-    if (proxy && browserToRun === BrowserTypes.EDGE) {
-        deleteClonedEdgeProfiles(clonedDir);
-    } else if (proxy && browserToRun === BrowserTypes.CHROME) {
-        deleteClonedChromeProfiles(clonedDir);
-    }
   }
 };
 
@@ -1677,19 +1660,17 @@ export const submitForm = async (
     finalUrl += `&${formDataFields.redirectUrlField}=${scannedUrl}`;
   }
 
-  if (proxy) {
-    await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
-  } else {
-    try {
-      await axios.get(finalUrl, { timeout: 2000 });
-    } catch (error) {
-      if (error.code === 'ECONNABORTED') {
-        if (browserToRun || constants.launcher === webkit) {
-          await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
-        }
+
+  try {
+    await axios.get(finalUrl, { timeout: 2000 });
+  } catch (error) {
+    if (error.code === 'ECONNABORTED') {
+      if (browserToRun || constants.launcher === webkit) {
+        await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
       }
     }
   }
+
 };
 // Legacy code end - Google Sheets submission
 
@@ -1750,11 +1731,20 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     channel = browser;
   }
 
+  // push auto-detected proxy
+  if (!constants.launchOptionsArgs.find(arg => arg.startsWith('--proxy-auto-detect'))) {
+    constants.launchOptionsArgs.push('--proxy-auto-detect');
+  }
+
   // Set new headless mode as Chrome 132 does not support headless=old
   // Also mute audio
   if (process.env.CRAWLEE_HEADLESS === '1') {
-    constants.launchOptionsArgs.push('--headless=new');
-    constants.launchOptionsArgs.push('--mute-audio');
+    if (!constants.launchOptionsArgs.includes('--headless=new')) {
+      constants.launchOptionsArgs.push('--headless=new');
+    }
+    if (!constants.launchOptionsArgs.includes('--mute-audio')) {
+      constants.launchOptionsArgs.push('--mute-audio');
+    }
   }
 
   const options: LaunchOptions = {
@@ -1770,9 +1760,16 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   // Necessary as Chrome 132 does not support headless=old
   options.headless = false;
 
-  if (proxy) {
-    options.slowMo = 1000; // To ensure server-side rendered proxy page is loaded
-  } else if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
+  // Experimental: Slow down to wait for server-side rendering, useful in proxied environment. Value of 1000 ms recommended
+  if (!options.slowMo && 
+      process.env.OOBEE_SLOWMO &&
+      Number(process.env.OOBEE_SLOWMO) >= 1
+    ) {
+    options.slowMo = Number(process.env.OOBEE_SLOWMO);
+    consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
+  }
+
+  if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
     // edge should be in non-headless mode
     options.headless = false;
   }

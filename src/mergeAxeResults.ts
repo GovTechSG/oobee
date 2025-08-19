@@ -14,7 +14,7 @@ import { Base64Encode } from 'base64-stream';
 import { pipeline } from 'stream/promises';
 // @ts-ignore
 import * as Sentry from '@sentry/node';
-import constants, { ScannerTypes, sentryConfig, setSentryUser } from './constants/constants.js';
+import constants, { BrowserTypes, ScannerTypes, sentryConfig, setSentryUser } from './constants/constants.js';
 import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.js';
 
 import {
@@ -961,8 +961,6 @@ const writeScanDetailsCsv = async (
     csvWriteStream.on('error', reject);
   });
 };
-
-let browserChannel = getBrowserToRun().browserToRun;
 
 const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filename = 'summary', browser: string, userDataDirectory: string) => {
   const htmlFilePath = `${storagePath}/${filename}.html`;
@@ -1984,6 +1982,8 @@ const generateArtifacts = async (
       scanPagesSummaryBase64FilePath,
     ]);
   }
+
+  let browserChannel = getBrowserToRun(randomToken, BrowserTypes.CHROME, false).browserToRun;
 
   // Should consider refactor constants.userDataDirectory to be a parameter in future
   await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length, 'summary', browserChannel, constants.userDataDirectory), 1);

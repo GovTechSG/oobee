@@ -5,7 +5,7 @@ import printMessage from 'print-message';
 import { devices } from 'playwright';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { cleanUp, setHeadlessMode, getVersion, getStoragePath, listenForCleanUp, cleanUpAndExit } from './utils.js';
+import { setHeadlessMode, getVersion, getStoragePath, listenForCleanUp, cleanUpAndExit } from './utils.js';
 import {
   checkUrl,
   prepareData,
@@ -16,7 +16,6 @@ import {
   validateDirPath,
   validateFilePath,
   validateCustomFlowLabel,
-  parseHeaders,
 } from './constants/common.js';
 import constants, { ScannerTypes } from './constants/constants.js';
 import { cliOptions, messageOptions } from './constants/cliFunctions.js';
