@@ -427,13 +427,21 @@ export const checkUrl = async (
   playwrightDeviceDetailsObject: DeviceDescriptor,
   extraHTTPHeaders: Record<string, string>,
 ) => {
-  const res = await checkUrlConnectivityWithBrowser(
-    url,
-    browser,
-    clonedDataDir,
-    playwrightDeviceDetailsObject,
-    extraHTTPHeaders,
-  );
+
+  let res;
+
+  if (isFilePath(url) && fs.existsSync(url)) {
+    const fileContent = fs.readFileSync(url, 'utf8');
+    res = new RES({ status: constants.urlCheckStatuses.success.code, url, content: fileContent });
+  } else {
+    res = await checkUrlConnectivityWithBrowser(
+        url,
+        browser,
+        clonedDataDir,
+        playwrightDeviceDetailsObject,
+        extraHTTPHeaders,
+      );
+  }
 
   if (
     res.status === constants.urlCheckStatuses.success.code &&
@@ -532,10 +540,10 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
         temp.password = '';
         return temp.toString();
       })();
- 
+
   // construct filename for scan results
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
-  const domain = argv.isLocalFileScan ? path.basename(url) : new URL(url).hostname;
+  const domain = isLocalFileScan ? path.basename(url) : new URL(url).hostname;
 
   const sanitisedLabel = customFlowLabel ? `_${customFlowLabel.replaceAll(' ', '_')}` : '';
   let resultFilename: string;
