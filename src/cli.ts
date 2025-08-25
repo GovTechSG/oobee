@@ -222,7 +222,13 @@ const scanInit = async (argvs: Answers): Promise<string> => {
   setHeadlessMode(updatedArgvs.browserToRun, updatedArgvs.headless);
   const statuses = constants.urlCheckStatuses;
 
-  const data = await prepareData(updatedArgvs);
+  let data;
+  try {
+    data = await prepareData(updatedArgvs);
+  } catch (e) {
+    consoleLogger.error(`Error preparing data: ${e.message}\n${e.stack}`);
+    cleanUpAndExit(1);
+  }
 
   // Executes cleanUp script if error encountered
   listenForCleanUp(data.randomToken);
