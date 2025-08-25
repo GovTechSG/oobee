@@ -512,12 +512,13 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   let password = '';
 
   if (isFilePath(url)) {
-    argv.isLocalFileScan = true;
+    isLocalFileScan = true;
   }
 
   // Remove credentials from URL if not a local file scan
-  url = argv.isLocalFileScan 
-    ? url 
+  // Resolve file paths to absolute path
+  url = isLocalFileScan
+    ? path.resolve(url)
     : (() => {
         const temp = new URL(url);
         username = temp.username;
@@ -531,10 +532,10 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
         temp.password = '';
         return temp.toString();
       })();
-
+ 
   // construct filename for scan results
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
-  const domain = argv.isLocalFileScan ? path.basename(argv.url) : new URL(argv.url).hostname;
+  const domain = argv.isLocalFileScan ? path.basename(url) : new URL(url).hostname;
 
   const sanitisedLabel = customFlowLabel ? `_${customFlowLabel.replaceAll(' ', '_')}` : '';
   let resultFilename: string;
@@ -1866,7 +1867,11 @@ export const isFilePath = (url: string): boolean => {
     url.startsWith('file://') ||
     url.startsWith('/') ||
     driveLetterPattern.test(url) ||
-    backslashPattern.test(url)
+    backslashPattern.test(url) ||
+    url.startsWith('./') ||
+    url.startsWith('../') ||
+    url.startsWith('.\\') ||
+    url.startsWith('..\\')
   );
 };
 
