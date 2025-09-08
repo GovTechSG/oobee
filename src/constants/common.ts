@@ -474,9 +474,11 @@ export const parseHeaders = (header?: string): Record<string, string> => {
 };
 
 export const prepareData = async (argv: Answers): Promise<Data> => {
+  console.log('aaaaa 111')
   if (isEmptyObject(argv)) {
     throw Error('No inputs should be provided');
   }
+    console.log('aaaaa 222')
   let {
     scanner,
     headless,
@@ -505,7 +507,9 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     scanDuration
   } = argv;
 
+    console.log('aaaaa 333')
   const extraHTTPHeaders = parseHeaders(header);
+    console.log('aaaaa 444')
 
   // Set default username and password for basic auth
   let username = '';
@@ -532,6 +536,9 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
         return temp.toString();
       })();
 
+        console.log('aaaaa 555')
+
+
   // construct filename for scan results
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
   const domain = argv.isLocalFileScan ? path.basename(argv.url) : new URL(argv.url).hostname;
@@ -540,6 +547,8 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   let resultFilename: string;
   const randomThreeDigitNumber = randomThreeDigitNumberString();
   resultFilename = `${date}_${time}${sanitisedLabel}_${domain}_${randomThreeDigitNumber}`;
+
+          console.log('aaaaa 666')
 
   // Set exported directory
   if (exportDirectory) {
@@ -555,10 +564,16 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     viewportWidth,
   );
 
+          console.log('aaaaa 777')
+
   const { browserToRun: resolvedBrowser, clonedBrowserDataDir } = getBrowserToRun(resultFilename, browserToRun, true);
   browserToRun = resolvedBrowser;
 
+    console.log('aaaaa 888')
+
   const resolvedUserDataDirectory = getClonedProfilesWithRandomToken(browserToRun, resultFilename);
+
+    console.log('aaaaa 999')
 
   if (followRobots) {
     constants.robotsTxtUrls = {};
@@ -1015,17 +1030,23 @@ export const getBrowserToRun = (
   isCli = false,
 ): { browserToRun: BrowserTypes; clonedBrowserDataDir: string } => {
   
+  console.log('getBrowserToRun 111')
   const platform = os.platform();
+    console.log('getBrowserToRun 222', platform)
 
   // Prioritise Chrome on Windows and Mac platforms if user does not specify a browser
   if (!preferredBrowser && (os.platform() === 'win32' || os.platform() === 'darwin')) {
+      console.log('getBrowserToRun 333')
     preferredBrowser = BrowserTypes.CHROME;
   } else {
+      console.log('getBrowserToRun 444')
     printMessage([`Preferred browser ${preferredBrowser}`], messageOptions);
   }
 
+    console.log('getBrowserToRun 555', preferredBrowser)
   if (preferredBrowser === BrowserTypes.CHROME) {
     const chromeData = getChromeData(randomToken);
+    console.log('getBrowserToRun 666', chromeData)
     if (chromeData) return chromeData;
 
     if (platform === 'darwin') {
@@ -1108,8 +1129,12 @@ export const getClonedProfilesWithRandomToken = (browser: string, randomToken: s
 };
 
 export const getChromeData = (randomToken: string) => {
+  console.log('getChromeData 111')
   const browserDataDir = getDefaultChromeDataDir();
+  console.log('getChromeData 222', browserDataDir)
+  console.log('randomToken 111', randomToken)
   const clonedBrowserDataDir = cloneChromeProfiles(randomToken);
+  console.log('getChromeData 333', clonedBrowserDataDir)
   if (browserDataDir && clonedBrowserDataDir) {
     const browserToRun = BrowserTypes.CHROME;
     return { browserToRun, clonedBrowserDataDir };
@@ -1137,6 +1162,8 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
   // Cookies file per profile is located in .../User Data/<profile name>/Network/Cookies for windows
   // and ../Chrome/<profile name>/Cookies for mac
   let profileNamesRegex: RegExp;
+
+  console.log('cloneChromeProfileCookieFiles 111')
   if (os.platform() === 'win32') {
     profileCookiesDir = globSync('**/Network/Cookies', {
       ...options,
@@ -1152,6 +1179,7 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
     profileNamesRegex = /Chrome\/(.*?)\/Cookies/;
   }
 
+  console.log('cloneChromeProfileCookieFiles 222')
   if (profileCookiesDir.length > 0) {
     let success = true;
     profileCookiesDir.forEach(dir => {
@@ -1324,7 +1352,9 @@ const cloneLocalStateFile = (options: GlobOptionsWithFileTypesFalse, destDir: st
  * @returns {string} cloned data directory, null if any of the sub files failed to copy
  */
 export const cloneChromeProfiles = (randomToken: string): string => {
+  console.log('cloneChromeProfiles 111')
   const baseDir = getDefaultChromeDataDir();
+  console.log('cloneChromeProfiles 222', baseDir)
 
   if (!baseDir) {
     return;
@@ -1334,13 +1364,21 @@ export const cloneChromeProfiles = (randomToken: string): string => {
 
   destDir = path.join(baseDir, `oobee-${randomToken}`);
 
+    console.log('cloneChromeProfiles 333', destDir)
+
   if (fs.existsSync(destDir)) {
+    console.log('cloneChromeProfiles 444', destDir)
       deleteClonedChromeProfiles(randomToken);
   }
 
+   console.log('cloneChromeProfiles 555')
+
   if (!fs.existsSync(destDir)) {
+       console.log('cloneChromeProfiles 666')
     fs.mkdirSync(destDir, { recursive: true });
   }
+
+      console.log('cloneChromeProfiles 777')
 
   const baseOptions = {
     cwd: baseDir,
@@ -1349,9 +1387,11 @@ export const cloneChromeProfiles = (randomToken: string): string => {
     nodir: true,
   };
   const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
-  if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
-    return destDir;
-  }
+    console.log('cloneChromeProfiles 888', cloneLocalStateFileSuccess)
+  // if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
+  //         console.log('cloneChromeProfiles 999')
+  //   return destDir;
+  // }
 
   consoleLogger.error('Failed to clone Chrome profiles. You may be logged out of your accounts.');
 

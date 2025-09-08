@@ -211,6 +211,7 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
   .parse() as unknown as Answers;
 
 const scanInit = async (argvs: Answers): Promise<string> => {
+  console.log('wtf 111')
   let isCustomFlow = false;
   if (argvs.scanner === ScannerTypes.CUSTOM) {
     isCustomFlow = true;
@@ -219,10 +220,13 @@ const scanInit = async (argvs: Answers): Promise<string> => {
   const updatedArgvs = { ...argvs };
 
   // Cannot use data.browser and data.isHeadless as the connectivity check comes first before prepareData
+  console.log('wtf 222')
   setHeadlessMode(updatedArgvs.browserToRun, updatedArgvs.headless);
+  console.log('wtf 333')
   const statuses = constants.urlCheckStatuses;
 
   const data = await prepareData(updatedArgvs);
+  console.log('wtf 444')
 
   // Executes cleanUp script if error encountered
   listenForCleanUp(data.randomToken);
@@ -235,6 +239,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     data.playwrightDeviceDetailsObject,
     data.extraHTTPHeaders
   );
+  console.log('wtf 555')
 
   if (res.httpStatus) consoleLogger.info(`Connectivity Check HTTP Response Code: ${res.httpStatus}`);
 
@@ -330,6 +335,8 @@ const scanInit = async (argvs: Answers): Promise<string> => {
 
   printMessage([`Oobee version: ${appVersion}`, 'Starting scan...'], messageOptions);
   consoleLogger.info(`Oobee version: ${appVersion}`); 
+
+  console.log("hello world 222")
   
   await combineRun(data, screenToScan);
 
@@ -367,6 +374,7 @@ const optionsAnswer: Answers = {
   scanDuration: options.scanDuration,
 };
 
+console.log("hello world aaa")
 await scanInit(optionsAnswer);
 cleanUpAndExit(0);
 

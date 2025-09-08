@@ -107,6 +107,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     nameEmail: undefined as { name: string; email: string } | undefined,
   };
 
+  console.log("hello world 111")
+
   // Parse nameEmail and add it to scanDetails for use in generateArtifacts
   if (nameEmail) {
     const [name, email] = nameEmail.split(':');
