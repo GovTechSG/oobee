@@ -1,6 +1,6 @@
 # Use Microsoft Playwright image as base image
 # Node version is v22
-FROM mcr.microsoft.com/playwright:v1.50.1-noble
+FROM mcr.microsoft.com/playwright:v1.55.0-noble
 
 # Installation of packages for oobee and runner (locked versions from build log)
 RUN apt-get update && apt-get install -y \
