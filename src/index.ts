@@ -103,7 +103,7 @@ const runScan = async (answers: Answers) => {
     answers.nameEmail = `${userData.name}:${userData.email}`;
   }
 
-  answers.fileTypes = FileTypes.All;
+  answers.fileTypes = FileTypes.HtmlOnly;
   answers.metadata = '{}';
 
   const data: Data = await prepareData(answers);
