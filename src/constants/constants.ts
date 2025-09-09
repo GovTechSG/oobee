@@ -414,6 +414,8 @@ const urlCheckStatuses = {
   axiosTimeout: { code: 18, message: 'Axios timeout exceeded. Falling back on browser checks.' },
   notALocalFile: { code: 19, message: 'Provided filepath is not a local html or sitemap file.' },
   notAPdf: { code: 20, message: 'Provided filepath is not a PDF file.' },
+  notASupportedDocument: { code: 21, message: 'Provided URL or file is not a supported document.' },
+  dnsError: { code: 22, message: 'Unable to resolve the URL.' },
   terminationRequested: { code: 15, message: 'Termination requested.' }
 };
 
