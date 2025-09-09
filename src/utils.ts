@@ -1002,8 +1002,6 @@ export const zipResults = async (zipName: string, resultsPath: string): Promise<
     }
   }
 
-  await addFolderToZip(resultsPath, new JSZip());
-
   const zip = new JSZip();
   await addFolderToZip(resultsPath, zip);
 
