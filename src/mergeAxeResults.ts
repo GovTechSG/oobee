@@ -2014,35 +2014,35 @@ const generateArtifacts = async (
     constants.cliZipFileName = path.join(storagePath, constants.cliZipFileName);
   }
 
-  await fs
-    .ensureDir(storagePath)
-    .then(() => {
-      zipResults(constants.cliZipFileName, storagePath);
-      const messageToDisplay = [
-        `Report of this run is at ${constants.cliZipFileName}`,
-        `Results directory is at ${storagePath}`,
-      ];
+  try {
+    await fs.ensureDir(storagePath);
 
-      if (process.send && process.env.OOBEE_VERBOSE) {
-        const zipFileNameMessage = {
-          type: 'zipFileName',
-          payload: `${constants.cliZipFileName}`,
-        };
-        const storagePathMessage = {
-          type: 'storagePath',
-          payload: `${storagePath}`,
-        };
+    await zipResults(constants.cliZipFileName, storagePath);
 
-        process.send(JSON.stringify(storagePathMessage));
+    const messageToDisplay = [
+      `Report of this run is at ${constants.cliZipFileName}`,
+      `Results directory is at ${storagePath}`,
+    ];
 
-        process.send(JSON.stringify(zipFileNameMessage));
-      }
+    if (process.send && process.env.OOBEE_VERBOSE) {
+      const zipFileNameMessage = {
+        type: 'zipFileName',
+        payload: `${constants.cliZipFileName}`,
+      };
+      const storagePathMessage = {
+        type: 'storagePath',
+        payload: `${storagePath}`,
+      };
 
-      printMessage(messageToDisplay);
-    })
-    .catch(error => {
-      printMessage([`Error in zipping results: ${error}`]);
-    });
+      process.send(JSON.stringify(storagePathMessage));
+
+      process.send(JSON.stringify(zipFileNameMessage));
+    }
+
+    printMessage(messageToDisplay);
+  } catch (error) {
+    printMessage([`Error in zipping results: ${error}`]);
+  }
 
   // Generate scrubbed HTML Code Snippets
   const ruleIdJson = createRuleIdJson(allIssues);

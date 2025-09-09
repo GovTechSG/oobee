@@ -13,6 +13,9 @@ import { consoleLogger, errorsTxtPath, silentLogger } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 import JSZip from 'jszip';
 import { createReadStream, createWriteStream } from 'fs';
+import archiver from 'archiver';
+import { ZipFile } from 'yazl';
+import unzipper from 'unzipper';
 
 export const getVersion = () => {
   const loadJSON = (filePath: string): { version: string } =>
@@ -973,52 +976,30 @@ export const setThresholdLimits = (setWarnLevel: string): void => {
 };
 
 export const zipResults = async (zipName: string, resultsPath: string): Promise<void> => {
-  // Resolve and validate the output path
-  const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(resultsPath, zipName);
+  const destZipPath = path.isAbsolute(zipName)
+    ? zipName
+    : path.join(resultsPath, zipName);
 
-  // Ensure parent dir exists
-  fs.mkdirSync(path.dirname(zipFilePath), { recursive: true });
+  await fs.mkdirp(path.dirname(destZipPath));
+  try { await fs.unlink(destZipPath); } catch {}
 
-  // Remove any prior file atomically
-  try { fs.unlinkSync(zipFilePath); } catch { /* ignore if not exists */ }
+  const tmpZipPath = path.join(os.tmpdir(), `oobee-${Date.now()}-${path.basename(destZipPath)}`);
 
-  // CWD must exist and be a directory
-  const stats = fs.statSync(resultsPath);
-  if (!stats.isDirectory()) {
-    throw new Error(`resultsPath is not a directory: ${resultsPath}`);
-  }
-  async function addFolderToZip(folderPath: string, zipFolder: JSZip): Promise<void> {
-    const items = await fs.readdir(folderPath);
-    for (const item of items) {
-      const fullPath = path.join(folderPath, item);
-      const stats = await fs.stat(fullPath);
-      if (stats.isDirectory()) {
-        const folder = zipFolder.folder(item);
-        await addFolderToZip(fullPath, folder);
-      } else {
-        // Add file as a stream so that it doesn't load the entire file into memory
-        zipFolder.file(item, createReadStream(fullPath));
-      }
-    }
-  }
+  await new Promise<void>((resolve, reject) => {
+    const output = createWriteStream(tmpZipPath);
+    const archive = archiver('zip', { zlib: { level: 6 }, forceZip64: true });
 
-  await addFolderToZip(resultsPath, new JSZip());
+    archive.on('warning', err => err?.code === 'ENOENT' ? console.warn('[zip warning]', err.message) : reject(err));
+    archive.on('error', reject);
+    output.on('error', reject);
+    output.on('close', resolve);
 
-  const zip = new JSZip();
-  await addFolderToZip(resultsPath, zip);
-
-  const zipStream = zip.generateNodeStream({
-    type: 'nodebuffer',
-    streamFiles: true,
-    compression: 'DEFLATE',
+    archive.pipe(output);
+    archive.directory(resultsPath, false);
+    archive.finalize();
   });
 
-  await new Promise((resolve, reject) => {
-    const outStream = createWriteStream(zipFilePath);
-    zipStream.pipe(outStream)
-      .on('finish', resolve)
-      .on('error', reject);
-  });
+  await fs.move(tmpZipPath, destZipPath, { overwrite: true });
 };
 
 // areLinksEqual compares 2 string URLs and ignores comparison of 'www.' and url protocol
