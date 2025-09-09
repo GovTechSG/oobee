@@ -7,6 +7,7 @@ import constants, {
   basicAuthRegex,
   UrlsCrawled,
   STATUS_CODE_METADATA,
+  FileTypes,
 } from '../constants/constants.js';
 import { ViewportSettingsClass } from '../combine.js';
 import {
@@ -47,7 +48,7 @@ export const crawlLocalFile = async ({
   browser: string;
   userDataDirectory: string;
   specifiedMaxConcurrency: number;
-  fileTypes: string;
+  fileTypes: FileTypes;
   blacklistedPatterns: string[];
   includeScreenshots: boolean;
   extraHTTPHeaders: Record<string, string>;

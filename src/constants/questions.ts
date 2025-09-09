@@ -3,7 +3,6 @@ import { Answers } from '../index.js';
 import { getUserDataTxt, randomThreeDigitNumberString, setHeadlessMode } from '../utils.js';
 import {
   checkUrl,
-  deleteClonedProfiles,
   getBrowserToRun,
   getPlaywrightDeviceDetailsObject,
   getUrlMessage,
@@ -14,7 +13,7 @@ import {
   validateCustomFlowLabel,
   parseHeaders,
 } from './common.js';
-import constants, { BrowserTypes, ScannerTypes } from './constants.js';
+import constants, { BrowserTypes, FileTypes, ScannerTypes } from './constants.js';
 import { random } from 'lodash';
 
 const userData = getUserDataTxt();
@@ -58,6 +57,13 @@ const startScanQuestions = [
     name: 'viewportWidth',
     message: 'Specify width of the viewport in pixels (e.g. 360):',
     when: (answers: Answers) => answers.customDevice === 'Specify viewport',
+    filter: (input) => {
+    if (input === '' || input === undefined) {
+      return undefined; // return nothing instead of NaN
+    }
+    const n = Number(input);
+    return Number.isInteger(n) ? n : undefined;
+    },
     validate: (viewport: number) => {
       if (!Number.isInteger(viewport)) {
         return 'Invalid viewport width. Please provide an integer.';
@@ -117,6 +123,7 @@ const startScanQuestions = [
         clonedBrowserDataDir,
         playwrightDeviceDetailsObject,
         parseHeaders(answers.header),
+        FileTypes.All
       );
       
       switch (res.status) {

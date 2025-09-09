@@ -4,7 +4,6 @@ import inquirer from 'inquirer';
 import { EnqueueStrategy } from 'crawlee';
 import {
   getVersion,
-  cleanUp,
   getUserDataTxt,
   writeToUserDataTxt,
   listenForCleanUp,
@@ -21,7 +20,7 @@ import {
 } from './constants/common.js';
 import questions from './constants/questions.js';
 import combineRun from './combine.js';
-import { BrowserTypes, RuleFlags, ScannerTypes } from './constants/constants.js';
+import { BrowserTypes, FileTypes, RuleFlags, ScannerTypes } from './constants/constants.js';
 import { DeviceDescriptor } from './types/types.js';
 
 export type Answers = {
@@ -35,7 +34,7 @@ export type Answers = {
   clonedBrowserDataDir: string;
   playwrightDeviceDetailsObject: DeviceDescriptor;
   nameEmail: string;
-  fileTypes: string;
+  fileTypes: FileTypes;
   metadata: string;
   maxpages: number;
   strategy: string;
@@ -72,7 +71,7 @@ export type Data = {
   customFlowLabel: string;
   specifiedMaxConcurrency: number;
   randomToken: string;
-  fileTypes: string;
+  fileTypes: FileTypes;
   blacklistedPatternsFilename: string;
   includeScreenshots: boolean;
   metadata: string;
@@ -104,7 +103,7 @@ const runScan = async (answers: Answers) => {
     answers.nameEmail = `${userData.name}:${userData.email}`;
   }
 
-  answers.fileTypes = 'html-only';
+  answers.fileTypes = FileTypes.All;
   answers.metadata = '{}';
 
   const data: Data = await prepareData(answers);

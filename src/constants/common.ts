@@ -14,6 +14,7 @@ import url, { fileURLToPath, pathToFileURL } from 'url';
 import safe from 'safe-regex';
 import * as https from 'https';
 import os from 'os';
+import mime from 'mime';
 import { minimatch } from 'minimatch';
 import { globSync, GlobOptionsWithFileTypesFalse } from 'glob';
 import { LaunchOptions, Locator, Page, devices, webkit } from 'playwright';
@@ -27,6 +28,8 @@ import constants, {
   // Legacy code end - Google Sheets submission
   ScannerTypes,
   BrowserTypes,
+  FileTypes,
+  getEnumKey,
 } from './constants.js';
 import { consoleLogger } from '../logs.js';
 import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
@@ -172,9 +175,14 @@ export const messageOptions = {
 };
 
 const urlOptions = {
-  protocols: ['http', 'https'],
+  // http and https for normal scans, file for local file scan
+  protocols: ['http', 'https', 'file'],
   require_protocol: true,
   require_tld: false,
+  require_host: false,
+  // being explicit; fragments/queries are fine for local files
+  allow_fragments: true,
+  allow_query_components: true,
 };
 
 const queryCheck = (s: string) => document.createDocumentFragment().querySelector(s);
@@ -322,38 +330,72 @@ const checkUrlConnectivityWithBrowser = async (
     let contentType = '';
     let disposition = '';
 
-    try {
-      const headResp = await page.request.fetch(url, {
-        method: 'HEAD',
-        headers: extraHTTPHeaders,
-      });
+    const protocol = new URL(url).protocol;
 
-      statusCode = headResp.status();
-      contentType = headResp.headers()['content-type'] || '';
-      disposition = headResp.headers()['content-disposition'] || '';
+    if (protocol === 'http:' || protocol === 'https:') {
+      try {
+        const headResp = await page.request.fetch(url, {
+          method: 'HEAD',
+          headers: extraHTTPHeaders,
+        });
 
-      // If it looks like a downloadable file, skip goto entirely
-      if (
-        contentType.includes('pdf') ||
-        contentType.includes('octet-stream') ||
-        disposition.includes('attachment')
-      ) {
-        res.status = statusCode === 401
-          ? constants.urlCheckStatuses.unauthorised.code
-          : constants.urlCheckStatuses.success.code;
+        statusCode = headResp.status();
+        contentType = headResp.headers()['content-type'] || '';
+        disposition = headResp.headers()['content-disposition'] || '';
 
-        res.httpStatus = statusCode;
-        res.url = url;
-        res.content = ''; // Don't try to render binary
+        // If it looks like a downloadable file, skip goto entirely
+        if (
+          contentType.includes('pdf') ||
+          contentType.includes('octet-stream') ||
+          disposition.includes('attachment')
+        ) {
+          res.status = statusCode === 401
+            ? constants.urlCheckStatuses.unauthorised.code
+            : constants.urlCheckStatuses.success.code;
 
+          res.httpStatus = statusCode;
+          res.url = url;
+          res.content = '%PDF-'; // Avoid putting the binary in memory
+
+          await browserContext.close();
+          return res;
+        }
+      } catch (e) {
+        consoleLogger.info(`HEAD request failed: ${e.message}`);
+        res.status = constants.urlCheckStatuses.systemError.code;
         await browserContext.close();
         return res;
       }
-    } catch (e) {
-      consoleLogger.info(`HEAD request failed: ${e.message}`);
-      res.status = constants.urlCheckStatuses.systemError.code;
-      await browserContext.close();
-      return res;
+    } else {
+      try {
+        const filePath = fileURLToPath(url);
+        const stat = fs.statSync(filePath);
+
+        if (!stat.isFile()) {
+          res.status = constants.urlCheckStatuses.notALocalFile.code;
+          await browserContext.close();
+          return res;
+        }
+
+        statusCode = 200;
+        contentType = mime.getType(filePath) || 'application/octet-stream';
+        disposition = `inline; filename="${path.basename(filePath)}"`;
+
+        // Optionally short-circuit for binaries
+        if (contentType.includes('pdf') || contentType.includes('octet-stream')) {
+          res.status = constants.urlCheckStatuses.success.code;
+          res.httpStatus = statusCode;
+          res.url = url;
+          res.content = '%PDF-'; // Avoid putting the binary in memory
+          await browserContext.close();
+          return res;
+        }
+      } catch (e) {
+        consoleLogger.info(`Local file HEAD emulation failed: ${e.message}`);
+        res.status = constants.urlCheckStatuses.systemError.code;
+        await browserContext.close();
+        return res;
+      }
     }
 
     // STEP 2: Safe to proceed with navigation
@@ -396,6 +438,15 @@ const checkUrlConnectivityWithBrowser = async (
 
   return res;
 };
+export const isPdfContent = (content: Buffer | string): boolean => {
+  let header: string;
+  if (Buffer.isBuffer(content)) {
+    header = content.toString('utf8', 0, 5);
+  } else {
+    header = content.substring(0, 5);
+  }
+  return header === '%PDF-';
+};
 
 export const isSitemapContent = (content: string) => {
   const { isValid } = validateXML(content);
@@ -426,33 +477,28 @@ export const checkUrl = async (
   clonedDataDir: string,
   playwrightDeviceDetailsObject: DeviceDescriptor,
   extraHTTPHeaders: Record<string, string>,
+  fileTypes: FileTypes
 ) => {
 
-  let res;
-
-  if (isFilePath(url) && fs.existsSync(url)) {
-    const fileContent = fs.readFileSync(url, 'utf8');
-    res = new RES({ status: constants.urlCheckStatuses.success.code, url, content: fileContent });
-  } else {
-    res = await checkUrlConnectivityWithBrowser(
-        url,
-        browser,
-        clonedDataDir,
-        playwrightDeviceDetailsObject,
-        extraHTTPHeaders,
-      );
-  }
+  const res = await checkUrlConnectivityWithBrowser(
+      url,
+      browser,
+      clonedDataDir,
+      playwrightDeviceDetailsObject,
+      extraHTTPHeaders,
+  );
 
   if (
     res.status === constants.urlCheckStatuses.success.code &&
     (scanner === ScannerTypes.SITEMAP || scanner === ScannerTypes.LOCALFILE)
   ) {
     const isSitemap = isSitemapContent(res.content);
+    const isPdf = isPdfContent(res.content);
 
-    if (!isSitemap && scanner === ScannerTypes.LOCALFILE) {
+    if (scanner === ScannerTypes.LOCALFILE && fileTypes === FileTypes.PdfOnly && !isPdf) {
+      res.status = constants.urlCheckStatuses.notAPdf.code;
+    } else if (scanner === ScannerTypes.LOCALFILE && !isSitemap && !isPdf) {
       res.status = constants.urlCheckStatuses.notALocalFile.code;
-    } else if (!isSitemap) {
-      res.status = constants.urlCheckStatuses.notASitemap.code;
     }
   }
   return res;
@@ -494,7 +540,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     viewportWidth,
     maxpages,
     strategy,
-    isLocalFileScan = false,
+    isLocalFileScan = argv.scanner === ScannerTypes.LOCALFILE,
     browserToRun,
     nameEmail,
     customFlowLabel,
@@ -519,27 +565,30 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   let username = '';
   let password = '';
 
+  // If a file path is provided
   if (isFilePath(url)) {
+    // Set is as local file scan if not already so
     isLocalFileScan = true;
+
+    // Convert to absolute path
+    url = path.resolve(url);
+
+    // Convert to file:// URL
+    url = convertPathToLocalFile(url);
+  } else {
+    // Check URL for basic auth embedded and move it to extraHTTPHeaders
+    const temp = new URL(url);
+    username = temp.username;
+    password = temp.password;
+
+    if (username !== '' || password !== '') {
+      extraHTTPHeaders['Authorization'] = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+    } 
+
+    temp.username = '';
+    temp.password = '';
+    url = temp.toString();
   }
-
-  // Remove credentials from URL if not a local file scan
-  // Resolve file paths to absolute path
-  url = isLocalFileScan
-    ? path.resolve(url)
-    : (() => {
-        const temp = new URL(url);
-        username = temp.username;
-        password = temp.password;
-
-        if (username !== '' || password !== '') {
-          extraHTTPHeaders['Authorization'] = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
-        } 
-
-        temp.username = '';
-        temp.password = '';
-        return temp.toString();
-      })();
 
   // construct filename for scan results
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
@@ -595,7 +644,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     customFlowLabel,
     specifiedMaxConcurrency,
     randomToken: resultFilename,
-    fileTypes,
+    fileTypes: FileTypes[getEnumKey(FileTypes, fileTypes) as keyof typeof FileTypes],
     blacklistedPatternsFilename,
     includeScreenshots: !(additional === 'none'),
     metadata,

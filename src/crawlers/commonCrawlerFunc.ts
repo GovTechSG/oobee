@@ -318,9 +318,9 @@ export const runAxeScript = async ({
   page.on('console', msg => {
     const type = msg.type();
     if (type === 'error') {
-      consoleLogger.log({ level: 'error', message: msg.text() });
+      consoleLogger.error(msg.text());
     } else {
-      consoleLogger.log({ level: 'info', message: msg.text() });
+      consoleLogger.info(msg.text());
     }
   });
   */

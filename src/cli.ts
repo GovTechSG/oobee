@@ -211,11 +211,6 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
   .parse() as unknown as Answers;
 
 const scanInit = async (argvs: Answers): Promise<string> => {
-  let isCustomFlow = false;
-  if (argvs.scanner === ScannerTypes.CUSTOM) {
-    isCustomFlow = true;
-  }
-
   const updatedArgvs = { ...argvs };
 
   // Cannot use data.browser and data.isHeadless as the connectivity check comes first before prepareData
@@ -239,7 +234,8 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     data.browser,
     data.userDataDirectory,
     data.playwrightDeviceDetailsObject,
-    data.extraHTTPHeaders
+    data.extraHTTPHeaders,
+    data.fileTypes
   );
 
   if (res.httpStatus) consoleLogger.info(`Connectivity Check HTTP Response Code: ${res.httpStatus}`);
@@ -311,6 +307,12 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     case statuses.notALocalFile.code: {
       printMessage([statuses.notALocalFile.message], messageOptions);
       consoleLogger.info(statuses.notALocalFile.message);
+      cleanUpAndExit(res.status);
+      return;
+    }
+    case statuses.notAPdf.code: {
+      printMessage([statuses.notAPdf.message], messageOptions);
+      consoleLogger.info(statuses.notAPdf.message);
       cleanUpAndExit(res.status);
       return;
     }

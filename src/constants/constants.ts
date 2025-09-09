@@ -252,6 +252,16 @@ export enum ScannerTypes {
 }
 /* eslint-enable no-unused-vars */
 
+export enum FileTypes {
+  All = 'all',
+  PdfOnly = 'pdf-only',
+  HtmlOnly = 'html-only',
+}
+
+export function getEnumKey<E extends Record<string, string>>(enumObj: E, value: string): keyof E | undefined {
+  return (Object.keys(enumObj) as Array<keyof E>).find(k => enumObj[k] === value);
+}
+
 export const guiInfoStatusTypes = {
   SCANNED: 'scanned',
   SKIPPED: 'skipped',
@@ -403,6 +413,7 @@ const urlCheckStatuses = {
   },
   axiosTimeout: { code: 18, message: 'Axios timeout exceeded. Falling back on browser checks.' },
   notALocalFile: { code: 19, message: 'Provided filepath is not a local html or sitemap file.' },
+  notAPdf: { code: 20, message: 'Provided filepath is not a PDF file.' },
   terminationRequested: { code: 15, message: 'Termination requested.' }
 };
 

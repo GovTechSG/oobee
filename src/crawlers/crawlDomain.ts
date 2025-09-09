@@ -20,6 +20,7 @@ import constants, {
   STATUS_CODE_METADATA,
   disallowedListOfPatterns,
   disallowedSelectorPatterns,
+  FileTypes,
 } from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
@@ -88,7 +89,7 @@ const crawlDomain = async ({
   userDataDirectory: string;
   strategy: EnqueueStrategy;
   specifiedMaxConcurrency: number;
-  fileTypes: string;
+  fileTypes: FileTypes;
   blacklistedPatterns: string[];
   includeScreenshots: boolean;
   followRobots: boolean;
@@ -117,8 +118,8 @@ const crawlDomain = async ({
 
   const pdfDownloads: Promise<void>[] = [];
   const uuidToPdfMapping: Record<string, string> = {};
-  const isScanHtml = ['all', 'html-only'].includes(fileTypes);
-  const isScanPdfs = ['all', 'pdf-only'].includes(fileTypes);
+  const isScanHtml = [FileTypes.All, FileTypes.HtmlOnly].includes(fileTypes as FileTypes);
+  const isScanPdfs = [FileTypes.All, FileTypes.PdfOnly].includes(fileTypes as FileTypes);
   const { maxConcurrency } = constants;
   const { playwrightDeviceDetailsObject } = viewportSettings;
 

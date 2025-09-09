@@ -12,6 +12,7 @@ import constants, {
   guiInfoStatusTypes,
   UrlsCrawled,
   disallowedListOfPatterns,
+  FileTypes,
 } from '../constants/constants.js';
 import {
   getLinksFromSitemap,
@@ -55,7 +56,7 @@ const crawlSitemap = async ({
   browser: string;
   userDataDirectory: string;
   specifiedMaxConcurrency: number;
-  fileTypes: string;
+  fileTypes: FileTypes;
   blacklistedPatterns: string[];
   includeScreenshots: boolean;
   extraHTTPHeaders: Record<string, string>;
@@ -97,8 +98,8 @@ const crawlSitemap = async ({
 
   const pdfDownloads: Promise<void>[] = [];
   const uuidToPdfMapping: Record<string, string> = {};
-  const isScanHtml = ['all', 'html-only'].includes(fileTypes);
-  const isScanPdfs = ['all', 'pdf-only'].includes(fileTypes);
+  const isScanHtml = [FileTypes.All, FileTypes.HtmlOnly].includes(fileTypes as FileTypes);
+  const isScanPdfs = [FileTypes.All, FileTypes.PdfOnly].includes(fileTypes as FileTypes);
   const { playwrightDeviceDetailsObject } = viewportSettings;
   const { maxConcurrency } = constants;
 

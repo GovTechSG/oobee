@@ -346,6 +346,10 @@ export const runPdfScan = async (randomToken: string) => {
   ];
 
   const ls = spawnSync(veraPdfExe, veraPdfCmdArgs, { shell: true });
+  console.log(ls.stdout.toString());
+  if (ls.stderr && ls.stderr.length > 0)
+    consoleLogger.error(ls.stderr.toString());
+
   fs.writeFileSync(intermediateResultPath, ls.stdout, { encoding: 'utf-8' });
 };
 
@@ -363,7 +367,7 @@ export const mapPdfScanResults = async (
   try {
     parsedJsonData = JSON.parse(rawdata);
   } catch (err) {
-    consoleLogger.log(err);
+    consoleLogger.error(err);
   }
 
   const errorMeta = require('../constants/errorMeta.json');

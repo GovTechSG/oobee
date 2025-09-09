@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { chromium, Page } from 'playwright';
 import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
-import constants, { guiInfoStatusTypes, sitemapPaths } from '../constants/constants.js';
+import constants, { FileTypes, guiInfoStatusTypes, sitemapPaths } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
@@ -20,7 +20,7 @@ const crawlIntelligentSitemap = async (
   userDataDirectory: string,
   strategy: EnqueueStrategy,
   specifiedMaxConcurrency: number,
-  fileTypes: string,
+  fileTypes: FileTypes,
   blacklistedPatterns: string[],
   includeScreenshots: boolean,
   followRobots: boolean,
