@@ -123,7 +123,7 @@ const startScanQuestions = [
         clonedBrowserDataDir,
         playwrightDeviceDetailsObject,
         parseHeaders(answers.header),
-        FileTypes.All
+        FileTypes.HtmlOnly,
       );
       
       switch (res.status) {
