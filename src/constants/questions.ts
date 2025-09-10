@@ -123,40 +123,16 @@ const startScanQuestions = [
         clonedBrowserDataDir,
         playwrightDeviceDetailsObject,
         parseHeaders(answers.header),
-        FileTypes.HtmlOnly,
+        FileTypes.All,
       );
       
-      switch (res.status) {
-        case statuses.success.code:
-          answers.finalUrl = res.url;
-          return true;
-        case statuses.cannotBeResolved.code:
-          return statuses.cannotBeResolved.message;
-        case statuses.systemError.code:
-          return statuses.systemError.message;
-        case statuses.invalidUrl.code:
-          if (answers.scanner !== (ScannerTypes.SITEMAP || ScannerTypes.LOCALFILE)) {
-            return statuses.invalidUrl.message;
-          }
-
-          /* if sitemap scan is selected, treat this URL as a filepath
-              isFileSitemap will tell whether the filepath exists, and if it does, whether the
-              file is a sitemap */
-          const finalFilePath = getFileSitemap(url);
-          if (finalFilePath) {
-            answers.isLocalFileScan = true;
-            answers.finalUrl = finalFilePath;
-            return true;
-          }
-          if (answers.scanner === ScannerTypes.LOCALFILE) {
-            return statuses.notALocalFile.message;
-          }
-          return statuses.notASitemap.message;
-
-        case statuses.notASitemap.code:
-          return statuses.notASitemap.message;
-        case statuses.notALocalFile.code:
-          return statuses.notALocalFile.message;
+      if (res.status === statuses.success.code) {
+        answers.finalUrl = res.url;
+        return true;
+      } else {
+        const match = Object.values(statuses).find((s: any) => s.code === res.status);
+        const msg = match && 'message' in match ? match.message : 'Unknown error';
+        return msg;
       }
     },
     filter: (input: string) => sanitizeUrlInput(input.trim()).url,
