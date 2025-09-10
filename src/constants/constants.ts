@@ -390,33 +390,27 @@ const wcagLinks = {
 const urlCheckStatuses = {
   success: { code: 0 },
   invalidUrl: { code: 11, message: 'Invalid URL or URL is not using http or https.' },
-  cannotBeResolved: {
-    code: 12,
-    message:
-      'Provided URL cannot be accessed. Please verify your internet connectivity and the correctness of the domain.',
-  },
+  cannotBeResolved: { code: 12, message: 'Provided URL cannot be accessed. Please verify whether the domain exists.' },
   errorStatusReceived: {
     // unused for now
     code: 13,
     message: 'Provided URL cannot be accessed. Server responded with code ', // append it with the response code received,
   },
-  systemError: {
-    code: 14,
-    message: 'Something went wrong when verifying the URL. Please try again later.',
-  },
+  systemError: { code: 14, message: 'Something went wrong when verifying the URL. Please try again later.'},
   notASitemap: { code: 15, message: 'Provided URL is not a sitemap.' },
   unauthorised: { code: 16, message: 'Provided URL needs basic authorisation.' },
+  // browserError means engine could not find a browser to run the scan
   browserError: {
     code: 17,
     message:
       'No browser available to run scans. Please ensure you have Chrome or Edge (for Windows only) installed.',
   },
-  axiosTimeout: { code: 18, message: 'Axios timeout exceeded. Falling back on browser checks.' },
-  notALocalFile: { code: 19, message: 'Provided filepath is not a local html or sitemap file.' },
-  notAPdf: { code: 20, message: 'Provided filepath is not a PDF file.' },
-  notASupportedDocument: { code: 21, message: 'Provided URL or file is not a supported document.' },
-  dnsError: { code: 22, message: 'Unable to resolve the URL.' },
-  terminationRequested: { code: 15, message: 'Termination requested.' }
+  sslProtocolError: { code: 18, message: 'SSL protocol error encountered. Please check the SSL configuration of your website.' },
+  notALocalFile: { code: 19, message: 'Provided file is not a local HTML, PDF, XML or TXT document.' },
+  notAPdf: { code: 20, message: 'Provided URL or file is not a PDF file.' },
+  notASupportedDocument: { code: 21, message: 'Provided URL or file is not a HTML, PDF, XML or TXT document.' },
+  connectionRefused: { code: 22, message: 'Connection refused.  Please try again later.' },
+  timedOut: { code: 23, message: 'Request timed out. Please try again later.' },
 };
 
 /* eslint-disable no-unused-vars */
