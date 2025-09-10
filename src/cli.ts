@@ -243,7 +243,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
   if (res.status === statuses.success.code) {
     data.url = res.url;
     if (process.env.OOBEE_VALIDATE_URL) {
-      console.log('Url is valid');
+      consoleLogger.info('Url is valid');
       cleanUpAndExit(0, data.randomToken);
       return;
     }
