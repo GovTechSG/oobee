@@ -516,19 +516,32 @@ export const checkUrl = async (
       extraHTTPHeaders,
   );
 
-  if (
-    res.status === constants.urlCheckStatuses.success.code &&
-    (scanner === ScannerTypes.SITEMAP || scanner === ScannerTypes.LOCALFILE)
-  ) {
-    const isSitemap = isSitemapContent(res.content);
+  // If response is 200 (meaning no other code was set earlier)
+  if (res.status === constants.urlCheckStatuses.success.code) {
+
+    // Check if document is pdf type
     const isPdf = isPdfContent(res.content);
 
-    if (scanner === ScannerTypes.LOCALFILE && fileTypes === FileTypes.PdfOnly && !isPdf) {
+    // Check if only HTML document is allowed to be scanned
+    if (fileTypes === FileTypes.HtmlOnly && isPdf) {
+      res.status = constants.urlCheckStatuses.notASupportedDocument.code;
+    
+    // Check if only PDF document is allowed to be scanned
+    } else if (fileTypes === FileTypes.PdfOnly && !isPdf) {
       res.status = constants.urlCheckStatuses.notAPdf.code;
-    } else if (scanner === ScannerTypes.LOCALFILE && !isSitemap && !isPdf) {
-      res.status = constants.urlCheckStatuses.notALocalFile.code;
+
+    // Check if sitemap is expected
+    } else if (scanner === ScannerTypes.SITEMAP) {
+      const isSitemap = isSitemapContent(res.content);
+
+      if (!isSitemap) {
+        res.status = constants.urlCheckStatuses.notASitemap.code;
+      }
     }
+
+    // else proceed as normal
   }
+  
   return res;
 };
 
