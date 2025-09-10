@@ -292,10 +292,11 @@ const isAllowedContentType = (ct: string): boolean => {
     c.startsWith('application/xhtml+xml') ||  // xhtml
     c.startsWith('text/plain') ||             // txt
     c.startsWith('application/xml') ||        // xml
-    c.startsWith('text/xml') ||               // xml (alt)
+    c.startsWith('text/xml')        ||        // xml (alt)
     c.startsWith('application/pdf')           // pdf
   );
 };
+
 
 const checkUrlConnectivityWithBrowser = async (
   url: string,
@@ -454,7 +455,13 @@ const checkUrlConnectivityWithBrowser = async (
     if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
       res.status = constants.urlCheckStatuses.unauthorised.code;
     } else if (error.message.includes('net::ERR_NAME_NOT_RESOLVED')) {
-      res.status = constants.urlCheckStatuses.dnsError.code;
+      res.status = constants.urlCheckStatuses.cannotBeResolved.code;
+    } else if (error.message.includes('net::ERR_CONNECTION_REFUSED')) {
+      res.status = constants.urlCheckStatuses.connectionRefused.code;
+    } else if (error.message.includes('net::ERR_TIMED_OUT')) {
+      res.status = constants.urlCheckStatuses.timedOut.code;
+    } else if (error.message.includes('net::ERR_SSL_PROTOCOL_ERROR')) {
+      res.status = constants.urlCheckStatuses.sslProtocolError.code;
     } else {
       consoleLogger.error(error);
       res.status = constants.urlCheckStatuses.systemError.code;
