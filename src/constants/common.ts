@@ -285,6 +285,19 @@ export const sanitizeUrlInput = (url: string): { isValid: boolean; url: string }
   return { isValid: false, url: sanitizeUrl };
 };
 
+const isAllowedContentType = (ct: string): boolean => {
+  const c = (ct || '').toLowerCase();
+  return (
+    c.startsWith('text/html') ||              // html
+    c.startsWith('application/xhtml+xml') ||  // xhtml
+    c.startsWith('text/plain') ||             // txt
+    c.startsWith('application/xml') ||        // xml
+    c.startsWith('text/xml')        ||        // xml (alt)
+    c.startsWith('application/pdf')           // pdf
+  );
+};
+
+
 const checkUrlConnectivityWithBrowser = async (
   url: string,
   browserToRun: string,
@@ -298,6 +311,44 @@ const checkUrlConnectivityWithBrowser = async (
   if (!data.isValid) {
     res.status = constants.urlCheckStatuses.invalidUrl.code;
     return res;
+  }
+
+    // STEP 1: For local file scans
+  let contentType = '';
+
+  const protocol = new URL(url).protocol;
+
+  if (protocol !== 'http:' && protocol !== 'https:') {
+    try {
+      const filePath = fileURLToPath(url);
+      const stat = fs.statSync(filePath);
+
+      if (!stat.isFile()) {
+        res.status = constants.urlCheckStatuses.notALocalFile.code;
+        return res;
+      }
+
+      const statusCode = 200;
+      contentType = mime.getType(filePath) || 'application/octet-stream';
+
+      if (!isAllowedContentType(contentType)) {
+        res.status = constants.urlCheckStatuses.notASupportedDocument.code;
+        return res;
+      }
+
+      // Short-circuit for pdfs
+      if (contentType.includes('pdf')) {
+        res.status = constants.urlCheckStatuses.success.code;
+        res.httpStatus = statusCode;
+        res.url = url;
+        res.content = '%PDF-'; // Avoid putting the binary in memory
+        return res;
+      }
+    } catch (e) {
+      consoleLogger.info(`Local file check failed: ${e.message}`);
+      res.status = constants.urlCheckStatuses.systemError.code;
+      return res;
+    }
   }
 
   // Ensure Accept header for non-html content fallback
@@ -325,111 +376,94 @@ const checkUrlConnectivityWithBrowser = async (
   try {
     const page = await browserContext.newPage();
 
-    // STEP 1: HEAD request before actual navigation
-    let statusCode = 0;
-    let contentType = '';
-    let disposition = '';
-
-    const protocol = new URL(url).protocol;
-
-    if (protocol === 'http:' || protocol === 'https:') {
-      try {
-        const headResp = await page.request.fetch(url, {
-          method: 'HEAD',
-          headers: extraHTTPHeaders,
-        });
-
-        statusCode = headResp.status();
-        contentType = headResp.headers()['content-type'] || '';
-        disposition = headResp.headers()['content-disposition'] || '';
-
-        // If it looks like a downloadable file, skip goto entirely
-        if (
-          contentType.includes('pdf') ||
-          contentType.includes('octet-stream') ||
-          disposition.includes('attachment')
-        ) {
-          res.status = statusCode === 401
-            ? constants.urlCheckStatuses.unauthorised.code
-            : constants.urlCheckStatuses.success.code;
-
-          res.httpStatus = statusCode;
-          res.url = url;
-          res.content = '%PDF-'; // Avoid putting the binary in memory
-
-          await browserContext.close();
-          return res;
-        }
-      } catch (e) {
-        consoleLogger.info(`HEAD request failed: ${e.message}`);
-        res.status = constants.urlCheckStatuses.systemError.code;
-        await browserContext.close();
-        return res;
-      }
-    } else {
-      try {
-        const filePath = fileURLToPath(url);
-        const stat = fs.statSync(filePath);
-
-        if (!stat.isFile()) {
-          res.status = constants.urlCheckStatuses.notALocalFile.code;
-          await browserContext.close();
-          return res;
-        }
-
-        statusCode = 200;
-        contentType = mime.getType(filePath) || 'application/octet-stream';
-        disposition = `inline; filename="${path.basename(filePath)}"`;
-
-        // Optionally short-circuit for binaries
-        if (contentType.includes('pdf') || contentType.includes('octet-stream')) {
-          res.status = constants.urlCheckStatuses.success.code;
-          res.httpStatus = statusCode;
-          res.url = url;
-          res.content = '%PDF-'; // Avoid putting the binary in memory
-          await browserContext.close();
-          return res;
-        }
-      } catch (e) {
-        consoleLogger.info(`Local file HEAD emulation failed: ${e.message}`);
-        res.status = constants.urlCheckStatuses.systemError.code;
-        await browserContext.close();
-        return res;
-      }
+    // Block native Chrome download UI
+    try {
+      const cdp = await browserContext.newCDPSession(page as any);
+      await cdp.send('Page.setDownloadBehavior', { behavior: 'deny' });
+    } catch (e) {
+      consoleLogger.info(`Unable to set download deny: ${(e as Error).message}`);
     }
 
-    // STEP 2: Safe to proceed with navigation
+    // STEP 2: Navigate (follows server-side redirects)
+    page.once('download', () => { 
+      res.status = constants.urlCheckStatuses.notASupportedDocument.code;
+      return res;
+    });
+    
     const response = await page.goto(url, {
-      timeout: 30000,
-      waitUntil: 'commit', // Don't wait for full load
+      timeout: 15000,
+      waitUntil: 'domcontentloaded', // enough to get status + allow potential client redirects to kick in
     });
 
-    const finalStatus = statusCode || (response?.status?.() ?? 0);
-    res.status = finalStatus === 401
-      ? constants.urlCheckStatuses.unauthorised.code
-      : constants.urlCheckStatuses.success.code;
+    // Give client-side redirects (meta refresh / JS location.*) a moment
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 8000 });
+    } catch {
+      consoleLogger.info('networkidle not reached; proceeding with verification GET');
+    }
+
+    // STEP 3: Verify final URL with a GET (follows redirects)
+    const finalUrl = page.url();
+    let verifyResp = response;
+    try {
+      verifyResp = await page.request.fetch(finalUrl, {
+        method: 'GET',
+        headers: extraHTTPHeaders,
+      });
+    } catch (e) {
+      consoleLogger.info(`Verification GET failed, falling back to navigation response: ${e.message}`);
+    }
+
+    // Prefer verification GET; fall back to nav response
+    const finalStatus = verifyResp?.status?.() ?? response?.status?.() ?? 0;
+    const headers = (verifyResp?.headers?.() ?? response?.headers?.()) || {};
+    contentType = headers['content-type'] || '';
+
+    if (!isAllowedContentType(contentType)) {
+      res.status = constants.urlCheckStatuses.notASupportedDocument.code;
+      return res;
+    } 
 
     res.httpStatus = finalStatus;
-    res.url = page.url();
+    res.url = finalUrl;
 
-    contentType = response?.headers()?.['content-type'] || '';
+    if (finalStatus === 401) {
+      res.status = constants.urlCheckStatuses.unauthorised.code;
+    } else if (finalStatus >= 200 && finalStatus < 400) {
+      res.status = constants.urlCheckStatuses.success.code;
+    } else if (finalStatus === 405 || finalStatus === 501) {
+      // Some origins 405/501 but the browser-rendered page is still reachable after client redirects.
+      // As a last resort, consider DOM presence as success if we actually have a document.
+      const hasDOM = await page.evaluate(() => !!document && !!document.documentElement);
+      res.status = hasDOM ? constants.urlCheckStatuses.success.code : constants.urlCheckStatuses.systemError.code;
+    } else {
+      res.status = constants.urlCheckStatuses.systemError.code;
+    }
+
+    // Content handling
     if (contentType.includes('pdf') || contentType.includes('octet-stream')) {
-      res.content = ''; // Avoid triggering render/download
+      res.content = '%PDF-'; // avoid binary in memory / download
     } else {
       try {
-        await page.waitForLoadState('networkidle', { timeout: 10000 });
-      } catch {
-        consoleLogger.info('Unable to detect networkidle');
-      }
-
+        // Try to get a stable DOM; don't fail the check if it times out
+        await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
+      } catch {}
       res.content = await page.content();
     }
 
   } catch (error) {
     if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
       res.status = constants.urlCheckStatuses.unauthorised.code;
+    } else if (error.message.includes('net::ERR_NAME_NOT_RESOLVED')) {
+      res.status = constants.urlCheckStatuses.cannotBeResolved.code;
+    } else if (error.message.includes('net::ERR_CONNECTION_REFUSED')) {
+      res.status = constants.urlCheckStatuses.connectionRefused.code;
+    } else if (error.message.includes('net::ERR_TIMED_OUT')) {
+      res.status = constants.urlCheckStatuses.timedOut.code;
+    } else if (error.message.includes('net::ERR_SSL_PROTOCOL_ERROR')) {
+      res.status = constants.urlCheckStatuses.sslProtocolError.code;
     } else {
-      console.log(error);
+      consoleLogger.error(error);
       res.status = constants.urlCheckStatuses.systemError.code;
     }
   } finally {
@@ -438,6 +472,7 @@ const checkUrlConnectivityWithBrowser = async (
 
   return res;
 };
+
 export const isPdfContent = (content: Buffer | string): boolean => {
   let header: string;
   if (Buffer.isBuffer(content)) {
@@ -488,19 +523,32 @@ export const checkUrl = async (
       extraHTTPHeaders,
   );
 
-  if (
-    res.status === constants.urlCheckStatuses.success.code &&
-    (scanner === ScannerTypes.SITEMAP || scanner === ScannerTypes.LOCALFILE)
-  ) {
-    const isSitemap = isSitemapContent(res.content);
+  // If response is 200 (meaning no other code was set earlier)
+  if (res.status === constants.urlCheckStatuses.success.code) {
+
+    // Check if document is pdf type
     const isPdf = isPdfContent(res.content);
 
-    if (scanner === ScannerTypes.LOCALFILE && fileTypes === FileTypes.PdfOnly && !isPdf) {
+    // Check if only HTML document is allowed to be scanned
+    if (fileTypes === FileTypes.HtmlOnly && isPdf) {
+      res.status = constants.urlCheckStatuses.notASupportedDocument.code;
+    
+    // Check if only PDF document is allowed to be scanned
+    } else if (fileTypes === FileTypes.PdfOnly && !isPdf) {
       res.status = constants.urlCheckStatuses.notAPdf.code;
-    } else if (scanner === ScannerTypes.LOCALFILE && !isSitemap && !isPdf) {
-      res.status = constants.urlCheckStatuses.notALocalFile.code;
+
+    // Check if sitemap is expected
+    } else if (scanner === ScannerTypes.SITEMAP) {
+      const isSitemap = isSitemapContent(res.content);
+
+      if (!isSitemap) {
+        res.status = constants.urlCheckStatuses.notASitemap.code;
+      }
     }
+
+    // else proceed as normal
   }
+  
   return res;
 };
 

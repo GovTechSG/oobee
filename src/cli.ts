@@ -240,90 +240,21 @@ const scanInit = async (argvs: Answers): Promise<string> => {
 
   if (res.httpStatus) consoleLogger.info(`Connectivity Check HTTP Response Code: ${res.httpStatus}`);
 
-  switch (res.status) {
-    case statuses.success.code: {
-      data.url = res.url;
-      if (process.env.OOBEE_VALIDATE_URL) {
-        console.log('Url is valid');
-        cleanUpAndExit(0, data.randomToken);
-      }
-
-      break;
-    }
-    case statuses.unauthorised.code: {
-      printMessage([statuses.unauthorised.message], messageOptions);
-      consoleLogger.info(statuses.unauthorised.message);
-      cleanUpAndExit(res.status);
+  if (res.status === statuses.success.code) {
+    data.url = res.url;
+    if (process.env.OOBEE_VALIDATE_URL) {
+      consoleLogger.info('Url is valid');
+      cleanUpAndExit(0, data.randomToken);
       return;
     }
-    case statuses.cannotBeResolved.code: {
-      printMessage([statuses.cannotBeResolved.message], messageOptions);
-      consoleLogger.info(statuses.cannotBeResolved.message);
-      cleanUpAndExit(res.status);
-      return;
-    }
-    case statuses.systemError.code: {
-      printMessage([statuses.systemError.message], messageOptions);
-      consoleLogger.info(statuses.systemError.message);
-      cleanUpAndExit(res.status);
-      return;
-    }
-    case statuses.invalidUrl.code: {
-      if (
-        updatedArgvs.scanner !== ScannerTypes.SITEMAP &&
-        updatedArgvs.scanner !== ScannerTypes.LOCALFILE
-      ) {
-        printMessage([statuses.invalidUrl.message], messageOptions);
-        consoleLogger.info(statuses.invalidUrl.message);
-        cleanUpAndExit(res.status);
-      }
-
-      const finalFilePath = getFileSitemap(updatedArgvs.url);
-      if (finalFilePath) {
-        data.isLocalFileScan = true;
-        data.url = finalFilePath;
-
-        if (process.env.OOBEE_VALIDATE_URL) {
-          console.log('Url is valid');
-          cleanUpAndExit(0);
-        }
-      } else if (updatedArgvs.scanner === ScannerTypes.LOCALFILE) {
-        printMessage([statuses.notALocalFile.message], messageOptions);
-        consoleLogger.info(statuses.notALocalFile.message);
-        cleanUpAndExit(statuses.notALocalFile.code);
-      } else if (updatedArgvs.scanner !== ScannerTypes.SITEMAP) {
-        printMessage([statuses.notASitemap.message], messageOptions);
-        consoleLogger.info(statuses.notASitemap.message);
-        cleanUpAndExit(statuses.notASitemap.code);
-      }
-      return;
-    }
-    case statuses.notASitemap.code: {
-      printMessage([statuses.notASitemap.message], messageOptions);
-      consoleLogger.info(statuses.notASitemap.message);
-      cleanUpAndExit(res.status);
-      return;
-    }
-    case statuses.notALocalFile.code: {
-      printMessage([statuses.notALocalFile.message], messageOptions);
-      consoleLogger.info(statuses.notALocalFile.message);
-      cleanUpAndExit(res.status);
-      return;
-    }
-    case statuses.notAPdf.code: {
-      printMessage([statuses.notAPdf.message], messageOptions);
-      consoleLogger.info(statuses.notAPdf.message);
-      cleanUpAndExit(res.status);
-      return;
-    }
-    case statuses.browserError.code: {
-      printMessage([statuses.browserError.message], messageOptions);
-      consoleLogger.info(statuses.browserError.message);
-      cleanUpAndExit(res.status);
-      return;
-    }
-    default:
-      return;
+    // fall through (continue normal flow after success)
+  } else {
+    const match = Object.values(statuses).find((s: any) => s.code === res.status);
+    const msg = match && 'message' in match ? match.message : 'Unknown error';
+    printMessage([msg], messageOptions);
+    consoleLogger.info(msg);
+    cleanUpAndExit(res.status);
+    return;
   }
 
   if (process.env.OOBEE_VERBOSE) {

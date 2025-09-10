@@ -562,6 +562,26 @@ For details on which accessibility scan results triggers a "Must Fix" / "Good to
 
 Please refer to the information below to assist in debugging. Most errors below are due to the switching between Node.js versions.
 
+### URL Validation Errors
+The following URL and file validation error codes are provided to troubleshoot the scan.
+
+| Code | Error Name           | Error Message                                                                 | Troubleshooting Steps |
+|------|----------------------|-------------------------------------------------------------------------------|------------------------|
+| 0    | success              | (undefined)                                                                     | No action needed. Connection successful. |
+| 11   | invalidUrl           | Invalid URL or URL is not using http or https.                                | • Ensure the URL starts with `http://` or `https://`.<br>• Check for typos in the URL. |
+| 12   | cannotBeResolved     | Provided URL cannot be accessed. Please verify whether the domain exists.     | • Confirm the domain name is correct.<br>• Check DNS resolution with `ping` or `nslookup`.<br>• Ensure the site is publicly accessible (not behind VPN/firewall). |
+| 14   | systemError          | Something went wrong when verifying the URL. Please try again later.          | • Retry after a few minutes.<br>• Check internet connection.<br>• If persistent, report as a system issue. |
+| 15   | notASitemap          | Provided URL is not a sitemap.                                                | • Ensure the URL points to a valid XML sitemap.<br>• Test the URL in a browser to confirm it returns XML. |
+| 16   | unauthorised         | Provided URL needs basic authorisation.                                       | • Check if the site requires username/password.<br>• Provide credentials in Oobee if supported. |
+| 17   | browserError         | No browser available to run scans. Please ensure you have Chrome or Edge (for Windows only) installed. | • Install the latest version of Chrome or Edge.|
+| 18   | sslProtocolError     | SSL protocol error encountered. Please check the SSL configuration of your website. | • Verify SSL certificate validity (not expired, issued by trusted CA).<br>• Check for mismatched TLS versions or cipher issues.<br>• Use an SSL checker tool (e.g., Qualys SSL Labs). |
+| 19   | notALocalFile        | Provided file is not a local HTML, PDF, XML or TXT document.                  | • Verify the file format.<br>• Ensure you are selecting `.html`, `.pdf`, `.xml`, or `.txt`. |
+| 20   | notAPdf              | Provided URL or file is not a PDF file.                                       | • Ensure the file ends with `.pdf`.<br>• Open the file manually to confirm it is a valid PDF. |
+| 21   | notASupportedDocument| Provided URL or file is not a HTML, PDF, XML or TXT document.                 | • Confirm file format.<br>• Convert to a supported type if necessary. |
+| 22   | connectionRefused    | Connection refused. Please try again later.                                   | • Check if the server is running.<br>• Verify firewall settings.<br>• Retry after a short interval. |
+| 23   | timedOut             | Request timed out. Please try again later.                                    | • Check your internet speed and stability.<br>• Retry when the server load is lower. |
+
+
 ### Incompatible Node.js versions
 
 **Issue**: When your Node.js version is incompatible, you may face the following syntax error.
