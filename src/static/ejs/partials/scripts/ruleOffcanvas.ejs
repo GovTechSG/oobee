@@ -115,7 +115,7 @@ category summary is clicked %>
 
       Object.keys(filteredItems).forEach(category => {
         const ruleInCategory = filteredItems[category]?.rules?.find(r => r.rule === selectedRule.rule);
-        
+
         if (ruleInCategory !== undefined && category !== 'passed') {
           if (category !== 'passed') {
             availableFixCategories.push(category);
@@ -362,6 +362,129 @@ category summary is clicked %>
       });
     }
 
+    const VIEW_TYPES = {
+      PAGE: 'page',
+      HTML: 'html'
+    };
+
+    function createAccordionElement(config) {
+      const {
+        accordionId,
+        category,
+        index,
+        title,
+        count,
+        ariaLabel,
+        normalMode = true,
+        isCustomFlow = false,
+        url = '',
+        pageImagePath = '',
+        pageTitle = ''
+      } = config;
+
+      return createElementFromString(`
+        <li class="${normalMode ? '' : 'no-chevron'}">
+          <div class="accordion mt-2 ${category}">
+            <div class="accordion-item">
+              <div class="accordion-header" id="${accordionId}-title">
+                ${normalMode ? '<button' : '<div'}
+                  aria-label="${ariaLabel}" 
+                  class="accordion-button collapsed"
+                  ${normalMode ? 'type="button"' : ''}
+                >
+                  <span class="sr-only visually-hidden">${count} ${count === 1 ? 'occurrence' : 'occurrences'}</span>
+                  <div class="me-3">${title}</div>
+                  <div class="ms-auto counter">${count}</div>
+                ${normalMode ? '</button>' : '</div>'}
+              </div>
+              <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
+                <div class="accordion-body p-3">
+                  ${isCustomFlow ? `
+                    <div class="custom-flow-screenshot-container">
+                      <img alt="Screenshot of ${url}" src="${pageImagePath}" class="custom-flow-screenshot"/>
+                      <div><a href="${url}" target="_blank">${url}</a></div>
+                    </div>
+                  ` : (url ? `<a href="${url}" target="_blank">${url}</a>` : '')}
+                  <div class="page-accordion-content-title">
+                    <span>${getFormattedCategoryTitle(category)} elements</span>
+                    <span class="page-items-count">${count}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+      `);
+    }
+
+    function setupAccordionEventListeners(accordion, accordionId, category, ruleInCategory, data, index, viewType) {
+      const button = accordion.querySelector('button');
+      if (!button) return;
+
+      button.addEventListener('click', function(event) {
+        const accordionBody = accordion.querySelector(".accordion-body");
+        
+        if (!accordionBody.querySelector(".unbulleted-list")) {
+          if (viewType === VIEW_TYPES.PAGE) {
+            buildExpandedRuleCategoryContentAccordian(accordionId, category, ruleInCategory, data, index);
+          } else if (viewType === VIEW_TYPES.HTML) {
+            buildHtmlExpandedRuleCategoryContentAccordian(accordionId, category, ruleInCategory, data, index);
+          }
+
+          this.setAttribute('data-bs-target', '#' + accordionId + "-content");
+          this.removeEventListener('click', arguments.callee);
+          this.click();
+        }
+      });
+
+      button.addEventListener('click', function(event) {
+        this.setAttribute('data-bs-toggle', 'collapse');
+        this.setAttribute('data-bs-target', '#' + accordionId + "-content");
+        this.setAttribute('aria-expanded', 'false');
+        this.setAttribute('aria-controls', accordionId + "-content");
+
+        const collapse = new bootstrap.Collapse(this, { toggle: false });
+        this.removeEventListener('click', arguments.callee);
+        
+        setTimeout(() => {
+          this.click();
+        }, 0);
+      });
+    }
+
+    function createViewHeader(viewType, count, toggleText) {
+      const titles = {
+        [VIEW_TYPES.PAGE]: `Pages with this issue (${count})`,
+        [VIEW_TYPES.HTML]: `HTML elements with this issue (${count})`
+      };
+
+      return createElementFromString(`
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h4 id="issue-${viewType}-count" class="mb-0">
+            ${titles[viewType]}
+          </h4>
+          <button id="toggle-view-btn" class="btn btn-sm btn-outline-primary">
+            ${toggleText}
+          </button>
+        </div>
+      `);
+    }
+
+    function setupToggleButton(toggleBtn, category, ruleInCategory, currentViewType) {
+      let isCurrentlyHtml = currentViewType === VIEW_TYPES.HTML;
+      
+      toggleBtn.addEventListener('click', () => {
+        isCurrentlyHtml = !isCurrentlyHtml;
+        if (isCurrentlyHtml) {
+          toggleBtn.textContent = 'Group by URL';
+          renderHtmlAffected(category, ruleInCategory);
+        } else {
+          toggleBtn.textContent = 'Group by HTML';
+          buildExpandedRuleCategoryContent(category, ruleInCategory);
+        }
+      });
+    }
+
     function buildExpandedRuleCategoryContent(category, ruleInCategory) {
       const contentContainer = document.getElementById('expandedRuleCategoryContent');
       const isCustomFlow = <%- isCustomFlow -%>;
@@ -371,51 +494,147 @@ category summary is clicked %>
         return;
       }
 
-      const contentTitle = createElementFromString(`
-        <h4 id="issue-page-count" class="mb-4">
-          Pages with this issue (${ruleInCategory.pagesAffected.length})
-        </h4>`);
-
+      const contentTitle = createViewHeader(VIEW_TYPES.PAGE, ruleInCategory.pagesAffected.length, 'Group by HTML');
       const accordionsList = createElementFromString(`<ul class="unbulleted-list"></ul>`);
 
       ruleInCategory.pagesAffected.forEach((page, index) => {
         const accordionId = `${ruleInCategory.rule}-${category}-page-${index}`;
+        const pageItemsCount = page.items.length || page.itemsCount || 0;
+        const normalMode = page.itemsCount === undefined;
+        
+        const accordionConfig = {
+          accordionId,
+          category,
+          index,
+          title: page.metadata ? page.metadata : page.pageTitle,
+          count: pageItemsCount,
+          ariaLabel: `Page ${index + 1}: ${page.pageTitle}, ${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}`,
+          normalMode,
+          isCustomFlow,
+          url: page.url,
+          pageImagePath: page.pageImagePath,
+          pageTitle: page.pageTitle
+        };
+
+        const accordion = createAccordionElement(accordionConfig);
+        
+        if (normalMode) {
+          setupAccordionEventListeners(accordion, accordionId, category, ruleInCategory, page, index, VIEW_TYPES.PAGE);
+        }
+
+        if (isCustomFlow) {
+          const customScreenshotElem = accordion.getElementsByClassName(`custom-flow-screenshot`)[0];
+          if (customScreenshotElem) {
+            customScreenshotElem.onerror = function(event) {
+              this.onerror = null;
+              this.remove();
+            }
+            customScreenshotElem.onclick = function(event) {
+              event.preventDefault();
+              openLightbox(this.src, page.pageTitle, page.url);
+            }
+          }
+        }
+
+        accordionsList.appendChild(accordion);
+      });
+
+      contentContainer.replaceChildren(contentTitle, accordionsList);
+      
+      const toggleBtn = contentTitle.querySelector('#toggle-view-btn');
+      setupToggleButton(toggleBtn, category, ruleInCategory, VIEW_TYPES.PAGE);
+
+      hljs.highlightAll();
+    }
+
+    function groupByHtml(pagesAffected) {
+      const htmlAffected = {};
+      const normalizeHtmlKey = (html, xpath) => {
+        const trimmed = (html || '').replace(/\s+/g, ' ').trim();
+        if (trimmed) return trimmed;
+        if (xpath) return `__XPATH__:${xpath}`;
+        return '__NO_HTML__';
+      };
+
+      pagesAffected.forEach(page => {
+        page.items.forEach(item => {
+          const key = normalizeHtmlKey(item.html, item.xpath);
+          if (!htmlAffected[key]) {
+            htmlAffected[key] = {
+              html: item.html || '',
+              message: item.message,
+              xpaths: [],
+              totalOccurrences: 0,
+              pages: []
+            };
+          }
+          const entry = htmlAffected[key];
+          entry.totalOccurrences++;
+          if (item.xpath && !entry.xpaths.includes(item.xpath)) {
+            entry.xpaths.push(item.xpath);
+          }
+          entry.pages.push({
+            url: page.url,
+            pageTitle: page.pageTitle,
+            item
+          });
+        });
+      });
+
+      return Object.values(htmlAffected);
+    }
+
+
+    function renderHtmlAffected(category, ruleInCategory) {
+      const contentContainer = document.getElementById('expandedRuleCategoryContent');
+      const htmlAffected = groupByHtml(ruleInCategory.pagesAffected);
+      const isCustomFlow = <%- isCustomFlow -%>;
+
+      const contentTitle = createElementFromString(`
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h4 id="issue-page-count" class="mb-0">
+            HTML elements with this issue (${htmlAffected.length})
+          </h4>
+          <button id="toggle-view-btn" class="btn btn-sm btn-outline-primary">
+            Group by URL
+          </button>
+        </div>
+      `);
+
+      const list = createElementFromString(`<ul class="unbulleted-list"></ul>`);
+
+      console.log(htmlAffected);
+      htmlAffected.forEach((entry, index) => {
+        const accordionId = `${ruleInCategory.rule}-${category}-html-${index}`;
         var accordionAIId = `${ruleInCategory.rule}-${category}-accordion-AI-${index}`;
         var buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-${index}`;
         var errorAIId = `${ruleInCategory.rule}-${category}-error-AI-${index}`;
 
-        const pageItemsCount = page.items.length || page.itemsCount || 0;
-        const normalMode = page.itemsCount === undefined;
+        const entryItemsCount = entry.pages.length || entry.totalOccurrences || 0;
+        const normalMode = entry.itemsCount === undefined;
         const accordion = createElementFromString(`
           <li class="${normalMode ? '' : 'no-chevron'}">
             <div class="accordion mt-2 ${category}">
               <div class="accordion-item">
                 <div class="accordion-header" id="${accordionId}-title">
                   ${normalMode ? '<button' : '<div'}
-                    aria-label="Page ${index + 1}: ${page.pageTitle}, ${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}" class="accordion-button collapsed"
-                    ${normalMode ? 'type="button"' : ''}
-
-                  >
-                    <span class="sr-only visually-hidden">${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}</span>
-                    <div class="me-3">${page.metadata ? page.metadata : page.pageTitle}</div>
-                    <div class="ms-auto counter">${pageItemsCount}</div>
+                    aria-label="HTML ${index + 1}: ${htmlEscapeString(entry.html)}, ${entryItemsCount} ${entryItemsCount === 1 ? 'occurrence' : 'occurrences'}" class="accordion-button collapsed"
+                    ${normalMode ? 'type="button"' : ''}>
+                    <span class="sr-only visually-hidden">${entryItemsCount} ${entryItemsCount === 1 ? 'occurrence' : 'occurrences'}</span>
+                    <div class="me-3">${htmlEscapeString(entry.html) || '(no html)'}</div>
+                    <div class="ms-auto counter">${entryItemsCount}</div>
                   ${normalMode ? '</button>' : '</div>'}
                 </div>
                 <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
                   <div class="accordion-body p-3">
-                    ${ isCustomFlow
-                      ?
-                      `
-                        <div class="custom-flow-screenshot-container">
-                          <img alt="Screenshot of ${page.url}" src="${page.pageImagePath}" class="custom-flow-screenshot"/>
-                          <div><a href="${page.url}" target="_blank">${page.url}</a></div>
-                        </div>
-                      `
-                      : `<a href="${page.url}" target="_blank">${page.url}</a>`
-                    }
+                    <pre class="page-item-card-section-content">
+                          <code class="language-html">
+                            ${htmlEscapeString(entry.html)}
+                          </code>
+                        </pre>
                     <div class="page-accordion-content-title">
                       <span>${getFormattedCategoryTitle(category)} elements</span>
-                      <span class="page-items-count">${pageItemsCount}</span>
+                      <span class="page-items-count">${entryItemsCount}</span>
                     </div>
                   </div>
                 </div>
@@ -427,17 +646,17 @@ category summary is clicked %>
         if (normalMode) {
           accordion.querySelector('button').addEventListener('click', function(event) {
             var accordionBody = accordion.querySelector(".accordion-body");
-  
+
             // So that It does not keep adding
             if (!accordionBody.querySelector(".unbulleted-list"))
             {
-              buildExpandedRuleCategoryContentAccordian(accordionId,category,ruleInCategory,page,index);
-  
+              buildHtmlExpandedRuleCategoryContentAccordian(accordionId,category,ruleInCategory,entry.pages,index);
+
               this.setAttribute('data-bs-target', '#' + accordionId+"-content");
-  
+
               // Remove the event listener temporarily
               this.removeEventListener('click', arguments.callee);
-  
+
               // Programmatically trigger a click on the button to open the accordion
               this.click();
             }
@@ -449,20 +668,20 @@ category summary is clicked %>
             this.setAttribute('data-bs-target', '#' + accordionId + "-content");
             this.setAttribute('aria-expanded', 'false');
             this.setAttribute('aria-controls', accordionId + "-content");
-  
+
             // Initialize  the Collapse plugin on the button element
             var collapse = new bootstrap.Collapse(this, {
               toggle: false // Set to true if you want to toggle the collapsed state on initialization
             });
-  
+
             // Remove the event listener temporarily
             this.removeEventListener('click', arguments.callee);
-  
+
             // Programmatically trigger a click on the button to open the accordion
             setTimeout(() => { // Delaying to ensure the content is added before triggering the click
                 this.click();
             }, 0);
-  
+
           })
         }
 
@@ -478,13 +697,20 @@ category summary is clicked %>
           }
         }
 
-        accordionsList.appendChild(accordion);
+        list.appendChild(accordion);
         return accordion;
       });
-      contentContainer.replaceChildren(contentTitle, accordionsList);
+
+      contentContainer.replaceChildren(contentTitle, list);
+
+      const toggleBtn = contentTitle.querySelector('#toggle-view-btn');
+      toggleBtn.addEventListener('click', () => {
+        buildExpandedRuleCategoryContent(category, ruleInCategory);
+      });
 
       hljs.highlightAll();
     }
+
 
     function generateItemMessageElement(displayNeedsReview, rawMessage) {
       if (rawMessage.includes('\n\nFix')) {
@@ -699,6 +925,181 @@ category summary is clicked %>
           });
           hljs.highlightAll();
         });
+
+        accordionBody.appendChild(elementCardsList);
+
+    }
+
+    function buildHtmlExpandedRuleCategoryContentAccordian(accordionId,category,ruleInCategory,entry,index)
+    {
+      var accordionAIId = `${ruleInCategory.rule}-${category}-accordion-AI-${index}`;
+      var buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-${index}`;
+      var errorAIId = `${ruleInCategory.rule}-${category}-error-AI-${index}`;
+      let accordion = document.getElementById(`${accordionId}-title`).parentElement.parentElement.parentElement
+
+
+      const accordionBody = accordion.getElementsByClassName('accordion-body')[0];
+      const elementCardsList = createElementFromString('<ul class="unbulleted-list"></ul>');
+      console.log("entry", entry);
+
+      entry.forEach(async (element, index) => {
+        const item = element.item;
+        const accordionDivToAppendAI = `${accordionAIId}-${index}`;
+        const buttonDivForAiFeedback = `${buttonAIId}-${index}`;
+        const aiErrorDiv = `${errorAIId}-${index}`;
+        let itemCard;
+        const isPurpleAiRule = oobeeAiRules.includes(ruleInCategory.rule);
+        let oobeeAiQueryLabel;
+        if (isPurpleAiRule) {
+          oobeeAiQueryLabel = await checkPurpleAiQueryLabel(ruleInCategory.rule, item.html);
+        }
+
+        itemCard = createElementFromString(`
+          <li>
+            <div class="card mt-3">
+              ${item.displayNeedsReview ? `<div class="needsReview">This occurrence might be a false positive that needs to be verified by a human.</div>` : ``}
+              <div class="p-3">
+                ${item.screenshotPath
+                  ?
+                `
+                <div class="hide-on-img-error">
+                  <div class="d-flex justify-content-between g-one">
+                    <div class="fw-bold">Screenshot</div>
+                    <div class="page-item-card-section-content bg-grey-w-border">
+                      <img
+                        src=${item.screenshotPath}
+                        onerror="this.onerror = null; this.closest('div.hide-on-img-error').remove();"
+                        alt="Screenshot of affected element" />
+                    </div>
+                  </div>
+                  <hr/>
+                </div>
+                `
+                  : ``
+                }
+                ${ item.xpath
+                  ?
+                  `
+                  <div class="d-flex justify-content-between g-one">
+                    <div class="fw-bold">Path</div>
+                    <div class="page-item-card-section-content">
+                        <div class="g-one path-container">
+                          ${item.xpath}
+                          <button
+                            aria-label="Copy path to clipboard"
+                            class="copy-button"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-original-title="Copy"
+                          >
+                            <svg class="copy-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M14.2188 2.5H7.65625C7.15897 2.5 6.68206 2.69754 6.33042 3.04917C5.97879 3.40081 5.78125 3.87772 5.78125 4.375C5.28397 4.375 4.80706 4.57254 4.45542 4.92417C4.10379 5.27581 3.90625 5.75272 3.90625 6.25V15.625C3.90625 16.1223 4.10379 16.5992 4.45542 16.9508C4.80706 17.3025 5.28397 17.5 5.78125 17.5H12.3438C12.841 17.5 13.3179 17.3025 13.6696 16.9508C14.0212 16.5992 14.2188 16.1223 14.2188 15.625C14.716 15.625 15.1929 15.4275 15.5446 15.0758C15.8962 14.7242 16.0938 14.2473 16.0938 13.75V4.375C16.0938 3.87772 15.8962 3.40081 15.5446 3.04917C15.1929 2.69754 14.716 2.5 14.2188 2.5ZM14.2188 14.6875V6.25C14.2188 5.75272 14.0212 5.27581 13.6696 4.92417C13.3179 4.57254 12.841 4.375 12.3438 4.375H6.71875C6.71875 4.12636 6.81752 3.8879 6.99334 3.71209C7.16915 3.53627 7.40761 3.4375 7.65625 3.4375H14.2188C14.4674 3.4375 14.7058 3.53627 14.8817 3.71209C15.0575 3.8879 15.1562 4.12636 15.1562 4.375V13.75C15.1562 13.9986 15.0575 14.2371 14.8817 14.4129C14.7058 14.5887 14.4674 14.6875 14.2188 14.6875ZM4.84375 6.25C4.84375 6.00136 4.94252 5.7629 5.11834 5.58709C5.29415 5.41127 5.53261 5.3125 5.78125 5.3125H12.3438C12.5924 5.3125 12.8308 5.41127 13.0067 5.58709C13.1825 5.7629 13.2812 6.00136 13.2812 6.25V15.625C13.2812 15.8736 13.1825 16.1121 13.0067 16.2879C12.8308 16.4637 12.5924 16.5625 12.3438 16.5625H5.78125C5.53261 16.5625 5.29415 16.4637 5.11834 16.2879C4.94252 16.1121 4.84375 15.8736 4.84375 15.625V6.25Z" fill="#26241b"/>
+                            </svg>
+                          </button>
+                        </div>
+                    </div>
+                  </div>
+                  <hr/>
+                  `
+                  :``
+                }
+                <div class="d-flex justify-content-between g-one">
+                  ${
+                    item.html
+                      ? `
+                      <div class="fw-bold">URL</div>
+                      <div class="page-item-card-section-content">
+                        <a href="${element.url}" target="_blank">${element.url}</a>
+                      </div>`
+                      : `
+                      <div class="fw-bold">Location</div>
+                      <div class="page-item-card-section-content">
+                          ${item.page > 0 ? `Page ${item.page}` : 'Document'}
+                      </div>`
+                  }
+                </div>
+                <hr />
+                <div class="d-flex justify-content-between g-one">
+                  <div class="fw-bold page-item-card-section-title">${
+                    item.displayNeedsReview ? 'Details' : 'How to fix'
+                  }</div>
+                  <div class="page-item-card-section-content">
+                    ${generateItemMessageElement(item.displayNeedsReview, item.message)}
+                  </div>
+                </div>
+                ${isPurpleAiRule ? `
+                <hr />
+                <div class="d-flex g-one">
+                  <div class="fw-bold page-item-card-section-title">AI suggestion</div>
+                  <div id="${accordionDivToAppendAI}" class="page-item-card-section-content">
+                    ${oobeeAiQueryLabel.hasNetworkError ?
+                      `<button
+                        id=${buttonDivForAiFeedback}
+                        class="aiGenerateResponseButton"
+                        onClick="handleOfflinePurpleAi(
+                          '${ruleInCategory.rule}',
+                          '${accordionDivToAppendAI}',
+                          '${escapeHtmlStringForArg(item.html)}',
+                          '${buttonDivForAiFeedback}',
+                          '${aiErrorDiv}')"
+                        >
+                          Generate response
+                        </button>
+                        <div id=${aiErrorDiv}></div>` :
+                        (oobeeAiQueryLabel.label ?
+                          `<button
+                          id=${buttonDivForAiFeedback}
+                          class="aiGenerateResponseButton"
+                          onClick="getPurpleAiAnswer(
+                            '${ruleInCategory.rule}',
+                            '${accordionDivToAppendAI}',
+                            '${oobeeAiQueryLabel.label}',
+                            '${buttonDivForAiFeedback}',
+                            '${aiErrorDiv}')"
+                          >
+                            Generate response
+                          </button>
+                          <div id=${aiErrorDiv}></div>` :
+                          `<span class="processAI">
+                            Processing AI suggestions, please check back later.
+                          </span>`
+                        )
+                      }
+                  </div>
+                </div>` : ``
+                }
+              </div>
+            </div>
+          <li>
+        `);
+        elementCardsList.appendChild(itemCard);
+
+        const copyButtonElem = itemCard.getElementsByClassName('copy-button')[0];
+        const copyTooltipItem = new bootstrap.Tooltip(copyButtonElem);
+        const textToCopy = createElementFromString(`<textarea>${item.xpath}</textarea>`)
+        copyButtonElem.onclick = event => {
+          textToCopy.select();
+          // Copy the text inside the text field
+          navigator.clipboard.writeText(textToCopy.value);
+
+          copyButtonElem.setAttribute('data-bs-original-title', 'Copied');
+          copyTooltipItem.update();
+          copyTooltipItem.show();
+
+          setTimeout(() => {
+            copyButtonElem.setAttribute('data-bs-original-title', 'Copy');
+            copyTooltipItem.update();
+          }, 1500)
+        };
+        copyButtonElem.onmousedown = event => {
+          event.preventDefault();
+        }
+
+        hljs.configure({
+          ignoreUnescapedHTML: true
+        });
+        hljs.highlightAll();
+      });
 
         accordionBody.appendChild(elementCardsList);
 
