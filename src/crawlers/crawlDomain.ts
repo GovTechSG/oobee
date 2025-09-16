@@ -485,6 +485,9 @@ const crawlDomain = async ({
         // handle pdfs
         if (shouldSkipDueToUnsupportedContent(response, request.url) || (request.skipNavigation && actualUrl === 'about:blank')) {
           if (!isScanPdfs) {
+
+            // Don't inform the user it is skipped since web crawler is best-effort.
+            /*
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
@@ -496,6 +499,7 @@ const crawlDomain = async ({
               metadata: STATUS_CODE_METADATA[1],
               httpStatusCode: 0,
             });
+            */
 
             return;
           }
@@ -512,6 +516,9 @@ const crawlDomain = async ({
         }
 
         if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
+
+          // Don't inform the user it is skipped since web crawler is best-effort.
+          /*
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
@@ -523,7 +530,7 @@ const crawlDomain = async ({
             metadata: STATUS_CODE_METADATA[1],
             httpStatusCode: 0,
           });
-
+          */
           return;
         }
 
@@ -632,6 +639,9 @@ const crawlDomain = async ({
             }
           }
         } else {
+
+          // Don't inform the user it is skipped since web crawler is best-effort.
+          /*
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
@@ -643,6 +653,7 @@ const crawlDomain = async ({
             metadata: STATUS_CODE_METADATA[1],
             httpStatusCode: 0,
           });
+          */
         }
 
         if (followRobots) await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory, extraHTTPHeaders);
