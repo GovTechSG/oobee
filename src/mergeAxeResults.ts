@@ -970,7 +970,7 @@ const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filena
     ? userDataDirectory
     : '';
   const context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
-        headless: process.env.CRAWLEE_HEADLESS === '1',
+        headless: true,
         ...getPlaywrightLaunchOptions(browser),
       });
 

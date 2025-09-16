@@ -361,6 +361,7 @@ const checkUrlConnectivityWithBrowser = async (
     browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
       ...(extraHTTPHeaders && { extraHTTPHeaders }),
       ignoreHTTPSErrors: true,
+      headless: true,
       ...getPlaywrightLaunchOptions(browserToRun),
       ...playwrightDeviceDetailsObject,
       ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
@@ -1441,26 +1442,28 @@ export const cloneChromeProfiles = (randomToken: string): string => {
   destDir = path.join(baseDir, `oobee-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
-      deleteClonedChromeProfiles(randomToken);
+    // Don't delete since it will be handled at the end of the scan  
+    // deleteClonedChromeProfiles(randomToken);
+    // Assume it cloned and don't re-clone
+  } else {
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+
+    const baseOptions = {
+      cwd: baseDir,
+      recursive: true,
+      absolute: true,
+      nodir: true,
+    };
+    const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
+    if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
+      return destDir;
+    }
+
+    consoleLogger.error('Failed to clone Chrome profiles. You may be logged out of your accounts.');
+
   }
-
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
-  }
-
-  const baseOptions = {
-    cwd: baseDir,
-    recursive: true,
-    absolute: true,
-    nodir: true,
-  };
-  const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
-  if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
-    return destDir;
-  }
-
-  consoleLogger.error('Failed to clone Chrome profiles. You may be logged out of your accounts.');
-
   // For future reference, return a null instead to halt the scan
   return destDir;
 };
@@ -1477,10 +1480,11 @@ export const cloneChromiumProfiles = (randomToken: string): string => {
   destDir = path.join(baseDir, `oobee-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
-      deleteClonedChromiumProfiles(randomToken);
-  }
-
-  if (!fs.existsSync(destDir)) {
+     
+    // Don't delete since it will be handled at the end of the scan  
+    // deleteClonedChromiumProfiles(randomToken);
+    // Assume it cloned and don't re-clone
+  } else {
     fs.mkdirSync(destDir, { recursive: true });
   }
 
@@ -1507,26 +1511,31 @@ export const cloneEdgeProfiles = (randomToken: string): string => {
   destDir = path.join(baseDir, `oobee-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
-      deleteClonedEdgeProfiles(randomToken);
+
+    // Don't delete since it will be handled at the end of the scan  
+    // deleteClonedEdgeProfiles(randomToken);
+    // Assume it cloned and don't re-clone
+
+  } else {
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+
+    const baseOptions = {
+      cwd: baseDir,
+      recursive: true,
+      absolute: true,
+      nodir: true,
+    };
+
+    const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
+    if (cloneEdgeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
+      return destDir;
+    }
+
+    consoleLogger.error('Failed to clone Edge profiles. You may be logged out of your accounts.');
+
   }
-
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
-  }
-
-  const baseOptions = {
-    cwd: baseDir,
-    recursive: true,
-    absolute: true,
-    nodir: true,
-  };
-
-  const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
-  if (cloneEdgeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
-    return destDir;
-  }
-
-  consoleLogger.error('Failed to clone Edge profiles. You may be logged out of your accounts.');
 
   // For future reference, return a null instead to halt the scan
   return destDir;
