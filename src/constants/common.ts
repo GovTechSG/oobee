@@ -195,8 +195,9 @@ export const isSelectorValid = (selector: string): boolean => {
   return true;
 };
 
-// Refer to NPM validator's special characters under sanitizers for escape()
-const blackListCharacters = '\\<>&\'"';
+// Don't sanitise for now as we have changed the logic for URL validation / local file scan
+// Only use this when we find characters to validate against
+const blackListCharacters = '';
 
 export const validateXML = (content: string): { isValid: boolean; parsedContent: string } => {
   let isValid: boolean;
@@ -279,7 +280,7 @@ export const isInputValid = (inputString: string): boolean => {
 export const sanitizeUrlInput = (url: string): { isValid: boolean; url: string } => {
   // Sanitize that there is no blacklist characters
   const sanitizeUrl = validator.blacklist(url, blackListCharacters);
-  if (validator.isURL(sanitizeUrl, urlOptions)) {
+  if (url.toLowerCase().startsWith('file://') || validator.isURL(sanitizeUrl, urlOptions)) {
     return { isValid: true, url: sanitizeUrl };
   }
   return { isValid: false, url: sanitizeUrl };
@@ -1978,7 +1979,6 @@ export const isFilePath = (url: string): boolean => {
   const driveLetterPattern = /^[A-Z]:/i;
   const backslashPattern = /\\/;
   return (
-    url.startsWith('file://') ||
     url.startsWith('/') ||
     driveLetterPattern.test(url) ||
     backslashPattern.test(url) ||
