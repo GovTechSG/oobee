@@ -38,10 +38,11 @@ if (process.env.OOBEE_LOGS_PATH) {
 export const errorsTxtPath = path.join(basePath, `${uuid}.txt`);
 
 const consoleLogger = createLogger({
-  silent: !(process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE),
-  format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
-  transports: [
-    new transports.Console({ level: 'info' }),
+  format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), printf(({ timestamp, level, message }) => JSON.stringify({ timestamp: `${timestamp}`, level: `${level}`, message: `${message}` }))), transports: [
+    new transports.Console({
+      level: 'info',
+      silent: !process.env.OOBEE_VERBOSE,
+    }),
     new transports.File({
       filename: errorsTxtPath,
       level: 'info',
@@ -54,36 +55,44 @@ const consoleLogger = createLogger({
 // Also used in common functions to not link internal information
 // if running from mass scanner, log out errors in console
 const silentLogger = createLogger({
-  format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
-  transports: [
-    new transports.File({ 
+  format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), printf(({ timestamp, level, message }) => JSON.stringify({ timestamp: `${timestamp}`, level: `${level}`, message: `${message}` }))), transports: [
+    new transports.File({
       filename: errorsTxtPath,
-      level: 'warn', 
-      handleExceptions: true }),
+      level: 'warn',
+      handleExceptions: true,
+    }),
   ].filter(Boolean),
 });
 
-// guiInfoLogger feeds the gui information via console log and is mainly used for scanning process
+// guiInfoLog feeds the gui information via console log and is mainly used for scanning process
 export const guiInfoLog = (status: string, data: { numScanned?: number; urlScanned?: string }) => {
-  if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE) {
-    switch (status) {
-      case guiInfoStatusTypes.COMPLETED:
-        console.log('Scan completed');
-        silentLogger.info('Scan completed');
-        break;
-      case guiInfoStatusTypes.SCANNED:
-      case guiInfoStatusTypes.SKIPPED:
-      case guiInfoStatusTypes.ERROR:
-      case guiInfoStatusTypes.DUPLICATE:
-        const msg = `crawling::${data.numScanned || 0}::${status}::${
-            data.urlScanned || 'no url provided'
-          }`;
+
+  switch (status) {
+    case guiInfoStatusTypes.COMPLETED: {
+      const msg = 'Scan completed';
+      silentLogger.info(msg);
+      if (process.env.OOBEE_VERBOSE) {
         console.log(msg);
-        silentLogger.info(msg);
-        break;
-      default:
-        console.log(`Status provided to gui info log not recognized: ${status}`);
-        break;
+      }
+      break;
+    }
+    case guiInfoStatusTypes.SCANNED:
+    case guiInfoStatusTypes.SKIPPED:
+    case guiInfoStatusTypes.ERROR:
+    case guiInfoStatusTypes.DUPLICATE: {
+      const msg = `crawling::${data.numScanned || 0}::${status}::${data.urlScanned || 'no url provided'}`;
+      silentLogger.info(msg);
+      if (process.env.OOBEE_VERBOSE) {
+        console.log(msg);
+      }
+      break;
+    }
+    default: {
+      const msg = `Status provided to gui info log not recognized: ${status}`;
+      if (process.env.OOBEE_VERBOSE) {
+        console.log(msg);
+      }
+      break;
     }
   }
 };
