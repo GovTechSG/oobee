@@ -10,6 +10,7 @@ import constants, {
 import { DEBUG, initNewPage, log } from './custom/utils.js';
 import { guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
+import { addUrlGuardScript } from './guards/urlGuard.js';
 
 // Export of classes
 
@@ -83,6 +84,8 @@ const runCustom = async (
     });
 
     register(context);
+
+    addUrlGuardScript(context, { fallbackUrl: url });
 
     // Detection of new page
     context.on('page', async newPage => {
