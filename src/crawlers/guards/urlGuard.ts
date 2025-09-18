@@ -56,10 +56,10 @@ export function addUrlGuardScript(context, opts = {}) {
       const urlStr = frame.url();
       let urlObj;
       try {
-				urlObj = new URL(urlStr);
-			} catch {
-				return restoreToSafeUrl(page, urlStr);
-			}
+      	urlObj = new URL(urlStr);
+      } catch {
+      	return restoreToSafeUrl(page, urlStr);
+      }
 
       if (ALLOWED_PROTOCOLS.has(urlObj.protocol)) {
         lastAllowedUrlByPage.set(page, urlObj.toString());
