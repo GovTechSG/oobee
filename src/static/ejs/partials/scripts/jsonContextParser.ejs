@@ -1,0 +1,239 @@
+<script>
+  // JSON Context Parser for oobee Gen AI Integration
+  // Extracts specific violation context from oobee scan results (JSON format)
+
+  class OobeeJsonContextParser {
+    constructor() {
+      this.jsonData = null;
+      this.contextCache = new Map();
+    }
+
+    // Initialize parser by loading embedded JSON data
+    async loadScanResults() {
+      try {
+        // Use embedded JSON data (always available)
+        if (window.embeddedScanResults && Array.isArray(window.embeddedScanResults)) {
+          this.jsonData = window.embeddedScanResults;
+          console.log(`✅ Loaded ${this.jsonData.length} violation records from embedded JSON`);
+          return true;
+        }
+
+        console.warn('❌ No embedded scan results found - this should not happen');
+        return false;
+
+      } catch (error) {
+        console.error('Error loading embedded scan results:', error);
+        return false;
+      }
+    }
+
+
+    // Find violation context by XPath selector
+    getViolationContextByXPath(xpath, ruleId = 'color-contrast') {
+      if (!this.jsonData) {
+        console.warn('JSON data not loaded');
+        return null;
+      }
+
+      // Create cache key
+      const cacheKey = `${xpath}-${ruleId}`;
+      if (this.contextCache.has(cacheKey)) {
+        return this.contextCache.get(cacheKey);
+      }
+
+      // Search for matching violation
+      const matches = this.jsonData.filter(record => {
+        return record.issueId === ruleId &&
+               (record.xpath === xpath || this.xpathMatches(record.xpath, xpath));
+      });
+
+      if (matches.length === 0) {
+        console.warn(`No violation found for xpath: ${xpath}, rule: ${ruleId}`);
+        return null;
+      }
+
+      // Use the first match (most specific)
+      const violation = matches[0];
+      const context = this.extractViolationContext(violation);
+
+      // Cache the result
+      this.contextCache.set(cacheKey, context);
+
+      console.log('📋 Found violation context:', context);
+      return context;
+    }
+
+    // Find violation context by HTML content matching
+    getViolationContextByHtml(html, ruleId = 'color-contrast') {
+      if (!this.jsonData) {
+        console.warn('JSON data not loaded');
+        return null;
+      }
+
+      // Create cache key
+      const cacheKey = `${html.substring(0, 50)}-${ruleId}`;
+      if (this.contextCache.has(cacheKey)) {
+        return this.contextCache.get(cacheKey);
+      }
+
+      // Search for matching violation by HTML content
+      const matches = this.jsonData.filter(record => {
+        return record.issueId === ruleId &&
+               (record.context.includes(html.substring(0, 100)) ||
+                record.context === html ||
+                html.includes(record.context.substring(0, 100)));
+      });
+
+      if (matches.length === 0) {
+        console.warn(`No violation found for HTML content: ${html.substring(0, 50)}..., rule: ${ruleId}`);
+        return null;
+      }
+
+      // Use the first match (most specific)
+      const violation = matches[0];
+      const context = this.extractViolationContext(violation);
+
+      // Cache the result
+      this.contextCache.set(cacheKey, context);
+
+      console.log('📋 Found violation context by HTML:', context);
+      return context;
+    }
+
+    // Extract structured context from violation record
+    extractViolationContext(violation) {
+      const context = {
+        // Basic violation info
+        severity: violation.severity,
+        issueId: violation.issueId,
+        issueDescription: violation.issueDescription,
+        wcagConformance: violation.wcagConformance,
+
+        // Page context
+        url: violation.url,
+        pageTitle: violation.pageTitle,
+
+        // Element context
+        html: violation.context,
+        xpath: violation.xpath,
+
+        // Fix guidance
+        howToFix: violation.howToFix,
+        axeImpact: violation.axeImpact,
+        learnMore: violation.learnMore,
+
+        // Extracted color contrast data (if available)
+        colorData: this.extractColorContrastData(violation)
+      };
+
+      return context;
+    }
+
+    // Extract specific color contrast information from howToFix field
+    extractColorContrastData(violation) {
+      const howToFix = violation.howToFix || '';
+      const colorData = {
+        foreground: null,
+        background: null,
+        currentRatio: null,
+        requiredRatio: null,
+        fontSize: null,
+        fontWeight: null
+      };
+
+      try {
+        // Extract foreground color: "foreground color: #007bff"
+        const fgMatch = howToFix.match(/foreground color:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3})/);
+        if (fgMatch) colorData.foreground = fgMatch[1];
+
+        // Extract background color: "background color: #d1ecf1"
+        const bgMatch = howToFix.match(/background color:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3})/);
+        if (bgMatch) colorData.background = bgMatch[1];
+
+        // Extract current ratio: "color contrast of 3.21"
+        const ratioMatch = howToFix.match(/color contrast of ([\d.]+)/);
+        if (ratioMatch) colorData.currentRatio = parseFloat(ratioMatch[1]);
+
+        // Extract required ratio: "Expected contrast ratio of 4.5:1"
+        const reqMatch = howToFix.match(/Expected contrast ratio of ([\d.]+):1/);
+        if (reqMatch) colorData.requiredRatio = parseFloat(reqMatch[1]);
+
+        // Extract font size: "font size: 9.0pt (12px)"
+        const sizeMatch = howToFix.match(/font size:.*?\((\d+)px\)/);
+        if (sizeMatch) colorData.fontSize = parseInt(sizeMatch[1]);
+
+        // Extract font weight: "font weight: normal" or "font weight: bold"
+        const weightMatch = howToFix.match(/font weight:\s*(\w+)/);
+        if (weightMatch) {
+          const weight = weightMatch[1].toLowerCase();
+          colorData.fontWeight = weight === 'normal' ? '400' :
+                                 weight === 'bold' ? '700' : weight;
+        }
+
+        console.log('🎨 Extracted color data:', colorData);
+
+      } catch (error) {
+        console.warn('Error extracting color data:', error);
+      }
+
+      return colorData;
+    }
+
+    // Check if XPath selectors match (fuzzy matching)
+    xpathMatches(jsonXpath, elementXpath) {
+      if (!jsonXpath || !elementXpath) return false;
+
+      // Direct match
+      if (jsonXpath === elementXpath) return true;
+
+      // Remove common prefixes/suffixes that might differ
+      const normalize = (xpath) => {
+        return xpath
+          .replace(/^\/\//, '') // Remove leading //
+          .replace(/\[\d+\]/g, '') // Remove position selectors
+          .toLowerCase();
+      };
+
+      const normalizedJson = normalize(jsonXpath);
+      const normalizedElement = normalize(elementXpath);
+
+      return normalizedJson === normalizedElement ||
+             normalizedJson.includes(normalizedElement) ||
+             normalizedElement.includes(normalizedJson);
+    }
+
+    // Get all color-contrast violations for debugging
+    getColorContrastViolations() {
+      if (!this.jsonData) return [];
+
+      return this.jsonData
+        .filter(record => record.issueId === 'color-contrast')
+        .map(record => this.extractViolationContext(record));
+    }
+  }
+
+  // Global instance
+  window.oobeeJsonContextParser = new OobeeJsonContextParser();
+
+  // Initialize when DOM is ready, with a small delay to ensure embedded data is available
+  const initializeParser = () => {
+    console.log('🚀 Initializing JSON context parser...');
+    console.log('🔍 Checking for embedded data:', !!window.embeddedScanResults);
+    if (window.embeddedScanResults) {
+      console.log('📊 Embedded data type:', typeof window.embeddedScanResults);
+      console.log('📊 Embedded data length:', window.embeddedScanResults.length);
+    }
+    window.oobeeJsonContextParser.loadScanResults();
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      // Wait a bit for embedded scripts to execute
+      setTimeout(initializeParser, 100);
+    });
+  } else {
+    // Wait a bit for embedded scripts to execute
+    setTimeout(initializeParser, 100);
+  }
+
+</script>

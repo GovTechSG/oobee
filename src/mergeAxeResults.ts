@@ -143,6 +143,106 @@ const parseContentToJson = async rPath =>
       consoleLogger.info('An error has occurred when parsing the content, please try again.');
     });
 
+const writeReportJson = async (allIssues, storagePath) => {
+  const jsonOutput = `${storagePath}/report.json`;
+
+  // transform allIssues into the same form as CSV but as JSON array
+  const getRulesByCategory = (allIssues: AllIssues) => {
+    return Object.entries(allIssues.items)
+      .filter(([category]) => category !== 'passed')
+      .reduce((prev: [string, RuleInfo][], [category, value]) => {
+        const rulesEntries = Object.entries(value.rules);
+        rulesEntries.forEach(([, ruleInfo]) => {
+          prev.push([category, ruleInfo]);
+        });
+        return prev;
+      }, [])
+      .sort((a, b) => {
+        // sort rules according to severity, then ruleId
+        const compareCategory = -a[0].localeCompare(b[0]);
+        return compareCategory === 0 ? a[1].rule.localeCompare(b[1].rule) : compareCategory;
+      });
+  };
+
+  const flattenRule = catAndRule => {
+    const [severity, rule] = catAndRule;
+    const results = [];
+    const {
+      rule: issueId,
+      description: issueDescription,
+      axeImpact,
+      conformance,
+      pagesAffected,
+      helpUrl: learnMore,
+    } = rule;
+
+    // format clauses as a string
+    const wcagConformance = conformance.join(',');
+
+    pagesAffected.sort((a, b) => a.url.localeCompare(b.url));
+
+    pagesAffected.forEach(affectedPage => {
+      const { url, items } = affectedPage;
+      items.forEach(item => {
+        const { html, page, message, xpath } = item;
+        const howToFix = message; // Keep original newlines in JSON
+        const violation = html || `Page ${page < 0 ? 'Document' : page}`; // page is a number, not a string
+        const context = violation; // Keep original newlines in JSON
+
+        results.push({
+          customFlowLabel: allIssues.customFlowLabel || '',
+          deviceChosen: allIssues.deviceChosen || '',
+          scanCompletedAt: allIssues.endTime ? allIssues.endTime.toISOString() : '',
+          severity: severity || '',
+          issueId: issueId || '',
+          issueDescription: issueDescription || '',
+          wcagConformance: wcagConformance || '',
+          url: url || '',
+          pageTitle: affectedPage.pageTitle || 'No page title',
+          context: context || '',
+          howToFix: howToFix || '',
+          axeImpact: axeImpact || '',
+          xpath: xpath || '',
+          learnMore: learnMore || '',
+        });
+      });
+    });
+    return results;
+  };
+
+  const rulesByCategory = getRulesByCategory(allIssues);
+  const allViolations = rulesByCategory.flatMap(flattenRule).filter(v => v !== null);
+
+  // Add any "pagesNotScanned"
+  if (allIssues.pagesNotScanned && allIssues.pagesNotScanned.length > 0) {
+    allIssues.pagesNotScanned.forEach(page => {
+      const skippedPage = {
+        customFlowLabel: allIssues.customFlowLabel || '',
+        deviceChosen: allIssues.deviceChosen || '',
+        scanCompletedAt: allIssues.endTime ? allIssues.endTime.toISOString() : '',
+        severity: 'error',
+        issueId: 'error-pages-skipped',
+        issueDescription: page.metadata
+          ? page.metadata
+          : 'An unknown error caused the page to be skipped',
+        wcagConformance: '',
+        url: page.url || page || '',
+        pageTitle: 'Error',
+        context: '',
+        howToFix: '',
+        axeImpact: '',
+        xpath: '',
+        learnMore: '',
+      };
+      allViolations.push(skippedPage);
+    });
+  }
+
+  // Write JSON file
+  await fs.writeFile(jsonOutput, JSON.stringify(allViolations, null, 2), 'utf8');
+  consoleLogger.info(`JSON report written to: ${jsonOutput}`);
+};
+
 const writeCsv = async (allIssues, storagePath) => {
   const csvOutput = createWriteStream(`${storagePath}/report.csv`, { encoding: 'utf8' });
   const formatPageViolation = pageNum => {
@@ -298,10 +398,28 @@ const compileHtmlWithEJS = async (
   let htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
 
   const headIndex = htmlContent.indexOf('</head>');
+
+  // Read and embed the JSON data
+  let jsonData = null;
+  try {
+    const jsonPath = `${storagePath}/report.json`;
+    if (await fs.pathExists(jsonPath)) {
+      const jsonContent = await fs.readFile(jsonPath, 'utf8');
+      jsonData = JSON.parse(jsonContent);
+    }
+  } catch (error) {
+    console.warn('Could not load JSON data for embedding:', error);
+  }
+
   const injectScript = `
   <script>
     // IMPORTANT! DO NOT REMOVE ME: Decode the encoded data
 
+    // Embedded JSON scan results for oobee Gen AI integration
+    window.embeddedScanResults = ${jsonData ? JSON.stringify(jsonData) : 'null'};
+    if (window.embeddedScanResults) {
+      console.log('✅ Embedded scan results loaded:', window.embeddedScanResults.length, 'violations');
+    }
   </script>
   `;
 
@@ -1927,6 +2045,7 @@ const generateArtifacts = async (
   }
 
   await writeCsv(allIssues, storagePath);
+  await writeReportJson(allIssues, storagePath);
   const {
     scanDataJsonFilePath,
     scanDataBase64FilePath,
