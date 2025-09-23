@@ -435,4 +435,106 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+
+  // STANDALONE Gen AI Suggest Fix feature - Independent of existing AI systems
+  const generateGenAiSuggestFix = async (ruleId, accordionDiv, html, buttonDiv, errorDiv) => {
+    console.log('🤖 Gen AI Suggest Fix called (STANDALONE):', { ruleId, accordionDiv, html, buttonDiv, errorDiv });
+
+    // Validate that this is specifically for color-contrast rule
+    if (ruleId !== 'color-contrast') {
+      console.warn('Gen AI Suggest Fix is currently only available for color-contrast rules');
+      return;
+    }
+
+    // Update button state
+    const button = document.getElementById(buttonDiv);
+    if (!button) {
+      console.error('Gen AI button not found:', buttonDiv);
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Generating Fix...';
+
+    // Clear any previous errors
+    const errorContainer = document.getElementById(errorDiv);
+    if (errorContainer) {
+      errorContainer.innerHTML = '';
+    }
+
+    try {
+      // Placeholder for YOUR Gen AI backend integration
+      // This is completely independent of the existing Purple AI system
+
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Mock response - replace with your actual Gen AI API call
+      const genAiResponse = {
+        success: true,
+        suggestedFix: `
+          <div class="genai-response-card" style="border-left: 4px solid var(--oobee-blue-100); padding-left: 12px;">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+              <span style="background: var(--oobee-blue-100); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">GEN AI</span>
+              <span style="margin-left: 8px; color: var(--a11y-black-75); font-size: 14px;">Confidence: 92%</span>
+            </div>
+            <p class="mb-2">
+              <strong>Automated Fix Suggestion:</strong><br/>
+              Based on WCAG 2.1 AA contrast requirements, here's a suggested CSS fix:
+            </p>
+            <code class="codeForAiResponse language-css hljs" style="display: block; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+/* Improved contrast colors */
+color: #212529; /* Dark gray text */
+background-color: #ffffff; /* Pure white background */
+
+/* Alternative high-contrast option */
+/* color: #000000; background-color: #ffffff; */
+            </code>
+            <div style="margin-top: 12px; padding: 8px; background: #e3f2fd; border-radius: 4px; font-size: 14px;">
+              <strong>📊 Contrast Analysis:</strong><br/>
+              • Current ratio: Insufficient<br/>
+              • Suggested ratio: 16.75:1 (exceeds AA requirements)<br/>
+              • Accessibility: ✅ WCAG AA Compliant
+            </div>
+          </div>
+        `,
+        confidence: 0.92,
+        contrastRatio: 16.75
+      };
+
+      if (genAiResponse.success) {
+        // Display the generated fix
+        const responseContainer = document.getElementById(accordionDiv);
+        if (responseContainer) {
+          responseContainer.innerHTML = genAiResponse.suggestedFix;
+
+          // Highlight code blocks
+          responseContainer.querySelectorAll('.codeForAiResponse').forEach(el => {
+            hljs.highlightElement(el);
+          });
+        }
+
+        // Reset button to regenerate state
+        button.disabled = false;
+        button.style = 'border: 1px solid var(--oobee-blue-100); color: var(--oobee-blue-100);';
+        button.textContent = 'Regenerate Fix';
+      } else {
+        throw new Error('Failed to generate fix suggestion');
+      }
+
+    } catch (error) {
+      console.error('❌ Error in Gen AI fix generation:', error);
+
+      // Reset button to initial state
+      button.disabled = false;
+      button.style = 'border: 1px solid var(--oobee-blue-100); color: var(--oobee-blue-100);';
+      button.textContent = 'Gen AI Suggest Fix';
+
+      // Show user-friendly error message
+      if (errorContainer) {
+        errorContainer.innerHTML =
+          '<div class="generateAiError">⚠️ Failed to generate fix suggestion. Please try again.</div>';
+      }
+    }
+  };
 </script>

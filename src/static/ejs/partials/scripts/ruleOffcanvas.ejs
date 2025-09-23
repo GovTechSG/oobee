@@ -544,6 +544,13 @@ category summary is clicked %>
           const accordionDivToAppendAI = `${accordionAIId}-${index}`;
           const buttonDivForAiFeedback = `${buttonAIId}-${index}`;
           const aiErrorDiv = `${errorAIId}-${index}`;
+
+          // Independent Gen AI variables - completely separate from existing AI
+          const genAiAccordionDiv = `${ruleInCategory.rule}-${category}-genai-accordion-${index}`;
+          const genAiButtonDiv = `${ruleInCategory.rule}-${category}-genai-button-${index}`;
+          const genAiErrorDiv = `${ruleInCategory.rule}-${category}-genai-error-${index}`;
+          const isColorContrastRule = ruleInCategory.rule === 'color-contrast';
+
           let itemCard;
           const isPurpleAiRule = oobeeAiRules.includes(ruleInCategory.rule);
           let oobeeAiQueryLabel;
@@ -664,6 +671,27 @@ category summary is clicked %>
                             </span>`
                           )
                         }
+                    </div>
+                  </div>` : ``
+                  }
+                  ${isColorContrastRule ? `
+                  <hr />
+                  <div class="d-flex g-one">
+                    <div class="fw-bold page-item-card-section-title">Generative AI Fix</div>
+                    <div id="${genAiAccordionDiv}" class="page-item-card-section-content">
+                      <button
+                        id="${genAiButtonDiv}"
+                        class="genAiSuggestFixButton"
+                        onClick="generateGenAiSuggestFix(
+                          '${ruleInCategory.rule}',
+                          '${genAiAccordionDiv}',
+                          '${escapeHtmlStringForArg(item.html)}',
+                          '${genAiButtonDiv}',
+                          '${genAiErrorDiv}')"
+                      >
+                        Gen AI Suggest Fix
+                      </button>
+                      <div id="${genAiErrorDiv}"></div>
                     </div>
                   </div>` : ``
                   }

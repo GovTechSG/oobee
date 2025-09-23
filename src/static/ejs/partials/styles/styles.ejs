@@ -1541,6 +1541,32 @@
     border-color: var(--a11y-purple-150);
   }
 
+  .genAiSuggestFixButton {
+    border: 1px solid var(--oobee-blue-100);
+    color: var(--oobee-blue-100);
+    background-color: var(--true-white);
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+  }
+
+  .genAiSuggestFixButton:disabled {
+    border: 1px solid var(--a11y-black-25);
+    color: var(--a11y-black-25);
+  }
+
+  .genAiSuggestFixButton:hover:not(:disabled) {
+    background-color: var(--oobee-blue-5);
+    color: var(--oobee-blue-100);
+    border-color: var(--oobee-blue-100);
+  }
+
+  .genAiSuggestFixButton:active:not(:disabled) {
+    background-color: var(--oobee-blue-25);
+    color: var(--oobee-blue-100);
+    border-color: var(--oobee-blue-100);
+  }
+
   .generateAiError {
     color: var(--coral-red-100);
     margin-top: 0.5rem;
