@@ -1684,6 +1684,33 @@ const sendWcagBreakdownToSentry = async (
   }
 };
 
+const formatAboutStartTime = (dateString: string) => {
+  const utcStartTimeDate = new Date(dateString);
+  const formattedStartTime = utcStartTimeDate.toLocaleTimeString('en-GB', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour12: false,
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'shortGeneric',
+  });
+
+  const timezoneAbbreviation = new Intl.DateTimeFormat('en', {
+    timeZoneName: 'shortOffset',
+  })
+    .formatToParts(utcStartTimeDate)
+    .find(part => part.type === 'timeZoneName').value;
+
+  // adding a breakline between the time and timezone so it looks neater on report
+  const timeColonIndex = formattedStartTime.lastIndexOf(':');
+  const timePart = formattedStartTime.slice(0, timeColonIndex + 3);
+  const timeZonePart = formattedStartTime.slice(timeColonIndex + 4);
+  const htmlFormattedStartTime = `${timePart}<br>${timeZonePart} ${timezoneAbbreviation}`;
+
+  return htmlFormattedStartTime;
+};
+
 const generateArtifacts = async (
   randomToken: string,
   urlScanned: string,
@@ -1714,34 +1741,6 @@ const generateArtifacts = async (
   const storagePath = getStoragePath(randomToken);
   const intermediateDatasetsPath = `${storagePath}/crawlee`;
   const oobeeAppVersion = getVersion();
-
-  const formatAboutStartTime = (dateString: string) => {
-    const utcStartTimeDate = new Date(dateString);
-    const formattedStartTime = utcStartTimeDate.toLocaleTimeString('en-GB', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour12: false,
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZoneName: 'shortGeneric',
-    });
-
-    const timezoneAbbreviation = new Intl.DateTimeFormat('en', {
-      timeZoneName: 'shortOffset',
-    })
-      .formatToParts(utcStartTimeDate)
-      .find(part => part.type === 'timeZoneName').value;
-
-    // adding a breakline between the time and timezone so it looks neater on report
-    const timeColonIndex = formattedStartTime.lastIndexOf(':');
-    const timePart = formattedStartTime.slice(0, timeColonIndex + 3);
-    const timeZonePart = formattedStartTime.slice(timeColonIndex + 4);
-    const htmlFormattedStartTime = `${timePart}<br>${timeZonePart} ${timezoneAbbreviation}`;
-
-    return htmlFormattedStartTime;
-  };
-
   const isCustomFlow = scanType === ScannerTypes.CUSTOM;
 
   const allIssues: AllIssues = {
@@ -2073,6 +2072,20 @@ const generateArtifacts = async (
     console.log('Report generated successfully');
 
   return ruleIdJson;
+};
+
+export {
+  writeHTML,
+  compressJsonFileStreaming,
+  flattenAndSortResults,
+  populateScanPagesDetail,
+  getWcagPassPercentage,
+  getProgressPercentage,
+  getIssuesPercentage,
+  itemTypeDescription,
+  oobeeAiHtmlETL,
+  oobeeAiRules,
+  formatAboutStartTime,
 };
 
 export default generateArtifacts;
