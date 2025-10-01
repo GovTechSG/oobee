@@ -666,7 +666,6 @@
 
   // Helper function to format fix suggestion response
   function formatFixSuggestionResponse(fixSuggestion) {
-    const confidence = Math.round((fixSuggestion.confidence || 0.5) * 100);
     const contrastAnalysis = fixSuggestion.contrast_analysis || {};
 
     let codeFixes = '';
@@ -689,8 +688,7 @@ ${fix.after || fix.before || '/* CSS fix not available */'}
     return `
       <div class="genai-response-card" style="border-left: 4px solid var(--oobee-blue-100); padding-left: 12px;">
         <div style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span style="background: var(--oobee-blue-100); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">GEN AI</span>
-          <span style="margin-left: 8px; color: var(--a11y-black-75); font-size: 14px;">Confidence: ${confidence}%</span>
+          <span style="background: var(--oobee-blue-100); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">Generative AI Fix</span>
         </div>
         <p class="mb-2">
           <strong>${fixSuggestion.diagnosis || 'Accessibility Fix Suggestion'}:</strong><br/>

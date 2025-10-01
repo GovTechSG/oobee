@@ -1542,23 +1542,32 @@
   }
 
   .genAiSuggestFixButton {
-    border: 1px solid var(--oobee-blue-100);
-    color: var(--oobee-blue-100);
-    background-color: var(--true-white);
-    border-radius: 4px;
-    padding: 0.5rem 1rem;
-    font-weight: 500;
+    display: inline-block !important;
+    border: 1px solid var(--oobee-blue-100) !important;
+    color: var(--oobee-blue-100) !important;
+    background-color: #F5F5F5 !important;
+    border-radius: 4px !important;
+    padding: 0.5rem 1rem !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    transition: all 0.2s ease-in-out !important;
+    font-family: inherit !important;
   }
 
   .genAiSuggestFixButton:disabled {
     border: 1px solid var(--a11y-black-25);
     color: var(--a11y-black-25);
+    cursor: not-allowed;
   }
 
   .genAiSuggestFixButton:hover:not(:disabled) {
     background-color: var(--oobee-blue-5);
     color: var(--oobee-blue-100);
     border-color: var(--oobee-blue-100);
+    cursor: pointer;
   }
 
   .genAiSuggestFixButton:active:not(:disabled) {
