@@ -668,48 +668,59 @@
   function formatFixSuggestionResponse(fixSuggestion) {
     const contrastAnalysis = fixSuggestion.contrast_analysis || {};
 
-    let codeFixes = '';
+    // Extract code fixes
+    let cssCode = '';
     if (fixSuggestion.code_fixes && fixSuggestion.code_fixes.length > 0) {
-      codeFixes = fixSuggestion.code_fixes.map(fix => {
-        if (fix.language === 'css') {
-          return `
-            <div style="margin-bottom: 16px;">
-              <strong>${fix.description || 'CSS Fix'}:</strong>
-              <code class="codeForAiResponse language-css hljs" style="display: block; padding: 12px; background: #f8f9fa; border-radius: 4px; margin-top: 8px;">
-${fix.after || fix.before || '/* CSS fix not available */'}
-              </code>
-            </div>
-          `;
-        }
-        return '';
-      }).join('');
+      const cssFix = fixSuggestion.code_fixes.find(fix => fix.language === 'css');
+      if (cssFix) {
+        cssCode = cssFix.after || cssFix.before || '';
+      }
     }
 
+    // Build plain English explanation
+    const plainExplanation = fixSuggestion.why_it_matters || 'This fix improves accessibility for users with visual impairments.';
+
     return `
-      <div class="genai-response-card" style="border-left: 4px solid var(--oobee-blue-100); padding-left: 12px;">
-        <div style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span style="background: var(--oobee-blue-100); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">Generative AI Fix</span>
+      <div class="genai-response-card" style="border-left: 4px solid var(--oobee-blue-100); padding-left: 16px; padding-right: 16px;">
+        <!-- Plain English Section -->
+        <div style="margin-bottom: 24px;">
+          <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">What's the problem?</h4>
+          <p style="font-size: 14px; line-height: 1.6; margin-bottom: 16px; color: #333;">
+            ${plainExplanation}
+          </p>
+
+          ${contrastAnalysis.current_ratio ? `
+          <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+            <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #333;">
+              The current text has a contrast ratio of <strong>${contrastAnalysis.current_ratio}:1</strong>,
+              but it needs at least <strong>${contrastAnalysis.required_ratio}:1</strong> to meet accessibility standards.
+              ${contrastAnalysis.passes_aa
+                ? `The suggested fix achieves <strong>${contrastAnalysis.proposed_ratio}:1</strong>, which passes WCAG AA requirements. ✅`
+                : `The suggested fix improves it to <strong>${contrastAnalysis.proposed_ratio}:1</strong>.`}
+            </p>
+          </div>
+          ` : ''}
+
+          ${fixSuggestion.fix_steps && fixSuggestion.fix_steps.length > 0 ? `
+          <div style="margin-top: 16px;">
+            <h5 style="font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #1a1a1a;">How to fix it:</h5>
+            <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #333;">
+              ${fixSuggestion.fix_steps.map(step => `<li>${step}</li>`).join('')}
+            </ol>
+          </div>
+          ` : ''}
         </div>
-        <p class="mb-2">
-          <strong>${fixSuggestion.diagnosis || 'Accessibility Fix Suggestion'}:</strong><br/>
-          ${fixSuggestion.why_it_matters || 'This fix improves accessibility for users with visual impairments.'}
-        </p>
-        ${codeFixes}
-        ${contrastAnalysis.current_ratio ? `
-        <div style="margin-top: 12px; padding: 8px; background: #e3f2fd; border-radius: 4px; font-size: 14px;">
-          <strong>📊 Contrast Analysis:</strong><br/>
-          • Current ratio: ${contrastAnalysis.current_ratio}:1<br/>
-          • Required ratio: ${contrastAnalysis.required_ratio}:1<br/>
-          • Proposed ratio: ${contrastAnalysis.proposed_ratio}:1<br/>
-          • Accessibility: ${contrastAnalysis.passes_aa ? '✅' : '❌'} WCAG AA ${contrastAnalysis.passes_aa ? 'Compliant' : 'Non-compliant'}
+
+        <!-- Code Fix Section -->
+        ${cssCode ? `
+        <div style="margin-bottom: 16px;">
+          <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">Code Fix:</h4>
+          <p style="font-size: 13px; margin-bottom: 8px; color: #666;">Copy and apply this CSS to fix the issue:</p>
+          <code class="codeForAiResponse language-css hljs" style="display: block; padding: 16px; background: #f8f9fa; border-radius: 6px; font-size: 13px; border: 1px solid #e0e0e0;">
+${cssCode}
+          </code>
         </div>
         ` : ''}
-        <div style="margin-top: 12px; padding: 8px; background: #f0f9ff; border-radius: 4px; font-size: 12px; color: var(--a11y-black-75);">
-          <strong>Fix Steps:</strong>
-          <ol style="margin: 4px 0 0 16px; padding: 0;">
-            ${(fixSuggestion.fix_steps || []).map(step => `<li>${step}</li>`).join('')}
-          </ol>
-        </div>
       </div>
     `;
   }
