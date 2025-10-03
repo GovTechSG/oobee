@@ -112,13 +112,13 @@ export const init = async ({
   const getScripts = () => {
     throwErrorIfTerminated();
     const axeScript = fs.readFileSync(
-      path.join(dirname, '../node_modules/axe-core/axe.min.js'),
+      path.join(dirname, '../../../axe-core/axe.min.js'),
       'utf-8',
     );
     async function runA11yScan(elementsToScan = [], gradingReadabilityFlag = '') {
       const oobeeAccessibleLabelFlaggedXpaths = disableOobee
         ? []
-        : (await flagUnlabelledClickableElements()).map(item => item.xpath);
+        : (await (window as any).flagUnlabelledClickableElements()).map(item => item.xpath);
       const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
         .map(xpath => {
           try {

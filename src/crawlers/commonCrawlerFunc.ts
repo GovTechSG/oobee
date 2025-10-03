@@ -1,4 +1,4 @@
-import crawlee, { CrawlingContext, PlaywrightGotoOptions, Request } from 'crawlee';
+import { Dataset, RequestQueue, log, playwrightUtils, CrawlingContext, PlaywrightGotoOptions, Request } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
 import { BrowserContext, ElementHandle, Page } from 'playwright';
 import {
@@ -330,7 +330,7 @@ export const runAxeScript = async ({
 
   const gradingReadabilityFlag = await extractAndGradeText(page); // Ensure flag is obtained before proceeding
 
-  await crawlee.playwrightUtils.injectFile(page, axeScript);
+  await playwrightUtils.injectFile(page, axeScript);
 
   const results = await page.evaluate(
     async ({
@@ -478,12 +478,12 @@ export const runAxeScript = async ({
 
 export const createCrawleeSubFolders = async (
   randomToken: string,
-): Promise<{ dataset: crawlee.Dataset; requestQueue: crawlee.RequestQueue }> => {
+): Promise<{ dataset: Dataset; requestQueue: RequestQueue }> => {
 
   const crawleeDir = path.join(getStoragePath(randomToken),"crawlee");
 
-  const dataset = await crawlee.Dataset.open(crawleeDir);
-  const requestQueue = await crawlee.RequestQueue.open(crawleeDir);
+  const dataset = await Dataset.open(crawleeDir);
+  const requestQueue = await RequestQueue.open(crawleeDir);
   return { dataset, requestQueue };
 };
 
@@ -506,7 +506,7 @@ export const postNavigationHooks = [
 
 export const failedRequestHandler = async ({ request }: { request: Request }) => {
   guiInfoLog(guiInfoStatusTypes.ERROR, { numScanned: 0, urlScanned: request.url });
-  crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
+  log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
 };
 
 export const isUrlPdf = (url: string) => {
