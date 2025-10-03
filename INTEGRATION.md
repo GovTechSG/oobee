@@ -152,6 +152,7 @@ With reference to an instance of Oobee as `oobeeA11y`:
 
 We will be creating the following files in a demo Cypress project:
 
+```
     ├── cypress
     │   ├── e2e
     │   │   └── spec.cy.js
@@ -180,8 +181,9 @@ Run your test with <code>npx cypress run</code>.
 You will see Oobee results generated in <code>results</code> folder.
 
 </details>
+
 <details>
-<summary>Click here to see an example usage in an E2E Cypress test (typescript)</summary>
+   <summary>Click here to see an example usage in an E2E Cypress test (typescript)</summary>
 
 We will be creating the following files in a demo Cypress project:
 
@@ -344,6 +346,7 @@ You will see Oobee results generated in <code>results</code> folder.
     runScript();
 
 </details>
+
 <details>
     <summary>Click here to see an example automated web crawler login (typescript)</summary>
 <code>automated-web-crawler-login.ts</code>:
