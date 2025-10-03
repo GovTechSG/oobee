@@ -1,0 +1,13 @@
+{
+  "name": "oobee-cypress-integration-js",
+  "version": "1.0.0",
+  "description": "Oobee Cypress integration example (JavaScript)",
+  "type": "module",
+  "scripts": {
+    "test": "cypress run"
+  },
+  "devDependencies": {
+    "cypress": "^13.0.0",
+    "@govtechsg/oobee": "^0.10.68"
+  }
+}

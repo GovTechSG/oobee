@@ -1,9 +1,12 @@
 {
+  "name": "oobee-cypress-integration-ts",
+  "version": "1.0.0",
+  "description": "Oobee Cypress integration example (TypeScript)",
+  "type": "module",
   "devDependencies": {
     "@govtechsg/oobee": "^0.10.68",
     "@types/jest": "^30.0.0",
     "cypress": "^15.3.0",
     "typescript": "^5.9.3"
-  },
-  "type": "module"
+  }
 }
