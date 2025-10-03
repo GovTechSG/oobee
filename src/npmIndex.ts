@@ -317,12 +317,12 @@ export const init = async ({
           axeScanResults,
         };
       }
-      window.runA11yScan = runA11yScan;
       window.extractText = ${extractText.toString()};
       ${flagUnlabelledClickableElements_func.replace('export async function', 'async function')}
       window.oobeeHelpers.flagUnlabelledClickableElements = flagUnlabelledClickableElements;
       window.disableOobee=${disableOobee};
       window.enableWcagAaa=${enableWcagAaa};
+      window.runA11yScan = runA11yScan;
     `;
   };
 
