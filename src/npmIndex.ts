@@ -345,13 +345,15 @@ export const init = async ({
       await page.waitForLoadState('networkidle');
 
       // click on elements to reveal hidden elements so screenshots can be taken
-      elementsToClick?.forEach(async (elem: string) => {
-        try {
-          await page.locator(elem).click();
-        } catch (e) {
-          // do nothing if element is not found or not clickable
+      if (elementsToClick) {
+        for (const elem of elementsToClick) {
+          try {
+            await page.locator(elem).click();
+          } catch (e) {
+            // do nothing if element is not found or not clickable
+          }
         }
-      });
+      }
 
       res.axeScanResults.violations = await takeScreenshotForHTMLElements(
         res.axeScanResults.violations,
