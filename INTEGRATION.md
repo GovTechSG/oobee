@@ -306,6 +306,7 @@ You will see Oobee results generated in <code>results</code> folder.
 
 We will be creating the following files in a demo Cypress project:
 
+```
     ├── cypress.config.ts
     ├── cypress.d.ts
     ├── package.json
@@ -317,197 +318,17 @@ We will be creating the following files in a demo Cypress project:
     │           └── e2e.ts
     └── tsconfig.json
 
-Create a <code>package.json</code> by running <code>npm init</code> . Accept the default options or customise it as needed.
-
-Change the type of npm package to module by running <code>npm pkg set type="module"</code>
-
-Install the following node dependencies by running <code>npm install cypress @types/cypress @govtechsg/oobee typescript --save-dev </code>
-
-Create a <code>tsconfig.json</code> in the root directory and add the following:
-
 ```
-{
-"compilerOptions": {
-"outDir": "./dist",
-"allowJs": true,
-"target": "es2021",
-"module": "nodenext",
-"rootDir": "./src",
-"skipLibCheck": true,
-"types": ["cypress"]
-},
-"include": ["./src/**/*", "cypress.d.ts"]
-}
-```
+
+Copy the examples provided in `./examples/oobee-cypress-integration-ts` to a folder and set that as a working directory.
 
 Navigate to <code>node_modules/@govtechsg/oobee</code> and run <code>npm install</code> and <code>npm run build</code> within the folder to install remaining Oobee dependencies:
 
+```
     cd node_modules/@govtechsg/oobee
     npm install
     npm run build
     cd ../../..
-
-Create <code>cypress.config.ts</code> with the following contents, and change your Name, E-mail address, and boolean value for whether rule items requiring manual review in the report should be displayed below:
-
-    import { defineConfig } from "cypress";
-    import oobeeA11yInit from "@govtechsg/oobee";
-
-    interface ViewportSettings {
-        width: number;
-        height: number;
-    }
-
-    interface Thresholds {
-        mustFix: number;
-        goodToFix: number;
-    }
-
-    interface ScanAboutMetadata {
-        browser: string;
-    }
-
-    // viewport used in tests to optimise screenshots
-    const viewportSettings: ViewportSettings = { width: 1920, height: 1040 };
-    // specifies the number of occurrences before error is thrown for test failure
-    const thresholds: Thresholds = { mustFix: 20, goodToFix: 20 };
-    // additional information to include in the "Scan About" section of the report
-    const scanAboutMetadata: ScanAboutMetadata = { browser: 'Chrome (Desktop)' };
-    // name of the generated zip of the results at the end of scan
-    const resultsZipName: string = "oobee-scan-results.zip"
-
-    const oobeeA11y = await oobeeA11yInit({
-        "https://govtechsg.github.io", // initial url to start scan
-        "Demo Cypress Scan", // label for test
-        "Your Name",
-        "email@domain.com",
-        true, // include screenshots of affected elements in the report
-        viewportSettings,
-        thresholds: { mustFix: undefined, goodToFix: undefined },
-        scanAboutMetadata: undefined,
-        zip: resultsZipName,
-        deviceChosen: "",
-        strategy: undefined,
-        ruleset: ["enable-wcag-aaa"], // add "disable-oobee" to disable Oobee custom checks
-        specifiedMaxConcurrency: undefined,
-        followRobots: undefined,
-    });
-
-    export default defineConfig({
-        taskTimeout: 120000, // need to extend as screenshot function requires some time
-        viewportHeight: viewportSettings.height,
-        viewportWidth: viewportSettings.width,
-        e2e: {
-            setupNodeEvents(on, _config) {
-                on("task", {
-                    getOobeeA11yScripts(): string {
-                        return oobeeA11y.getScripts();
-                    },
-                    gradeReadability(sentences: string[]): string {
-                        return oobeeA11y.gradeReadability(sentences);
-                    },
-                    async pushOobeeA11yScanResults({res, metadata, elementsToClick}: { res: any, metadata: any, elementsToClick: any[] }): Promise<{ mustFix: number, goodToFix: number }> {
-                        return await oobeeA11y.pushScanResults(res, metadata, elementsToClick);
-                    },
-                    returnResultsDir(): string {
-                        return `results/${oobeeA11y.randomToken}_${oobeeA11y.scanDetails.urlsCrawled.scanned.length}pages/reports/report.html`;
-                    },
-                    finishOobeeA11yTestCase(): null {
-                        oobeeA11y.testThresholds();
-                        return null;
-                    },
-                    async terminateOobeeA11y(): Promise<string> {
-                        return await oobeeA11y.terminate();
-                    },
-                });
-            },
-            supportFile: 'dist/cypress/support/e2e.js',
-            specPattern: 'dist/cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
-        },
-    });
-
-Create a sub-folder and file <code>src/cypress/support/e2e.ts</code> with the following contents:
-
-    Cypress.Commands.add("injectOobeeA11yScripts", () => {
-        cy.task("getOobeeA11yScripts").then((s: string) => {
-            cy.window().then((win) => {
-                win.eval(s);
-            });
-        });
-    });
-
-    Cypress.Commands.add("runOobeeA11yScan", (items={}) => {
-        cy.window().then(async (win) => {
-            const { elementsToScan, elementsToClick, metadata } = items;
-
-            // extract text from the page for readability grading
-            const sentences = win.extractText();
-            // run readability grading separately as it cannot be done within the browser context
-            cy.task("gradeReadability", sentences).then(
-                async (gradingReadabilityFlag: string) => {
-                    // passing the grading flag to runA11yScan to inject violation as needed
-                    const res = await win.runA11yScan(
-                        elementsToScan,
-                        gradingReadabilityFlag,
-                    );
-                    cy.task("pushOobeeA11yScanResults", {
-                        res,
-                        metadata,
-                        elementsToClick,
-                    }).then((count) => {
-                         return count;
-                    });
-                },
-            );
-            cy.task("finishOobeeA11yTestCase"); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
-        });
-    });
-
-    Cypress.Commands.add("terminateOobeeA11y", () => {
-        cy.task("terminateOobeeA11y");
-    });
-
-Create <code>src/cypress/e2e/spec.cy.ts</code> with the following contents:
-
-    describe("template spec", () => {
-        it("should run oobee A11y", () => {
-            cy.visit(
-                "https://govtechsg.github.io/purple-banner-embeds/oobee-integrated-scan-example.htm"
-            );
-            cy.injectOobeeA11yScripts();
-            cy.runOobeeA11yScan();
-             cy.get("button[onclick=\"toggleSecondSection()\"]").click();
-            // Run a scan on <input> and <button> elements
-            cy.runOobeeA11yScan({
-                elementsToScan: ["input", "button"],
-                elementsToClick: ["button[onclick=\"toggleSecondSection()\"]"],
-                metadata: "Clicked button"
-            });
-
-            cy.terminateOobeeA11y();
-        });
-    });
-
-Create <code>cypress.d.ts</code> in the root directory with the following contents:
-
-```
-declare namespace Cypress {
-  interface Chainable<Subject> {
-    injectOobeeA11yScripts(): Chainable<void>;
-    runOobeeA11yScan(options?: OobeeScanOptions): Chainable<void>;
-    terminateOobeeA11y(): Chainable<any>;
-  }
-
-  interface OobeeScanOptions {
-    elementsToScan?: string[];
-    elementsToClick?: string[];
-    metadata?: string;
-  }
-}
-
-interface Window {
-  runA11yScan: (elementsToScan?: string[]) => Promise<any>;
-  extractText: () => string[];
-}
 ```
 
 Compile your typescript code with <code>npx tsc</code>.  
