@@ -36,9 +36,10 @@ const initOobeeIfNeeded = async () => {
             email: "email@domain.com",
             includeScreenshots: true, // include screenshots of affected elements in the report
             viewportSettings,
-            thresholds: { mustFix: undefined, goodToFix: undefined },
+            thresholds: thresholds as any,
+            scanAboutMetadata: scanAboutMetadata as any,
             zip: resultsZipName,
-            deviceChosen: "",
+            deviceChosen: "E2E Test Device",
             strategy: undefined,
             ruleset: ["enable-wcag-aaa"], // add "disable-oobee" to disable Oobee custom checks
             specifiedMaxConcurrency: undefined,
