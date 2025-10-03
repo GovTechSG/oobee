@@ -1,0 +1,13 @@
+{
+  "name": "oobee-playwright-integration-js",
+  "version": "1.0.0",
+  "description": "Oobee Playwright integration example (JavaScript)",
+  "type": "module",
+  "scripts": {
+    "test": "node oobee-playwright-demo.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0",
+    "@govtechsg/oobee": "^0.10.68"
+  }
+}

@@ -224,211 +224,48 @@ You will see Oobee results generated in <code>results</code> folder.
 <details>
     <summary>Click here to see an example usage in Playwright (javascript)</summary>
 
-Create a <code>package.json</code> by running <code>npm init</code> . Accept the default options or customise it as needed.
+Copy the examples provided in `./examples/oobee-playwright-integration-js` to a folder and set that as a working directory.
 
-Change the type of npm package to module by running <code>npm pkg set type="module"</code>
+Install any dependencies with `npm install`.
 
-Install the following node dependencies by running <code>npm install playwright @govtechsg/oobee --save-dev</code> and <code>npx playwright install</code>
+Install Playwright Chromium by running <code>npx playwright install chromium</code>
 
 Navigate to <code>node_modules/@govtechsg/oobee</code> and run <code>npm install</code> and <code>npm run build</code> within the folder to install remaining Oobee dependencies:
 
+```
     cd node_modules/@govtechsg/oobee
     npm install
     npm run build
     cd ../../..
+```
 
-On your project's root folder, create a Playwright test file <code>oobee-playwright-demo.js</code>:
+Run your test with `node oobee-playwright-demo.js` .
 
-    import { chromium } from "playwright";
-    import oobeeA11yInit from "@govtechsg/oobee";
-    import { extractText } from "@govtechsg/oobee/dist/crawlers/custom/extractText.js";
-
-    // viewport used in tests to optimise screenshots
-    const viewportSettings = { width: 1920, height: 1040 };
-    // specifies the number of occurrences before error is thrown for test failure
-    const thresholds = { mustFix: 20, goodToFix: 25 };
-    // additional information to include in the "Scan About" section of the report
-    const scanAboutMetadata = { browser: 'Chrome (Desktop)' };
-    // name of the generated zip of the results at the end of scan
-    const resultsZipName = "oobee-scan-results.zip";
-
-    const oobeeA11y = await oobeeA11yInit({
-        entryUrl: "https://govtechsg.github.io", // initial url to start scan
-        testLabel: "Demo Cypress Scan", // label for test
-        name: "Your Name",
-        email: "email@domain.com",
-        includeScreenshots: true, // include screenshots of affected elements in the report
-        viewportSettings,
-        thresholds: { mustFix: undefined, goodToFix: undefined },
-        scanAboutMetadata: undefined,
-        zip: resultsZipName,
-        deviceChosen: "",
-        strategy: undefined,
-        ruleset: ["enable-wcag-aaa"],
-        specifiedMaxConcurrency: undefined,
-        followRobots: undefined,
-    });
-
-    (async () => {
-        const browser = await chromium.launch({
-            headless: false,
-        });
-        const context = await browser.newContext();
-        const page = await context.newPage();
-
-        const runOobeeA11yScan = async (elementsToScan, gradingReadabilityFlag) => {
-            const scanRes = await page.evaluate(
-                async ({ elementsToScan, gradingReadabilityFlag }) => await runA11yScan(elementsToScan, gradingReadabilityFlag),
-                { elementsToScan, gradingReadabilityFlag },
-            );
-            await oobeeA11y.pushScanResults(scanRes);
-            oobeeA11y.testThresholds(); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
-        };
-
-        await page.goto('https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm');
-        await page.evaluate(oobeeA11y.getScripts());
-
-        const sentences = await page.evaluate(() => extractText());
-        const gradingReadabilityFlag = await oobeeA11y.gradeReadability(sentences);
-
-        await runOobeeA11yScan([], gradingReadabilityFlag);
-
-        await page.getByRole('button', { name: 'Click Me' }).click();
-        // Run a scan on <input> and <button> elements
-        await runOobeeA11yScan(['input', 'button'])
-
-
-        // ---------------------
-        await context.close();
-        await browser.close();
-        await oobeeA11y.terminate();
-    })();
-
-Run your test with <code>node oobee-playwright-demo.js</code> .
-
-You will see Oobee results generated in <code>results</code> folder.
+You will see Oobee results generated in results folder.
 
 </details>
+
 <details>
     <summary>Click here to see an example usage in Playwright (typescript)</summary>
 
-Create a <code>package.json</code> by running <code>npm init</code> . Accept the default options or customise it as needed.
+Copy the examples provided in `./examples/oobee-playwright-integration-ts` to a folder and set that as a working directory.
 
-Change the type of npm package to module by running <code>npm pkg set type="module"</code>
+Install any dependencies with `npm install`.
 
-Install the following node dependencies by running <code>npm install playwright @govtechsg/oobee typescript --save-dev</code> and <code>npx playwright install</code>
-
-Create a <code>tsconfig.json</code> in the root directory and add the following:
-
-```
-{
-"compilerOptions": {
-"outDir": "./dist",
-"allowJs": true,
-"target": "es2021",
-"module": "nodenext",
-"rootDir": "./src",
-"skipLibCheck": true
-},
-"include": ["./src/**/*"]
-}
-```
+Install Playwright Chromium by running <code>npx playwright install chromium</code>
 
 Navigate to <code>node_modules/@govtechsg/oobee</code> and run <code>npm install</code> and <code>npm run build</code> within the folder to install remaining Oobee dependencies:
 
+```
     cd node_modules/@govtechsg/oobee
     npm install
     npm run build
     cd ../../..
+```
 
-Create a sub-folder and Playwright test file <code>src/oobee-playwright-demo.ts</code> with the following contents:
+Compile your typescript code with <code>npx tsc</code>.
 
-    import { Browser, BrowserContext, Page, chromium } from "playwright";
-    import oobeeA11yInit from "@govtechsg/oobee";
-    import { extractText } from "@govtechsg/oobee/dist/crawlers/custom/extractText.js";
-
-    declare const runA11yScan: (
-        elementsToScan?: string[],
-        gradingReadabilityFlag?: string,
-    ) => Promise<any>;
-
-    interface ViewportSettings {
-        width: number;
-        height: number;
-    }
-
-    interface Thresholds {
-        mustFix: number;
-        goodToFix: number;
-    }
-
-    interface ScanAboutMetadata {
-        browser: string;
-    }
-
-    // viewport used in tests to optimise screenshots
-    const viewportSettings: ViewportSettings = { width: 1920, height: 1040 };
-    // specifies the number of occurrences before error is thrown for test failure
-    const thresholds: Thresholds = { mustFix: 20, goodToFix: 25 };
-    // additional information to include in the "Scan About" section of the report
-    const scanAboutMetadata: ScanAboutMetadata = { browser: 'Chrome (Desktop)' };
-    // name of the generated zip of the results at the end of scan
-    const resultsZipName: string = "oobee-scan-results.zip";
-
-    const oobeeA11y = await oobeeA11yInit({
-        entryUrl: "https://govtechsg.github.io", // initial url to start scan
-        testLabel: "Demo Cypress Scan", // label for test
-        name: "Your Name",
-        email: "email@domain.com",
-        includeScreenshots: true, // include screenshots of affected elements in the report
-        viewportSettings,
-        thresholds: { mustFix: undefined, goodToFix: undefined },
-        scanAboutMetadata: undefined,
-        zip: resultsZipName,
-        deviceChosen: "",
-        strategy: undefined,
-        ruleset: ["enable-wcag-aaa"],
-        specifiedMaxConcurrency: undefined,
-        followRobots: undefined,
-    });
-
-    (async () => {
-        const browser: Browser = await chromium.launch({
-            headless: false,
-        });
-        const context: BrowserContext = await browser.newContext();
-        const page: Page = await context.newPage();
-
-        const runOobeeA11yScan = async (elementsToScan?: string[], gradingReadabilityFlag?: string) => {
-            const scanRes = await page.evaluate(
-                async ({ elementsToScan, gradingReadabilityFlag }) => await runA11yScan(elementsToScan, gradingReadabilityFlag),
-                { elementsToScan, gradingReadabilityFlag },
-            );
-            await oobeeA11y.pushScanResults(scanRes);
-            oobeeA11y.testThresholds(); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
-        };
-
-        await page.goto('https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm');
-        await page.evaluate(oobeeA11y.getScripts());
-
-        const sentences = await page.evaluate(() => extractText());
-        const gradingReadabilityFlag = await oobeeA11y.gradeReadability(sentences);
-
-        await runOobeeA11yScan([], gradingReadabilityFlag);
-
-        await page.getByRole('button', { name: 'Click Me' }).click();
-        // Run a scan on <input> and <button> elements
-        await runOobeeA11yScan(['input', 'button'])
-
-
-        // ---------------------
-        await context.close();
-        await browser.close();
-        await oobeeA11y.terminate();
-    })();
-
-Compile your typescript code with <code>npx tsc</code>.  
-Run your test with <code>node dist/oobee-playwright-demo.js</code>.
+Run your test with <code>npm test</code>
 
 You will see Oobee results generated in <code>results</code> folder.
 

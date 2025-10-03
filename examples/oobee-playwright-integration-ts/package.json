@@ -1,0 +1,15 @@
+{
+  "name": "oobee-playwright-integration-ts",
+  "version": "1.0.0",
+  "description": "Oobee Playwright integration example (TypeScript)",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node dist/oobee-playwright-demo.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0",
+    "@govtechsg/oobee": "^0.10.68",
+    "typescript": "^5.9.3"
+  }
+}
