@@ -1014,7 +1014,7 @@ export const zipResults = async (zipName: string, resultsPath: string): Promise<
   await new Promise((resolve, reject) => {
     const outStream = createWriteStream(zipFilePath);
     zipStream.pipe(outStream)
-      .on('finish', resolve)
+      .on('finish', () => resolve(undefined))
       .on('error', reject);
   });
 };
