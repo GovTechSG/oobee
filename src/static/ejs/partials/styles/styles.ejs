@@ -119,6 +119,7 @@
 
   /* End of Bootstrap CSS overrides */
   :root {
+    --ghost-white: #FAF8FD;
     --bright-gray: #e5e7eb;
     --light-carmine-pink:   #EC6162;
     --deep-green-cyan-turquoise:  #10755E;
@@ -187,12 +188,11 @@
   }
 
   header {
-    background-color: var(--true-white);
-    padding: 1.5rem 1rem;
+    background-color: var(--ghost-white);
+    padding: 1rem;
     display: flex;
     align-items: center;
-    border-bottom: 1px solid var(--a11y-black-25);
-    box-shadow: 0 3px 5px 0 #736ccb1a;
+    box-shadow: 0 4px 10px 0 rgba(87, 53, 223, 0.1);
     gap: 1rem;
   }
 
@@ -205,10 +205,6 @@
   .unbulleted-list {
     list-style: none;
     padding-left: 0;
-  }
-
-  #header .card {
-    box-shadow: 0 3px 5px 0 #736ccb1a;
   }
 
   footer .card {
