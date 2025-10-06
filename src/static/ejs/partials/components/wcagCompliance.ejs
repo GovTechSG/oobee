@@ -4,9 +4,9 @@
     <span class="flex-grow-1">WCAG (A & AA) Passes</span>
     <span aria-label="Pass percentage" class="ms-2" id="passPercentage"></span>
   </div>
-  <div class="wcag-compliance-passes-bar">
-    <div class="wcag-compliance-passes-bar-progress" id="wcag-compliance-passes-bar-progress" style="width: 0%"></div>
-  </div>
+
+  <%- include('wcagGaugeBar') %>
+
   <button id="wcagModalToggle" type="button" data-bs-toggle="modal" data-bs-target="#wcagModal">
     More details
   </button>
