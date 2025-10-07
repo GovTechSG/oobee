@@ -24,6 +24,7 @@
     <%- include('partials/styles/wcagGaugeBar') %>
     <%- include('partials/styles/header') %>
     <%- include('partials/styles/wcagCompliance') %>
+    <%- include('partials/styles/topTenCard') %>
   </head>
 
   <body class="d-flex flex-column">
@@ -77,7 +78,7 @@
             link.href = page.url;
             link.target = '_blank';
             link.rel = 'noopener';
-            link.className = 'w-65';
+            link.className = 'page-links';
             link.textContent = page.pageTitle.length > 0 ? page.pageTitle : page.url;
 
             const issues = Number(page.totalIssues) || 0;
