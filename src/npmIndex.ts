@@ -326,6 +326,15 @@ export const init = async ({
     `;
   };
 
+  
+  /* 
+  // Helper script for manually copy-paste testing in Chrome browser
+  
+  const scripts = getScripts();
+  fs.writeFileSync(path.join(dirname, 'testScripts.txt'), scripts);
+  
+  */
+
   const pushScanResults = async (
     res: { pageUrl: string; pageTitle: string; axeScanResults: AxeResults },
     metadata: string,
