@@ -94,6 +94,16 @@
     line-height: 2rem;
   }
 
+  h3 {
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 2rem;
+  }
+
+  .w-65 {
+    width: 65%;
+  }
+
   .underline {
     color: var(--a11y-majorelle-blue);
     text-decoration: underline;
@@ -122,6 +132,7 @@
   :root {
     --ghost-white: #FAF8FD;
     --bright-gray: #e5e7eb;
+    --chinese-silver: #C7CACA;
     --light-carmine-pink:   #EC6162;
     --deep-green-cyan-turquoise:  #10755E;
 
@@ -722,7 +733,7 @@
   }
 
   #wcag-compliance-card,
-  #top-five-card {
+  #top-ten-card {
     border-radius: 0.25rem;
   }
   #summary-scan-results-card,
@@ -834,8 +845,8 @@
     margin-bottom: 0.5rem;
   }
 
-  #top-five-card li:not(:last-of-type) {
-    border-bottom: 1px solid var(--a11y-black-25);
+  #top-ten-card li:not(:last-of-type) {
+    border-bottom: 1px solid var(--chinese-silver);
     padding-bottom: 0.5rem;
     margin-bottom: 0.5rem;
   }
