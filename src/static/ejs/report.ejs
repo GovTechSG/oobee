@@ -23,6 +23,7 @@
     <%- include('partials/styles/styles') %>
     <%- include('partials/styles/wcagGaugeBar') %>
     <%- include('partials/styles/header') %>
+    <%- include('partials/styles/wcagCompliance') %>
   </head>
 
   <body class="d-flex flex-column">
@@ -36,6 +37,7 @@
     <!-- search feat changes -->
     <%- include('partials/scripts/reportSearch') %>
     <%- include('partials/scripts/wcagGaugeBar') %>
+    <%- include('partials/scripts/wcagCompliance') %>
     <script>
       function initTooltips() {
         const tooltipTriggerList = [].slice.call(
@@ -347,6 +349,7 @@
         scanDataTop5Card();
         scanDataCategorySelector();
         renderWcagGaugeFromScanData();
+        renderNotCompliantTextIfAny();
 
         const createPassedItemsFile = async () => {
           const passedItemsJson = {};

@@ -1,19 +1,33 @@
-<div id="wcag-compliance-card" class="card-body">
-  <h2>WCAG Compliance</h2>
-  <div class="d-flex align-items-center">
-    <span class="flex-grow-1">WCAG (A & AA) Passes</span>
-    <span aria-label="Pass percentage" class="ms-2" id="passPercentage"></span>
+<div id="wcag-compliance-card" class="wcag-card">
+  <div class="wcag-row">
+    <div>
+      <h2 class="wcag-title">WCAG Score</h2>
+
+      <p class="wcag-sub">
+        Based on Automated Checks
+        <button id="wcagModalToggle"
+                type="button"
+                class="wcag-link"
+                data-bs-toggle="modal"
+                data-bs-target="#wcagModal">
+          <span class="underline">More details</span>
+          <svg width="10" height="12" viewBox="0 0 6 10" aria-hidden="true" focusable="false">
+            <path d="M0.726562 7.06L3.7799 4L0.726562 0.94L1.66656 0L5.66656 4L1.66656 8L0.726562 7.06Z" fill="#5735DF"/>
+          </svg>
+        </button>
+      </p>
+
+      <p id="wcagStatus" class="wcag-status" hidden>
+        This website does not meet the minimum accessibility standards.
+      </p>
+    </div>
+
+    <div>
+      <%- include('wcagGaugeBar') %>
+    </div>
   </div>
-
-  <%- include('wcagGaugeBar') %>
-
-  <button id="wcagModalToggle" type="button" data-bs-toggle="modal" data-bs-target="#wcagModal">
-    More details
-    <svg width="10" height="12" viewBox="0 0 6 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M0.726562 7.06L3.7799 4L0.726562 0.94L1.66656 0L5.66656 4L1.66656 8L0.726562 7.06Z" fill="#5735DF"/>
-    </svg>
-  </button>
 </div>
+
 <!-- START Modal Pop up -->
 <div id="wcagModal" class="modal fade" tabindex="-1" aria-labelledby="wcagModalLabel" aria-hidden="true">
   <div class="modal-dialog">
