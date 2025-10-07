@@ -84,6 +84,21 @@
     ); /* TODO: check that this doesn't affect strings in error messages */
   }
 
+  p {
+    font-size: 1rem;
+  }
+
+  h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 2rem;
+  }
+
+  .underline {
+    color: var(--a11y-majorelle-blue);
+    text-decoration: underline;
+  }
+
   #accessibility-site-report h1 {
     font-weight: 700;
     font-size: 2rem;
@@ -91,20 +106,6 @@
     margin-top: 0;
     color: var(--a11y-black-100);
     line-height: 2.5rem;
-  }
-
-  #accessibility-site-report h2 {
-    font-size: 1.125rem;
-    font-weight: 700;
-    margin-top: 0;
-    margin-bottom: 1.5rem;
-    line-height: 2rem;
-  }
-
-  #accessibility-site-report p {
-    font-size: 1rem;
-    margin-top: 0;
-    margin-bottom: 1rem;
   }
 
   #accessibility-site-report a {
@@ -775,11 +776,6 @@
     fill: #86b7fe;
   } */
 
-  /* START CSS for new wcagComplianceCard */
-  #wcag-compliance-card p {
-    margin: 1.5rem 0 1rem 0;
-  }
-
   #wcagModalToggle {
     background: none;
     border: 0;
@@ -797,19 +793,6 @@
     float: right;
     color: var(--sky-blue-150);
   }
-
-  @media only screen and (max-width: 767px) {
-    button#wcagModalToggle {
-      position: absolute;
-      top: 1.1rem;
-      right: 1rem;
-    }
-
-    button#wcagModalToggle:after {
-      display: none;
-    }
-  }
-  /* END CSS for new wcagComplianceCard */
 
   #pagesScannedModal .modal-header,
   #wcagModal .modal-header {
