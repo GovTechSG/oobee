@@ -65,10 +65,10 @@
         });
       };
 
-      const scanDataTop5Card = () => {
+      const scanDataTop10Card = () => {
         const topIssuesList = document.getElementById('top-issues-list');
 
-        scanData.topFiveMostIssues.forEach(page => {
+        scanData.topTenPagesWithMostIssues.forEach(page => {
           if (page.totalIssues !== 0) {
             const listItem = document.createElement('li');
             listItem.className = 'd-flex justify-content-between';
@@ -76,13 +76,21 @@
             const link = document.createElement('a');
             link.href = page.url;
             link.target = '_blank';
+            link.rel = 'noopener';
+            link.className = 'w-65';
             link.textContent = page.pageTitle.length > 0 ? page.pageTitle : page.url;
+
+            const issues = Number(page.totalIssues) || 0;
+            const occ = Number(page.totalOccurrences) || 0;
+            const issueWord = issues === 1 ? 'issue' : 'issues';
+            const occWord = occ === 1 ? 'occurrence' : 'occurrences';
 
             const issuesSpan = document.createElement('span');
             issuesSpan.setAttribute('aria-label', `${page.totalIssues} issues`);
-            issuesSpan.className = 'fw-bold ms-2';
+            issuesSpan.className = 'ms-2';
             issuesSpan.ariaLabel = page.totalIssues + 'issues';
-            issuesSpan.textContent = page.totalIssues;
+            issuesSpan.textContent = `${issues} ${issueWord} (${occ} occ.)`;
+            issuesSpan.setAttribute('aria-label', `${issues} ${issueWord} (${occ} ${occWord})`);
 
             listItem.appendChild(link);
             listItem.appendChild(issuesSpan);
@@ -346,7 +354,7 @@
             ')';
 
         scanDataWCAGList();
-        scanDataTop5Card();
+        scanDataTop10Card();
         scanDataCategorySelector();
         renderWcagGaugeFromScanData();
         renderNotCompliantTextIfAny();
