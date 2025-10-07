@@ -84,6 +84,15 @@
     ); /* TODO: check that this doesn't affect strings in error messages */
   }
 
+  a {
+    color: var(--a11y-majorelle-blue);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
   p {
     font-size: 1rem;
   }
@@ -100,10 +109,6 @@
     line-height: 2rem;
   }
 
-  .w-65 {
-    width: 65%;
-  }
-
   .underline {
     color: var(--a11y-majorelle-blue);
     text-decoration: underline;
@@ -116,16 +121,6 @@
     margin-top: 0;
     color: var(--a11y-black-100);
     line-height: 2.5rem;
-  }
-
-  #accessibility-site-report a {
-    color: var(--sky-blue-150);
-    text-decoration: none;
-  }
-
-  #accessibility-site-report a:hover {
-    /* color: #002b99; */
-    text-decoration: underline;
   }
 
   /* End of Bootstrap CSS overrides */
