@@ -307,22 +307,4 @@
     </li>
   </ul>
   <hr class="my-4 d-none d-md-block" />
-  <iframe
-    id="oobee-online-banner"
-    title="GovTech Accessibility Enabling Team information banner"
-    class="h-auto w-100"
-    src="https://govtechsg.github.io/purple-banner-embeds/"
-    scrolling="no"
-  ></iframe>
-  <script>
-    const oobeeOnlineBannerElem = document.getElementById('oobee-online-banner'); 
-    oobeeOnlineBannerElem.style.display = 'none'; 
-    fetch('https://govtechsg.github.io/purple-banner-embeds/')
-      .then((response) => {
-        if (response.ok) {
-          console.log(response);
-          oobeeOnlineBannerElem.style.display = 'block';
-        }
-      })
-  </script>
 </aside>
