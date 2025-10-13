@@ -45,7 +45,8 @@ const oobeeA11y = await oobeeA11yInit({
   };
 
   await page.goto('https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm');
-  await page.evaluate(oobeeA11y.getScripts());
+  await page.evaluate(oobeeA11y.getAxeScript());
+  await page.evaluate(oobeeA11y.getOobeeFunctions());
 
   const sentences = await page.evaluate(() => extractText());
   const gradingReadabilityFlag = await oobeeA11y.gradeReadability(sentences);

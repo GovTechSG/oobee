@@ -86,9 +86,13 @@ Unique identifier for the scan instance
 
 ##### Methods
 
-`getScripts()`
+`getAxeScript()`
 
-Get the axe-core script to be injected into the browser, along with other custom Oobee scripts
+Get the axe-core engine to be injected into the browser.
+
+`getOobeeFunctions()`
+
+Get the Oobee custom functions to run accessibility scan. Call this after `getAxeScript()`.
 
 - `runA11yScan(elementsToScan, gradingReadabilityFlag)`
   Runs axe scan on the current page.
