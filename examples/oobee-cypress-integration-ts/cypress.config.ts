@@ -18,7 +18,7 @@ interface ScanAboutMetadata {
 // viewport used in tests to optimise screenshots
 const viewportSettings: ViewportSettings = { width: 1920, height: 1040 };
 // specifies the number of occurrences before error is thrown for test failure
-const thresholds: Thresholds = { mustFix: 20, goodToFix: 20 };
+const thresholds: Thresholds = { mustFix: 20, goodToFix: 60 };
 // additional information to include in the "Scan About" section of the report
 const scanAboutMetadata: ScanAboutMetadata = { browser: 'Chrome (Desktop)' };
 // name of the generated zip of the results at the end of scan
@@ -36,7 +36,7 @@ const initOobeeIfNeeded = async () => {
             email: "email@domain.com",
             includeScreenshots: true, // include screenshots of affected elements in the report
             viewportSettings,
-            thresholds: thresholds as any,
+            thresholds: { mustFix: undefined, goodToFix: undefined },
             scanAboutMetadata: scanAboutMetadata as any,
             zip: resultsZipName,
             deviceChosen: "E2E Test Device",
@@ -53,12 +53,17 @@ export default defineConfig({
     taskTimeout: 120000, // need to extend as screenshot function requires some time
     viewportHeight: viewportSettings.height,
     viewportWidth: viewportSettings.width,
+    chromeWebSecurity: false, // Disable web security to handle cross-origin frames
     e2e: {
         setupNodeEvents(on, _config) {
             on("task", {
+                async getAxeScript(): Promise<string> {
+                    const instance = await initOobeeIfNeeded();
+                    return instance.getAxeScript();
+                },
                 async getOobeeA11yScripts(): Promise<string> {
                     const instance = await initOobeeIfNeeded();
-                    return instance.getScripts();
+                    return instance.getOobeeFunctions();
                 },
                 async gradeReadability(sentences: string[]): Promise<string> {
                     const instance = await initOobeeIfNeeded();

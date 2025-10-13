@@ -108,30 +108,40 @@ export const init = async ({
     }
   };
 
-  const getScripts = () => {
+  const getAxeScript = () => {
     throwErrorIfTerminated();
     const axeScript = fs.readFileSync(
       path.join(dirname, '../../../axe-core/axe.min.js'),
       'utf-8',
     );
-    const flagUnlabelledClickableElements_func = fs.readFileSync(
-      path.join(dirname, './crawlers/custom/flagUnlabelledClickableElements.js'),
-      'utf-8',
-    );
+    return axeScript;
+  };
 
+  const getOobeeFunctions = () => {
+    throwErrorIfTerminated();
     return `
-      ${axeScript}
+      // Fix for missing __name function used by bundler
+      if (typeof __name === 'undefined') {
+        window.__name = function(fn, name) {
+          if (fn && typeof fn === 'function' && name) {
+            try {
+              Object.defineProperty(fn, 'name', { value: name, configurable: true });
+            } catch (e) {
+              // Ignore errors if name property cannot be set
+            }
+          }
+          return fn;
+        };
+      }
+      
+      window.flagUnlabelledClickableElements = ${flagUnlabelledClickableElements.toString()};
       window.evaluateAltText = ${evaluateAltText.toString()};
       window.escapeCssSelector = ${escapeCssSelector.toString()};
       window.framesCheck = ${framesCheck.toString()};
       window.findElementByCssSelector = ${findElementByCssSelector.toString()};
       
-      // Make oobee functions available globally with proper isolation
-      window.oobeeHelpers = {
-        flagUnlabelledClickableElements: async () => {}
-      };
-      
       window.xPathToCss = ${xPathToCss.toString()};
+      window.extractText = ${extractText.toString()};
       
       function getAxeConfiguration({
         enableWcagAaa = false,
@@ -253,9 +263,17 @@ export const init = async ({
       window.getAxeConfiguration = getAxeConfiguration;
 
       async function runA11yScan(elementsToScan = [], gradingReadabilityFlag = '') {
+
         const oobeeAccessibleLabelFlaggedXpaths = (window).disableOobee
           ? []
-          : (await (window).oobeeHelpers.flagUnlabelledClickableElements()).map(item => item.xpath);
+          : (await (window).flagUnlabelledClickableElements()).map(item => item.xpath);
+        console.log('OOBEE DEBUG: Flagged XPaths count:', oobeeAccessibleLabelFlaggedXpaths.length);
+        console.log('OOBEE DEBUG: Flagged XPaths:', oobeeAccessibleLabelFlaggedXpaths);
+        
+        // Force visibility of the result in Cypress by adding to page title temporarily
+        const originalTitle = document.title;
+        document.title = '[OOBEE: ' + oobeeAccessibleLabelFlaggedXpaths.length + ' flagged] ' + originalTitle;
+        setTimeout(function() { document.title = originalTitle; }, 1000);
         const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
           .map(xpath => {
             try {
@@ -317,24 +335,18 @@ export const init = async ({
           axeScanResults,
         };
       }
-      window.extractText = ${extractText.toString()};
-      ${flagUnlabelledClickableElements_func.replace('export async function', 'async function')}
-      window.oobeeHelpers.flagUnlabelledClickableElements = flagUnlabelledClickableElements;
       window.disableOobee=${disableOobee};
       window.enableWcagAaa=${enableWcagAaa};
       window.runA11yScan = runA11yScan;
     `;
   };
 
-  
-  /* 
   // Helper script for manually copy-paste testing in Chrome browser
-  
-  const scripts = getScripts();
+  /*
+  const scripts = `${getAxeScript()}\n${getOobeeFunctions()}`;
   fs.writeFileSync(path.join(dirname, 'testScripts.txt'), scripts);
-  
   */
-
+ 
   const pushScanResults = async (
     res: { pageUrl: string; pageTitle: string; axeScanResults: AxeResults },
     metadata: string,
@@ -348,11 +360,15 @@ export const init = async ({
         clonedBrowserDataDir,
         { viewport: viewportSettings, ...getPlaywrightLaunchOptions(browserToRun) },
       );
-      const page = await browserContext.newPage();
-      await page.goto(res.pageUrl);
-      await page.waitForLoadState('networkidle');
-
-      // click on elements to reveal hidden elements so screenshots can be taken
+            const page = await browserContext.newPage();
+            await page.goto(res.pageUrl);
+            try {
+                await page.waitForLoadState('networkidle', { timeout: 10000 });
+            } catch (e) {
+                console.log('Network idle timeout, continuing with screenshot capture...');
+                // Fall back to domcontentloaded if networkidle times out
+                await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
+            }      // click on elements to reveal hidden elements so screenshots can be taken
       if (elementsToClick) {
         for (const elem of elementsToClick) {
           try {
@@ -482,7 +498,8 @@ export const init = async ({
   };
 
   return {
-    getScripts,
+    getAxeScript,
+    getOobeeFunctions,
     gradeReadability,
     pushScanResults,
     terminate,

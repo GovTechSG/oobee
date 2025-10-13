@@ -1,9 +1,44 @@
 Cypress.Commands.add("injectOobeeA11yScripts", () => {
-  cy.task("getOobeeA11yScripts").then((s) => {
-    cy.window().then((win) => {
-      win.eval(s);
+    cy.task("getAxeScript").then((s) => {
+        cy.window().then((win) => {
+            try {
+                win.eval(s);
+            }
+            catch (error) {
+                // If eval fails due to cross-origin issues, try alternative injection
+                if (error.message.includes('SecurityError') || error.message.includes('cross-origin')) {
+                    cy.log('Cross-origin error detected, attempting alternative script injection');
+                    // Create a script tag as fallback
+                    const script = win.document.createElement('script');
+                    script.textContent = s;
+                    win.document.head.appendChild(script);
+                }
+                else {
+                    throw error;
+                }
+            }
+        });
     });
-  });
+    cy.task("getOobeeA11yScripts").then((s) => {
+        cy.window().then((win) => {
+            try {
+                win.eval(s);
+            }
+            catch (error) {
+                // If eval fails due to cross-origin issues, try alternative injection
+                if (error.message.includes('SecurityError') || error.message.includes('cross-origin')) {
+                    cy.log('Cross-origin error detected, attempting alternative script injection');
+                    // Create a script tag as fallback
+                    const script = win.document.createElement('script');
+                    script.textContent = s;
+                    win.document.head.appendChild(script);
+                }
+                else {
+                    throw error;
+                }
+            }
+        });
+    });
 });
 
 Cypress.Commands.add("runOobeeA11yScan", (items = {}) => {

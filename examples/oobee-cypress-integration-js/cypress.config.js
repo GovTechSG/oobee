@@ -34,8 +34,11 @@ export default defineConfig({
   e2e: {
     setupNodeEvents(on, _config) {
       on("task", {
+        getAxeScript() {
+          return oobeeA11y.getAxeScript();
+        },
         getOobeeA11yScripts() {
-          return oobeeA11y.getScripts();
+          return oobeeA11y.getOobeeFunctions();
         },
         gradeReadability(sentences) {
           return oobeeA11y.gradeReadability(sentences);
