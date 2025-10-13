@@ -8,6 +8,6 @@
   },
   "devDependencies": {
     "playwright": "^1.55.0",
-    "@govtechsg/oobee": "^0.10.68"
+    "@govtechsg/oobee": "^0.10.69"
   }
 }

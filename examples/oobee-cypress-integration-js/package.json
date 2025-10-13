@@ -8,6 +8,6 @@
   },
   "devDependencies": {
     "cypress": "^13.0.0",
-    "@govtechsg/oobee": "^0.10.68"
+    "@govtechsg/oobee": "^0.10.69"
   }
 }

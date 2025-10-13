@@ -4,7 +4,7 @@
   "description": "Oobee Cypress integration example (TypeScript)",
   "type": "module",
   "devDependencies": {
-    "@govtechsg/oobee": "^0.10.68",
+    "@govtechsg/oobee": "^0.10.69",
     "@types/jest": "^30.0.0",
     "cypress": "^15.3.0",
     "typescript": "^5.9.3"
