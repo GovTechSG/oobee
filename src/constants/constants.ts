@@ -397,7 +397,7 @@ const urlCheckStatuses = {
     message: 'Provided URL cannot be accessed. Server responded with code ', // append it with the response code received,
   },
   systemError: { code: 14, message: 'Something went wrong when verifying the URL. Please try again in a few minutes. If this issue persists, please contact the Oobee team.'},
-  notASitemap: { code: 15, message: 'Invalid sitemap URL format. Please enter a valid sitemap URL ending with .XML e.g. https://www.example.com/sitemap.xml.' },
+  notASitemap: { code: 15, message: 'Invalid sitemap URL format. Please enter a valid sitemap URL ending with .XML or .TXT e.g. https://www.example.com/sitemap.xml.' },
   unauthorised: { code: 16, message: 'Login required. Please enter your credentials and try again.' },
   // browserError means engine could not find a browser to run the scan
   browserError: {
