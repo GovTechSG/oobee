@@ -13,16 +13,15 @@
         link.rel = 'noopener';
         link.className = 'page-links';
         link.textContent = page.pageTitle.length > 0 ? page.pageTitle : page.url;
+        link.title = link.textContent;
+        link.setAttribute('aria-label', link.textContent);
 
+        const issuesSpan = document.createElement('span');
+        issuesSpan.className = 'ms-2 issues-badge';
         const issues = Number(page.totalIssues) || 0;
         const occ = Number(page.totalOccurrences) || 0;
         const issueWord = issues === 1 ? 'issue' : 'issues';
         const occWord = occ === 1 ? 'occurrence' : 'occurrences';
-
-        const issuesSpan = document.createElement('span');
-        issuesSpan.setAttribute('aria-label', `${page.totalIssues} issues`);
-        issuesSpan.className = 'ms-2';
-        issuesSpan.ariaLabel = page.totalIssues + 'issues';
         issuesSpan.textContent = `${issues} ${issueWord} (${occ} occ.)`;
         issuesSpan.setAttribute('aria-label', `${issues} ${issueWord} (${occ} ${occWord})`);
 
