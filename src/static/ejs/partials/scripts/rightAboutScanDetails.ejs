@@ -42,7 +42,15 @@
   });
 
   const isUnsupportedDoc = (item) => {
-    const meta = (item && typeof item === 'object' && (item.metadata || '')) || '';
+    if (!item || typeof item !== 'object') return false;
+
+    const code = Number(item.httpStatusCode);
+    if (!Number.isNaN(code)) {
+      if (code === 1) return true;
+      if (code !== 0) return false;
+    }
+
+    const meta = String(item.metadata || '');
     return /not\s*a\s*supported\s*document/i.test(meta);
   };
 
