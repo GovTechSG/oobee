@@ -198,6 +198,10 @@ export const crawlLocalFile = async ({
     results.actualUrl = actualUrl;
 
     await dataset.pushData(results);
+    
+    // Ensure proper cleanup of browser context before PDF generation
+    await browserContext.close().catch(() => {});
+    
   } else {
 
     const pdfFileName = path.basename(url);
