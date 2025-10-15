@@ -35,4 +35,17 @@
     // initial state: ensure only crawl is visible (or switch here if you prefer WCAG)
     showPane('view-crawl');
   })();
+
+  const pagesWord = scanData.totalPagesScanned === 1 ? 'page' : 'pages';
+  const rawLabel = (scanData.customFlowLabel ?? '').trim();
+  const displayLabel = !rawLabel || rawLabel.toLowerCase() === 'none'
+    ? 'Custom Flow'
+    : rawLabel;
+
+  const title = scanData.isCustomFlow
+    ? `${displayLabel} (${scanData.totalPagesScanned} ${pagesWord})`
+    : `${scanData.scanType} crawl (${scanData.totalPagesScanned} ${pagesWord})`;
+
+  document.getElementById('pagesScannedModalLabel').innerHTML = title;
+  document.getElementById('pagesScannedModalToggleTxt').innerHTML = title;
 </script>

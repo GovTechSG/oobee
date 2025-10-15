@@ -116,19 +116,4 @@
   };
   hideIfZero('#seg-not-scanned', notScannedCount);
   hideIfZero('#seg-unsupported', unsupportedCount);
-
-  document.getElementById('pagesScannedModalLabel').innerHTML = scanData.isCustomFlow
-    ? scanData.customFlowLabel +
-      ' (' +
-      scanData.totalPagesScanned +
-      ' ' +
-      (scanData.totalPagesScanned === 1 ? 'page' : 'pages') +
-      ')'
-    : scanData.scanType +
-      ' crawl' +
-      ' (' +
-      scanData.totalPagesScanned +
-      ' ' +
-      (scanData.totalPagesScanned === 1 ? 'page' : 'pages') +
-      ')';
 </script>

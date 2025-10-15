@@ -40,21 +40,6 @@
   document.getElementById('viewport-text').innerHTML = scanData.viewport.startsWith('CustomWidth')
     ? `${scanData.viewport.split('_')[1]} width viewport`
     : scanData.viewport + ' View';
-  
-  document.getElementById('pagesScannedModalToggleTxt').innerHTML = scanData.isCustomFlow
-    ? scanData.customFlowLabel +
-      ' (' +
-      scanData.totalPagesScanned +
-      ' ' +
-      (scanData.totalPagesScanned === 1 ? 'page' : 'pages') +
-      ')'
-    : scanData.scanType +
-      ' crawl' +
-      ' (' +
-      scanData.totalPagesScanned +
-      ' ' +
-      (scanData.totalPagesScanned === 1 ? 'page' : 'pages') +
-      ')';
 
   const phAppVersionElement = document.getElementById('oobeeAppVersion');
   const versionContent = 'Oobee Version ' + scanData.oobeeAppVersion;
