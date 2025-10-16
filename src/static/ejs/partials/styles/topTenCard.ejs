@@ -1,0 +1,44 @@
+<style>
+	.page-links {
+		width: 65%;
+	}
+
+	#top-ten-card .page-links {
+		display: flex;
+		align-items: center;
+		gap: .25rem;
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	#top-ten-card .page-links .link-text {
+		color: var(--a11y-majorelle-blue);
+	}
+
+	#top-ten-card .issues-badge {
+		flex: 0 0 auto;
+		white-space: nowrap;
+	}
+
+	@media (max-width: 480px) {
+		#top-ten-card .page-links {
+			line-clamp: 2;
+			-webkit-line-clamp: 2;
+
+			display: -webkit-box;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: normal;
+  	}
+
+		@supports (line-clamp: 2) {
+			#top-ten-card .page-links {
+				display: block;
+			}
+		}
+	}
+</style>

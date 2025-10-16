@@ -666,3 +666,9 @@ We recommend looking at our **Technology Stack** to understand the usage of each
 Oobee uses third-party open-source tools that may be downloaded over the Internet during the installation process of Oobee. Users should be aware of the libraries used by examining `package.json`.
 
 Oobee may send information to the website or URL where the user chooses to initiate a Oobee scan. Limited user information such as e-mail address, name, and basic analytics is collected for the purpose of knowing our usage patterns better.
+
+## DEV: Skipping CLI runtime and generate new HTML with ejs e.g html or css changes
+
+```
+npx tsx src/runGenerateJustHtmlReport.ts results/20250928_162857_tech.gov.sg_488
+```

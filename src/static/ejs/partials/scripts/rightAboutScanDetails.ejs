@@ -1,0 +1,127 @@
+<script>
+  const isCustomFlow = scanData.isCustomFlow;
+  const pagesScanned = scanData.pagesScanned;
+  const totalPagesNotScanned = scanData.totalPagesNotScanned;
+  const pagesNotScanned = scanData.pagesNotScanned;
+  const pagesScannedList = document.getElementById('pagesScannedList');
+  const pagesNotScannedList = document.getElementById('pagesNotScannedList');
+
+  pagesScanned.forEach((page, index) => {
+    const listItem = document.createElement('li');
+
+    if (isCustomFlow) {
+      listItem.innerHTML = `
+        <div class="custom-flow-screenshot-container">
+          <div class="custom-flow-thumb">
+            <img 
+              src="${page.pageImagePath}" 
+              alt="Screenshot of ${page.url}"
+              class="custom-flow-screenshot"
+              onerror="this.onerror = null; this.remove();"
+            >
+          </div>
+          <div class="display-url-container">
+            <a href="${page.url}" target="_blank">${page.pageTitle.length > 0 ? page.pageTitle : page.url}</a>
+            <p>${page.url}</p>
+          </div>
+        </div>
+      `;
+    } else {
+      listItem.innerHTML = `
+        <a href="${page.url}" target="_blank">
+          ${page.pageTitle.length > 0 ? page.pageTitle : page.url}
+          <svg class="link-external-icon" width="16" height="12" viewBox="0 0 8 8" aria-hidden="true" focusable="false">
+            <path d="M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z" fill="#5735DF"/>
+          </svg>
+        </a>
+        <p>${page.url}</p>
+      `;
+    }
+
+    pagesScannedList.appendChild(listItem);
+  });
+
+  const isUnsupportedDoc = (item) => {
+    if (!item || typeof item !== 'object') return false;
+
+    const code = Number(item.httpStatusCode);
+    if (!Number.isNaN(code)) {
+      if (code === 1) return true;
+      if (code !== 0) return false;
+    }
+
+    const meta = String(item.metadata || '');
+    return /not\s*a\s*supported\s*document/i.test(meta);
+  };
+
+  const unsupportedDocs = pagesNotScanned.filter((it) => isUnsupportedDoc(it));
+  const notScannedOnly = pagesNotScanned.filter((it) => !isUnsupportedDoc(it));
+
+  document.getElementById('totalPagesScannedLabel').innerHTML = scanData.totalPagesScanned;
+  document.getElementById('totalPagesNotScannedLabel').innerHTML =
+    notScannedOnly.length;
+
+  notScannedOnly.forEach((page, index) => {
+    var listItem = document.createElement('li');
+    const url = page.url || page;
+    const metadata = page.metadata || page;
+
+    const linkHTML = `<a class="not-scanned-url" href="${url}" target="_blank">
+      ${url}
+      <svg class="link-external-icon" width="16" height="12" viewBox="0 0 8 8" aria-hidden="true" focusable="false">
+        <path d="M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z" fill="#5735DF"/>
+      </svg>
+    </a>`;
+    const metadataHTML = `
+      <div class="metadata-inline">
+        <span class="metadata-text">
+          ${metadata}
+        </span>
+      </div>`;
+
+    listItem.innerHTML = `${linkHTML}${metadataHTML}`;
+    pagesNotScannedList.appendChild(listItem);
+  });
+
+  const unsupportedList = document.getElementById('unsupportedDocsList');
+  if (unsupportedList) {
+    unsupportedList.innerHTML = '';
+    unsupportedDocs.forEach((page) => {
+      const li = document.createElement('li');
+      const url = page.url || page;
+      const title = page.pageTitle?.length ? page.pageTitle : url;
+      const metadata = page.metadata || 'Not A Supported Document';
+      li.innerHTML = `
+        <a href="${url}" target="_blank" rel="noopener">
+          ${title}
+          <svg class="link-external-icon" width="16" height="12" viewBox="0 0 8 8" aria-hidden="true" focusable="false">
+            <path d="M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z" fill="#5735DF"/>
+          </svg>
+        </a>
+
+        <div class="metadata-inline">
+          <span class="metadata-text">
+            ${metadata}
+          </span>
+        </div>
+      `;
+      unsupportedList.appendChild(li);
+    });
+  }
+
+  const notScannedCount = notScannedOnly.length;
+  const unsupportedCount = unsupportedDocs.length;
+
+  const notScannedLabel = document.getElementById('totalPagesNotScannedLabel');
+  if (notScannedLabel) notScannedLabel.textContent = String(notScannedCount);
+
+  const unsupportedLabel = document.getElementById('totalUnsupportedDocsLabel');
+  if (unsupportedLabel) unsupportedLabel.textContent = String(unsupportedCount);
+
+  const hideIfZero = (btnSel, count) => {
+    const btn = document.querySelector(btnSel);
+    if (btn) btn.style.display = count > 0 ? '' : 'none';
+  };
+  hideIfZero('#seg-not-scanned', notScannedCount);
+  hideIfZero('#seg-unsupported', unsupportedCount);
+</script>

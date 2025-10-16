@@ -1,0 +1,15 @@
+<script>
+	function renderNotCompliantTextIfAny() {
+		const wcagTotals = scanData?.wcagPassPercentage ?? {};
+		const totalChecks = Number(wcagTotals.totalWcagChecksAA ?? 0);
+		const violations = Number(wcagTotals.totalWcagViolationsAA ?? 0);
+		const isPerfectWcagScore = totalChecks > 0 && violations === 0;
+		const statusEl = document.getElementById('wcagStatus');
+
+		if (statusEl) {
+			statusEl.hidden = isPerfectWcagScore;
+		}
+	}
+
+	renderNotCompliantTextIfAny();
+</script>
