@@ -1,10 +1,19 @@
 <div class="d-flex flex-grow-1 align-items-stretch">
-  <!-- main.ejs -->
-  <%- include("components/pagesScannedModal") %> <%- include("components/screenshotLightbox") %>
+  <%- include("components/screenshotLightbox") %>
   <main class="d-flex flex-grow-1">
-    <%- include("components/scanAbout") %>
-    <!-- wcag compliance + top 5 -->
     <section class="w-100">
+      <button id="aboutScan"
+              type="button"
+              class="wcag-link"
+              data-bs-toggle="modal"
+              data-bs-target="#aboutScanModal">
+        <span class="underline">
+          More details
+        </span>
+        <svg width="10" height="12" viewBox="0 0 6 10" aria-hidden="true" focusable="false">
+          <path d="M0.726562 7.06L3.7799 4L0.726562 0.94L1.66656 0L5.66656 4L1.66656 8L0.726562 7.06Z" fill="#5735DF"/>
+        </svg>
+      </button>
       <div class="compliance-summary">
         <div class="col card rounded"><%- include("components/wcagCompliance") %></div>
         <div class="col card rounded"><%- include("components/topTen") %></div>
@@ -38,3 +47,4 @@
   </main>
 </div>
 <%- include("footer") %>
+<%- include("components/aboutScanModal") %>
