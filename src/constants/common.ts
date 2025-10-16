@@ -1457,10 +1457,10 @@ export const cloneChromeProfiles = (randomToken: string): string => {
       absolute: true,
       nodir: true,
     };
-    // const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
-    // if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
-    //   return destDir;
-    // }
+    const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
+    if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
+      return destDir;
+    }
 
     consoleLogger.error('Failed to clone Chrome profiles. You may be logged out of your accounts.');
 
