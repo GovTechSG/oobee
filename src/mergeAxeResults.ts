@@ -1797,6 +1797,7 @@ const generateArtifacts = async (
     },
     cypressScanAboutMetadata,
     wcagLinks: constants.wcagLinks,
+    wcagCriteriaLabels: constants.wcagCriteriaLabels,
     scanPagesDetail: {
       pagesAffected: [],
       pagesNotAffected: [],
