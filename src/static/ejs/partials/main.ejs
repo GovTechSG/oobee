@@ -2,7 +2,7 @@
   <%- include("components/screenshotLightbox") %>
   <main class="d-flex flex-grow-1">
     <section class="w-100 m-4">
-      <%- include("components/siteHeader") %>
+      <%- include("components/header/SiteInfo") %>
       <div class="compliance-summary gap-4 mt-4">
         <div class="col card rounded"><%- include("components/wcagCompliance") %></div>
         <div class="col card rounded"><%- include("components/topTen") %></div>
@@ -36,4 +36,4 @@
   </main>
 </div>
 <%- include("footer") %>
-<%- include("components/aboutScanModal") %>
+<%- include("components/header/aboutScanModal/AboutScanModal") %>
