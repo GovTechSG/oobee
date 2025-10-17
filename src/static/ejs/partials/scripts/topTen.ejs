@@ -44,7 +44,7 @@
         link.appendChild(createExternalIcon());
 
         const issuesSpan = document.createElement('span');
-        issuesSpan.className = 'ms-2 issues-badge';
+        issuesSpan.className = 'ms-4 issues-badge';
         const issues = Number(page.totalIssues) || 0;
         const occ = Number(page.totalOccurrences) || 0;
         const issueWord = issues === 1 ? 'issue' : 'issues';
