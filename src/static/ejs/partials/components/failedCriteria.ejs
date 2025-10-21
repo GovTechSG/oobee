@@ -1,4 +1,4 @@
-<div id="failed-criteria-card" class="mt-3">
+<div id="failedCriteriaCard" class="mt-3">
   <div class="wcag-row-column">
     <div>
       <h3 class="wcag-title">Failed Criteria (<span id="failedCriteriaCount">0</span>)</h3>
@@ -12,6 +12,8 @@
       id="viewAllFailedCriteria"
       type="button"
       class="view-all-link"
+      data-bs-toggle="modal"
+      data-bs-target="#failedCriteriaModal"
       hidden
     >
       View all failed criteria
@@ -22,5 +24,24 @@
         />
       </svg>
     </button>
+  </div>
+</div>
+
+<!-- Failed Criteria Modal -->
+<div id="failedCriteriaModal" class="modal fade" tabindex="-1" aria-labelledby="failedCriteriaModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h1 class="modal-title fw-bold" id="failedCriteriaModalLabel">
+          Failed Criteria (<span id="failedCriteriaModalCount">0</span>)
+        </h1>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <ul id="failedCriteriaModalList" class="unbulleted-list">
+          <!-- dynamically populated -->
+        </ul>
+      </div>
+    </div>
   </div>
 </div>

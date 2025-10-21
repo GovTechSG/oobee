@@ -52,6 +52,11 @@
       countElement.textContent = failedCriteria.length;
     }
 
+    const modalCountElement = document.getElementById('failedCriteriaModalCount');
+    if (modalCountElement) {
+      modalCountElement.textContent = failedCriteria.length;
+    }
+
     const listElement = document.getElementById('failedCriteriaList');
     if (listElement && failedCriteria.length > 0) {
       const maxDisplay = 5;
@@ -69,25 +74,27 @@
 
       listElement.innerHTML = listHTML;
 
+      // Populate modal with all criteria
+      const modalListElement = document.getElementById('failedCriteriaModalList');
+      if (modalListElement) {
+        const allListHTML = failedCriteria
+          .map(
+            criteria => `
+            <li class="d-flex justify-content-between">
+              <span>${criteria.id} – ${criteria.name}</span>
+            </li>
+          `,
+          )
+          .join('');
+
+        modalListElement.innerHTML = allListHTML;
+      }
+
       // Show "View all" button if there are more than maxDisplay criteria
       if (failedCriteria.length > maxDisplay) {
         const viewAllButton = document.getElementById('viewAllFailedCriteria');
         if (viewAllButton) {
           viewAllButton.hidden = false;
-          viewAllButton.onclick = () => {
-            const allListHTML = failedCriteria
-              .map(
-                criteria => `
-              <li class="d-flex justify-content-between">
-                <span>${criteria.id} – ${criteria.name}</span>
-              </li>
-            `,
-              )
-              .join('');
-
-            listElement.innerHTML = allListHTML;
-            viewAllButton.hidden = true;
-          };
         }
       }
     } else if (listElement) {
