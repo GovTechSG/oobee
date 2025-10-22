@@ -7,7 +7,13 @@
     const siteUrlElement = document.getElementById('siteUrl');
     const urlTextElement = siteUrlElement.querySelector('.url-text');
     if (urlTextElement) {
-      urlTextElement.textContent = siteUrl;
+      const svgElement = urlTextElement.querySelector('svg');
+      const textNode = document.createTextNode(siteUrl);
+      urlTextElement.textContent = '';
+      urlTextElement.appendChild(textNode);
+      if (svgElement) {
+        urlTextElement.appendChild(svgElement);
+      }
     }
     siteUrlElement.href = siteUrl;
 
