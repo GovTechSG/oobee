@@ -15,7 +15,7 @@ import {
   formatAboutStartTime,
 } from './mergeAxeResults.js';
 
-import constants, { ScannerTypes } from './constants/constants.js';
+import constants, { ScannerTypes, WCAGclauses } from './constants/constants.js';
 
 import { consoleLogger } from './logs.js';
 
@@ -26,19 +26,29 @@ type EnsureCategoryReturn = {
   rules: any[];
 };
 
-const ensureCategory = (categoryObj: any, categoryName: 'mustFix' | 'goodToFix' | 'needsReview' | 'passed'): EnsureCategoryReturn => {
+const ensureCategory = (
+  categoryObj: any,
+  categoryName: 'mustFix' | 'goodToFix' | 'needsReview' | 'passed',
+): EnsureCategoryReturn => {
   const rulesRaw = categoryObj?.rules ?? [];
   const rules: any[] = Array.isArray(rulesRaw)
     ? rulesRaw
-    : Object.entries(rulesRaw as Record<string, any>).map(
-        ([rule, info]: [string, any]) => ({ rule, ...(info as Record<string, any>) })
-      );
+    : Object.entries(rulesRaw as Record<string, any>).map(([rule, info]: [string, any]) => ({
+        rule,
+        ...(info as Record<string, any>),
+      }));
 
   rules.forEach((rule: any) => {
-    if (!Array.isArray(rule.pagesAffected) && rule.pagesAffected && typeof rule.pagesAffected === 'object') {
-      rule.pagesAffected = Object.entries(rule.pagesAffected).map(([url, pageInfo]: [string, any]) => {
-        return pageInfo?.url ? pageInfo : { url, ...pageInfo };
-      });
+    if (
+      !Array.isArray(rule.pagesAffected) &&
+      rule.pagesAffected &&
+      typeof rule.pagesAffected === 'object'
+    ) {
+      rule.pagesAffected = Object.entries(rule.pagesAffected).map(
+        ([url, pageInfo]: [string, any]) => {
+          return pageInfo?.url ? pageInfo : { url, ...pageInfo };
+        },
+      );
     }
 
     if (!Array.isArray(rule.pagesAffected)) {
@@ -46,15 +56,21 @@ const ensureCategory = (categoryObj: any, categoryName: 'mustFix' | 'goodToFix' 
     }
 
     if (typeof rule.totalItems !== 'number') {
-      rule.totalItems = rule.pagesAffected.reduce((accumulate: number, page: any) => accumulate + (Array.isArray(page.items) ? page.items.length : 0), 0);
+      rule.totalItems = rule.pagesAffected.reduce(
+        (accumulate: number, page: any) =>
+          accumulate + (Array.isArray(page.items) ? page.items.length : 0),
+        0,
+      );
     }
   });
 
   const totals: { totalItems: number; totalRuleIssues: number } = {
-    totalItems: typeof categoryObj?.totalItems === 'number'
-      ? categoryObj.totalItems
-      : rules.reduce((acc: number, rr: any) => acc + (rr.totalItems || 0), 0),
-    totalRuleIssues: typeof categoryObj?.totalRuleIssues === 'number' ? categoryObj.totalRuleIssues : rules.length,
+    totalItems:
+      typeof categoryObj?.totalItems === 'number'
+        ? categoryObj.totalItems
+        : rules.reduce((acc: number, rr: any) => acc + (rr.totalItems || 0), 0),
+    totalRuleIssues:
+      typeof categoryObj?.totalRuleIssues === 'number' ? categoryObj.totalRuleIssues : rules.length,
   };
 
   return {
@@ -115,7 +131,10 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
     const allIssues: any = {
       storagePath,
       oobeeAi: { htmlETL: oobeeAiHtmlETL, rules: oobeeAiRules },
-      siteName: (scanData.siteName || (pagesScanned[0]?.pageTitle ?? '')).toString().replace(/^\d+\s*:\s*/, '').trim(),
+      siteName: (scanData.siteName || (pagesScanned[0]?.pageTitle ?? ''))
+        .toString()
+        .replace(/^\d+\s*:\s*/, '')
+        .trim(),
       startTime: scanData.startTime ? new Date(scanData.startTime) : new Date(),
       endTime: scanData.endTime ? new Date(scanData.endTime) : new Date(),
       urlScanned: scanData.urlScanned || scanData.url || '',
@@ -126,11 +145,21 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       viewport: scanData.deviceChosen || 'Desktop',
       pagesScanned,
       pagesNotScanned,
-      totalPagesScanned: typeof scanData.totalPagesScanned === 'number' ? scanData.totalPagesScanned : pagesScanned.length,
-      totalPagesNotScanned: typeof scanData.totalPagesNotScanned === 'number' ? scanData.totalPagesNotScanned : pagesNotScanned.length,
+      totalPagesScanned:
+        typeof scanData.totalPagesScanned === 'number'
+          ? scanData.totalPagesScanned
+          : pagesScanned.length,
+      totalPagesNotScanned:
+        typeof scanData.totalPagesNotScanned === 'number'
+          ? scanData.totalPagesNotScanned
+          : pagesNotScanned.length,
       totalItems: 0,
-      topFiveMostIssues: Array.isArray(scanData.topFiveMostIssues) ? scanData.topFiveMostIssues : [],
-      topTenPagesWithMostIssues: Array.isArray(scanData.topTenPagesWithMostIssues) ? scanData.topTenPagesWithMostIssues : [],
+      topFiveMostIssues: Array.isArray(scanData.topFiveMostIssues)
+        ? scanData.topFiveMostIssues
+        : [],
+      topTenPagesWithMostIssues: Array.isArray(scanData.topTenPagesWithMostIssues)
+        ? scanData.topTenPagesWithMostIssues
+        : [],
       topTenIssues: Array.isArray(scanData.topTenIssues) ? scanData.topTenIssues : [],
       wcagViolations: Array.isArray(scanData.wcagViolations) ? scanData.wcagViolations : [],
       customFlowLabel: scanData.customFlowLabel || '',
@@ -138,6 +167,7 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       items,
       cypressScanAboutMetadata: scanData.cypressScanAboutMetadata || {},
       wcagLinks: scanData.wcagLinks || constants.wcagLinks,
+      wcagClauses: WCAGclauses,
       advancedScanOptionsSummaryItems: {
         showIncludeScreenshots: !!scanData.advancedScanOptionsSummaryItems?.showIncludeScreenshots,
         showAllowSubdomains: !!scanData.advancedScanOptionsSummaryItems?.showAllowSubdomains,
@@ -158,9 +188,19 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
     flattenAndSortResults(allIssues, allIssues.isCustomFlow);
     populateScanPagesDetail(allIssues);
 
-    allIssues.wcagPassPercentage = getWcagPassPercentage(allIssues.wcagViolations, allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa);
-    allIssues.progressPercentage = getProgressPercentage(allIssues.scanPagesDetail, allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa);
-    allIssues.issuesPercentage = await getIssuesPercentage(allIssues.scanPagesDetail, allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa, (allIssues as any).advancedScanOptionsSummaryItems?.disableOobee);
+    allIssues.wcagPassPercentage = getWcagPassPercentage(
+      allIssues.wcagViolations,
+      allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa,
+    );
+    allIssues.progressPercentage = getProgressPercentage(
+      allIssues.scanPagesDetail,
+      allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa,
+    );
+    allIssues.issuesPercentage = await getIssuesPercentage(
+      allIssues.scanPagesDetail,
+      allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa,
+      (allIssues as any).advancedScanOptionsSummaryItems?.disableOobee,
+    );
 
     await writeHTML(allIssues, storagePath, 'report', scanDataB64Path, scanItemsB64Path);
 

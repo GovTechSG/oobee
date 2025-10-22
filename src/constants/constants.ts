@@ -7,9 +7,9 @@ import os from 'os';
 import { spawnSync, execSync } from 'child_process';
 import { Browser, BrowserContext, chromium } from 'playwright';
 import * as Sentry from '@sentry/node';
+import { PlaywrightCrawler } from 'crawlee';
 import { consoleLogger, silentLogger } from '../logs.js';
 import { PageInfo } from '../mergeAxeResults.js';
-import { PlaywrightCrawler } from 'crawlee';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -31,7 +31,7 @@ export const blackListedFileExtensions = [
   'zip',
   'webp',
   'json',
-  'xml'
+  'xml',
 ];
 
 export const getIntermediateScreenshotsPath = (datasetsPath: string): string =>
@@ -188,7 +188,6 @@ export function removeQuarantineFlag(searchPattern: string, allowedRoot = proces
   }
 }
 
-
 export const getExecutablePath = function (dir: string, file: string): string {
   let execPaths = globSync(`${dir}/${file}`, { absolute: true, nodir: true });
 
@@ -258,7 +257,10 @@ export enum FileTypes {
   HtmlOnly = 'html-only',
 }
 
-export function getEnumKey<E extends Record<string, string>>(enumObj: E, value: string): keyof E | undefined {
+export function getEnumKey<E extends Record<string, string>>(
+  enumObj: E,
+  value: string,
+): keyof E | undefined {
   return (Object.keys(enumObj) as Array<keyof E>).find(k => enumObj[k] === value);
 }
 
@@ -285,7 +287,7 @@ export const impactOrder = {
 };
 
 /**
- * Suppresses the "Setting the NODE_TLS_REJECT_UNAUTHORIZED 
+ * Suppresses the "Setting the NODE_TLS_REJECT_UNAUTHORIZED
  * environment variable to '0' is insecure" warning,
  * then disables TLS validation globally.
  */
@@ -309,7 +311,9 @@ export function suppressTlsRejectWarning(): void {
 suppressTlsRejectWarning();
 
 export const sentryConfig = {
-  dsn: process.env.OOBEE_SENTRY_DSN || "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168",
+  dsn:
+    process.env.OOBEE_SENTRY_DSN ||
+    'https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168',
   tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
   profilesSampleRate: 1.0, // Capture 100% of profiles
 };
@@ -321,7 +325,7 @@ export const setSentryUser = (userId: string) => {
   }
 };
 
-  // Legacy code start - Google Sheets submission
+// Legacy code start - Google Sheets submission
 export const formDataFields = {
   formUrl: `https://docs.google.com/forms/d/e/1FAIpQLSem5C8fyNs5TiU5Vv2Y63-SH7CHN86f-LEPxeN_1u_ldUbgUA/formResponse`, // prod
   entryUrlField: 'entry.1562345227',
@@ -334,7 +338,7 @@ export const formDataFields = {
   additionalPageDataField: 'entry.2090887881',
   metadataField: 'entry.1027769131',
 };
-  // Legacy code end - Google Sheets submission
+// Legacy code end - Google Sheets submission
 
 export const sitemapPaths = [
   '/sitemap.xml',
@@ -419,27 +423,58 @@ const wcagCriteriaLabels = {
 const urlCheckStatuses = {
   success: { code: 0 },
   invalidUrl: { code: 11, message: 'Invalid URL. Please check and try again.' },
-  cannotBeResolved: { code: 12, message: 'URL cannot be accessed. Please verify whether the website exists.' },
+  cannotBeResolved: {
+    code: 12,
+    message: 'URL cannot be accessed. Please verify whether the website exists.',
+  },
   errorStatusReceived: {
     // unused for now
     code: 13,
     message: 'Provided URL cannot be accessed. Server responded with code ', // append it with the response code received,
   },
-  systemError: { code: 14, message: 'Something went wrong when verifying the URL. Please try again in a few minutes. If this issue persists, please contact the Oobee team.'},
-  notASitemap: { code: 15, message: 'Invalid sitemap URL format. Please enter a valid sitemap URL ending with .XML e.g. https://www.example.com/sitemap.xml.' },
-  unauthorised: { code: 16, message: 'Login required. Please enter your credentials and try again.' },
+  systemError: {
+    code: 14,
+    message:
+      'Something went wrong when verifying the URL. Please try again in a few minutes. If this issue persists, please contact the Oobee team.',
+  },
+  notASitemap: {
+    code: 15,
+    message:
+      'Invalid sitemap URL format. Please enter a valid sitemap URL ending with .XML e.g. https://www.example.com/sitemap.xml.',
+  },
+  unauthorised: {
+    code: 16,
+    message: 'Login required. Please enter your credentials and try again.',
+  },
   // browserError means engine could not find a browser to run the scan
   browserError: {
     code: 17,
-    message:
-      'Incompatible browser. Please ensure you are using Chrome or Edge browser.',
+    message: 'Incompatible browser. Please ensure you are using Chrome or Edge browser.',
   },
-  sslProtocolError: { code: 18, message: 'SSL certificate  error. Please check the SSL configuration of your website and try again.' },
-  notALocalFile: { code: 19, message: 'Uploaded file format is incorrect. Please upload a HTML, PDF, XML or TXT file.' },
+  sslProtocolError: {
+    code: 18,
+    message:
+      'SSL certificate  error. Please check the SSL configuration of your website and try again.',
+  },
+  notALocalFile: {
+    code: 19,
+    message: 'Uploaded file format is incorrect. Please upload a HTML, PDF, XML or TXT file.',
+  },
   notAPdf: { code: 20, message: 'URL/file format is incorrect. Please upload a PDF file.' },
-  notASupportedDocument: { code: 21, message: 'Uploaded file format is incorrect. Please upload a HTML, PDF, XML or TXT file.' },
-  connectionRefused: { code: 22, message: 'Connection refused. Please try again in a few minutes. If this issue persists, please contact the Oobee team.' },
-  timedOut: { code: 23, message: 'Request timed out. Please try again in a few minutes. If this issue persists, please contact the Oobee team.' },
+  notASupportedDocument: {
+    code: 21,
+    message: 'Uploaded file format is incorrect. Please upload a HTML, PDF, XML or TXT file.',
+  },
+  connectionRefused: {
+    code: 22,
+    message:
+      'Connection refused. Please try again in a few minutes. If this issue persists, please contact the Oobee team.',
+  },
+  timedOut: {
+    code: 23,
+    message:
+      'Request timed out. Please try again in a few minutes. If this issue persists, please contact the Oobee team.',
+  },
 };
 
 /* eslint-disable no-unused-vars */
@@ -506,10 +541,10 @@ export default {
   randomToken: null, // This will be set later in the code
   // Track all active Crawlee / Playwright resources for cleanup
   resources: {
-      crawlers: new Set<PlaywrightCrawler>(),
-      browserContexts: new Set<BrowserContext>(),
-      browsers: new Set<Browser>(),
-    },
+    crawlers: new Set<PlaywrightCrawler>(),
+    browserContexts: new Set<BrowserContext>(),
+    browsers: new Set<Browser>(),
+  },
 };
 
 export const rootPath = dirname;
@@ -533,7 +568,7 @@ export enum RuleFlags {
 }
 
 // Note: Not all status codes will appear as Crawler will handle it as best effort first. E.g. try to handle redirect
-export const STATUS_CODE_METADATA: Record<number,string> = {
+export const STATUS_CODE_METADATA: Record<number, string> = {
   // Custom Codes for Oobee's use
   0: 'Page Excluded',
   1: 'Not A Supported Document',
@@ -543,8 +578,8 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   599: 'Uncommon Response Status Code Received',
 
   // This is Status OK but thrown when the crawler cannot scan the page
-  200: 'Oobee was not able to scan the page due to access restrictions or compatibility issues', 
-  
+  200: 'Oobee was not able to scan the page due to access restrictions or compatibility issues',
+
   // 1xx - Informational
   100: '100 - Continue',
   101: '101 - Switching Protocols',
@@ -564,7 +599,7 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   305: '305 - Use Proxy',
   307: '307 - Temporary Redirect',
   308: '308 - Permanent Redirect',
-  
+
   // 4xx - Client Error
   400: '400 - Bad Request',
   401: '401 - Unauthorized',
@@ -608,48 +643,76 @@ export const STATUS_CODE_METADATA: Record<number,string> = {
   508: '508 - Loop Detected',
   510: '510 - Not Extended',
   511: '511 - Network Authentication Required',
-
 };
 
-  // Elements that should not be clicked or enqueued
-  // With reference from https://chromeenterprise.google/policies/url-patterns/
+// Elements that should not be clicked or enqueued
+// With reference from https://chromeenterprise.google/policies/url-patterns/
 export const disallowedListOfPatterns = [
-  "#",
-  "mailto:",
-  "tel:",
-  "sms:",
-  "skype:",
-  "zoommtg:",
-  "msteams:",
-  "whatsapp:",
-  "slack:",
-  "viber:",
-  "tg:",
-  "line:",
-  "meet:",
-  "facetime:",
-  "imessage:",
-  "discord:",
-  "sgnl:",
-  "webex:",
-  "intent:",
-  "ms-outlook:",
-  "ms-onedrive:",
-  "ms-word:",
-  "ms-excel:",
-  "ms-powerpoint:",
-  "ms-office:",
-  "onenote:",
-  "vs:",
-  "chrome-extension:",
-  "chrome-search:",
-  "chrome:",
-  "chrome-untrusted:",
-  "devtools:",
-  "isolated-app:"
+  '#',
+  'mailto:',
+  'tel:',
+  'sms:',
+  'skype:',
+  'zoommtg:',
+  'msteams:',
+  'whatsapp:',
+  'slack:',
+  'viber:',
+  'tg:',
+  'line:',
+  'meet:',
+  'facetime:',
+  'imessage:',
+  'discord:',
+  'sgnl:',
+  'webex:',
+  'intent:',
+  'ms-outlook:',
+  'ms-onedrive:',
+  'ms-word:',
+  'ms-excel:',
+  'ms-powerpoint:',
+  'ms-office:',
+  'onenote:',
+  'vs:',
+  'chrome-extension:',
+  'chrome-search:',
+  'chrome:',
+  'chrome-untrusted:',
+  'devtools:',
+  'isolated-app:',
 ];
 
 export const disallowedSelectorPatterns = disallowedListOfPatterns
   .map(pattern => `a[href^="${pattern}"]`)
   .join(',')
   .replace(/\s+/g, '');
+
+export const WCAGclauses = {
+  '1.1.1': 'Provide text alternatives',
+  '1.2.2': 'Add captions to videos',
+  '1.3.1': 'Use proper headings and lists',
+  '1.3.5': 'Clearly label common fields',
+  '1.4.1': 'Add cues beyond color',
+  '1.4.2': 'Control any autoplay audio',
+  '1.4.3': 'Ensure text is easy to read',
+  '1.4.4': 'Allow zoom without breaking layout',
+  '1.4.6': 'Ensure very high text contrast',
+  '1.4.12': 'Let users adjust text spacing',
+  '2.1.1': 'Everything works by keyboard',
+  '2.1.3': 'Everything works only by keyboard',
+  '2.2.1': 'Let users extend time limits',
+  '2.2.2': 'Let users stop motion',
+  '2.2.4': 'Let users control alerts',
+  '2.4.1': 'Add skip navigation',
+  '2.4.2': 'Write clear page titles',
+  '2.4.4': 'Say where links go',
+  '2.4.9': 'Links make sense on their own',
+  '2.5.8': 'Buttons must be easy to tap',
+  '3.1.1': 'Declare the page’s language',
+  '3.1.2': 'Show when language changes',
+  '3.1.5': 'Keep content easy to read',
+  '3.2.5': 'Don’t auto-change settings',
+  '3.3.2': 'Label fields and options',
+  '4.1.2': 'Make buttons and inputs readable',
+};
