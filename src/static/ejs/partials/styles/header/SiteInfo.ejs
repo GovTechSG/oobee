@@ -1,4 +1,9 @@
 <style>
+  #site-header {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
   #site-container {
     display: flex;
     gap: 2rem;
@@ -45,7 +50,6 @@
     display: inline-flex !important;
     align-items: center;
     gap: 0.25rem;
-    max-width: 100%;
     min-width: 0;
     vertical-align: middle;
   }
@@ -61,16 +65,15 @@
     flex-shrink: 0;
   }
 
-  @media (max-width: 767px) {
+  @media (max-width: 1300px) {
     #site-container {
       flex-direction: column;
       align-items: flex-start;
-      gap: 1rem;
+      gap: 0.5rem;
     }
 
     #site-container > div:nth-child(1),
     #site-container > div:nth-child(2) {
-      max-width: 100%;
       overflow: visible;
     }
 
@@ -86,7 +89,6 @@
     }
 
     #siteUrl {
-      max-width: 100%;
       display: inline-flex !important;
     }
 

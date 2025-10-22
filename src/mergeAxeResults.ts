@@ -14,7 +14,13 @@ import { Base64Encode } from 'base64-stream';
 import { pipeline } from 'stream/promises';
 // @ts-ignore
 import * as Sentry from '@sentry/node';
-import constants, { BrowserTypes, ScannerTypes, sentryConfig, setSentryUser } from './constants/constants.js';
+import constants, {
+  BrowserTypes,
+  ScannerTypes,
+  sentryConfig,
+  setSentryUser,
+  WCAGclauses,
+} from './constants/constants.js';
 import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.js';
 
 import {
@@ -29,7 +35,7 @@ import {
   getWcagCriteriaMap,
   categorizeWcagCriteria,
   getUserDataTxt,
-  register
+  register,
 } from './utils.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
@@ -109,6 +115,7 @@ type AllIssues = {
     viewport?: { width: number; height: number };
   };
   wcagLinks: { [key: string]: string };
+  wcagClauses: { [key: string]: string };
   [key: string]: any;
   advancedScanOptionsSummaryItems: { [key: string]: boolean };
   scanPagesDetail: {
@@ -962,17 +969,21 @@ const writeScanDetailsCsv = async (
   });
 };
 
-const writeSummaryPdf = async (storagePath: string, pagesScanned: number, filename = 'summary', browser: string, userDataDirectory: string) => {
+const writeSummaryPdf = async (
+  storagePath: string,
+  pagesScanned: number,
+  filename = 'summary',
+  browser: string,
+  userDataDirectory: string,
+) => {
   const htmlFilePath = `${storagePath}/${filename}.html`;
   const fileDestinationPath = `${storagePath}/${filename}.pdf`;
 
-  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
-    ? userDataDirectory
-    : '';
+  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
   const context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
-        headless: true,
-        ...getPlaywrightLaunchOptions(browser),
-      });
+    headless: true,
+    ...getPlaywrightLaunchOptions(browser),
+  });
 
   register(context);
 
@@ -1797,6 +1808,7 @@ const generateArtifacts = async (
     },
     cypressScanAboutMetadata,
     wcagLinks: constants.wcagLinks,
+    wcagClauses: WCAGclauses,
     wcagCriteriaLabels: constants.wcagCriteriaLabels,
     scanPagesDetail: {
       pagesAffected: [],
@@ -1886,13 +1898,14 @@ const generateArtifacts = async (
   consoleLogger.info(`Pages Scanned: ${allIssues.totalPagesScanned}`);
   consoleLogger.info(`Start Time: ${allIssues.startTime}`);
   consoleLogger.info(`End Time: ${allIssues.endTime}`);
-  const elapsedSeconds = (new Date(allIssues.endTime).getTime() - new Date(allIssues.startTime).getTime()) / 1000;
+  const elapsedSeconds =
+    (new Date(allIssues.endTime).getTime() - new Date(allIssues.startTime).getTime()) / 1000;
   consoleLogger.info(`Elapsed Time: ${elapsedSeconds}s`);
   consoleLogger.info(`Device: ${allIssues.deviceChosen}`);
   consoleLogger.info(`Viewport: ${allIssues.viewport}`);
   consoleLogger.info(`Scan Type: ${allIssues.scanType}`);
   consoleLogger.info(`Label: ${allIssues.customFlowLabel || 'N/A'}`);
-  
+
   const getAxeImpactCount = (allIssues: AllIssues) => {
     const impactCount = {
       critical: 0,
@@ -1986,10 +1999,20 @@ const generateArtifacts = async (
     ]);
   }
 
-  let browserChannel = getBrowserToRun(randomToken, BrowserTypes.CHROME, false).browserToRun;
+  const browserChannel = getBrowserToRun(randomToken, BrowserTypes.CHROME, false).browserToRun;
 
   // Should consider refactor constants.userDataDirectory to be a parameter in future
-  await retryFunction(() => writeSummaryPdf(storagePath, pagesScanned.length, 'summary', browserChannel, constants.userDataDirectory), 1);
+  await retryFunction(
+    () =>
+      writeSummaryPdf(
+        storagePath,
+        pagesScanned.length,
+        'summary',
+        browserChannel,
+        constants.userDataDirectory,
+      ),
+    1,
+  );
 
   try {
     fs.rmSync(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
@@ -2010,10 +2033,12 @@ const generateArtifacts = async (
     if (!zip.endsWith('.zip')) {
       constants.cliZipFileName += '.zip';
     }
-
   }
 
-  if (!path.isAbsolute(constants.cliZipFileName) || path.dirname(constants.cliZipFileName) === '.') {
+  if (
+    !path.isAbsolute(constants.cliZipFileName) ||
+    path.dirname(constants.cliZipFileName) === '.'
+  ) {
     constants.cliZipFileName = path.join(storagePath, constants.cliZipFileName);
   }
 
