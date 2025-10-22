@@ -22,9 +22,10 @@
     <%- include('partials/styles/highlightjs') %>
     <%- include('partials/styles/styles') %>
     <%- include('partials/styles/header/SiteInfo') %>
-    <%- include('partials/styles/wcagGaugeBar') %>
+    <%- include('partials/styles/wcagCompliance/WcagGaugeBar') %>
     <%- include('partials/styles/header') %>
     <%- include('partials/styles/wcagCompliance') %>
+    <%- include('partials/styles/wcagCompliance/FailedCriteria') %>
     <%- include('partials/styles/topTenCard') %>
     <%- include('partials/styles/header/aboutScanModal/AboutScanModal') %>
     <%- include('partials/styles/header/aboutScanModal/ScanDetails') %>
@@ -53,8 +54,9 @@
     <%- include('partials/scripts/topTen')%>
     <!-- search feat changes -->
     <%- include('partials/scripts/reportSearch') %>
-    <%- include('partials/scripts/wcagGaugeBar') %>
+    <%- include('partials/scripts/wcagCompliance/WcagGaugeBar') %>
     <%- include('partials/scripts/wcagCompliance') %>
+    <%- include('partials/scripts/wcagCompliance/FailedCriteria') %>
     <script>
       function initTooltips() {
         const tooltipTriggerList = [].slice.call(
