@@ -38,7 +38,7 @@
   document.getElementById('aboutStartTime').innerHTML = formattedViewerLocalStartTime;
 
   document.getElementById('viewport-text').innerHTML = scanData.viewport.startsWith('CustomWidth')
-    ? `${scanData.viewport.split('_')[1]} width viewport`
+    ? `${scanData.viewport.split('_')[1]} Custom Width View`
     : scanData.viewport + ' View';
 
   const phAppVersionElement = document.getElementById('oobeeAppVersion');
