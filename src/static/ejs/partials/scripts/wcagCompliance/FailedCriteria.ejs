@@ -58,6 +58,8 @@
     }
 
     const listElement = document.getElementById('failedCriteriaList');
+    const cardElement = document.getElementById('failedCriteriaCard');
+    
     if (listElement && failedCriteria.length > 0) {
       const maxDisplay = 5;
       const displayCriteria = failedCriteria.slice(0, maxDisplay);
@@ -97,8 +99,10 @@
           viewAllButton.hidden = false;
         }
       }
-    } else if (listElement) {
-      listElement.innerHTML = '<p class="text-muted">No failed criteria found.</p>';
+    } else {
+      if (cardElement) {
+        cardElement.style.display = 'none';
+      }
     }
   })();
 </script>
