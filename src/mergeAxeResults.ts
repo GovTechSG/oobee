@@ -20,6 +20,8 @@ import constants, {
   sentryConfig,
   setSentryUser,
   WCAGclauses,
+  issueDescriptionMap,
+  disabilityBadgesMap,
 } from './constants/constants.js';
 import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.js';
 
@@ -1809,6 +1811,8 @@ const generateArtifacts = async (
     cypressScanAboutMetadata,
     wcagLinks: constants.wcagLinks,
     wcagClauses: WCAGclauses,
+    issueDescriptionMap,
+    disabilityBadgesMap,
     wcagCriteriaLabels: constants.wcagCriteriaLabels,
     scanPagesDetail: {
       pagesAffected: [],

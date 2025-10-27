@@ -15,7 +15,12 @@ import {
   formatAboutStartTime,
 } from './mergeAxeResults.js';
 
-import constants, { ScannerTypes, WCAGclauses } from './constants/constants.js';
+import constants, {
+  ScannerTypes,
+  WCAGclauses,
+  issueDescriptionMap,
+  disabilityBadgesMap,
+} from './constants/constants.js';
 
 import { consoleLogger } from './logs.js';
 
@@ -168,6 +173,8 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       cypressScanAboutMetadata: scanData.cypressScanAboutMetadata || {},
       wcagLinks: scanData.wcagLinks || constants.wcagLinks,
       wcagClauses: WCAGclauses,
+      issueDescriptionMap,
+      disabilityBadgesMap,
       advancedScanOptionsSummaryItems: {
         showIncludeScreenshots: !!scanData.advancedScanOptionsSummaryItems?.showIncludeScreenshots,
         showAllowSubdomains: !!scanData.advancedScanOptionsSummaryItems?.showAllowSubdomains,
