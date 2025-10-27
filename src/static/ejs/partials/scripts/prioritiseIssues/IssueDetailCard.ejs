@@ -59,6 +59,14 @@
         conformanceContainer.innerHTML = badges.join('');
       }
 
+      // Populate long description
+      const longDescriptionElement = document.getElementById('issueDetailLongDescription');
+      const issueLongDescriptionMap = scanData?.issueLongDescriptionMap || {};
+      if (longDescriptionElement) {
+        const longDescription = issueLongDescriptionMap[issue.ruleId] || '';
+        longDescriptionElement.textContent = longDescription;
+      }
+
       // Populate disability impact
       const disabilitySection = document.getElementById('issueDetailDisabilitySection');
       const disabilityMessage = document.getElementById('issueDetailDisabilityMessage');

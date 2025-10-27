@@ -22,6 +22,7 @@ import constants, {
   WCAGclauses,
   issueDescriptionMap,
   disabilityBadgesMap,
+  issueLongDescriptionMap,
 } from './constants/constants.js';
 import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.js';
 
@@ -1813,6 +1814,7 @@ const generateArtifacts = async (
     wcagClauses: WCAGclauses,
     issueDescriptionMap,
     disabilityBadgesMap,
+    issueLongDescriptionMap,
     wcagCriteriaLabels: constants.wcagCriteriaLabels,
     scanPagesDetail: {
       pagesAffected: [],

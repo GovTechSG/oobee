@@ -20,6 +20,7 @@ import constants, {
   WCAGclauses,
   issueDescriptionMap,
   disabilityBadgesMap,
+  issueLongDescriptionMap,
 } from './constants/constants.js';
 
 import { consoleLogger } from './logs.js';
@@ -175,6 +176,7 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       wcagClauses: WCAGclauses,
       issueDescriptionMap,
       disabilityBadgesMap,
+      issueLongDescriptionMap,
       advancedScanOptionsSummaryItems: {
         showIncludeScreenshots: !!scanData.advancedScanOptionsSummaryItems?.showIncludeScreenshots,
         showAllowSubdomains: !!scanData.advancedScanOptionsSummaryItems?.showAllowSubdomains,
