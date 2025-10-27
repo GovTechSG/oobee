@@ -1,0 +1,111 @@
+<script>
+  (function initIssueDetailCard() {
+    const issueDescriptionMap = scanData?.issueDescriptionMap || {};
+    window.populateIssueDetailCard = function (issue) {
+      const detailCard = document.getElementById('issueDetailCard');
+      if (!detailCard) return;
+
+      detailCard.style.display = 'block';
+
+      const titleElement = document.getElementById('issueDetailTitle');
+      if (titleElement) {
+        titleElement.textContent = issue.description || 'Issue';
+      }
+
+      const imageElement = document.getElementById('issueDetailImage');
+      if (imageElement) {
+        imageElement.src =
+          'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect width="200" height="200" fill="%23E0E0E0"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="%23666"%3EIssue Image%3C/text%3E%3C/svg%3E';
+        imageElement.alt = issue.description || 'Issue illustration';
+      }
+
+      // Populate conformance badges
+      const conformanceContainer = document.getElementById('issueDetailConformance');
+      if (conformanceContainer && issue.conformance && issue.conformance.length > 0) {
+        const wcagConformance = issue.conformance.filter(c => c.startsWith('wcag'));
+        const wcagCriteriaLabels = scanData?.wcagCriteriaLabels || {};
+
+        const criteriaNumbers = [];
+        let level = null;
+
+        wcagConformance.forEach(wcag => {
+          const numbers = wcag.replace('wcag', '').split('');
+          let formattedWcag = '';
+
+          if (numbers.length === 3) {
+            formattedWcag = `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}`;
+          } else if (numbers.length === 4) {
+            formattedWcag = `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}${numbers[3]}`;
+          } else if (numbers.length === 5) {
+            formattedWcag = `WCAG ${numbers[0]}.${numbers[1]}.${numbers.slice(2).join('')}`;
+          }
+
+          if (wcagCriteriaLabels[formattedWcag]) {
+            criteriaNumbers.push(formattedWcag);
+            if (!level) {
+              level = wcagCriteriaLabels[formattedWcag];
+            }
+          }
+        });
+
+        const badges = criteriaNumbers.map(
+          criteria => `<span class="issue-detail-conformance-badge">${criteria}</span>`,
+        );
+
+        if (level) {
+          badges.push(`<span class="issue-detail-conformance-badge">Level ${level}</span>`);
+        }
+
+        conformanceContainer.innerHTML = badges.join('');
+      }
+
+      // Populate disability impact
+      const disabilitySection = document.getElementById('issueDetailDisabilitySection');
+      const disabilityMessage = document.getElementById('issueDetailDisabilityMessage');
+      const disabilityBadgesMap = scanData?.disabilityBadgesMap || {};
+      const disabilities = disabilityBadgesMap[issue.ruleId] || [];
+
+      if (disabilityMessage && disabilities.length > 0) {
+        let disabilityText = '';
+        if (disabilities.length === 1) {
+          disabilityText = `${disabilities[0]} Disability `;
+        } else if (disabilities.length === 2) {
+          disabilityText = `${disabilities[0]} and ${disabilities[1]} Disability`;
+        } else {
+          const boldedDisabilities = disabilities.map(d => `${d}`);
+          const lastDisability = boldedDisabilities.pop();
+          disabilityText = `${boldedDisabilities.join(', ')} and ${lastDisability} Disability`;
+        }
+
+        disabilityMessage.innerHTML = `This issue prevents users with <span class="disability-text">${disabilityText}</span> from navigating your website.`;
+        disabilitySection.style.display = 'block';
+      } else {
+        disabilitySection.style.display = 'none';
+      }
+
+      // Handle "View issue details" button
+      const viewDetailsBtn = document.getElementById('viewIssueDetailsBtn');
+      if (viewDetailsBtn) {
+        const newBtn = viewDetailsBtn.cloneNode(true);
+        viewDetailsBtn.parentNode.replaceChild(newBtn, viewDetailsBtn);
+
+        newBtn.addEventListener('click', function () {
+          if (typeof expandRule === 'function') {
+            expandRule('mustFix', issue);
+
+            const offcanvasElement = document.getElementById('expandedRule');
+            if (offcanvasElement) {
+              const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
+              offcanvas.show();
+            }
+          }
+        });
+      }
+    };
+
+    const detailCard = document.getElementById('issueDetailCard');
+    if (detailCard) {
+      detailCard.style.display = 'none';
+    }
+  })();
+</script>

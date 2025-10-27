@@ -88,11 +88,14 @@
         const issuesListHTML = criteria.issues
           .map(issue => {
             const disabilities = disabilityBadgesMap[issue.ruleId] || [];
-            const disabilityBadges = disabilities.length > 0 ? `
+            const disabilityBadges =
+              disabilities.length > 0
+                ? `
               <div class="priority-issue-badges">
                 ${disabilities.map(disability => `<span class="disability-badge">${disability} Disability</span>`).join('')}
               </div>
-            ` : '';
+            `
+                : '';
 
             return `
               <li class="priority-issue-item d-flex g-one" data-rule-id="${issue.ruleId}">
@@ -163,23 +166,50 @@
           title.classList.add('active');
         }
 
-        const allRules = [...mustFixRules];
-        const selectedRule = allRules.find(r => r.rule === ruleId);
-
-        if (selectedRule) {
-          const category = mustFixRules.some(r => r.rule === ruleId) ? 'mustFix' : 'goodToFix';
-
-          if (typeof expandRule === 'function') {
-            expandRule(category, selectedRule);
-
-            const offcanvasElement = document.getElementById('expandedRule');
-            if (offcanvasElement) {
-              const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
-              offcanvas.show();
-            }
+        let selectedRule = null;
+        for (const criteria of failedCriteria) {
+          const issue = criteria.issues.find(i => i.ruleId === ruleId);
+          if (issue) {
+            selectedRule = issue;
+            break;
           }
+        }
+
+        if (selectedRule && typeof window.populateIssueDetailCard === 'function') {
+          window.populateIssueDetailCard(selectedRule);
         }
       });
     });
+
+    // Automatically open first accordion and select first issue
+    if (failedCriteria.length > 0 && failedCriteria[0].issues.length > 0) {
+      const firstAccordionButton = document.querySelector(
+        '#prioritiseIssuesAccordion .accordion-button',
+      );
+      const firstAccordionCollapse = document.querySelector(
+        '#prioritiseIssuesAccordion .accordion-collapse',
+      );
+
+      if (firstAccordionButton && firstAccordionCollapse) {
+        firstAccordionButton.classList.remove('collapsed');
+        firstAccordionButton.setAttribute('aria-expanded', 'true');
+        firstAccordionCollapse.classList.add('show');
+      }
+
+      const firstIssueItem = document.querySelector('.priority-issue-item');
+      if (firstIssueItem) {
+        firstIssueItem.classList.add('active');
+        const firstIssueTitle = firstIssueItem.querySelector('.priority-issue-title');
+        if (firstIssueTitle) {
+          firstIssueTitle.classList.add('active');
+        }
+
+        const firstIssue = failedCriteria[0].issues[0];
+
+        if (typeof window.populateIssueDetailCard === 'function') {
+          window.populateIssueDetailCard(firstIssue);
+        }
+      }
+    }
   })();
 </script>

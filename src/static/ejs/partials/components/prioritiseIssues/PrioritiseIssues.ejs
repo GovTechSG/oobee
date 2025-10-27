@@ -30,9 +30,18 @@
       </svg>
       <h2 class="mb-0">Prioritise these issues first</h2>
     </div>
-    <%- include('../shared/InfoAlert', { text: 'Resolving each Must Fix issue within a criteria increases your WCAG score by 1.' }) %>
-    <div id="prioritiseIssuesAccordion">
-      <!-- Dynamically populated by script -->
+    <div class="fw-semibold">
+        <%- include('../shared/InfoAlert', { text: 'Resolving each Must Fix issue within a criteria increases your WCAG score by 1.' }) %>
+    </div>
+    
+    <div class="prioritise-issues-container">
+      <div class="prioritise-issues-main">
+        <div id="prioritiseIssuesAccordion">
+          <!-- Dynamically populated by script -->
+        </div>
+      </div>
+      
+      <%- include('./IssueDetailCard') %>
     </div>
   </div>
 </div>
