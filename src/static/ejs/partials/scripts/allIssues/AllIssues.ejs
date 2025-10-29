@@ -4,13 +4,16 @@
     let filteredIssues = [];
     let currentSort = { column: 'occurrence', direction: 'desc' };
     let currentCategory = 'mustFix';
+    const a11yRuleShortDescriptionMap = scanData?.a11yRuleShortDescriptionMap;
+    const wcagCriteriaLabels = scanData?.wcagCriteriaLabels;
+    const disabilityBadgesMap = scanData?.disabilityBadgesMap;
 
     window.addEventListener('DOMContentLoaded', () => {
       initializeIssues();
       populateCriteriaFilter();
       renderTable();
       updateTotalCount();
-      
+
       document.getElementById('severityFilter').addEventListener('change', handleFilterChange);
       document.getElementById('criteriaFilter').addEventListener('change', handleFilterChange);
       document.getElementById('disabilityFilter').addEventListener('change', handleFilterChange);
@@ -27,12 +30,13 @@
             allIssues.push({
               category,
               ruleId: rule.rule,
-              description: rule.description,
+              description: a11yRuleShortDescriptionMap[rule.rule] || rule.description,
               totalItems: rule.totalItems,
               conformance: rule.conformance || [],
               pagesAffected: rule.pagesAffected || [],
               axeImpact: rule.axeImpact || '',
-              helpUrl: rule.helpUrl || ''
+              helpUrl: rule.helpUrl || '',
+              disabilities: disabilityBadgesMap[rule.rule] || [],
             });
           });
         }
@@ -50,7 +54,7 @@
           issue.conformance.forEach(conf => {
             if (conf.startsWith('wcag')) {
               const formatted = formatWcagId(conf);
-              if (formatted) criteriaSet.add(formatted);
+              if (wcagCriteriaLabels[formatted]) criteriaSet.add(formatted);
             }
           });
         }
@@ -83,23 +87,23 @@
       return wcag;
     }
 
-    window.filterByCategory = function(category) {
+    window.filterByCategory = function (category) {
       currentCategory = category;
-      
+
       // Update active badge
       document.querySelectorAll('.category-badge').forEach(badge => {
         badge.classList.remove('active');
       });
       document.getElementById(category + 'Badge').classList.add('active');
-      
+
       // Update severity filter
       const severityMap = {
-        'mustFix': 'mustFix',
-        'goodToFix': 'goodToFix',
-        'needsReview': 'needsReview'
+        mustFix: 'mustFix',
+        goodToFix: 'goodToFix',
+        needsReview: 'needsReview',
       };
       document.getElementById('severityFilter').value = severityMap[category];
-      
+
       handleFilterChange();
     };
 
@@ -117,15 +121,16 @@
 
         // Criteria filter
         if (criteriaFilter !== 'all') {
-          const hasCriteria = issue.conformance && issue.conformance.some(conf => {
-            return formatWcagId(conf) === criteriaFilter;
-          });
+          const hasCriteria =
+            issue.conformance &&
+            issue.conformance.some(conf => {
+              return formatWcagId(conf) === criteriaFilter;
+            });
           if (!hasCriteria) return false;
         }
 
         // Disability filter
         if (disabilityFilter !== 'all') {
-          const disabilityBadgesMap = scanData?.disabilityBadgesMap || {};
           const disabilities = disabilityBadgesMap[issue.ruleId] || [];
           if (!disabilities.includes(disabilityFilter)) return false;
         }
@@ -146,7 +151,7 @@
       handleFilterChange();
     }
 
-    window.sortTable = function(column) {
+    window.sortTable = function (column) {
       if (currentSort.column === column) {
         currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
       } else {
@@ -168,9 +173,12 @@
 
       const sortedTh = document.querySelector(`.issues-table th[onclick*="${column}"]`);
       if (sortedTh) {
-        sortedTh.setAttribute('aria-sort', currentSort.direction === 'asc' ? 'ascending' : 'descending');
+        sortedTh.setAttribute(
+          'aria-sort',
+          currentSort.direction === 'asc' ? 'ascending' : 'descending',
+        );
         sortedTh.querySelector('.sort-icon').classList.add('active');
-        
+
         // Update arrow opacity based on sort direction
         const paths = sortedTh.querySelectorAll('.sort-icon path');
         if (paths.length === 2) {
@@ -194,7 +202,7 @@
 
         switch (currentSort.column) {
           case 'severity':
-            const severityOrder = { 'mustFix': 1, 'goodToFix': 2, 'needsReview': 3 };
+            const severityOrder = { mustFix: 1, goodToFix: 2, needsReview: 3 };
             aValue = severityOrder[a.category];
             bValue = severityOrder[b.category];
             break;
@@ -228,28 +236,34 @@
       table.style.display = 'table';
       emptyState.style.display = 'none';
 
-      tbody.innerHTML = filteredIssues.map(issue => {
-        const severityLabel = {
-          'mustFix': 'Must Fix',
-          'goodToFix': 'Good to Fix',
-          'needsReview': 'Manual Test'
-        }[issue.category];
+      tbody.innerHTML = filteredIssues
+        .map(issue => {
+          const severityLabel = {
+            mustFix: 'Must Fix',
+            goodToFix: 'Good to Fix',
+            needsReview: 'Manual Test',
+          }[issue.category];
 
-        const severityClass = issue.category.replace(/([A-Z])/g, '-$1').toLowerCase();
+          const severityClass = issue.category.replace(/([A-Z])/g, '-$1').toLowerCase();
 
-        const conformanceBadges = issue.conformance
-          .filter(c => c.startsWith('wcag'))
-          .slice(0, 3)
-          .map(conf => {
-            const formatted = formatWcagId(conf);
-            return `<span class="conformance-badge" title="${formatted}">${formatted}</span>`;
-          })
-          .join('');
+          const conformanceBadges = issue.conformance
+            .filter(c => c.startsWith('wcag'))
+            .slice(0, 3)
+            .map(conf => {
+              const formatted = formatWcagId(conf);
+              if (wcagCriteriaLabels[formatted]) {
+                return `<span class="conformance-badge" title="${formatted}">${formatted}</span>`;
+              }
+            })
+            .join('');
 
-        const moreCount = issue.conformance.filter(c => c.startsWith('wcag')).length - 3;
-        const moreBadge = moreCount > 0 ? `<span class="conformance-badge">+${moreCount}</span>` : '';
+          const disabilitiesBadges = issue.disabilities
+            .map(disability => {
+              return `<span class="conformance-badge" title="${disability}">${disability} Disability</span>`;
+            })
+            .join('');
 
-        return `
+          return `
           <tr onclick="openIssueDetails('${issue.category}', ${JSON.stringify(issue).replace(/"/g, '&quot;')})">
             <td>
               <span class="category-badge ${severityClass}">${severityLabel}</span>
@@ -257,11 +271,9 @@
             <td>
               <div class="issue-name-cell">
                 <div class="issue-description">${htmlEscapeString(issue.description)}</div>
-                ${issue.conformance.filter(c => c.startsWith('wcag')).length > 0 ? `
                 <div class="issue-conformance-badges">
-                  ${conformanceBadges}${moreBadge}
+                  ${conformanceBadges}${disabilitiesBadges}
                 </div>
-                ` : ''}
               </div>
             </td>
             <td>
@@ -281,7 +293,8 @@
             </td>
           </tr>
         `;
-      }).join('');
+        })
+        .join('');
     }
 
     function formatCount(count) {
@@ -302,7 +315,7 @@
       }
     }
 
-    window.openIssueDetails = function(category, issue) {
+    window.openIssueDetails = function (category, issue) {
       if (typeof expandRule === 'function') {
         expandRule(category, issue);
 

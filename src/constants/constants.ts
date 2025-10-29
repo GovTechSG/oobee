@@ -805,6 +805,8 @@ export const a11yRuleLongDescriptionMap = {
     "Elements shouldn't have positive tabindex values. This prevents keyboard navigation from becoming confusing and broken.",
   'table-duplicate-name':
     "Table captions and summaries shouldn't repeat the same text. This avoids confusion for screen reader users.",
+  'meta-viewport':
+    'Pages must allow users to zoom and scale the text. This helps people with low vision read content by making it larger.',
 };
 
 export const disabilityBadgesMap = {
@@ -901,6 +903,7 @@ export const disabilityBadgesMap = {
   'scope-attr-valid': ['Visual'],
   'skip-link': ['Motor', 'Learning', 'Visual'],
   tabindex: ['Motor'],
+  'meta-viewport': ['Visual'],
 };
 
 export default {
