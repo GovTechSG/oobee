@@ -163,11 +163,10 @@
       document.querySelectorAll('.issues-table th[aria-sort]').forEach(th => {
         th.setAttribute('aria-sort', 'none');
         th.querySelector('.sort-icon').classList.remove('active');
-        // Reset all arrows to default opacity
         const paths = th.querySelectorAll('.sort-icon path');
         if (paths.length === 2) {
-          paths[0].setAttribute('opacity', '1'); // up arrow
-          paths[1].setAttribute('opacity', '0.3'); // down arrow
+          paths[0].setAttribute('opacity', '1');
+          paths[1].setAttribute('opacity', '0.3');
         }
       });
 
@@ -183,11 +182,11 @@
         const paths = sortedTh.querySelectorAll('.sort-icon path');
         if (paths.length === 2) {
           if (currentSort.direction === 'asc') {
-            paths[0].setAttribute('opacity', '1'); // up arrow full
-            paths[1].setAttribute('opacity', '0.3'); // down arrow faded
+            paths[0].setAttribute('opacity', '1');
+            paths[1].setAttribute('opacity', '0.3');
           } else {
-            paths[0].setAttribute('opacity', '0.3'); // up arrow faded
-            paths[1].setAttribute('opacity', '1'); // down arrow full
+            paths[0].setAttribute('opacity', '0.3');
+            paths[1].setAttribute('opacity', '1');
           }
         }
       }
@@ -315,9 +314,12 @@
       }
     }
 
-    window.openIssueDetails = function (category, issue) {
-      if (typeof expandRule === 'function') {
-        expandRule(category, issue);
+    window.openIssueDetails = function (category, issueData) {
+      const issue = typeof issueData === 'string' ? JSON.parse(issueData) : issueData;
+      const ruleData = scanItems[category]?.rules?.find(r => r.rule === issue.ruleId);
+
+      if (ruleData && typeof expandRule === 'function') {
+        expandRule(category, ruleData);
 
         const offcanvasElement = document.getElementById('expandedRule');
         if (offcanvasElement) {
