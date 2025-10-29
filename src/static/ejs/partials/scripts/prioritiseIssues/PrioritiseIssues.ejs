@@ -1,6 +1,6 @@
 <script>
   (function populatePrioritiseIssues() {
-    const issueDescriptionMap = scanData?.issueDescriptionMap || {};
+    const a11yRuleShortDescriptionMap = scanData?.a11yRuleShortDescriptionMap || {};
     const disabilityBadgesMap = scanData?.disabilityBadgesMap || {};
     const wcagLinks = scanData?.wcagLinks || {};
     const wcagViolations = scanData?.wcagViolations || [];
@@ -41,7 +41,7 @@
         }
 
         const criteria = wcagCriteriaMap.get(formattedWcag);
-        const displayName = issueDescriptionMap[ruleId] || rule.description;
+        const displayName = a11yRuleShortDescriptionMap[ruleId] || rule.description;
 
         criteria.issues.push({
           ruleId: ruleId,

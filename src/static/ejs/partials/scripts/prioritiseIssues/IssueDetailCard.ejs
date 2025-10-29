@@ -1,8 +1,7 @@
 <script>
   (function initIssueDetailCard() {
-    const issueDescriptionMap = scanData?.issueDescriptionMap || {};
     window.populateIssueDetailCard = function (issue) {
-      const detailCard = document.getElementById('issueDetailCard');
+      const detailCard = document.getElementById('a11yIssueDetailCard');
       if (!detailCard) return;
 
       detailCard.style.display = 'block';
@@ -61,9 +60,9 @@
 
       // Populate long description
       const longDescriptionElement = document.getElementById('issueDetailLongDescription');
-      const issueLongDescriptionMap = scanData?.issueLongDescriptionMap || {};
+      const a11yRuleLongDescriptionMap = scanData?.a11yRuleLongDescriptionMap || {};
       if (longDescriptionElement) {
-        const longDescription = issueLongDescriptionMap[issue.ruleId] || '';
+        const longDescription = a11yRuleLongDescriptionMap[issue.ruleId] || '';
         longDescriptionElement.textContent = longDescription;
       }
 
@@ -111,7 +110,7 @@
       }
     };
 
-    const detailCard = document.getElementById('issueDetailCard');
+    const detailCard = document.getElementById('a11yIssueDetailCard');
     if (detailCard) {
       detailCard.style.display = 'none';
     }

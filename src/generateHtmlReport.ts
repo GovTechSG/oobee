@@ -18,9 +18,9 @@ import {
 import constants, {
   ScannerTypes,
   WCAGclauses,
-  issueDescriptionMap,
+  a11yRuleShortDescriptionMap,
   disabilityBadgesMap,
-  issueLongDescriptionMap,
+  a11yRuleLongDescriptionMap,
 } from './constants/constants.js';
 
 import { consoleLogger } from './logs.js';
@@ -174,9 +174,9 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       cypressScanAboutMetadata: scanData.cypressScanAboutMetadata || {},
       wcagLinks: scanData.wcagLinks || constants.wcagLinks,
       wcagClauses: WCAGclauses,
-      issueDescriptionMap,
+      a11yRuleShortDescriptionMap,
       disabilityBadgesMap,
-      issueLongDescriptionMap,
+      a11yRuleLongDescriptionMap,
       advancedScanOptionsSummaryItems: {
         showIncludeScreenshots: !!scanData.advancedScanOptionsSummaryItems?.showIncludeScreenshots,
         showAllowSubdomains: !!scanData.advancedScanOptionsSummaryItems?.showAllowSubdomains,

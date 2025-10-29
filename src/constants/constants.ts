@@ -520,7 +520,7 @@ const reserveFileNameKeywords = [
   'LPT9',
 ];
 
-export const issueDescriptionMap = {
+export const a11yRuleShortDescriptionMap = {
   'aria-meter-name': 'All elements must have clear text to describe it',
   'aria-progressbar-name': 'Add labels to progress bars',
   'image-alt': 'Add alt text to images',
@@ -618,7 +618,7 @@ export const issueDescriptionMap = {
   'meta-viewport': 'Allow zooming and scaling of pages',
 };
 
-export const issueLongDescriptionMap = {
+export const a11yRuleLongDescriptionMap = {
   'aria-meter-name':
     'Meters that show measurements (like storage usage) need text labels. This helps people using screen readers understand what the meter is tracking.',
   'aria-progressbar-name':
@@ -919,7 +919,7 @@ export default {
   reserveFileNameKeywords,
   wcagLinks,
   wcagCriteriaLabels,
-  issueDescriptionMap,
+  a11yRuleShortDescriptionMap,
   disabilityBadgesMap,
   robotsTxtUrls: null,
   userDataDirectory: null, // This will be set later in the code
