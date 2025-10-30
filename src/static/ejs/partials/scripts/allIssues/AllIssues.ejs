@@ -156,7 +156,7 @@
         currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
       } else {
         currentSort.column = column;
-        currentSort.direction = column === 'occurrence' ? 'desc' : 'asc';
+        currentSort.direction = 'desc';
       }
 
       // Update sort indicators
@@ -165,8 +165,8 @@
         th.querySelector('.sort-icon').classList.remove('active');
         const paths = th.querySelectorAll('.sort-icon path');
         if (paths.length === 2) {
-          paths[0].setAttribute('opacity', '1');
-          paths[1].setAttribute('opacity', '0.3');
+          paths[0].setAttribute('opacity', '0.3');
+          paths[1].setAttribute('opacity', '1');
         }
       });
 

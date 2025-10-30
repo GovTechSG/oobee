@@ -115,12 +115,15 @@
     max-height: 67vh;
     overflow-y: auto;
     border-radius: 5px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .issues-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
+    table-layout: fixed;
   }
 
   .issues-table thead th {
@@ -132,6 +135,8 @@
     position: sticky;
     top: 0;
     z-index: 10;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .issues-table th.sortable {
@@ -230,10 +235,12 @@
   @media (max-width: 768px) {
     .category-badges-container {
       flex-direction: column;
+      align-items: flex-start;
     }
 
     .category-badge {
       width: 100%;
+      height: fit-content;
     }
 
     .filter-bar {
@@ -250,13 +257,57 @@
       width: 100%;
     }
 
+    .issues-table-container {
+      overflow-x: auto;
+    }
+
     .issues-table {
+      font-size: 0.8rem;
+      min-width: 100%;
+      table-layout: auto;
+    }
+
+    .issues-table thead th {
+      padding: 0.5rem 0.25rem;
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+
+    .issues-table thead th span {
+      gap: 0.25rem;
+      font-size: 0.75rem;
+    }
+
+    .issues-table thead th .sort-icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    .issues-table tbody td {
+      padding: 0.5rem 0.25rem;
       font-size: 0.8rem;
     }
 
-    .issues-table thead th,
-    .issues-table tbody td {
-      padding: 0.5rem;
+    .issues-table tbody td:last-child {
+      padding-right: 0.5rem;
+    }
+
+    .issues-table thead th:last-child {
+      width: 10%;
+      min-width: 40px;
+    }
+
+    .category-item {
+      border-right: 0;
+    }
+
+    .issue-conformance-badges {
+      gap: 0.25rem;
+    }
+
+    .conformance-badge {
+      font-size: 0.65rem;
+      padding: 2px 4px;
     }
   }
 </style>
