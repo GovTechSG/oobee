@@ -590,13 +590,13 @@ export const a11yRuleShortDescriptionMap = {
   accesskeys: 'Use unique keyboard shortcuts',
   'aria-allowed-role': 'Use the correct element type',
   'aria-dialog-name': 'Add titles to dialog popups',
-  'aria-text': 'Don’t focus decorative text',
+  'aria-text': "Don't focus decorative text",
   'aria-treeitem-name': 'Label items in expandable lists',
   'empty-heading': 'Remove empty headings',
   'empty-table-header': 'Add text to table headers',
   'frame-tested': 'Test frames with accessibility tools',
   'heading-order': 'Fix heading level order',
-  'image-redundant-alt': 'Don’t repeat image alt as text',
+  'image-redundant-alt': "Don't repeat image alt as text",
   'label-title-only': 'Show a visible label for fields',
   'landmark-banner-is-top-level': 'Keep header outside other regions',
   'landmark-complementary-is-top-level': 'Keep sidebar outside other regions',
@@ -805,6 +805,8 @@ export const a11yRuleLongDescriptionMap = {
     "Elements shouldn't have positive tabindex values. This prevents keyboard navigation from becoming confusing and broken.",
   'table-duplicate-name':
     "Table captions and summaries shouldn't repeat the same text. This avoids confusion for screen reader users.",
+  'meta-viewport':
+    'Pages must allow users to zoom and scale the text. This helps people with low vision read content by making it larger.',
 };
 
 export const disabilityBadgesMap = {
@@ -901,6 +903,7 @@ export const disabilityBadgesMap = {
   'scope-attr-valid': ['Visual'],
   'skip-link': ['Motor', 'Learning', 'Visual'],
   tabindex: ['Motor'],
+  'meta-viewport': ['Visual'],
 };
 
 export default {

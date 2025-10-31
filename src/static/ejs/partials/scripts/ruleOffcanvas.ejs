@@ -113,9 +113,11 @@ category summary is clicked %>
       const categorySelectors = [];
       const comboboxCategorySelectors = [];
 
-      Object.keys(filteredItems).forEach(category => {
-        const ruleInCategory = filteredItems[category]?.rules?.find(r => r.rule === selectedRule.rule);
-        
+      const itemsToUse = typeof filteredItems !== 'undefined' ? filteredItems : scanItems;
+
+      Object.keys(itemsToUse).forEach(category => {
+        const ruleInCategory = itemsToUse[category]?.rules?.find(r => r.rule === selectedRule.rule);
+
         if (ruleInCategory !== undefined && category !== 'passed') {
           if (category !== 'passed') {
             availableFixCategories.push(category);
@@ -175,7 +177,7 @@ category summary is clicked %>
 
               document.getElementById(`${event.currentTarget.classList[0]}ExpandedRuleDropdownSelector`).classList.add('selected')
 
-              updateExpandedRuleDropdownToggleContainer(`(${event.currentTarget.children[1].innerText})`)
+              updateExpandedRuleDropdownToggleContainer(event, `(${event.currentTarget.children[1].innerText})`)
 
               ruleInfoText()
 
@@ -195,7 +197,7 @@ category summary is clicked %>
 
               document.getElementById(`${event.currentTarget.classList[0]}OffCanvasButtonSelector`).classList.add('selected')
 
-              updateExpandedRuleDropdownToggleContainer(event.currentTarget.children[1].innerText)
+              updateExpandedRuleDropdownToggleContainer(event, event.currentTarget.children[1].innerText)
 
               ruleInfoText()
 
@@ -209,14 +211,20 @@ category summary is clicked %>
           if (category === selectedCategory) {
             element.click();
 
-            document.getElementById('expandedRuleDropdownToggleContainer').classList.replace(expandedRuleDropdownToggleContainer.classList[0], category);
+            const expandedRuleDropdownToggleContainer = document.getElementById('expandedRuleDropdownToggleContainer');
+            if (expandedRuleDropdownToggleContainer && expandedRuleDropdownToggleContainer.classList[0]) {
+              expandedRuleDropdownToggleContainer.classList.replace(expandedRuleDropdownToggleContainer.classList[0], category);
+            }
             document.getElementById('expandedRuleDropdownToggleCategoryTitle').innerText = getFormattedCategoryTitle(category)
             document.getElementById('expandedRuleDropdownToggleCategoryInfo').innerText = `(${ruleInCategory.totalItems} Occurrences)`
           }
           if (category === selectedCategory) {
             ruleOffCanvasComboboxOption.click();
 
-            document.getElementById('expandedRuleDropdownToggleContainer').classList.replace(expandedRuleDropdownToggleContainer.classList[0], category);
+            const expandedRuleDropdownToggleContainer = document.getElementById('expandedRuleDropdownToggleContainer');
+            if (expandedRuleDropdownToggleContainer && expandedRuleDropdownToggleContainer.classList[0]) {
+              expandedRuleDropdownToggleContainer.classList.replace(expandedRuleDropdownToggleContainer.classList[0], category);
+            }
             document.getElementById('expandedRuleDropdownToggleCategoryTitle').innerText = getFormattedCategoryTitle(category)
             document.getElementById('expandedRuleDropdownToggleCategoryInfo').innerText = `(${ruleInCategory.totalItems} Occurrences)`
           }
@@ -239,8 +247,11 @@ category summary is clicked %>
           }
         }
 
-        function updateExpandedRuleDropdownToggleContainer(dropdownOccurrencesString){
-          document.getElementById('expandedRuleDropdownToggleContainer').classList.replace(expandedRuleDropdownToggleContainer.classList[0], event.currentTarget.classList[0]);
+        function updateExpandedRuleDropdownToggleContainer(event, dropdownOccurrencesString){
+          const expandedRuleDropdownToggleContainer = document.getElementById('expandedRuleDropdownToggleContainer');
+          if (expandedRuleDropdownToggleContainer && expandedRuleDropdownToggleContainer.classList[0]) {
+            expandedRuleDropdownToggleContainer.classList.replace(expandedRuleDropdownToggleContainer.classList[0], event.currentTarget.classList[0]);
+          }
           document.getElementById('expandedRuleDropdownToggleCategoryTitle').innerText = event.currentTarget.children[0].innerText.replace(/\n/g, '')
           document.getElementById('expandedRuleDropdownToggleCategoryInfo').innerText = dropdownOccurrencesString
         }
@@ -427,17 +438,13 @@ category summary is clicked %>
         if (normalMode) {
           accordion.querySelector('button').addEventListener('click', function(event) {
             var accordionBody = accordion.querySelector(".accordion-body");
-  
             // So that It does not keep adding
             if (!accordionBody.querySelector(".unbulleted-list"))
             {
               buildExpandedRuleCategoryContentAccordian(accordionId,category,ruleInCategory,page,index);
-  
               this.setAttribute('data-bs-target', '#' + accordionId+"-content");
-  
               // Remove the event listener temporarily
               this.removeEventListener('click', arguments.callee);
-  
               // Programmatically trigger a click on the button to open the accordion
               this.click();
             }
@@ -449,20 +456,16 @@ category summary is clicked %>
             this.setAttribute('data-bs-target', '#' + accordionId + "-content");
             this.setAttribute('aria-expanded', 'false');
             this.setAttribute('aria-controls', accordionId + "-content");
-  
             // Initialize  the Collapse plugin on the button element
             var collapse = new bootstrap.Collapse(this, {
               toggle: false // Set to true if you want to toggle the collapsed state on initialization
             });
-  
             // Remove the event listener temporarily
             this.removeEventListener('click', arguments.callee);
-  
             // Programmatically trigger a click on the button to open the accordion
             setTimeout(() => { // Delaying to ensure the content is added before triggering the click
                 this.click();
             }, 0);
-  
           })
         }
 

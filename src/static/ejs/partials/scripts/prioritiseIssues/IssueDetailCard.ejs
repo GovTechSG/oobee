@@ -97,8 +97,11 @@
         viewDetailsBtn.parentNode.replaceChild(newBtn, viewDetailsBtn);
 
         newBtn.addEventListener('click', function () {
-          if (typeof expandRule === 'function') {
-            expandRule('mustFix', issue);
+          const category = issue.category || 'mustFix';
+          const ruleData = scanItems[category]?.rules?.find(r => r.rule === issue.ruleId);
+
+          if (ruleData && typeof expandRule === 'function') {
+            expandRule(category, ruleData);
 
             const offcanvasElement = document.getElementById('expandedRule');
             if (offcanvasElement) {
