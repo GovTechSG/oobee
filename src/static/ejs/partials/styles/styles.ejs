@@ -142,10 +142,16 @@
   :root {
     --bright-gray: #e5e7eb;
     --chinese-silver: #C7CACA;
+    --light-grayish-violet: #FAF8FD;
     --light-carmine-pink:   #EC6162;
     --deep-green-cyan-turquoise:  #10755E;
     --cosmic-cobalt: #38268B;
     --ocean-blue: #4D34BF;
+    --soft-blue: #CDC2FA;
+    --dark-orange: #B04900;
+    --light-grayish-red: #FEF7F7;
+    --strong-orange: #BF8301;
+    --very-dark-gray: #686868;
 
     --must-fix-icon: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M17.1429 0H2.85714C1.27919 0 0 1.27919 0 2.85714V17.1429C0 18.7208 1.27919 20 2.85714 20H17.1429C18.7208 20 20 18.7208 20 17.1429V2.85714C20 1.27919 18.7208 0 17.1429 0Z' fill='%23f26949'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M11.4292 9.99822V5.71251C11.4292 4.92353 10.7896 4.28394 10.0006 4.28394C9.21161 4.28394 8.57202 4.92353 8.57202 5.71251V9.99822C8.57202 10.7872 9.21161 11.4268 10.0006 11.4268C10.7896 11.4268 11.4292 10.7872 11.4292 9.99822ZM10.0006 12.8554C9.21202 12.8554 8.57202 13.4954 8.57202 14.2839C8.57202 15.0725 9.21202 15.7125 10.0006 15.7125C10.7892 15.7125 11.4292 15.0725 11.4292 14.2839C11.4292 13.4954 10.7892 12.8554 10.0006 12.8554Z' fill='%2326241b'/%3E%3C/svg%3E%0A");
 
@@ -233,130 +239,9 @@
     text-align: right;
   }
 
-  /* reportSearch starts here */
-
-  .search-warning {
-    background: rgb(0, 107, 140, 0.05);
-    border: 1px solid var(--sky-blue-150);
-    margin-bottom: 2rem;
-    text-align: center;
+  .main-container {
+    max-width: 1440px;
   }
-
-  .input-search {
-    position: absolute;
-    padding: 0.5rem 0.5rem 0.5rem 1rem;
-  }
-
-  #searchBarInput {
-    padding-left: 3.5rem;
-    min-height: 3rem;
-  }
-
-  #searchGroup .form-control::placeholder {
-    color: var(--a11y-black-80);
-  }
-
-  .search-filter-off {
-    display: none;
-  }
-  .search-filter-on {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 16px;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    height: 76px;
-    border-radius: 0px 0px 4px 4px;
-    border: 1px solid var(--a11y-black-25);
-    background: var(--a11y-black-5);
-    max-width: 100%;
-    min-width: 100%;
-    border-top: 0;
-  }
-
-  .filter-button-issue {
-    min-height: 50px;
-    width: 158px;
-    height: 44px;
-    gap: 10px;
-    border-radius: 5px;
-    border: 1px solid var(--a11y-black-25);
-    background: var(--true-white);
-    box-sizing: border-box;
-    text-align: center;
-    justify-content: center;
-    display: flex;
-    align-items: center;
-    padding-block: 1px;
-    padding-inline: 6px;
-  }
-  .filter-button-pages {
-    min-height: 50px;
-    width: 68px;
-    height: 44px;
-    gap: 10px;
-    border-radius: 4px;
-    border: 1px solid var(--a11y-black-25);
-    background: var(--true-white);
-    box-sizing: border-box;
-    text-align: center;
-    justify-content: center;
-    display: flex;
-    align-items: center;
-    padding-block: 1px;
-    padding-inline: 6px;
-  }
-  .filter-button-html {
-    min-height: 50px;
-    margin-right: 16px;
-    width: 197px;
-    height: 44px;
-    gap: 10px;
-    border-radius: 4px;
-    border: 1px solid var(--a11y-black-25);
-    background: var(--a11y-black-5);
-    box-sizing: border-box;
-    text-align: center;
-    justify-content: center;
-    display: flex;
-    align-items: center;
-    padding-block: 1px;
-    padding-inline: 6px;
-  }
-
-  .filter-options {
-    display: flex;
-    gap: 16px;
-  }
-
-  .filter-options-group input[type='radio']:checked + label {
-    border: 2px solid var(--A11Y-Primary-Blue-600, var(--sky-blue-150));
-    background: var(--true-white);
-    color: var(--sky-blue-150);
-  }
-
-  .filter-words:hover {
-    background: #f2f6ff;
-    border: 1px solid var(--sky-blue-150);
-  }
-
-  .filter-words {
-    color: var(--a11y-black-100);
-    font-size: 16px;
-    font-family: 'Open Sans', sans-serif;
-    font-weight: 400;
-    line-height: 28px;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .ps-xl-3 {
-    padding-left: 1rem !important;
-  }
-
-  /* reportSearch ends here */
 
   @media (max-width: 767px) {
     .toggleWrapper {
@@ -1736,11 +1621,6 @@
     }
     #scan-about ul {
       margin-bottom: 0;
-    }
-
-    /* reportSearch */
-    .search-filter-on {
-      width: 90vw;
     }
   }
 </style>
