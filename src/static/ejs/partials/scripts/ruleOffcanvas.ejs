@@ -549,7 +549,7 @@ category summary is clicked %>
           const genAiAccordionDiv = `${ruleInCategory.rule}-${category}-genai-accordion-${index}`;
           const genAiButtonDiv = `${ruleInCategory.rule}-${category}-genai-button-${index}`;
           const genAiErrorDiv = `${ruleInCategory.rule}-${category}-genai-error-${index}`;
-          const isColorContrastRule = ruleInCategory.rule === 'color-contrast';
+          const isGenAiSupportedRule = ['color-contrast', 'oobee-accessible-label'].includes(ruleInCategory.rule);
 
           let itemCard;
           const isPurpleAiRule = oobeeAiRules.includes(ruleInCategory.rule);
@@ -674,7 +674,7 @@ category summary is clicked %>
                     </div>
                   </div>` : ``
                   }
-                  ${isColorContrastRule ? `
+                  ${isGenAiSupportedRule ? `
                   <hr />
                   <div class="d-flex g-one">
                     <div class="fw-bold page-item-card-section-title">Generative AI Fix</div>

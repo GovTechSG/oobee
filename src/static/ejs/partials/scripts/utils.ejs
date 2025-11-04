@@ -440,9 +440,10 @@
   const generateGenAiSuggestFix = async (ruleId, accordionDiv, html, buttonDiv, errorDiv) => {
     console.log('🤖 Gen AI Suggest Fix called (wcag-eval integration):', { ruleId, accordionDiv, html, buttonDiv, errorDiv });
 
-    // Validate that this is specifically for color-contrast rule
-    if (ruleId !== 'color-contrast') {
-      console.warn('Gen AI Suggest Fix is currently only available for color-contrast rules');
+    // Validate that this rule is supported
+    const SUPPORTED_RULES = ['color-contrast', 'oobee-accessible-label'];
+    if (!SUPPORTED_RULES.includes(ruleId)) {
+      console.warn(`Gen AI Suggest Fix not yet available for ${ruleId}`);
       return;
     }
 
@@ -527,12 +528,14 @@
         console.log('📐 Using fallback scanner findings (elementContext might be null):', scannerFindings);
       }
 
+      // Determine violation type based on ruleId
+      let violationType = ruleId === 'color-contrast' ? 'color-contrast' : 'accessible-label';
+
       // Prepare enhanced payload for wcag-eval API
       const apiPayload = {
-        violation_type: 'color-contrast',
+        violation_type: violationType,
         html: html,
         css: elementContext?.css || '',
-        scanner_findings: scannerFindings,
         violation_context: violationContext ? {
           severity: violationContext.severity,
           issue_description: violationContext.issueDescription,
@@ -549,6 +552,11 @@
           data_source: violationContext ? 'json_scan_results' : 'dom_extraction'
         }
       };
+
+      // Only add scanner_findings for color-contrast violations
+      if (violationType === 'color-contrast') {
+        apiPayload.scanner_findings = scannerFindings;
+      }
 
       console.log('📤 Sending request to wcag-eval API:', apiPayload);
 
