@@ -258,6 +258,7 @@ export const updateMenu = async (page, urlsCrawled) => {
   consoleLogger.info(`Overlay menu updated`);
 };
 
+
 export const addOverlayMenu = async (
   page,
   urlsCrawled,
@@ -274,8 +275,168 @@ export const addOverlayMenu = async (
   return page
     .evaluate(
       async vars => {
+        const customWindow: Window = window as unknown as Window;
+        const inProgress = !!(vars?.opts && vars.opts.inProgress);
+        const collapsedOption = !!(vars?.opts && vars.opts.collapsed);
+
         const panel = document.createElement('aside');
         panel.className = 'oobee-panel';
+
+        const minBtn = document.createElement('button');
+        minBtn.type = 'button';
+        minBtn.className = 'oobee-minbtn';
+        minBtn.setAttribute('aria-label', 'Minimize/expand panel');
+
+        const MINBTN_SVG = `
+          <svg class="oobee-minbtn__icon" xmlns="http://www.w3.org/2000/svg"
+              width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <g clip-path="url(#clip0_59_3691)">
+              <path d="M6.41 6L5 7.41L9.58 12L5 16.59L6.41 18L12.41 12L6.41 6Z" fill="#9021A6"/>
+              <path d="M14.41 6L13 7.41L17.58 12L13 16.59L14.41 18L20.41 12L14.41 6Z" fill="#9021A6"/>
+            </g>
+            <defs>
+              <clipPath id="clip0_59_3691">
+                <rect width="24" height="24" fill="white"/>
+              </clipPath>
+            </defs>
+          </svg>
+        `;
+        minBtn.innerHTML = MINBTN_SVG;
+
+        let currentPos: 'LEFT' | 'RIGHT' = (vars.menuPos || 'RIGHT');
+        const isCollapsed = () => panel.classList.contains('collapsed');
+
+        const setPosClass = (pos: 'LEFT' | 'RIGHT') => {
+          panel.classList.remove('pos-left', 'pos-right');
+          minBtn.classList.remove('pos-left', 'pos-right');
+          if (pos === 'LEFT') {
+            panel.classList.add('pos-left');
+            minBtn.classList.add('pos-left');
+          } else {
+            panel.classList.add('pos-right');
+            minBtn.classList.add('pos-right');
+          }
+          positionMinimizeBtn();
+          setDraggableSidebarMenu();
+        };
+
+        const toggleCollapsed = (force?: boolean) => {
+          const willCollapse = (typeof force === 'boolean') ? force : !isCollapsed();
+          if (willCollapse) {
+            panel.classList.add('collapsed');
+            localStorage.setItem('oobee:overlay-collapsed', '1');
+            customWindow.oobeeSetCollapsed?.(true);
+          } else {
+            panel.classList.remove('collapsed');
+            localStorage.setItem('oobee:overlay-collapsed', '0');
+            customWindow.oobeeSetCollapsed?.(false);
+          }
+          positionMinimizeBtn();
+          setDraggableSidebarMenu();
+        };
+
+        setPosClass(currentPos);
+        const persisted = localStorage.getItem('oobee:overlay-collapsed');
+        const startCollapsed = persisted != null ? persisted === '1' : collapsedOption;
+        if (startCollapsed) panel.classList.add('collapsed');
+
+        const header = document.createElement('div');
+        header.className = 'oobee-header';
+
+        const grip = document.createElement('button');
+        grip.type = 'button';
+        grip.className = 'oobee-grip';
+        grip.setAttribute('aria-label', 'Drag to move panel left or right');
+
+        const GRIP_SVG = `
+          <svg class="oobee-grip__icon" xmlns="http://www.w3.org/2000/svg"
+              width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path d="M6 11C4.9 11 4 10.1 4 9C4 7.9 4.9 7 6 7C7.1 7 8 7.9 8 9C8 10.1 7.1 11 6 11ZM14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9C10 10.1 10.9 11 12 11C13.1 11 14 10.1 14 9ZM20 9C20 7.9 19.1 7 18 7C16.9 7 16 7.9 16 9C16 10.1 16.9 11 18 11C19.1 11 20 10.1 20 9ZM16 15C16 16.1 16.9 17 18 17C19.1 17 20 16.1 20 15C20 13.9 19.1 13 18 13C16.9 13 16 13.9 16 15ZM14 15C14 13.9 13.1 13 12 13C10.9 13 10 13.9 10 15C10 16.1 10.9 17 12 17C13.1 17 14 16.1 14 15ZM8 15C8 13.9 7.1 13 6 13C4.9 13 4 13.9 4 15C4 16.1 4.9 17 6 17C7.1 17 8 16.1 8 15Z" fill="#AFAFB0"/>
+          </svg>
+        `;
+        grip.innerHTML = GRIP_SVG;
+
+        const leftSpacer = document.createElement('div');
+        leftSpacer.className = 'oobee-spacer';
+        const rightSpacer = document.createElement('div');
+        rightSpacer.className = 'oobee-spacer';
+
+        header.appendChild(leftSpacer);
+        header.appendChild(grip);
+        header.appendChild(rightSpacer);
+
+        const body = document.createElement('div');
+        body.className = 'oobee-body';
+
+        const h2 = document.createElement('h2');
+        h2.id = 'oobeeHPagesScanned';
+        h2.className = 'oobee-section-title';
+        h2.textContent = 'Pages Scanned';
+
+        const scanBtn = document.createElement('button');
+        scanBtn.id = 'oobeeBtnScan';
+        scanBtn.className = 'oobee-btn oobee-btn-primary';
+        scanBtn.innerText = 'Scan this page';
+        scanBtn.disabled = inProgress;
+        scanBtn.addEventListener('click', async () => customWindow.handleOnScanClick?.());
+
+        const stopBtn = document.createElement('button');
+        stopBtn.id = 'oobeeBtnStop';
+        stopBtn.className = 'oobee-btn oobee-btn-secondary';
+        stopBtn.innerText = 'Stop scan';
+        stopBtn.addEventListener('click', async () => customWindow.handleOnStopClick?.());
+
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'oobee-actions';
+        btnGroup.appendChild(scanBtn);
+        btnGroup.appendChild(stopBtn);
+
+        const listWrap = document.createElement('div');
+        listWrap.id = 'oobeeList';
+        listWrap.className = 'oobee-list';
+
+        const renderList = () => {
+          const scanned = vars.urlsCrawled.scanned || [];
+          listWrap.innerHTML = '';
+
+          if (scanned.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'oobee-empty';
+            empty.textContent = 'Scan a page to start';
+            listWrap.appendChild(empty);
+            return;
+          }
+
+          const ol = document.createElement('ol');
+          ol.className = 'oobee-ol';
+
+          scanned.forEach((item) => {
+            const li = document.createElement('li');
+            li.className = 'oobee-li';
+
+            const title = document.createElement('div');
+            title.className = 'oobee-item-title';
+            title.textContent = (item.pageTitle && item.pageTitle.trim()) ? item.pageTitle : item.url;
+
+            const url = document.createElement('div');
+            url.className = 'oobee-item-url';
+            url.textContent = item.url;
+
+            li.appendChild(title);
+            li.appendChild(url);
+            ol.appendChild(li);
+          });
+
+          listWrap.appendChild(ol);
+        };
+        renderList();
+
+        body.appendChild(btnGroup);
+        body.appendChild(h2);
+        body.appendChild(listWrap);
+
+        panel.appendChild(header);
+        panel.appendChild(body);
 
         const sheet = new CSSStyleSheet();
         // TODO: separate out into css file if this gets too big
@@ -295,8 +456,261 @@ export const addOverlayMenu = async (
             box-shadow: 0 6px 24px rgba(0,0,0,.08);
             transition: width .16s ease,left .16s ease,right .16s ease
           }
+          .oobee-panel.pos-right {
+            right: 0;
+            border-left: 1px solid rgba(0,0,0,.08)
+          }
+          .oobee-panel.pos-left {
+            left: 0;
+            border-right: 1px solid rgba(0,0,0,.08)
+          }
+          .oobee-panel.collapsed {
+            width: 56px;
+            overflow: hidden
+          }
+
+          :host {
+            --oobee-gap: 8px;                 /* distance from panel edge */
+            --oobee-panel-offset: 320px;      /* overwritten by JS to actual width */
+          }
+
+          /* external minimize button (always OUTSIDE the panel) */
+          .oobee-minbtn {
+            position: fixed;
+            top: 0;
+            z-index: 2147483647;
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #fff;
+            cursor: pointer;
+          }
+
+          /* right-docked: button sits to the LEFT of the panel */
+          .oobee-minbtn.pos-right{
+            right: calc(var(--oobee-panel-offset) + var(--oobee-gap));
+          }
+          /* left-docked: button sits to the RIGHT of the panel */
+          .oobee-minbtn.pos-left{
+            left: calc(var(--oobee-panel-offset) + var(--oobee-gap));
+          }
+          .oobee-minbtn:hover {
+            box-shadow:0 4px 12px rgba(0,0,0,.12);
+          }
+          .oobee-minbtn:active {
+            transform:translateY(1px);
+          }
+          .oobee-minbtn:focus-visible {
+            outline: 2px solid #7b4dff;
+            outline-offset: 2px;
+          }
+
+          .oobee-header {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+
+          .oobee-spacer {
+            width:28px;
+            height:28px;
+          }
+
+          .oobee-grip{
+            border: 0;
+            background: #FFFFFF;
+            cursor: grab;
+            margin-top: 0.4rem;
+          }
+          .oobee-grip:active {
+            cursor:grabbing;
+          }
+
+          .oobee-body {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+          }
+
+          .oobee-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 1rem;
+          }
+
+          /* Base button */
+          .oobee-btn {
+            width: 100%;
+            min-height: 44px;
+            border-radius: 999px;
+            padding: 12px 16px;
+            font-size: 16px;
+            line-height: 1.2;
+            font-weight: 400;
+            cursor: pointer;
+            transition: {
+              box-shadow .12s ease,
+              transform .02s ease,
+              background-color .12s ease,
+              color .12s ease,
+              border-color .12s ease;
+            }
+          }
+          .oobee-btn:disabled {
+            opacity:.6;
+            cursor:not-allowed
+          }
+
+          /* Primary (filled) */
+          .oobee-btn-primary {
+            background: #9021a6;
+            color: #fff;
+            border: 1px solid transparent;
+          }
+          .oobee-btn-primary:hover:not(:disabled) {
+            box-shadow:0 2px 10px rgba(0,0,0,.12);
+          }
+          .oobee-btn-primary:active:not(:disabled) {
+            transform:translateY(1px);
+          }
+          .oobee-btn-primary:focus-visible {
+            outline:2px solid #7b4dff;
+            outline-offset:2px;
+          }
+
+          /* Stop button */
+          .oobee-btn-secondary{
+            background: #fff;
+            color: #9021A6;
+            border: 1px solid #9021A6;
+          }
+          .oobee-btn-secondary:active:not(:disabled) {
+            transform:translateY(1px);
+          }
+          .oobee-btn-secondary:focus-visible{
+            outline: 2px solid #7b4dff;
+            outline-offset:2px;
+          }
+
+          /* Text for empty scans */
+          .oobee-empty{
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            font-size: 14px;
+            color: #555555;
+          }
+
+          .oobee-list {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            padding-bottom: 1rem;
+            padding-top: 0;
+          }
+
+          .oobee-panel.collapsed .oobee-list {
+            display: none;
+          }
+
+          #oobeeStopOverlay[hidden] {
+            display:none !important;
+          }
+          #oobeeStopOverlay {
+            display:grid;
+          }
+
+          .oobee-section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #161616;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+            padding: 1rem;
+            margin: 0;
+          }
+
+          .oobee-panel.collapsed .oobee-section-title {
+            display: none;
+          }
+
+          .oobee-ol {
+            margin: 0;
+            padding-left: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+          }
+
+          .oobee-li {
+            list-style: decimal;
+            font-size: 14px;
+          }
+
+          .oobee-item-title {
+            font-size: 14px;
+            color: #161616;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .oobee-item-url {
+            font-size: 12px;
+            color: #6b7280;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            direction: rtl;
+            text-align: left;
+          }
+
+          .oobee-minbtn__icon {
+            transition: transform .18s ease;
+            transform: rotate(0deg);
+          }
+          .oobee-minbtn__icon.is-left {
+            transform: rotate(180deg);
+          }
+
+          :host-context(.oobee-snap) .oobee-panel,
+          :host-context(.oobee-snap) .oobee-minbtn { display:none !important; }
+
+          @media (max-width:1024px) {
+            .oobee-panel {
+              width:280px
+            }
+          }
+          @media (max-width:768px) {
+            .oobee-panel {
+              width: 92vw;
+              height: 100vh;
+              top: 0;
+              bottom: 0;
+              border-radius: 0;
+            }
+            .oobee-panel.collapsed {
+              width: auto;
+              height: auto;
+              padding: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border-radius: 999px;
+              box-shadow: 0 6px 24px rgba(0,0,0,.4);
+              top: auto;
+              bottom: max(16px, env(safe-area-inset-bottom,0px))
+            }
+          }
         `);
 
+        document.documentElement.classList.remove('oobee-snap');
         const shadowHost = document.createElement('div');
         shadowHost.id = 'oobeeShadowHost';
         const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
@@ -304,6 +718,106 @@ export const addOverlayMenu = async (
         shadowRoot.adoptedStyleSheets = [sheet];
 
         shadowRoot.appendChild(panel);
+        shadowRoot.appendChild(minBtn);
+
+        function setDraggableSidebarMenu() {
+          const icon = minBtn.querySelector<SVGElement>('.oobee-minbtn__icon');
+          if (!icon) return;
+
+          const closed = isCollapsed();
+          const arrowPointsRight =
+            (currentPos === 'RIGHT' && !closed) ||
+            (currentPos === 'LEFT'  &&  closed);
+
+          icon.classList.toggle('is-left', !arrowPointsRight);
+          minBtn.setAttribute('aria-label', closed ? 'Expand panel' : 'Collapse panel');
+        }
+
+        function positionMinimizeBtn() {
+          const OPEN_OFFSET = 318;
+          const COLLAPSED_OFFSET = 55;
+          const offset = isCollapsed() ? COLLAPSED_OFFSET : OPEN_OFFSET;
+
+          minBtn.style.left = '';
+          minBtn.style.right = '';
+
+          if (currentPos === 'RIGHT') {
+            minBtn.style.right = `${offset}px`;
+          } else {
+            minBtn.style.left = `${offset}px`;
+          }
+        }
+        positionMinimizeBtn();
+        setDraggableSidebarMenu();
+
+        minBtn.addEventListener('click', () => toggleCollapsed());
+
+        let startX = 0;
+        const THRESH = 40;
+
+        grip.addEventListener('pointerdown', (e: PointerEvent) => {
+          startX = e.clientX;
+          grip.setPointerCapture(e.pointerId);       // <-- use the button
+        });
+
+        grip.addEventListener('pointermove', (e: PointerEvent) => {
+          if (!grip.hasPointerCapture?.(e.pointerId)) return;  // <-- check the button
+          const dx = e.clientX - startX;
+          if (Math.abs(dx) >= THRESH) {
+            const nextPos: 'LEFT' | 'RIGHT' = dx < 0 ? 'LEFT' : 'RIGHT';
+            if (nextPos !== currentPos) {
+              currentPos = nextPos;
+              setPosClass(currentPos);
+              window.updateMenuPos?.(currentPos);
+            }
+            startX = e.clientX;
+          }
+        });
+
+        grip.addEventListener('pointerup', (e: PointerEvent) => {
+          try { grip.releasePointerCapture(e.pointerId); } catch {}
+        });
+
+        const stopDialog = document.createElement('dialog');
+        stopDialog.id = 'oobeeStopDialog';
+        Object.assign(stopDialog.style, {
+          width: 'min(560px, calc(100vw - 32px))',
+          border: 'none',
+          padding: '0',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          boxShadow: '0 10px 40px rgba(0,0,0,.35)',
+          fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif'
+        });
+        const dialogSheet = new CSSStyleSheet();
+        dialogSheet.replaceSync(`
+          #oobeeStopDialog::backdrop {
+            background: rgba(0,0,0,.55);
+          }
+
+          /* primary button hover/focus */
+          .oobee-stop-primary:hover {
+            filter: brightness(0.95);
+          }
+          .oobee-stop-primary:focus-visible {
+            outline: 2px solid #7b4dff; outline-offset: 2px;
+          }
+
+          /* cancel link hover */
+          .oobee-stop-cancel {
+            color: #9021A6;
+            text-decoration: underline;
+          }
+          .oobee-stop-cancel:hover {
+            filter: brightness(0.95);
+          }
+
+          /* close “X” hover ring */
+          .oobee-stop-close:hover {
+            background: #f3f4f6;
+          }
+        `);
+        shadowRoot.adoptedStyleSheets = [sheet, dialogSheet];
         if (document.body) {
           document.body.appendChild(shadowHost);
         } else if (document.head) {
@@ -315,6 +829,8 @@ export const addOverlayMenu = async (
           // Append the variable to the document
           document.documentElement.appendChild(shadowHost);
         }
+        positionMinimizeBtn();
+        setDraggableSidebarMenu();
       },
       { menuPos, MENU_POSITION, urlsCrawled, opts },
     )
@@ -370,22 +886,25 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   const handleOnScanClick: handleOnScanClickFunction = async () => {
     log('Scan: click detected');
     try {
+      pagesDict[pageId].isScanning = true;
       await removeOverlayMenu(page);
       await processPage(page, processPageParams);
       log('Scan: success');
-      await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos);
-
-      Object.keys(pagesDict)
-        .filter(k => k !== pageId)
-        .forEach(k => {
-          updateMenu(pagesDict[k].page, processPageParams.urlsCrawled);
-        });
+      pagesDict[pageId].isScanning = false;
+       await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
+         inProgress: false,
+         collapsed: !!pagesDict[pageId]?.collapsed,
+         hideStopInput: !!processPageParams.customFlowLabel,
+       });
     } catch (error) {
       log(`Scan failed ${error}`);
     }
   };
 
+  const handleOnStopClick = async () => {
   // Detection of new url within page
+  };
+
   page.on('domcontentloaded', async () => {
     try {
       const existingOverlay = await page.evaluate(() => {
