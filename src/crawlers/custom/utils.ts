@@ -818,6 +818,164 @@ export const addOverlayMenu = async (
           }
         `);
         shadowRoot.adoptedStyleSheets = [sheet, dialogSheet];
+
+        const head = document.createElement('div');
+        Object.assign(head.style, {
+          padding: '20px 20px 8px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px'
+        });
+
+        const title = document.createElement('h2');
+        title.id = 'oobee-stop-title';
+        title.textContent = 'Are you sure you want to stop this scan?';
+        Object.assign(title.style, { margin: '0', fontSize: '22px', fontWeight: '700', lineHeight: '1.25' });
+
+        const closeX = document.createElement('button');
+        closeX.type = 'button';
+        closeX.setAttribute('aria-label', 'Close');
+        closeX.textContent = '×';
+        closeX.className = 'oobee-stop-close';
+        Object.assign(closeX.style, {
+          border: 'none',
+          background: 'transparent',
+          fontSize: '28px',
+          lineHeight: '1',
+          cursor: 'pointer',
+          color: '#4b5563',
+          width: '36px',
+          height: '36px',
+          borderRadius: '12px',
+          display: 'grid',
+          placeItems: 'center'
+        });
+        head.appendChild(title);
+        head.appendChild(closeX);
+
+        const bodyWrap = document.createElement('div');
+        Object.assign(bodyWrap.style, {
+          padding: '12px 20px 20px 20px'
+        });
+
+        const form = document.createElement('form');
+        form.noValidate = true;
+        form.autocomplete = 'off';
+        Object.assign(form.style, {
+          display: 'grid',
+          gridTemplateColumns: '1fr',
+          rowGap: '12px'
+        });
+
+        const label = document.createElement('label');
+        label.setAttribute('for', 'oobee-stop-input');
+        label.textContent = 'Enter a name for this scan';
+        Object.assign(label.style, { fontSize: '15px', fontWeight: '600' });
+
+        const input = document.createElement('input');
+        input.id = 'oobeeStopInput';
+        input.type = 'text';
+        Object.assign(input.style, {
+          width: '100%',
+          borderRadius: '5px',
+          border: '1px solid #e5e7eb',
+          padding: '12px 14px',
+          fontSize: '14px',
+          outline: 'none',
+          boxSizing: 'border-box'
+        });
+        input.addEventListener('focus', () => {
+          input.style.borderColor = '#7b4dff';
+          input.style.boxShadow = '0 0 0 3px rgba(123,77,255,.25)';
+        });
+        input.addEventListener('blur', () => {
+          input.style.borderColor = '#e5e7eb';
+          input.style.boxShadow = 'none';
+        });
+
+        const actions = document.createElement('div');
+        Object.assign(actions.style, { display: 'grid', gap: '12px', marginTop: '4px' });
+
+        const primary = document.createElement('button');
+        primary.type = 'submit';
+        primary.textContent = 'Stop scan';
+        primary.className = 'oobee-stop-primary';
+        Object.assign(primary.style, {
+          border: 'none',
+          borderRadius: '999px',
+          padding: '12px 16px',
+          fontSize: '15px',
+          fontWeight: '600',
+          color: '#fff',
+          background: '#9021A6',
+          cursor: 'pointer'
+        });
+
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.textContent = 'No, continue scan';
+        cancel.className = 'oobee-stop-cancel';
+        Object.assign(cancel.style, {
+          border: 'none',
+          background: 'transparent',
+          fontSize: '14px',
+          justifySelf: 'center',
+          cursor: 'pointer',
+          padding: '6px'
+        });
+
+        actions.appendChild(primary);
+        actions.appendChild(cancel);
+        const shouldHideInput = !!(vars?.opts && vars.opts.hideStopInput);
+        if (!shouldHideInput) {
+          form.appendChild(label);
+          form.appendChild(input);
+        }
+         form.appendChild(actions);
+        bodyWrap.appendChild(form);
+
+        stopDialog.appendChild(head);
+        stopDialog.appendChild(bodyWrap);
+        shadowRoot.appendChild(stopDialog);
+
+        let stopResolver: null | ((v: { confirmed: boolean; label: string }) => void) = null;
+        const hideStop = () => { try { stopDialog.close(); } catch {} stopResolver = null; };
+        const showStop = () => {
+          if (!shouldHideInput) input.value = '';
+          try { stopDialog.showModal(); } catch {}
+          if (!shouldHideInput) {
+            requestAnimationFrame(() => {
+              try { input.focus({ preventScroll: true }); input.select(); } catch {}
+            });
+          }
+        };
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const v = (input.value || '').trim();
+          if (stopResolver) stopResolver({ confirmed: true, label: v });
+          hideStop();
+        });
+        closeX.addEventListener('click', () => {
+          if (stopResolver) stopResolver({ confirmed: false, label: '' });
+          hideStop();
+        });
+        cancel.addEventListener('click', () => {
+          if (stopResolver) stopResolver({ confirmed: false, label: '' });
+          hideStop();
+        });
+        stopDialog.addEventListener('cancel', (e) => {
+          e.preventDefault();
+          if (stopResolver) stopResolver({ confirmed: false, label: '' });
+          hideStop();
+        });
+        (customWindow as Window).oobeeShowStopModal = () =>
+          new Promise<{ confirmed: boolean; label: string }>((resolve) => {
+            stopResolver = resolve;
+            showStop();
+          });
+        (customWindow as Window).oobeeHideStopModal = hideStop;
+
         if (document.body) {
           document.body.appendChild(shadowHost);
         } else if (document.head) {
@@ -877,7 +1035,11 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   pageClosePromises.push(pageClosePromise);
 
   if (!pagesDict[pageId]) {
-    pagesDict[pageId] = { page };
+    pagesDict[pageId] = {
+      page,
+      isScanning: false,
+      collapsed: false,
+    };
   }
 
   type handleOnScanClickFunction = () => void;
@@ -902,7 +1064,59 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   };
 
   const handleOnStopClick = async () => {
-  // Detection of new url within page
+    const scannedCount = processPageParams?.urlsCrawled?.scanned?.length ?? 0;
+    if (scannedCount === 0) {
+      if (typeof processPageParams.stopAll === 'function') {
+        try {
+          await processPageParams.stopAll();
+        } catch (e) {
+          // ignore invalid; continue without label
+        }
+      }
+      return;
+    }
+
+    try {
+      const inputValue = await page.evaluate(async () => {
+        const win = window as Window;
+        if (typeof win.oobeeShowStopModal === 'function') {
+          return await win.oobeeShowStopModal();
+        }
+        const ok = window.confirm('Are you sure you want to stop this scan?');
+        return { confirmed: ok, label: '' };
+      });
+
+      if (!inputValue?.confirmed) {
+        await page.evaluate(() => {
+          const stopBtn = document.getElementById('oobeeBtnStop') as HTMLButtonElement | null;
+          if (stopBtn) {
+            stopBtn.disabled = false;
+            stopBtn.textContent = 'Stop';
+          }
+        });
+        return;
+      }
+
+      const label = (inputValue.label || '').trim();
+      try {
+        const { isValid } = validateCustomFlowLabel(label);
+        if (isValid && label) {
+          processPageParams.customFlowLabel = label;
+        }
+      } catch {
+        // ignore invalid; continue without label
+      }
+
+      if (typeof processPageParams.stopAll === 'function') {
+        try {
+          await processPageParams.stopAll();
+        } catch (e) {
+          // any console log will be on user browser, do not need to log
+        }
+      }
+    } catch (e) {
+      // any console log will be on user browser, do not need to log
+    }
   };
 
   page.on('domcontentloaded', async () => {
@@ -915,7 +1129,11 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
       if (!existingOverlay) {
         consoleLogger.info(`Adding overlay menu to page: ${page.url()}`);
-        await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos);
+        await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
+          inProgress: !!pagesDict[pageId]?.isScanning,
+          collapsed: !!pagesDict[pageId]?.collapsed,
+          hideStopInput: !!processPageParams.customFlowLabel,
+        });
       }
 
       setTimeout(() => {
@@ -941,6 +1159,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   });
 
   await page.exposeFunction('handleOnScanClick', handleOnScanClick);
+  await page.exposeFunction('handleOnStopClick', handleOnStopClick);
 
   type UpdateMenuPosFunction = (newPos: any) => void;
 
