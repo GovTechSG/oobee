@@ -78,7 +78,6 @@ export const screenshotFullPage = async (page, screenshotsDir: string, screensho
     });
 
     consoleLogger.info(`Screenshot page at: ${page.url()}`);
-    consoleLogger.info(`Screenshot page at: ${page.url()}`);
 
     await page.screenshot({
       timeout: 5000,
@@ -481,7 +480,6 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   const updateMenuPos: UpdateMenuPosFunction = newPos => {
     const prevPos = menuPos;
     if (prevPos !== newPos) {
-      console.log(`Overlay menu: position updated from ${prevPos} to ${newPos}`);
       menuPos = newPos;
     }
   };
