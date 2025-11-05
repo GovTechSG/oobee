@@ -21,11 +21,8 @@
     border-left: 1px solid var(--chinese-silver);
   }
 
-  .rule-occurrence-count {
-    font-weight: 700;
-    color: var(--light-carmine-pink);
-    font-size: 1rem;
-    line-height: 1.5;
+  .counter {
+    font-weight: 600;
   }
 
   /* Image */
@@ -98,7 +95,7 @@
     align-items: center;
     gap: 6px;
     font-size: 0.875rem;
-    color: var(--oobee-purple, #5735DF);
+    color: var(--oobee-purple, #5735df);
     text-decoration: none;
   }
 
@@ -162,6 +159,87 @@
   .rule-modal-pages-section {
     border-top: 1px solid var(--chinese-silver);
     background: var(--very-light-gray);
+  }
+
+  /* Pages Accordion Styles */
+  #pagesAccordion .accordion-item {
+    border: none;
+    background: var(--very-light-gray);
+  }
+
+  #pagesAccordion .accordion-button {
+    padding-left: 1rem;
+    box-shadow: none;
+    position: relative;
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    width: 100%;
+  }
+
+  #pagesAccordion .accordion-button.accordion-title.accordion-button:not(.collapsed)::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 5%;
+    width: 90%;
+    height: 1px;
+    background-color: var(--chinese-silver);
+    transition: none;
+  }
+
+  #pagesAccordion .accordion-title {
+    padding: 1.5rem;
+    background: var(--very-light-gray);
+  }
+
+  #pagesAccordion .accordion-button:focus {
+    box-shadow: none;
+    border: none;
+  }
+
+  #pagesAccordion .accordion-button:not(.collapsed) {
+    background: transparent;
+    color: inherit;
+  }
+
+  #pagesAccordion .accordion-arrow {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+    transform: rotate(0deg);
+  }
+
+  #pagesAccordion .accordion-button:not(.collapsed) .accordion-arrow {
+    transform: rotate(180deg);
+  }
+
+  #pagesAccordion .accordion-button::before {
+    display: none;
+  }
+
+  #pagesAccordion .collapsed.accordion-button::after {
+    display: none;
+  }
+
+  #pagesAccordion .accordion-body {
+    padding: 0;
+  }
+
+  #pagesAccordion h3 {
+    line-height: 1.5rem;
+  }
+
+  #pagesAccordion .rule-occurrence-count {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.5rem;
+    color: var(--light-carmine-pink);
+  }
+
+  #expandedRuleCategoryContent .rule-modal-item {
+    background: var(--true-white);
+    border-radius: 5px;
+    border: 1px solid var(--chinese-silver);
   }
 
   /* Mobile Responsive */

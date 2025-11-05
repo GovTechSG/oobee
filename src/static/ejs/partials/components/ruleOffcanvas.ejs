@@ -14,7 +14,6 @@
         <div class="d-flex w-100">
           <!-- Left Side -->
           <div class="w-75 left-side-modal">
-            <div></div>
             <!-- SVG Image -->
             <div id="expandedRuleImageContainer" class="rule-modal-image-container">
               <img
@@ -72,15 +71,57 @@
               </div>
             </div>
 
-            <div class="d-flex flex-column gap-3 rule-modal-pages-section p-4">
+            <div class="d-flex flex-column rule-modal-pages-section">
               <!-- Pages Affected Section -->
               <div id="expandedRulePagesSection">
-                <div class="d-flex justify-content-between align-items-center">
-                  <h3 id="expandedRuleDropdownTitle">Pages with this issue (#)</h3>
-                  <span id="expandedRuleDropdownToggleCategoryInfo" class="rule-occurrence-count"># Total occ.</span>
+                <div class="accordion" id="pagesAccordion">
+                  <div class="accordion-item">
+                    <h2 class="accordion-header" id="pagesAccordionHeader">
+                      <button
+                        class="accordion-button collapsed accordion-title"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#pagesAccordionContent"
+                        aria-expanded="false"
+                        aria-controls="pagesAccordionContent"
+                      >
+                        <svg
+                          class="accordion-arrow"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M7.41 8.58984L12 13.1698L16.59 8.58984L18 9.99984L12 15.9998L6 9.99984L7.41 8.58984Z"
+                            fill="#5735DF"
+                          />
+                        </svg>
+                        <div class="d-flex justify-content-between w-100">
+                          <h3 id="expandedRuleDropdownTitle" class="mb-0">
+                            Pages affected by this issue (#)
+                          </h3>
+                          <span
+                            id="expandedRuleDropdownToggleCategoryInfo"
+                            class="rule-occurrence-count"
+                            >9999 Total occ.</span
+                          >
+                        </div>
+                      </button>
+                    </h2>
+                    <div
+                      id="pagesAccordionContent"
+                      class="accordion-collapse collapse"
+                      aria-labelledby="pagesAccordionHeader"
+                      data-bs-parent="#pagesAccordion"
+                    >
+                      <div class="accordion-body">
+                        <div id="expandedRuleCategoryContent" class="p-4"></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-
-                <div id="expandedRuleCategoryContent" class="mt-4"></div>
               </div>
             </div>
           </div>
