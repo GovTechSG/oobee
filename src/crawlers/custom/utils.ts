@@ -114,9 +114,19 @@ export const runAxeScan = async (
 
   await dataset.pushData(result);
 
+  const rawTitle = result.pageTitle ?? '';
+  let pageTitleTextOnly = rawTitle; // Note: The original pageTitle contains the index and is being used in top 10 issues
+
+  if (typeof result.pageIndex === 'number') {
+    const re = new RegExp(`^\\s*${result.pageIndex}\\s*:\\s*`);
+    pageTitleTextOnly = rawTitle.replace(re, '');
+  } else {
+    pageTitleTextOnly = rawTitle.replace(/^\s*\d+\s*:\s*/, '');
+  }
+
   urlsCrawled.scanned.push({
     url: page.url(),
-    pageTitle: result.pageTitle,
+    pageTitle: pageTitleTextOnly,
     pageImagePath: customFlowDetails.pageImagePath,
   });
 };
