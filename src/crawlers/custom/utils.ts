@@ -6,7 +6,18 @@ import path from 'path';
 import { runAxeScript } from '../commonCrawlerFunc.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
 import { guiInfoStatusTypes } from '../../constants/constants.js';
-import { isSkippedUrl } from '../../constants/common.js';
+import { isSkippedUrl, validateCustomFlowLabel } from '../../constants/common.js';
+
+declare global {
+  interface Window {
+    handleOnScanClick?: () => Promise<void> | void;
+    handleOnStopClick?: () => Promise<void> | void;
+    oobeeSetCollapsed?: (val: boolean) => void;
+    oobeeShowStopModal?: () => Promise<{ confirmed: boolean; label: string }>;
+    oobeeHideStopModal?: () => void;
+    updateMenuPos?: (pos: 'LEFT' | 'RIGHT') => void;
+  }
+}
 
 //! For Cypress Test
 // env to check if Cypress test is running
@@ -219,8 +230,8 @@ export const processPage = async (page, processPageParams) => {
 };
 
 export const MENU_POSITION = {
-  top: 'TOP',
-  bottom: 'BOTTOM',
+  left: 'LEFT',
+  right: 'RIGHT',
 };
 
 export const updateMenu = async (page, urlsCrawled) => {
