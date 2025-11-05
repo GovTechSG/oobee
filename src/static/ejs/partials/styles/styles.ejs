@@ -153,6 +153,7 @@
     --strong-orange: #BF8301;
     --very-dark-gray: #686868;
     --very-light-gray: #F9F9F9;
+    --light-silver: #D9D9D9;
 
     --must-fix-icon: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M17.1429 0H2.85714C1.27919 0 0 1.27919 0 2.85714V17.1429C0 18.7208 1.27919 20 2.85714 20H17.1429C18.7208 20 20 18.7208 20 17.1429V2.85714C20 1.27919 18.7208 0 17.1429 0Z' fill='%23f26949'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M11.4292 9.99822V5.71251C11.4292 4.92353 10.7896 4.28394 10.0006 4.28394C9.21161 4.28394 8.57202 4.92353 8.57202 5.71251V9.99822C8.57202 10.7872 9.21161 11.4268 10.0006 11.4268C10.7896 11.4268 11.4292 10.7872 11.4292 9.99822ZM10.0006 12.8554C9.21202 12.8554 8.57202 13.4954 8.57202 14.2839C8.57202 15.0725 9.21202 15.7125 10.0006 15.7125C10.7892 15.7125 11.4292 15.0725 11.4292 14.2839C11.4292 13.4954 10.7892 12.8554 10.0006 12.8554Z' fill='%2326241b'/%3E%3C/svg%3E%0A");
 
@@ -1001,11 +1002,17 @@
 
   .page-item-card-section-content .copy-button {
     border: 1px solid #97adb5;
-    border-radius: 4px;
+    border-radius: 5px;
     cursor: pointer;
     background-color: var(--true-white);
     padding: 0.25rem;
     line-height: 1rem;
+    width: 24px;
+    height: 24px;
+  }
+
+  .page-item-card-section-content .copy-button > svg {
+    vertical-align: 0 !important;
   }
 
   button.copy-button:focus {
@@ -1015,7 +1022,6 @@
   .page-item-card-section-content .path-container {
     display: flex;
     width: 100%;
-    justify-content: space-between;
     align-items: center;
   }
 
@@ -1073,35 +1079,6 @@
     margin-bottom: 0;
     line-height: 1.25rem;
     border-radius: 4px;
-  }
-
-  #expandedRuleCategoryContent .page-accordion-content-title {
-    font-weight: bold;
-    margin-top: 1rem;
-    display: flex;
-    align-items: center;
-  }
-
-  #expandedRuleCategoryContent .page-accordion-content-title::before {
-    height: 1.125rem;
-    width: 1.125rem;
-    margin-right: 0.5rem;
-    content: '';
-    background-repeat: no-repeat;
-    background-size: 1.125rem;
-    display: inline-block;
-  }
-
-  #expandedRuleCategoryContent .mustFix .page-accordion-content-title::before {
-    background-image: var(--must-fix-icon);
-  }
-
-  #expandedRuleCategoryContent .goodToFix .page-accordion-content-title::before {
-    background-image: var(--good-to-fix-icon);
-  }
-
-  #expandedRuleCategoryContent .needsReview .page-accordion-content-title::before {
-    background-image: var(--needs-review-icon);
   }
 
   #expandedRuleCategoryContent .page-items-count {

@@ -57,7 +57,7 @@ export const validateDirPath = (dirPath: string): string => {
   }
 };
 
- export class RES {
+export class RES {
   status: number;
   httpStatus?: number;
   url: string;
@@ -289,15 +289,14 @@ export const sanitizeUrlInput = (url: string): { isValid: boolean; url: string }
 const isAllowedContentType = (ct: string): boolean => {
   const c = (ct || '').toLowerCase();
   return (
-    c.startsWith('text/html') ||              // html
-    c.startsWith('application/xhtml+xml') ||  // xhtml
-    c.startsWith('text/plain') ||             // txt
-    c.startsWith('application/xml') ||        // xml
-    c.startsWith('text/xml')        ||        // xml (alt)
-    c.startsWith('application/pdf')           // pdf
+    c.startsWith('text/html') || // html
+    c.startsWith('application/xhtml+xml') || // xhtml
+    c.startsWith('text/plain') || // txt
+    c.startsWith('application/xml') || // xml
+    c.startsWith('text/xml') || // xml (alt)
+    c.startsWith('application/pdf') // pdf
   );
 };
-
 
 const checkUrlConnectivityWithBrowser = async (
   url: string,
@@ -314,10 +313,10 @@ const checkUrlConnectivityWithBrowser = async (
     return res;
   }
 
-    // STEP 1: For local file scans
+  // STEP 1: For local file scans
   let contentType = '';
 
-  const protocol = new URL(url).protocol;
+  const { protocol } = new URL(url);
 
   if (protocol !== 'http:' && protocol !== 'https:') {
     try {
@@ -353,7 +352,7 @@ const checkUrlConnectivityWithBrowser = async (
   }
 
   // Ensure Accept header for non-html content fallback
-  extraHTTPHeaders['Accept'] ||= 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
+  extraHTTPHeaders.Accept ||= 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
 
   await initModifiedUserAgent(browserToRun, playwrightDeviceDetailsObject, clonedDataDir);
 
@@ -387,11 +386,11 @@ const checkUrlConnectivityWithBrowser = async (
     }
 
     // STEP 2: Navigate (follows server-side redirects)
-    page.once('download', () => { 
+    page.once('download', () => {
       res.status = constants.urlCheckStatuses.notASupportedDocument.code;
       return res;
     });
-    
+
     const response = await page.goto(url, {
       timeout: 15000,
       waitUntil: 'domcontentloaded', // enough to get status + allow potential client redirects to kick in
@@ -413,7 +412,9 @@ const checkUrlConnectivityWithBrowser = async (
         headers: extraHTTPHeaders,
       });
     } catch (e) {
-      consoleLogger.info(`Verification GET failed, falling back to navigation response: ${e.message}`);
+      consoleLogger.info(
+        `Verification GET failed, falling back to navigation response: ${e.message}`,
+      );
     }
 
     // Prefer verification GET; fall back to nav response
@@ -424,7 +425,7 @@ const checkUrlConnectivityWithBrowser = async (
     if (!isAllowedContentType(contentType)) {
       res.status = constants.urlCheckStatuses.notASupportedDocument.code;
       return res;
-    } 
+    }
 
     res.httpStatus = finalStatus;
     res.url = finalUrl;
@@ -437,7 +438,9 @@ const checkUrlConnectivityWithBrowser = async (
       // Some origins 405/501 but the browser-rendered page is still reachable after client redirects.
       // As a last resort, consider DOM presence as success if we actually have a document.
       const hasDOM = await page.evaluate(() => !!document && !!document.documentElement);
-      res.status = hasDOM ? constants.urlCheckStatuses.success.code : constants.urlCheckStatuses.systemError.code;
+      res.status = hasDOM
+        ? constants.urlCheckStatuses.success.code
+        : constants.urlCheckStatuses.systemError.code;
     } else {
       res.status = constants.urlCheckStatuses.systemError.code;
     }
@@ -452,7 +455,6 @@ const checkUrlConnectivityWithBrowser = async (
       } catch {}
       res.content = await page.content();
     }
-
   } catch (error) {
     if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
       res.status = constants.urlCheckStatuses.unauthorised.code;
@@ -514,32 +516,30 @@ export const checkUrl = async (
   clonedDataDir: string,
   playwrightDeviceDetailsObject: DeviceDescriptor,
   extraHTTPHeaders: Record<string, string>,
-  fileTypes: FileTypes
+  fileTypes: FileTypes,
 ) => {
-
   const res = await checkUrlConnectivityWithBrowser(
-      url,
-      browser,
-      clonedDataDir,
-      playwrightDeviceDetailsObject,
-      extraHTTPHeaders,
+    url,
+    browser,
+    clonedDataDir,
+    playwrightDeviceDetailsObject,
+    extraHTTPHeaders,
   );
 
   // If response is 200 (meaning no other code was set earlier)
   if (res.status === constants.urlCheckStatuses.success.code) {
-
     // Check if document is pdf type
     const isPdf = isPdfContent(res.content);
 
     // Check if only HTML document is allowed to be scanned
     if (fileTypes === FileTypes.HtmlOnly && isPdf) {
       res.status = constants.urlCheckStatuses.notASupportedDocument.code;
-    
-    // Check if only PDF document is allowed to be scanned
+
+      // Check if only PDF document is allowed to be scanned
     } else if (fileTypes === FileTypes.PdfOnly && !isPdf) {
       res.status = constants.urlCheckStatuses.notAPdf.code;
 
-    // Check if sitemap is expected
+      // Check if sitemap is expected
     } else if (scanner === ScannerTypes.SITEMAP) {
       const isSitemap = isSitemapContent(res.content);
 
@@ -550,7 +550,7 @@ export const checkUrl = async (
 
     // else proceed as normal
   }
-  
+
   return res;
 };
 
@@ -606,7 +606,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     zip,
     ruleset,
     generateJsonFiles,
-    scanDuration
+    scanDuration,
   } = argv;
 
   const extraHTTPHeaders = parseHeaders(header);
@@ -632,8 +632,8 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     password = temp.password;
 
     if (username !== '' || password !== '') {
-      extraHTTPHeaders['Authorization'] = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
-    } 
+      extraHTTPHeaders.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+    }
 
     temp.username = '';
     temp.password = '';
@@ -653,17 +653,22 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   if (exportDirectory) {
     constants.exportDirectory = path.join(exportDirectory, resultFilename);
   }
-  
+
   // Creating the playwrightDeviceDetailObject
-  deviceChosen = customDevice === 'Desktop' || customDevice === 'Mobile' ? customDevice : deviceChosen;
-  
+  deviceChosen =
+    customDevice === 'Desktop' || customDevice === 'Mobile' ? customDevice : deviceChosen;
+
   const playwrightDeviceDetailsObject = getPlaywrightDeviceDetailsObject(
     deviceChosen,
     customDevice,
     viewportWidth,
   );
 
-  const { browserToRun: resolvedBrowser, clonedBrowserDataDir } = getBrowserToRun(resultFilename, browserToRun, true);
+  const { browserToRun: resolvedBrowser, clonedBrowserDataDir } = getBrowserToRun(
+    resultFilename,
+    browserToRun,
+    true,
+  );
   browserToRun = resolvedBrowser;
 
   const resolvedUserDataDirectory = getClonedProfilesWithRandomToken(browserToRun, resultFilename);
@@ -678,7 +683,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
 
   return {
     type: scanner,
-    url: url,
+    url,
     entryUrl: url,
     isHeadless: headless,
     deviceChosen,
@@ -699,7 +704,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     includeScreenshots: !(additional === 'none'),
     metadata,
     followRobots,
-    extraHTTPHeaders: extraHTTPHeaders,
+    extraHTTPHeaders,
     safeMode,
     userDataDirectory: resolvedUserDataDirectory,
     zip,
@@ -709,7 +714,12 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   };
 };
 
-export const getUrlsFromRobotsTxt = async (url: string, browserToRun: string, userDataDirectory: string, extraHTTPHeaders: Record<string, string>): Promise<void> => {
+export const getUrlsFromRobotsTxt = async (
+  url: string,
+  browserToRun: string,
+  userDataDirectory: string,
+  extraHTTPHeaders: Record<string, string>,
+): Promise<void> => {
   if (!constants.robotsTxtUrls) return;
 
   const domain = new URL(url).origin;
@@ -718,7 +728,12 @@ export const getUrlsFromRobotsTxt = async (url: string, browserToRun: string, us
 
   let robotsTxt: string;
   try {
-    robotsTxt = await getRobotsTxtViaPlaywright(robotsUrl, browserToRun, userDataDirectory, extraHTTPHeaders);
+    robotsTxt = await getRobotsTxtViaPlaywright(
+      robotsUrl,
+      browserToRun,
+      userDataDirectory,
+      extraHTTPHeaders,
+    );
     consoleLogger.info(`Fetched robots.txt from ${robotsUrl}`);
   } catch (e) {
     // if robots.txt is not found, do nothing
@@ -729,7 +744,7 @@ export const getUrlsFromRobotsTxt = async (url: string, browserToRun: string, us
     constants.robotsTxtUrls[domain] = {};
     return;
   }
-  
+
   const lines = robotsTxt.split(/\r?\n/);
   let shouldCapture = false;
   const disallowedUrls = [];
@@ -777,9 +792,13 @@ export const getUrlsFromRobotsTxt = async (url: string, browserToRun: string, us
   constants.robotsTxtUrls[domain] = { disallowedUrls, allowedUrls };
 };
 
-const getRobotsTxtViaPlaywright = async (robotsUrl: string, browser: string, userDataDirectory: string, extraHTTPHeaders: Record<string, string>): Promise<string> => {
-
-  let robotsDataDir = '';
+const getRobotsTxtViaPlaywright = async (
+  robotsUrl: string,
+  browser: string,
+  userDataDirectory: string,
+  extraHTTPHeaders: Record<string, string>,
+): Promise<string> => {
+  const robotsDataDir = '';
   // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
   if (process.env.CRAWLEE_HEADLESS === '1') {
     // Create robots own user data directory else SingletonLock: File exists (17) with crawlDomain or crawlSitemap's own browser
@@ -932,7 +951,7 @@ export const getLinksFromSitemap = async (
   const fetchUrls = async (url: string, extraHTTPHeaders: Record<string, string>) => {
     let data;
     let sitemapType;
-   
+
     if (scannedSitemaps.has(url)) {
       // Skip processing if the sitemap has already been scanned
       return;
@@ -948,7 +967,6 @@ export const getLinksFromSitemap = async (
       if (!fs.existsSync(url)) {
         return;
       }
-
     } else if (isValidHttpUrl(url)) {
       // Do nothing, url is valid
     } else {
@@ -973,7 +991,7 @@ export const getLinksFromSitemap = async (
 
       await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
 
-      if (await page.locator('body').count() > 0) {
+      if ((await page.locator('body').count()) > 0) {
         data = await page.locator('body').innerText();
       } else {
         const urlSet = page.locator('urlset');
@@ -1003,7 +1021,6 @@ export const getLinksFromSitemap = async (
       }
 
       await getDataUsingPlaywright();
-
     } else {
       url = convertLocalFileToPath(url);
       data = fs.readFileSync(url, 'utf8');
@@ -1122,7 +1139,6 @@ export const getBrowserToRun = (
   preferredBrowser?: BrowserTypes,
   isCli = false,
 ): { browserToRun: BrowserTypes; clonedBrowserDataDir: string } => {
-  
   const platform = os.platform();
 
   // Prioritise Chrome on Windows and Mac platforms if user does not specify a browser
@@ -1443,7 +1459,7 @@ export const cloneChromeProfiles = (randomToken: string): string => {
   destDir = path.join(baseDir, `oobee-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
-    // Don't delete since it will be handled at the end of the scan  
+    // Don't delete since it will be handled at the end of the scan
     // deleteClonedChromeProfiles(randomToken);
     // Assume it cloned and don't re-clone
   } else {
@@ -1457,13 +1473,12 @@ export const cloneChromeProfiles = (randomToken: string): string => {
       absolute: true,
       nodir: true,
     };
-    const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
-    if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
-      return destDir;
-    }
+    // const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
+    // if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
+    //   return destDir;
+    // }
 
     consoleLogger.error('Failed to clone Chrome profiles. You may be logged out of your accounts.');
-
   }
   // For future reference, return a null instead to halt the scan
   return destDir;
@@ -1481,8 +1496,7 @@ export const cloneChromiumProfiles = (randomToken: string): string => {
   destDir = path.join(baseDir, `oobee-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
-     
-    // Don't delete since it will be handled at the end of the scan  
+    // Don't delete since it will be handled at the end of the scan
     // deleteClonedChromiumProfiles(randomToken);
     // Assume it cloned and don't re-clone
   } else {
@@ -1512,11 +1526,9 @@ export const cloneEdgeProfiles = (randomToken: string): string => {
   destDir = path.join(baseDir, `oobee-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
-
-    // Don't delete since it will be handled at the end of the scan  
+    // Don't delete since it will be handled at the end of the scan
     // deleteClonedEdgeProfiles(randomToken);
     // Assume it cloned and don't re-clone
-
   } else {
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
@@ -1535,7 +1547,6 @@ export const cloneEdgeProfiles = (randomToken: string): string => {
     }
 
     consoleLogger.error('Failed to clone Edge profiles. You may be logged out of your accounts.');
-
   }
 
   // For future reference, return a null instead to halt the scan
@@ -1597,7 +1608,6 @@ export const deleteClonedChromeProfiles = (randomToken?: string): void => {
  * @returns null
  */
 export const deleteClonedEdgeProfiles = (randomToken?: string): void => {
-
   const baseDir = getDefaultEdgeDataDir();
 
   if (!baseDir) {
@@ -1714,12 +1724,9 @@ export const submitFormViaPlaywright = async (
   userDataDirectory: string,
   finalUrl: string,
 ) => {
-  const browserContext = await constants.launcher.launchPersistentContext(
-    userDataDirectory,
-    {
-      ...getPlaywrightLaunchOptions(browserToRun),
-    },
-  );
+  const browserContext = await constants.launcher.launchPersistentContext(userDataDirectory, {
+    ...getPlaywrightLaunchOptions(browserToRun),
+  });
 
   register(browserContext);
 
@@ -1778,7 +1785,6 @@ export const submitForm = async (
     finalUrl += `&${formDataFields.redirectUrlField}=${scannedUrl}`;
   }
 
-
   try {
     await axios.get(finalUrl, { timeout: 2000 });
   } catch (error) {
@@ -1788,7 +1794,6 @@ export const submitForm = async (
       }
     }
   }
-
 };
 // Legacy code end - Google Sheets submission
 
@@ -1797,7 +1802,6 @@ export async function initModifiedUserAgent(
   playwrightDeviceDetailsObject?: object,
   userDataDirectory?: string,
 ) {
-
   const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
 
   // If headless mode is enabled, ensure the headless flag is set.
@@ -1814,13 +1818,14 @@ export async function initModifiedUserAgent(
   };
 
   // Launch a temporary persistent context with an empty userDataDir to mimic your production browser setup.
-  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
-  ? userDataDirectory
-  : '';
+  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
 
-  const browserContext = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, launchOptions);
+  const browserContext = await constants.launcher.launchPersistentContext(
+    effectiveUserDataDirectory,
+    launchOptions,
+  );
   register(browserContext);
-  
+
   const page = await browserContext.newPage();
 
   // Retrieve the default user agent.
@@ -1962,7 +1967,7 @@ export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
         // Only observe if root is a Node
         observer.observe(root, {
           childList: true,
-          subtree:   true,
+          subtree: true,
           attributes: true,
         });
       });

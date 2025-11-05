@@ -30,7 +30,7 @@
           <div class="accordion-item rule-modal-item">
             <div class="accordion-header" id="${accordionId}-title">
               ${normalMode ? '<button' : '<div'}
-                aria-label="Page ${index + 1}: ${page.pageTitle}, ${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}" 
+                aria-label="Page ${index + 1}: ${page.pageTitle}, ${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}"
                 class="accordion-button collapsed"
                 ${normalMode ? 'type="button"' : ''}
               >
@@ -54,14 +54,23 @@
             </div>
             <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
               <div class="accordion-body p-3">
-                ${isCustomFlow 
+                ${isCustomFlow
                   ? createCustomFlowContent(page)
-                  : `<a href="${page.url}" target="_blank">${page.url}</a>`
+                  :
+                  `<div class="d-flex align-items-center gap-1 accordion-link">
+                    <a href="${page.url}" target="_blank">${page.url}</a>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <g clip-path="url(#clip0_174_1993)">
+                            <path d="M12.6667 12.6667H3.33333V3.33333H8V2H3.33333C2.59333 2 2 2.6 2 3.33333V12.6667C2 13.4 2.59333 14 3.33333 14H12.6667C13.4 14 14 13.4 14 12.6667V8H12.6667V12.6667ZM9.33333 2V3.33333H11.7267L5.17333 9.88667L6.11333 10.8267L12.6667 4.27333V6.66667H14V2H9.33333Z" fill="#5735DF"/>
+                        </g>
+                        <defs>
+                            <clipPath id="clip0_174_1993">
+                                <rect width="16" height="16" fill="white"/>
+                            </clipPath>
+                        </defs>
+                    </svg>
+                  </div>`
                 }
-                <div class="page-accordion-content-title">
-                  <span>${getFormattedCategoryTitle(category)} elements</span>
-                  <span class="page-items-count">${pageItemsCount}</span>
-                </div>
               </div>
             </div>
           </div>
@@ -95,9 +104,9 @@
     // First click: Load content
     button.addEventListener('click', function loadContent(event) {
       const accordionBody = accordion.querySelector(".accordion-body");
-      
+
       // Only build content if not already built
-      if (!accordionBody.querySelector(".item-pagination-controls") && 
+      if (!accordionBody.querySelector(".item-pagination-controls") &&
           !accordionBody.querySelector(".unbulleted-list")) {
         buildItemCardsWithPagination(accordionId, category, ruleInCategory, page, index);
         this.setAttribute('data-bs-target', '#' + accordionId + "-content");
@@ -112,9 +121,9 @@
       this.setAttribute('data-bs-target', '#' + accordionId + "-content");
       this.setAttribute('aria-expanded', 'false');
       this.setAttribute('aria-controls', accordionId + "-content");
-      
+
       new bootstrap.Collapse(this, { toggle: false });
-      
+
       this.removeEventListener('click', initCollapse);
       setTimeout(() => {
         this.click();
@@ -124,12 +133,12 @@
 
   function setupCustomFlowScreenshot(accordion, page) {
     const customScreenshotElem = accordion.getElementsByClassName('custom-flow-screenshot')[0];
-    
+
     customScreenshotElem.onerror = function(event) {
       this.onerror = null;
       this.remove();
     };
-    
+
     customScreenshotElem.onclick = function(event) {
       event.preventDefault();
       openLightbox(this.src, page.pageTitle, page.url);

@@ -1,10 +1,10 @@
 <script>
-
   function buildItemCardsWithPagination(accordionId, category, ruleInCategory, page, index) {
     const accordionAIId = `${ruleInCategory.rule}-${category}-accordion-AI-${index}`;
     const buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-${index}`;
     const errorAIId = `${ruleInCategory.rule}-${category}-error-AI-${index}`;
-    const accordion = document.getElementById(`${accordionId}-title`).parentElement.parentElement.parentElement;
+    const accordion = document.getElementById(`${accordionId}-title`).parentElement.parentElement
+      .parentElement;
 
     const accordionBody = accordion.getElementsByClassName('accordion-body')[0];
     const totalItems = page.items.length;
@@ -14,7 +14,7 @@
     const paginationControls = createPaginationControls(totalItems);
 
     // Create container for the single item card
-    const itemCardContainer = createElementFromString('<div class="item-card-container"></div>');
+    const itemCardContainer = createElementFromString('<div></div>');
 
     // Function to render a specific item
     async function renderItem(itemIndex) {
@@ -22,7 +22,7 @@
       const accordionDivToAppendAI = `${accordionAIId}-${itemIndex}`;
       const buttonDivForAiFeedback = `${buttonAIId}-${itemIndex}`;
       const aiErrorDiv = `${errorAIId}-${itemIndex}`;
-      
+
       const isPurpleAiRule = oobeeAiRules.includes(ruleInCategory.rule);
       let oobeeAiQueryLabel;
       if (isPurpleAiRule) {
@@ -33,7 +33,7 @@
         accordionDivToAppendAI,
         buttonDivForAiFeedback,
         aiErrorDiv,
-        ruleInCategory
+        ruleInCategory,
       });
 
       // Clear and update the container
@@ -60,11 +60,11 @@
 
     // Setup pagination event handlers
     setupPaginationHandlers(paginationControls, totalItems, {
-      onPageChange: (newIndex) => {
+      onPageChange: newIndex => {
         currentItemIndex = newIndex;
         renderItem(currentItemIndex);
         updatePaginationState();
-      }
+      },
     });
 
     // Append pagination and container to accordion body
@@ -78,19 +78,19 @@
   function createPaginationControls(totalItems) {
     return createElementFromString(`
       <div class="item-pagination-controls">
+        <div class="mr-1">Occurrence no.</div>
         <button class="pagination-arrow pagination-prev" aria-label="Previous item" disabled>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M15.41 7.41L14 6L8 12L14 18L15.41 16.59L10.83 12L15.41 7.41Z" fill="currentColor"/>
-          </svg>
+            <svg width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7.41 1.41L6 0L0 6L6 12L7.41 10.59L2.83 6L7.41 1.41Z" fill="#323232"/>
+            </svg>
         </button>
         <div class="pagination-page-info">
           <input type="number" class="pagination-page-input" value="1" min="1" max="${totalItems}" aria-label="Current page number" />
-          <span class="pagination-total">of ${totalItems}</span>
         </div>
         <button class="pagination-arrow pagination-next" aria-label="Next item" ${totalItems <= 1 ? 'disabled' : ''}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M8.59 16.59L10 18L16 12L10 6L8.59 7.41L13.17 12L8.59 16.59Z" fill="currentColor"/>
-          </svg>
+            <svg width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1.41 0L0 1.41L4.58 6L0 10.59L1.41 12L7.41 6L1.41 0Z" fill="#323232"/>
+            </svg>
         </button>
       </div>
     `);
@@ -117,7 +117,7 @@
       }
     });
 
-    pageInput.addEventListener('change', (e) => {
+    pageInput.addEventListener('change', e => {
       let pageNum = parseInt(e.target.value);
       if (isNaN(pageNum) || pageNum < 1) {
         pageNum = 1;
@@ -128,7 +128,7 @@
       callbacks.onPageChange(currentIndex);
     });
 
-    pageInput.addEventListener('keydown', (e) => {
+    pageInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.target.blur();
       }
@@ -137,21 +137,23 @@
 
   function createItemCard(item, isPurpleAiRule, oobeeAiQueryLabel, aiConfig) {
     return createElementFromString(`
-      <div class="card mt-3">
+      <div>
         ${item.displayNeedsReview ? `<div class="needsReview">This occurrence might be a false positive that needs to be verified by a human.</div>` : ``}
-        <div class="p-3">
+        <div class="d-flex gap-3 flex-column">
+        <h3>Where to find this issue</h3>
           ${item.screenshotPath ? createScreenshotSection(item.screenshotPath) : ''}
           ${item.xpath ? createXpathSection(item.xpath) : ''}
           ${createElementSection(item)}
-          <hr />
-          <div class="d-flex justify-content-between g-one">
-            <div class="fw-bold page-item-card-section-title">${
-              item.displayNeedsReview ? 'Details' : 'How to fix'
-            }</div>
+          ${
+            item.displayNeedsReview
+              ? `<div class="d-flex justify-content-between g-one">
+            <div class="fw-semibold page-item-card-section-title">Details</div>
             <div class="page-item-card-section-content">
               ${generateItemMessageElement(item.displayNeedsReview, item.message)}
             </div>
-          </div>
+          </div>`
+              : ''
+          }
           ${isPurpleAiRule ? createAiSuggestionSection(item, oobeeAiQueryLabel, aiConfig) : ''}
         </div>
       </div>
@@ -162,7 +164,7 @@
     return `
       <div class="hide-on-img-error">
         <div class="d-flex justify-content-between g-one">
-          <div class="fw-bold">Screenshot</div>
+          <div class="fw-semibold">Screenshot</div>
           <div class="page-item-card-section-content bg-grey-w-border">
             <img
               src="${screenshotPath}"
@@ -170,7 +172,6 @@
               alt="Screenshot of affected element" />
           </div>
         </div>
-        <hr/>
       </div>
     `;
   }
@@ -178,7 +179,7 @@
   function createXpathSection(xpath) {
     return `
       <div class="d-flex justify-content-between g-one">
-        <div class="fw-bold">Path</div>
+        <div class="fw-semibold">Path</div>
         <div class="page-item-card-section-content">
           <div class="g-one path-container">
             ${xpath}
@@ -189,30 +190,30 @@
               data-bs-placement="top"
               data-bs-original-title="Copy"
             >
-              <svg class="copy-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M14.2188 2.5H7.65625C7.15897 2.5 6.68206 2.69754 6.33042 3.04917C5.97879 3.40081 5.78125 3.87772 5.78125 4.375C5.28397 4.375 4.80706 4.57254 4.45542 4.92417C4.10379 5.27581 3.90625 5.75272 3.90625 6.25V15.625C3.90625 16.1223 4.10379 16.5992 4.45542 16.9508C4.80706 17.3025 5.28397 17.5 5.78125 17.5H12.3438C12.841 17.5 13.3179 17.3025 13.6696 16.9508C14.0212 16.5992 14.2188 16.1223 14.2188 15.625C14.716 15.625 15.1929 15.4275 15.5446 15.0758C15.8962 14.7242 16.0938 14.2473 16.0938 13.75V4.375C16.0938 3.87772 15.8962 3.40081 15.5446 3.04917C15.1929 2.69754 14.716 2.5 14.2188 2.5ZM14.2188 14.6875V6.25C14.2188 5.75272 14.0212 5.27581 13.6696 4.92417C13.3179 4.57254 12.841 4.375 12.3438 4.375H6.71875C6.71875 4.12636 6.81752 3.8879 6.99334 3.71209C7.16915 3.53627 7.40761 3.4375 7.65625 3.4375H14.2188C14.4674 3.4375 14.7058 3.53627 14.8817 3.71209C15.0575 3.8879 15.1562 4.12636 15.1562 4.375V13.75C15.1562 13.9986 15.0575 14.2371 14.8817 14.4129C14.7058 14.5887 14.4674 14.6875 14.2188 14.6875ZM4.84375 6.25C4.84375 6.00136 4.94252 5.7629 5.11834 5.58709C5.29415 5.41127 5.53261 5.3125 5.78125 5.3125H12.3438C12.5924 5.3125 12.8308 5.41127 13.0067 5.58709C13.1825 5.7629 13.2812 6.00136 13.2812 6.25V15.625C13.2812 15.8736 13.1825 16.1121 13.0067 16.2879C12.8308 16.4637 12.5924 16.5625 12.3438 16.5625H5.78125C5.53261 16.5625 5.29415 16.4637 5.11834 16.2879C4.94252 16.1121 4.84375 15.8736 4.84375 15.625V6.25Z" fill="#26241b"/>
-              </svg>
+            <svg width="13" height="15" viewBox="0 0 13 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3.33333 0H11.3333C12.0667 0 12.6667 0.6 12.6667 1.33333V10.6667H11.3333V1.33333H3.33333V0ZM1.33333 2.66667H8.66667C9.4 2.66667 10 3.26667 10 4V13.3333C10 14.0667 9.4 14.6667 8.66667 14.6667H1.33333C0.600001 14.6667 9.53674e-07 14.0667 9.53674e-07 13.3333V4C9.53674e-07 3.26667 0.600001 2.66667 1.33333 2.66667ZM1.33333 13.3333H8.66667V4H1.33333V13.3333Z" fill="#5735DF"/>
+            </svg>
             </button>
           </div>
         </div>
       </div>
-      <hr/>
     `;
   }
 
   function createElementSection(item) {
     return `
       <div class="d-flex justify-content-between g-one">
-        ${item.html
-          ? `
-          <div class="fw-bold">HTML element</div>
+        ${
+          item.html
+            ? `
+          <div class="fw-semibold">HTML element</div>
           <pre class="page-item-card-section-content">
             <code class="language-html">
               ${htmlEscapeString(item.html)}
             </code>
           </pre>`
-          : `
-          <div class="fw-bold">Location</div>
+            : `
+          <div class="fw-semibold">Location</div>
           <div class="page-item-card-section-content">
             ${item.page > 0 ? `Page ${item.page}` : 'Document'}
           </div>`
@@ -223,7 +224,7 @@
 
   function createAiSuggestionSection(item, oobeeAiQueryLabel, aiConfig) {
     const { accordionDivToAppendAI, buttonDivForAiFeedback, aiErrorDiv, ruleInCategory } = aiConfig;
-    
+
     let aiContent = '';
     if (oobeeAiQueryLabel.hasNetworkError) {
       aiContent = `
@@ -266,9 +267,8 @@
     }
 
     return `
-      <hr />
       <div class="d-flex g-one">
-        <div class="fw-bold page-item-card-section-title">AI suggestion</div>
+        <div class="fw-semibold page-item-card-section-title">AI suggestion</div>
         <div id="${accordionDivToAppendAI}" class="page-item-card-section-content">
           ${aiContent}
         </div>
@@ -282,7 +282,7 @@
 
     const copyTooltipItem = new bootstrap.Tooltip(copyButtonElem);
     const textToCopy = createElementFromString(`<textarea>${xpath}</textarea>`);
-    
+
     copyButtonElem.onclick = event => {
       textToCopy.select();
       navigator.clipboard.writeText(textToCopy.value);
@@ -296,14 +296,20 @@
         copyTooltipItem.update();
       }, 1500);
     };
-    
+
     copyButtonElem.onmousedown = event => {
       event.preventDefault();
     };
   }
 
   // Legacy function name for backwards compatibility
-  function buildExpandedRuleCategoryContentAccordian(accordionId, category, ruleInCategory, page, index) {
+  function buildExpandedRuleCategoryContentAccordian(
+    accordionId,
+    category,
+    ruleInCategory,
+    page,
+    index,
+  ) {
     buildItemCardsWithPagination(accordionId, category, ruleInCategory, page, index);
   }
 </script>
