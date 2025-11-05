@@ -234,6 +234,12 @@ export const MENU_POSITION = {
   right: 'RIGHT',
 };
 
+type OverlayOpts = {
+  inProgress?: boolean;
+  collapsed?: boolean;
+  hideStopInput?: boolean;
+};
+
 export const updateMenu = async (page, urlsCrawled) => {
   log(`Overlay menu: updating: ${page.url()}`);
   await page.evaluate(
@@ -252,132 +258,54 @@ export const updateMenu = async (page, urlsCrawled) => {
   consoleLogger.info(`Overlay menu updated`);
 };
 
-export const addOverlayMenu = async (page, urlsCrawled, menuPos) => {
+export const addOverlayMenu = async (
+  page,
+  urlsCrawled,
+  menuPos,
+  opts: OverlayOpts = {
+    inProgress: false,
+    collapsed: false,
+  },
+) => {
   await page.waitForLoadState('domcontentloaded');
   consoleLogger.info(`Overlay menu: adding to ${menuPos}...`);
-  interface CustomWindow extends Window {
-    updateMenuPos: (newPos: any) => void;
-    handleOnScanClick: () => void;
-  }
 
   // Add the overlay menu with initial styling
   return page
     .evaluate(
       async vars => {
-        const menu = document.createElement('div');
-        menu.className = 'oobee-menu';
-        if (vars.menuPos === vars.MENU_POSITION.top) {
-          menu.style.top = '0';
-        } else {
-          menu.style.bottom = '0';
-        }
-        let isDragging = false;
-        let initialY;
-        let offsetY;
-
-        menu.addEventListener('mousedown', e => {
-          // The EvenTarget Object is the grandfather interface for Element
-          // In order to get the tagName of the item you would need polymorph it into Element
-          const targetElement: Element = e.target as Element;
-          if (targetElement.tagName.toLowerCase() !== 'button') {
-            e.preventDefault();
-            isDragging = true;
-            initialY = e.clientY - menu.getBoundingClientRect().top;
-          }
-        });
-
-        document.addEventListener('mousemove', e => {
-          if (isDragging) {
-            menu.style.removeProperty('bottom');
-            offsetY = e.clientY - initialY;
-            menu.style.top = `${offsetY}px`;
-          }
-        });
-        const customWindow = window as unknown as CustomWindow;
-
-        document.addEventListener('mouseup', () => {
-          // need to tell typeScript to defer first because down int he script updateMenuPos is defined
-          if (isDragging) {
-            // Snap the menu when it is below half the screen
-            const halfScreenHeight: number = window.innerHeight / 2;
-            const isTopHalf: boolean = offsetY < halfScreenHeight;
-            if (isTopHalf) {
-              menu.style.removeProperty('bottom');
-              menu.style.top = '0';
-              customWindow.updateMenuPos(vars.MENU_POSITION.top);
-            } else {
-              menu.style.removeProperty('top');
-              menu.style.bottom = '0';
-              customWindow.updateMenuPos(vars.MENU_POSITION.top);
-            }
-
-            isDragging = false;
-          }
-        });
-
-        const p = document.createElement('p');
-        p.id = 'oobee-p-pages-scanned';
-        p.innerText = `Pages Scanned: ${vars.urlsCrawled.scanned.length || 0}`;
-
-        const button = document.createElement('button');
-        button.innerText = 'Scan this page';
-        button.addEventListener('click', async () => {
-          customWindow.handleOnScanClick();
-        });
-
-        menu.appendChild(p);
-        menu.appendChild(button);
+        const panel = document.createElement('aside');
+        panel.className = 'oobee-panel';
 
         const sheet = new CSSStyleSheet();
         // TODO: separate out into css file if this gets too big
         sheet.replaceSync(`
-        .oobee-menu {
-          position: fixed;
-          left: 0;
-          width: 100%;
-          box-sizing: border-box;
-          background-color: rgba(0, 0, 0, 0.8);
-          display: flex;
-          justify-content: space-between;
-          padding: 10px;
-          z-index: 2147483647;
-          cursor: grab;
-          color: #fff;
-        }
-        
-        .oobee-menu button {
-          background-color: #9021a6;
-          color: #fff;
-          border: none;
-          border-radius: 50rem;
-          padding: 10px 20px;
-          cursor: pointer;
-        }
+          .oobee-panel{
+            position: fixed;
+            top: 0;
+            height: 100vh;
+            width: 320px;
+            box-sizing: border-box;
+            background: #fff;
+            color: #111;
+            z-index: 2147483647;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(0,0,0,.08);border-left: none;border-right: none;
+            box-shadow: 0 6px 24px rgba(0,0,0,.08);
+            transition: width .16s ease,left .16s ease,right .16s ease
+          }
         `);
 
-        // shadow dom used to avoid styling from page
         const shadowHost = document.createElement('div');
-        shadowHost.id = 'oobee-shadow-host';
+        shadowHost.id = 'oobeeShadowHost';
         const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
 
         shadowRoot.adoptedStyleSheets = [sheet];
 
-        shadowRoot.appendChild(menu);
-
-        let currentNode = document.body;
+        shadowRoot.appendChild(panel);
         if (document.body) {
-          // The <body> element exists
-          if (document.body.nodeName.toLowerCase() === 'frameset') {
-            // if currentNode is a <frameset>
-            // Move the variable outside the frameset then appendChild the component
-            while (currentNode.nodeName.toLowerCase() === 'frameset') {
-              currentNode = currentNode.parentElement;
-            }
-            currentNode.appendChild(shadowHost);
-          } else {
-            // currentNode is a <body>
-            currentNode.appendChild(shadowHost);
-          }
+          document.body.appendChild(shadowHost);
         } else if (document.head) {
           // The <head> element exists
           // Append the variable below the head
@@ -388,7 +316,7 @@ export const addOverlayMenu = async (page, urlsCrawled, menuPos) => {
           document.documentElement.appendChild(shadowHost);
         }
       },
-      { menuPos, MENU_POSITION, urlsCrawled },
+      { menuPos, MENU_POSITION, urlsCrawled, opts },
     )
     .then(() => {
       log('Overlay menu: successfully added');
@@ -401,7 +329,7 @@ export const addOverlayMenu = async (page, urlsCrawled, menuPos) => {
 export const removeOverlayMenu = async page => {
   await page
     .evaluate(() => {
-      const existingOverlay = document.querySelector('#oobee-shadow-host');
+      const existingOverlay = document.querySelector('#oobeeShadowHost');
       if (existingOverlay) {
         existingOverlay.remove();
         return true;
@@ -416,7 +344,7 @@ export const removeOverlayMenu = async page => {
 };
 
 export const initNewPage = async (page, pageClosePromises, processPageParams, pagesDict) => {
-  let menuPos = MENU_POSITION.top;
+  let menuPos = MENU_POSITION.right;
 
   // eslint-disable-next-line no-underscore-dangle
   const pageId = page._guid;
@@ -461,7 +389,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   page.on('domcontentloaded', async () => {
     try {
       const existingOverlay = await page.evaluate(() => {
-        return document.querySelector('#oobee-shadow-host');
+        return document.querySelector('#oobeeShadowHost');
       });
 
       consoleLogger.info(`Overlay state: ${existingOverlay}`);
