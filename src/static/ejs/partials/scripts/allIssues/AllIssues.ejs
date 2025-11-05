@@ -321,10 +321,10 @@
       if (ruleData && typeof expandRule === 'function') {
         expandRule(category, ruleData);
 
-        const offcanvasElement = document.getElementById('expandedRule');
-        if (offcanvasElement) {
-          const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
-          offcanvas.show();
+        const modalElement = document.getElementById('expandedRule');
+        if (modalElement) {
+          const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+          modal.show();
         }
       }
     };
