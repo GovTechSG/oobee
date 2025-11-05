@@ -270,10 +270,6 @@ export const init = async ({
         console.log('OOBEE DEBUG: Flagged XPaths count:', oobeeAccessibleLabelFlaggedXpaths.length);
         console.log('OOBEE DEBUG: Flagged XPaths:', oobeeAccessibleLabelFlaggedXpaths);
         
-        // Force visibility of the result in Cypress by adding to page title temporarily
-        const originalTitle = document.title;
-        document.title = '[OOBEE: ' + oobeeAccessibleLabelFlaggedXpaths.length + ' flagged] ' + originalTitle;
-        setTimeout(function() { document.title = originalTitle; }, 1000);
         const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
           .map(xpath => {
             try {
