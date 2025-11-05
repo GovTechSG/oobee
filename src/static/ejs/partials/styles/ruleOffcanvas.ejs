@@ -242,6 +242,98 @@
     border: 1px solid var(--chinese-silver);
   }
 
+  /* Item Pagination Controls */
+  .item-pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    background: var(--true-white);
+  }
+
+  .pagination-arrow {
+    background: transparent;
+    border: 1px solid var(--chinese-silver);
+    border-radius: 4px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--ocean-blue);
+    padding: 0;
+  }
+
+  .pagination-arrow:hover:not(:disabled) {
+    background: var(--very-light-gray);
+    border-color: var(--ocean-blue);
+  }
+
+  .pagination-arrow:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .pagination-arrow svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .pagination-page-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--ocean-blue);
+  }
+
+  .pagination-page-input {
+    width: 48px;
+    height: 32px;
+    text-align: center;
+    border: 1px solid var(--chinese-silver);
+    border-radius: 4px;
+    font-size: 0.875rem;
+    padding: 0 0.25rem;
+    color: var(--ocean-blue);
+    font-weight: 600;
+  }
+
+  .pagination-page-input:focus {
+    outline: none;
+    border-color: var(--cosmic-cobalt);
+    box-shadow: 0 0 0 2px rgba(87, 53, 223, 0.1);
+  }
+
+  .pagination-total {
+    font-weight: 400;
+    color: var(--ocean-blue);
+  }
+
+  /* Remove default number input arrows */
+  .pagination-page-input::-webkit-outer-spin-button,
+  .pagination-page-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .pagination-page-input[type=number] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  /* Item Card Container */
+  .item-card-container {
+    padding: 0 1.5rem 1.5rem 1.5rem;
+  }
+
+  .item-card-container .card {
+    margin-top: 0 !important;
+  }
+
   /* Mobile Responsive */
   @media (max-width: 768px) {
     .rule-modal-dialog {
@@ -255,6 +347,14 @@
 
     #expandedRule .modal-header {
       padding: 1rem;
+    }
+
+    .item-pagination-controls {
+      padding: 0.75rem 1rem;
+    }
+
+    .item-card-container {
+      padding: 0 1rem 1rem 1rem;
     }
   }
 </style>
