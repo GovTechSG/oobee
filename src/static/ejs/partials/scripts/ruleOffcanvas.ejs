@@ -127,11 +127,14 @@ category summary is clicked %>
       // Update badge class
       categoryBadge.className = 'mustfix-badge-label';
       if (selectedCategory === 'goodToFix') {
-        categoryBadge.style.background = 'var(--dark-orange)';
-        categoryBadge.style.borderColor = 'var(--dark-orange)';
+        categoryBadge.style.background = 'var(--strong-orange)';
+        categoryBadge.style.borderColor = 'var(--strong-orange)';
       } else if (selectedCategory === 'needsReview') {
         categoryBadge.style.background = 'var(--very-dark-gray)';
         categoryBadge.style.borderColor = 'var(--very-dark-gray)';
+      } else if (selectedCategory === 'mustFix') {
+        categoryBadge.style.background = 'var(--light-carmine-pink)';
+        categoryBadge.style.borderColor = 'var(--light-carmine-pink)';
       }
     }
 
