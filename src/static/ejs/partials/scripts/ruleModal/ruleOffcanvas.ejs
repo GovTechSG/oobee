@@ -1,7 +1,5 @@
-<%- include('./utilities') %>
-<%- include('./itemCardRenderer') %>
-<%- include('./pageAccordionBuilder') %>
-<%- include('./constants') %>
+<%- include('./utilities') %> <%- include('./itemCardRenderer') %> <%-
+include('./pageAccordionBuilder') %> <%- include('./constants') %>
 
 <script>
   function expandRule(selectedCategory, selectedRule) {
@@ -77,7 +75,7 @@
         mustFix: 'Must Fix',
         goodToFix: 'Good to Fix',
         needsReview: 'Manual Test',
-        passed: 'Passed'
+        passed: 'Passed',
       };
       categoryBadge.textContent = categoryLabels[selectedCategory] || 'Must Fix';
 
@@ -92,6 +90,14 @@
       } else if (selectedCategory === 'mustFix') {
         categoryBadge.style.background = 'var(--light-carmine-pink)';
         categoryBadge.style.borderColor = 'var(--light-carmine-pink)';
+      }
+
+      // Update Manual Test Section
+      const manualTestSection = document.getElementById('expandedRuleManualTestSection');
+      if (selectedCategory === 'needsReview' && manualTestSection) {
+        manualTestSection.style.display = 'block';
+      } else if (manualTestSection) {
+        manualTestSection.style.display = 'none';
       }
     }
 
@@ -193,8 +199,10 @@
 
         // Automatically display content for the selected category
         if (category === selectedCategory) {
-          document.getElementById('expandedRuleDropdownToggleCategoryInfo').innerText = `${ruleInCategory.totalItems} Total occ.`
-          document.getElementById('expandedRuleDropdownTitle').innerText = `Pages with this issue (${ruleInCategory.pagesAffected.length})`
+          document.getElementById('expandedRuleDropdownToggleCategoryInfo').innerText =
+            `${ruleInCategory.totalItems} Total occ.`;
+          document.getElementById('expandedRuleDropdownTitle').innerText =
+            `Pages with this issue (${ruleInCategory.pagesAffected.length})`;
           buildExpandedRuleCategoryContent(category, ruleInCategory);
         }
       }

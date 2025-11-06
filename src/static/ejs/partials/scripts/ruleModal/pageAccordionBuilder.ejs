@@ -258,7 +258,6 @@
   function createHtmlGroupedItemCard(item, isPurpleAiRule, oobeeAiQueryLabel, aiConfig, htmlElement) {
     return createElementFromString(`
       <div>
-        ${item.displayNeedsReview ? `<div class="needsReview">This occurrence might be a false positive that needs to be verified by a human.</div>` : ``}
         <div class="d-flex gap-3 flex-column">
           <h3>Where to find this issue</h3>
           <div class="d-flex justify-content-between g-one">
