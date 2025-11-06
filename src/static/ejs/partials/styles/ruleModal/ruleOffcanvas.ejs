@@ -103,11 +103,16 @@
 
   /* How to Fix Section */
   .rule-modal-how-to-fix {
-    padding-top: 0.5rem;
+    display: flex;
+    gap: 0.25rem;
+    flex-direction: column;
   }
 
   .rule-modal-section-title {
     color: var(--ocean-blue);
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
   }
 
   .rule-modal-steps {
@@ -118,7 +123,25 @@
 
   .rule-modal-step {
     display: flex;
-    gap: 12px;
+    flex-direction: column;
+    padding: 0.5rem 1rem;
+    background: var(--sugar-milk);
+    border-radius: 5px;
+    border: 1px solid var(--muted-blue);
+  }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .step-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--muted-blue);
+    line-height: 1.625;
   }
 
   .step-content {
@@ -127,9 +150,23 @@
 
   .step-text {
     margin: 0;
-    font-size: 0.875rem;
-    line-height: 1.5;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    color: var(--muted-blue);
+  }
+
+  .no-steps-message {
+    padding: 1.5rem;
+    text-align: center;
+    background: var(--very-light-gray, #f5f5f5);
+    border-radius: 8px;
+    border: 1px solid var(--chinese-silver, #ccc);
+  }
+
+  .no-steps-message p {
+    margin: 0;
     color: var(--a11y-black-80, #666);
+    font-size: 0.875rem;
   }
 
   /* Manual Test Section */

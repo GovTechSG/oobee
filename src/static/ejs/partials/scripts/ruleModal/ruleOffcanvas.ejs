@@ -2,6 +2,64 @@
 include('./pageAccordionBuilder') %> <%- include('./constants') %>
 
 <script>
+  function populateStepByStepGuide(ruleId) {
+    const container = document.getElementById('stepByStepContainer');
+    if (!container) return;
+
+    const steps = stepByStepGuide[ruleId];
+
+    if (!steps) {
+      // No step-by-step guide available for this rule
+      container.innerHTML = `
+        <div class="no-steps-message">
+          <p>Step-by-step guide not yet available for this issue.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Build the step-by-step HTML
+    const stepsHtml = `
+      <div class="rule-modal-step">
+        <div class="step-header">
+          <h4 class="step-title">1. Check</h4>
+        </div>
+        <div class="step-content">
+          <p class="step-text">${steps.check}</p>
+        </div>
+      </div>
+
+      <div class="rule-modal-step">
+        <div class="step-header">
+          <h4 class="step-title">2. Fix</h4>
+        </div>
+        <div class="step-content">
+          <p class="step-text">${steps.fix}</p>
+        </div>
+      </div>
+
+      <div class="rule-modal-step">
+        <div class="step-header">
+          <h4 class="step-title">3. Review</h4>
+        </div>
+        <div class="step-content">
+          <p class="step-text">${steps.review}</p>
+        </div>
+      </div>
+
+      <div class="rule-modal-step">
+        <div class="step-header">
+          <h4 class="step-title">4. Learn</h4>
+        </div>
+        <div class="step-content">
+          <p class="step-text">${steps.learn}</p>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = stepsHtml;
+  }
+
   function expandRule(selectedCategory, selectedRule) {
     const conformanceLevels = {
       wcag2a: 'A',
@@ -176,6 +234,9 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
     } else {
       document.querySelector('#expandedRuleAiFeedback').style.display = 'none';
     }
+
+    // Populate step-by-step guide
+    populateStepByStepGuide(selectedRule.rule);
 
     const availableFixCategories = [];
 
