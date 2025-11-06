@@ -98,15 +98,17 @@
                             fill="#5735DF"
                           />
                         </svg>
-                        <div class="d-flex justify-content-between w-100">
+                        <div class="d-flex justify-content-between align-items-center w-100">
                           <h3 id="expandedRuleDropdownTitle" class="mb-0">
                             Pages affected by this issue (#)
                           </h3>
-                          <span
-                            id="expandedRuleDropdownToggleCategoryInfo"
-                            class="rule-occurrence-count"
-                            ># Total occ.</span
-                          >
+                          <div class="d-flex align-items-center gap-3">
+                            <span
+                              id="expandedRuleDropdownToggleCategoryInfo"
+                              class="rule-occurrence-count"
+                              ># Total occ.</span
+                            >
+                          </div>
                         </div>
                       </button>
                     </h2>
@@ -117,7 +119,36 @@
                       data-bs-parent="#pagesAccordion"
                     >
                       <div class="accordion-body">
-                        <div id="expandedRuleCategoryContent" class="p-4"></div>
+                        <div class="group-by-toggle">
+                          <span class="group-by-label">Group by</span>
+                          <div class="group-by-options">
+                            <div class="form-check form-check-inline">
+                              <input
+                                type="radio"
+                                class="form-check-input"
+                                name="groupByOptions"
+                                id="groupByPage"
+                                value="page"
+                                checked
+                              />
+                              <label class="form-check-label" for="groupByPage">Page</label>
+                            </div>
+
+                            <div class="form-check form-check-inline">
+                              <input
+                                type="radio"
+                                class="form-check-input"
+                                name="groupByOptions"
+                                id="groupByHtmlElement"
+                                value="html"
+                              />
+                              <label class="form-check-label" for="groupByHtmlElement"
+                                >HTML Element</label
+                              >
+                            </div>
+                          </div>
+                        </div>
+                        <div id="expandedRuleCategoryContent"></div>
                       </div>
                     </div>
                   </div>

@@ -79,10 +79,8 @@
 
   /* Description */
   .rule-modal-description {
-    font-size: 1rem !important;
     line-height: 1.5 !important;
     margin: 0 !important;
-    color: var(--a11y-black, #000);
   }
 
   /* Disability Section */
@@ -222,7 +220,8 @@
   }
 
   #pagesAccordion .accordion-body {
-    padding-top: 0 !important;
+    padding: 1.5rem;
+    padding-top: 0.75rem;
   }
 
   .accordion-link {
@@ -232,6 +231,63 @@
 
   #pagesAccordion h3 {
     line-height: 1.5rem;
+  }
+
+  /* Group By Toggle */
+  .group-by-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .group-by-label {
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--a11y-black-80);
+  }
+
+  .group-by-options {
+    display: flex;
+    align-items: center;
+  }
+
+  .form-check-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-right: 0;
+    padding-left: 0.5rem;
+  }
+
+  .form-check-input[type="radio"] {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    cursor: pointer;
+    border: 1px solid var(--chinese-silver);
+    background-color: var(--true-white);
+  }
+
+  .form-check-input[type="radio"]:checked {
+    background-color: var(--cosmic-cobalt);
+    border-color: var(--cosmic-cobalt);
+  }
+
+  .form-check-input[type="radio"]:focus {
+    outline: 2px solid var(--cosmic-cobalt);
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+
+  .form-check-label {
+    font-size: 0.875rem;
+    color: var(--a11y-black);
+    cursor: pointer;
+    margin: 0;
+  }
+
+  .html-element-preview {
+    flex: 1;
   }
 
   #pagesAccordion .rule-occurrence-count {

@@ -175,6 +175,14 @@
 
     const itemsToUse = typeof filteredItems !== 'undefined' ? filteredItems : scanItems;
 
+    // Reset group by radio buttons to "Page" when modal opens
+    const groupByPageRadio = document.getElementById('groupByPage');
+    const groupByHtmlRadio = document.getElementById('groupByHtmlElement');
+    if (groupByPageRadio && groupByHtmlRadio) {
+      groupByPageRadio.checked = true;
+      groupByHtmlRadio.checked = false;
+    }
+
     Object.keys(itemsToUse).forEach(category => {
       const ruleInCategory = itemsToUse[category]?.rules?.find(r => r.rule === selectedRule.rule);
 
