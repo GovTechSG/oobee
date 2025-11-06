@@ -263,8 +263,10 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           document.getElementById('expandedRuleDropdownToggleCategoryInfo').innerText =
             `${ruleInCategory.totalItems} Total occ.`;
           document.getElementById('expandedRuleDropdownTitle').innerText =
-            `Pages with this issue (${ruleInCategory.pagesAffected.length})`;
+            `Pages affected by this issue (${ruleInCategory.pagesAffected.length})`;
           buildExpandedRuleCategoryContent(category, ruleInCategory);
+          document.getElementById('expandedRulePageContent').innerText =
+            `Total ${ruleInCategory.pagesAffected.length} affected pages`;
         }
       }
     });
