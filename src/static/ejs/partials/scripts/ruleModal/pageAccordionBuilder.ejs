@@ -376,9 +376,18 @@
   function createCustomFlowContent(page) {
     return `
       <div class="custom-flow-screenshot-container">
-        <img alt="Screenshot of ${page.url}" src="${page.pageImagePath}" class="custom-flow-screenshot"/>
-        <div><a href="${page.url}" target="_blank">${page.url}</a></div>
-      </div>
+          <div class="custom-flow-thumb">
+            <img 
+              src="${page.pageImagePath}" 
+              alt="Screenshot of ${page.url}"
+              class="custom-flow-screenshot"
+              onerror="this.onerror = null; this.remove();"
+            >
+          </div>
+          <div class="display-url-container">
+            <div><a href="${page.url}" target="_blank">${page.url}</a></div>
+          </div>
+        </div>
     `;
   }
 
