@@ -25,7 +25,7 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           <h4 class="step-title">1. Check</h4>
         </div>
         <div class="step-content">
-          <p class="step-text">${steps.check}</p>
+          <p class="step-text">${htmlEscapeString(steps.check)}</p>
         </div>
       </div>
 
@@ -34,7 +34,7 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           <h4 class="step-title">2. Fix</h4>
         </div>
         <div class="step-content">
-          <p class="step-text">${steps.fix}</p>
+          <p class="step-text">${htmlEscapeString(steps.fix)}</p>
         </div>
       </div>
 
@@ -43,7 +43,7 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           <h4 class="step-title">3. Review</h4>
         </div>
         <div class="step-content">
-          <p class="step-text">${steps.review}</p>
+          <p class="step-text">${htmlEscapeString(steps.review)}</p>
         </div>
       </div>
 
@@ -52,7 +52,7 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           <h4 class="step-title">4. Learn</h4>
         </div>
         <div class="step-content">
-          <p class="step-text">${steps.learn}</p>
+          <p class="step-text">${htmlEscapeString(steps.learn)}</p>
         </div>
       </div>
     `;

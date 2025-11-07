@@ -720,6 +720,14 @@
         "Test: Press each documented access key and confirm only one action fires. Verify access keys don't conflict with browser functions (like opening the File menu).",
       learn: 'Review and learn more about this issue on A11y Playground',
     },
+    'aria-allowed-role': {
+      check:
+        'Find elements styled like buttons/links that don’t behave like them',
+      fix: '(Developer) Use a real button for actions and a real link for navigation; avoid faking controls with plain divs/spans',
+      review:
+        'Test with keyboard: links activate with Enter; buttons with Space/Enter; names are read correctly',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
     'aria-dialog-name': {
       check:
         'Open popup or modal dialogs on the page. Check each one: Does it have a visible title at the top explaining its purpose? Or any accessible label? e.g.,  "Confirm delete", "Sign in".',
