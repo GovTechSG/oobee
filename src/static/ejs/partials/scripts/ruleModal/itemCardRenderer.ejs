@@ -162,7 +162,7 @@
   function createScreenshotSection(screenshotPath) {
     return `
       <div class="hide-on-img-error">
-        <div class="d-flex justify-content-between g-one">
+        <div class="d-flex justify-content-between g-one modal-view">
           <div class="fw-semibold">Screenshot</div>
           <div class="page-item-card-section-content bg-grey-w-border">
             <img
@@ -177,7 +177,7 @@
 
   function createXpathSection(xpath) {
     return `
-      <div class="d-flex justify-content-between g-one">
+      <div class="d-flex justify-content-between g-one modal-view">
         <div class="fw-semibold">Path</div>
         <div class="page-item-card-section-content">
           <div class="g-one path-container">
@@ -201,7 +201,7 @@
 
   function createElementSection(item) {
     return `
-      <div class="d-flex justify-content-between g-one">
+      <div class="d-flex justify-content-between g-one modal-view">
         ${
           item.html
             ? `

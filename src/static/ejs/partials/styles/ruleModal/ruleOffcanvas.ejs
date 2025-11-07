@@ -3,6 +3,10 @@
     --bs-modal-width: min(1080px, calc(100vw - 2rem));
   }
 
+  .modal-button-right {
+    display: none;
+  }
+
   .rule-modal-body {
     padding: 1.5rem;
     display: flex;
@@ -430,5 +434,35 @@
     .item-pagination-controls {
       padding: 0.75rem 1rem;
     }
+
+    .right-side-modal {
+      width: 100% !important;
+    }
+
+    .left-side-modal {
+      width: 100% !important;
+    }
+
+    .modal-body {
+      flex-direction: column;
+      overflow: auto;
+    }
+
+    .modal-view {
+      flex-direction: column;
+    }
+
+    .modal-button {
+      display: none;
+    }
+
+    .html-element-preview {
+      max-width: 55%;
+    }
+
+    .modal-button-right {
+      display: flex;
+    }
+
   }
 </style>

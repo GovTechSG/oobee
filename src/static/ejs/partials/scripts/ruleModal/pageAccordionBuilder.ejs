@@ -263,7 +263,7 @@
           ${item.screenshotPath ? createScreenshotSection(item.screenshotPath) : ''}
           ${item.xpath ? createXpathSection(item.xpath) : ''}
 
-          <div class="d-flex justify-content-between g-one">
+          <div class="d-flex justify-content-between g-one modal-view">
             <div class="fw-semibold">URL</div>
             <div class="page-item-card-section-content">
               <a href="${item.pageUrl}" target="_blank">${item.pageUrl}</a>
@@ -280,7 +280,7 @@
             </div>
           </div>
 
-        <div class="d-flex justify-content-between g-one">
+        <div class="d-flex justify-content-between g-one modal-view">
             <div class="fw-semibold mb-2">HTML element</div>
             <pre class="page-item-card-section-content">
                 <code class="language-html">${htmlEscapeString(htmlElement)}</code>
@@ -289,7 +289,7 @@
 
           ${
             item.displayNeedsReview
-              ? `<div class="d-flex justify-content-between g-one">
+              ? `<div class="d-flex justify-content-between g-one modal-view">
             <div class="fw-semibold page-item-card-section-title">Details</div>
             <div class="page-item-card-section-content">
               ${generateItemMessageElement(item.displayNeedsReview, item.message)}

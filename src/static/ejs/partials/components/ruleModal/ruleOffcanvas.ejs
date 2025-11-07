@@ -11,9 +11,17 @@
   <div class="modal-dialog modal-dialog-centered rule-modal-dialog">
     <div class="modal-content">
       <div class="modal-body rule-modal-body p-0">
-        <div class="d-flex w-100">
+        <div class="d-flex w-100 modal-view">
           <!-- Left Side -->
           <div class="w-70 left-side-modal">
+            <div class="d-flex justify-content-end pt-3 pe-3">
+              <button
+                type="button"
+                class="btn-close modal-button-right"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
             <!-- SVG Image -->
             <div id="expandedRuleImageContainer" class="rule-modal-image-container">
               <img
@@ -169,7 +177,7 @@
             <div class="d-flex align-self-end">
               <button
                 type="button"
-                class="btn-close"
+                class="btn-close modal-button"
                 data-bs-dismiss="modal"
                 aria-label="Close"
               ></button>
