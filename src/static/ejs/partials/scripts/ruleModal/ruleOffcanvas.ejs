@@ -18,6 +18,15 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
       return;
     }
 
+    // Convert A11y Playground text to link
+    const linkifyA11yPlayground = (text) => {
+      const escaped = htmlEscapeString(text);
+      return escaped.replace(
+        /A11y Playground/g,
+        `<a href="${a11yPlaygroundLink}" target="_blank" rel="noopener noreferrer">A11y Playground</a>`
+      );
+    };
+
     // Build the step-by-step HTML
     const stepsHtml = `
       <div class="rule-modal-step">
@@ -25,7 +34,7 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           <h4 class="step-title">1. Check</h4>
         </div>
         <div class="step-content">
-          <p class="step-text">${htmlEscapeString(steps.check)}</p>
+          <p class="step-text">${linkifyA11yPlayground(steps.check)}</p>
         </div>
       </div>
 
@@ -34,7 +43,7 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           <h4 class="step-title">2. Fix</h4>
         </div>
         <div class="step-content">
-          <p class="step-text">${htmlEscapeString(steps.fix)}</p>
+          <p class="step-text">${linkifyA11yPlayground(steps.fix)}</p>
         </div>
       </div>
 
@@ -43,7 +52,7 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           <h4 class="step-title">3. Review</h4>
         </div>
         <div class="step-content">
-          <p class="step-text">${htmlEscapeString(steps.review)}</p>
+          <p class="step-text">${linkifyA11yPlayground(steps.review)}</p>
         </div>
       </div>
 
@@ -52,7 +61,7 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           <h4 class="step-title">4. Learn</h4>
         </div>
         <div class="step-content">
-          <p class="step-text">${htmlEscapeString(steps.learn)}</p>
+          <p class="step-text">${linkifyA11yPlayground(steps.learn)}</p>
         </div>
       </div>
     `;
