@@ -435,4 +435,18 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+
+  // Format string from wcag111 to WCAG 1.1.1
+  function formatWcagId(wcag) {
+    if (!wcag) return '';
+    const numbers = wcag.replace('wcag', '').split('');
+    if (numbers.length === 3) {
+      return `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}`;
+    } else if (numbers.length === 4) {
+      return `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}${numbers[3]}`;
+    } else if (numbers.length === 5) {
+      return `WCAG ${numbers[0]}.${numbers[1]}.${numbers.slice(2).join('')}`;
+    }
+    return wcag;
+  }
 </script>

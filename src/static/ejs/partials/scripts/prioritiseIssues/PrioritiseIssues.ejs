@@ -7,20 +7,6 @@
     const wcagClauses = scanData?.wcagClauses || {};
     const mustFixRules = scanItems?.mustFix?.rules || [];
 
-    // Format WCAG ID from "wcag111" to "WCAG 1.1.1"
-    const formatWcagId = wcagId => {
-      const numbers = wcagId.replace('wcag', '');
-      let formatted = '';
-      if (numbers.length === 3) {
-        formatted = numbers.split('').join('.');
-      } else if (numbers.length === 4) {
-        formatted = numbers[0] + '.' + numbers[1] + '.' + numbers.slice(2);
-      } else if (numbers.length === 5) {
-        formatted = numbers[0] + '.' + numbers[1] + '.' + numbers.slice(2);
-      }
-      return 'WCAG ' + formatted;
-    };
-
     const wcagCriteriaMap = new Map();
 
     mustFixRules.forEach(rule => {
