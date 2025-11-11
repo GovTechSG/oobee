@@ -13,6 +13,7 @@
       populateCriteriaFilter();
       renderTable();
       updateTotalCount();
+      initializeSortableHeaders();
 
       document.getElementById('severityFilter').addEventListener('change', handleFilterChange);
       document.getElementById('criteriaFilter').addEventListener('change', handleFilterChange);
@@ -43,6 +44,33 @@
       });
 
       filteredIssues = [...allIssues];
+    }
+
+    function initializeSortableHeaders() {
+      const headers = [
+        { element: document.querySelector('.issues-table th:nth-child(1)'), column: 'severity' },
+        { element: document.querySelector('.issues-table th:nth-child(2)'), column: 'issueName' },
+        { element: document.querySelector('.issues-table th:nth-child(3)'), column: 'occurrence' }
+      ];
+
+      headers.forEach(({ element, column }) => {
+        if (!element) return;
+
+        const sortHeader = function() {
+          window.sortTable(column);
+        };
+
+        // Click handler
+        element.addEventListener('click', sortHeader);
+
+        // Keyboard handler
+        element.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            sortHeader();
+          }
+        });
+      });
     }
 
     function populateCriteriaFilter() {
@@ -149,31 +177,42 @@
       // Update sort indicators
       document.querySelectorAll('.issues-table th[aria-sort]').forEach(th => {
         th.setAttribute('aria-sort', 'none');
-        th.querySelector('.sort-icon').classList.remove('active');
-        const paths = th.querySelectorAll('.sort-icon path');
-        if (paths.length === 2) {
-          paths[0].setAttribute('opacity', '0.3');
-          paths[1].setAttribute('opacity', '1');
+        const sortIcon = th.querySelector('.sort-icon');
+        if (sortIcon) {
+          sortIcon.classList.remove('active');
+          const paths = th.querySelectorAll('.sort-icon path');
+          if (paths.length === 2) {
+            paths[0].setAttribute('opacity', '0.3');
+            paths[1].setAttribute('opacity', '1');
+          }
         }
       });
 
-      const sortedTh = document.querySelector(`.issues-table th[onclick*="${column}"]`);
+      const columnIndex = {
+        severity: 1,
+        issueName: 2,
+        occurrence: 3
+      };
+
+      const sortedTh = document.querySelector(`.issues-table th:nth-child(${columnIndex[column]})`);
       if (sortedTh) {
         sortedTh.setAttribute(
           'aria-sort',
           currentSort.direction === 'asc' ? 'ascending' : 'descending',
         );
-        sortedTh.querySelector('.sort-icon').classList.add('active');
+        const sortIcon = sortedTh.querySelector('.sort-icon');
+        if (sortIcon) {
+          sortIcon.classList.add('active');
 
-        // Update arrow opacity based on sort direction
-        const paths = sortedTh.querySelectorAll('.sort-icon path');
-        if (paths.length === 2) {
-          if (currentSort.direction === 'asc') {
-            paths[0].setAttribute('opacity', '1');
-            paths[1].setAttribute('opacity', '0.3');
-          } else {
-            paths[0].setAttribute('opacity', '0.3');
-            paths[1].setAttribute('opacity', '1');
+          const paths = sortedTh.querySelectorAll('.sort-icon path');
+          if (paths.length === 2) {
+            if (currentSort.direction === 'asc') {
+              paths[0].setAttribute('opacity', '1');
+              paths[1].setAttribute('opacity', '0.3');
+            } else {
+              paths[0].setAttribute('opacity', '0.3');
+              paths[1].setAttribute('opacity', '1');
+            }
           }
         }
       }
