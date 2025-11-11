@@ -251,8 +251,10 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
 
         // Automatically display content for the selected category
         if (category === selectedCategory) {
-          document.getElementById('expandedRuleDropdownToggleCategoryInfo').innerText =
-            `${ruleInCategory.totalItems} Total occ.`;
+            const occurrencesText = `${ruleInCategory.totalItems} Total occurrences`;
+            const dropdownToggle = document.getElementById('expandedRuleDropdownToggleCategoryInfo');
+            dropdownToggle.innerText = `${ruleInCategory.totalItems} Total occ.`;
+            dropdownToggle.setAttribute('aria-label', occurrencesText);
           document.getElementById('expandedRuleDropdownTitle').innerText =
             `Pages affected by this issue (${ruleInCategory.pagesAffected.length})`;
           buildExpandedRuleCategoryContent(category, ruleInCategory);

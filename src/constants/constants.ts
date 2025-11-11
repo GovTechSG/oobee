@@ -568,7 +568,7 @@ export const a11yRuleShortDescriptionMap = {
   'form-field-multiple-labels': 'Form fields must have only one label element',
   'aria-allowed-attr': 'ARIA attributes must be used with appropriate roles',
   'aria-braille-equivalent': 'Braille abbreviated labels must have full text equivalents',
-  'aria-command-name': 'Elements that use ARIA labels must have accessible name.',
+  'aria-command-name': 'Elements that use ARIA labels must have an accessible name.',
   'aria-conditional-attr': 'ARIA attributes must not create conflicting or indeterminate states',
   'aria-deprecated-role': 'Remove outdated accessibility (ARIA) roles',
   'aria-hidden-body': 'The page body must not be hidden from screen readers',
