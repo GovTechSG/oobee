@@ -1,6 +1,6 @@
 <script>
-  const a11yPlaygroundLink = "https://a11y.tech.gov.sg/";
-  
+  const a11yPlaygroundLink = 'https://a11y.tech.gov.sg/';
+
   const whyItMatters = {
     accesskeys:
       '<p>\n  Specifying a <code>accesskey</code> attribute value for some part of a\n  document allows users to quickly activate or move the focus to a specific\n  element by pressing the specified key (usually in combination with the\n  <code><kbd>alt</kbd></code> key). Duplicating <code>accesskey</code> values\n  creates unexpected effects that ultimately make the page less accessible.\n</p>',
@@ -722,14 +722,6 @@
         "Test: Press each documented access key and confirm only one action fires. Verify access keys don't conflict with browser functions (like opening the File menu).",
       learn: 'Review and learn more about this issue on A11y Playground',
     },
-    'aria-allowed-role': {
-      check:
-        'Find elements styled like buttons/links that don’t behave like them',
-      fix: '(Developer) Use a real button for actions and a real link for navigation; avoid faking controls with plain divs/spans',
-      review:
-        'Test with keyboard: links activate with Enter; buttons with Space/Enter; names are read correctly',
-      learn: 'Review and learn more about this issue on A11y Playground',
-    },
     'aria-dialog-name': {
       check:
         'Open popup or modal dialogs on the page. Check each one: Does it have a visible title at the top explaining its purpose? Or any accessible label? e.g.,  "Confirm delete", "Sign in".',
@@ -944,6 +936,13 @@
       fix: '(Developer) Check the <meta name="viewport"> tag in the page\'s HTML. Remove or change: user-scalable="no" (change to user-scalable="yes"), and maximum-scale="1" (increase to at least 2). e.g., <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2, user-scalable=yes">.',
       review:
         'Test zoom on both desktop and mobile: Zoom to 200% (double size). Confirm text is readable, buttons are clickable, and page functionality works normally at larger zoom levels.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-allowed-role': {
+      check:
+        'Find elements that look clickable on the page. Ask: Does this do something (like submit a form or open a menu)? Or does it go somewhere else (navigate to a new page)? Check if the label matches what it actually does.',
+      fix: '(Developer) Use real <button> for actions, real <a> for navigation links. If you must use code to create buttons or links, make sure they actually behave like real ones—buttons activate with Space/Enter, links activate with Enter and navigate away.',
+      review: `Test with keyboard: Try clicking buttons (Space or Enter), try clicking links (Enter). Use a screen reader to hear if it's announced as a button or link. Confirm what it announces matches what it actually does.`,
       learn: 'Review and learn more about this issue on A11y Playground',
     },
   };

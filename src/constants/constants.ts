@@ -620,6 +620,7 @@ export const a11yRuleShortDescriptionMap = {
   tabindex: 'Elements must not have positive tabindex values',
   'table-duplicate-name': 'Table caption and summary must not be identical',
   'meta-viewport': 'Pages must allow zoom and text scaling',
+  'aria-allowed-role': 'Elements must use appropriate roles matching their actual behavior',
 };
 
 export const a11yRuleLongDescriptionMap = {
@@ -810,6 +811,7 @@ export const a11yRuleLongDescriptionMap = {
     'Tables should not have both a caption and a summary that say exactly the same thing. This causes screen reader users to hear the same information announced twice. The caption should briefly describe the table, and any summary should add additional context or explanation—not repeat the caption word-for-word.',
   'meta-viewport':
     'Pages must allow users to zoom in and scale text using their browser or pinch-to-zoom on mobile devices. Disabling zoom locks people with low vision out of being able to enlarge content to read them comfortably. The viewport meta tag should allow scaling and not restrict maximum zoom.',
+  'aria-allowed-role': `Buttons, links, and interactive elements should behave the way they're marked. e.g., if something looks and acts like a button (performs an action), it should be labeled as a button. If it goes to a different page, it should be labeled as a link. When the label doesn't match the actual behavior, screen reader users get confused about what will happen when they click. When possible, use real buttons (<button>) and real links (<a>) instead of creating fake buttons or links from plain text and code.`,
 };
 
 export const disabilityBadgesMap = {
