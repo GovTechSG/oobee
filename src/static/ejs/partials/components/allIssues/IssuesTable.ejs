@@ -1,4 +1,4 @@
-<div class="issues-table-container">
+<div class="issues-table-container" tabindex="0">
   <table class="issues-table" id="issuesTable">
     <thead>
       <tr>
@@ -23,7 +23,7 @@
             <path d="M7 15L12 20L17 15H7Z" fill="currentColor" opacity="1" />
           </svg>
         </th>
-        <th style="width: 30%;"></th>
+        <th style="width: 30%;" aria-hidden="true"></th>
       </tr>
     </thead>
     <tbody id="issuesTableBody">
@@ -39,5 +39,3 @@
     <!-- Dynamically updated -->
   </div>
 </div>
-
-<%- include('../ruleModal/ruleOffcanvas') %>

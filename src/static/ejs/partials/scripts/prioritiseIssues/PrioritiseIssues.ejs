@@ -84,7 +84,7 @@
                 : '';
 
             return `
-              <li class="priority-issue-item d-flex g-one" data-rule-id="${issue.ruleId}">
+              <li class="priority-issue-item d-flex g-one" data-rule-id="${issue.ruleId}" role="button" tabindex="0">
                 <div class="d-flex justify-content-between align-items-center w-90">
                     <div class="priority-issue-title">${issue.description}</div>
                     ${disabilityBadges}
@@ -96,7 +96,7 @@
 
         return `
           <div class="accordion-item">
-            <h4 class="accordion-header" id="heading${index}">
+            <h3 class="accordion-header" id="heading${index}">
               <button
                 class="accordion-button collapsed"
                 type="button"
@@ -115,11 +115,10 @@
                     <path d="M7.41 15.4102L12 10.8302L16.59 15.4102L18 14.0002L12 8.00016L6 14.0002L7.41 15.4102Z" fill="#5735DF"/>
                 </svg>
               </button>
-            </h4>
+            </h3>
             <div
               id="collapse${index}"
               class="accordion-collapse collapse"
-              aria-labelledby="heading${index}"
               data-bs-parent="#prioritiseIssuesAccordion"
             >
               <div class="accordion-body">
@@ -136,18 +135,20 @@
     accordionContainer.innerHTML = accordionHTML;
 
     document.querySelectorAll('.priority-issue-item').forEach(item => {
-      item.addEventListener('click', function () {
-        const ruleId = this.getAttribute('data-rule-id');
+      const selectIssue = function () {
+        const ruleId = item.getAttribute('data-rule-id');
 
         document.querySelectorAll('.priority-issue-item').forEach(el => {
           el.classList.remove('active');
+          el.setAttribute('aria-selected', 'false');
         });
         document.querySelectorAll('.priority-issue-title').forEach(el => {
           el.classList.remove('active');
         });
 
-        this.classList.add('active');
-        const title = this.querySelector('.priority-issue-title');
+        item.classList.add('active');
+        item.setAttribute('aria-selected', 'true');
+        const title = item.querySelector('.priority-issue-title');
         if (title) {
           title.classList.add('active');
         }
@@ -163,6 +164,17 @@
 
         if (selectedRule && typeof window.populateIssueDetailCard === 'function') {
           window.populateIssueDetailCard(selectedRule);
+        }
+      };
+
+      // Click handler
+      item.addEventListener('click', selectIssue);
+
+      // Keyboard handler
+      item.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectIssue();
         }
       });
     });
@@ -185,6 +197,7 @@
       const firstIssueItem = document.querySelector('.priority-issue-item');
       if (firstIssueItem) {
         firstIssueItem.classList.add('active');
+        firstIssueItem.setAttribute('aria-selected', 'true');
         const firstIssueTitle = firstIssueItem.querySelector('.priority-issue-title');
         if (firstIssueTitle) {
           firstIssueTitle.classList.add('active');

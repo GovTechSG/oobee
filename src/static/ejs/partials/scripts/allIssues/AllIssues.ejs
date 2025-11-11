@@ -250,7 +250,7 @@
             .join('');
 
           return `
-          <tr onclick="openIssueDetails('${issue.category}', ${JSON.stringify(issue).replace(/"/g, '&quot;')})">
+          <tr class="issue-row" data-category="${issue.category}" data-rule-id="${issue.ruleId}" role="button" tabindex="0" aria-label="${issue.description}, ${severityLabel}, ${issue.totalItems} occurrences">
             <td>
               <span class="category-badge ${severityClass}">${severityLabel}</span>
             </td>
@@ -266,7 +266,7 @@
               <span class="occurrence-count">${formatCount(issue.totalItems)} occ.</span>
             </td>
             <td>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <g clip-path="url(#clip0_263_236)">
                   <path d="M8.58984 16.59L13.1698 12L8.58984 7.41L9.99984 6L15.9998 12L9.99984 18L8.58984 16.59Z" fill="#5735DF"/>
                 </g>
@@ -281,6 +281,30 @@
         `;
         })
         .join('');
+
+      // Add event listeners after rendering
+      document.querySelectorAll('.issue-row').forEach(row => {
+        const openIssue = function() {
+          const category = row.getAttribute('data-category');
+          const ruleId = row.getAttribute('data-rule-id');
+          const issue = filteredIssues.find(i => i.ruleId === ruleId && i.category === category);
+          
+          if (issue) {
+            window.openIssueDetails(category, issue);
+          }
+        };
+
+        // Click handler
+        row.addEventListener('click', openIssue);
+
+        // Keyboard handler
+        row.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openIssue();
+          }
+        });
+      });
     }
 
     function formatCount(count) {
