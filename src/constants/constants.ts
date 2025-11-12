@@ -521,292 +521,297 @@ const reserveFileNameKeywords = [
 ];
 
 export const a11yRuleShortDescriptionMap = {
-  'aria-meter-name': 'All elements must have clear text to describe it',
-  'aria-progressbar-name': 'Add labels to progress bars',
-  'image-alt': 'Add alt text to images',
-  'input-image-alt': 'Add alt text to image buttons',
-  'object-alt': 'Add alt text to embedded content',
-  'oobee-confusing-alt-text': 'Rewrite unhelpful image alt text',
-  'role-img-alt': 'Add alt text to icon images',
-  'svg-img-alt': 'Add alt text to vector images',
-  'video-caption': 'Add captions to videos',
-  'aria-required-children': 'Add the required child elements for every accessibility (ARIA) role',
-  'aria-required-parent': 'Add the required parent for every accessibility (ARIA) role',
-  'definition-list': 'Group terms and definitions correctly',
-  dlitem: 'Put terms and definitions in lists',
-  list: 'Put list items inside lists',
-  listitem: 'Place list items inside a list',
-  'td-headers-attr': 'Reference headers within the same table',
-  'th-has-data-cells': 'Connect table headers to cells',
-  'autocomplete-valid': 'Use correct autocomplete values',
-  'link-in-text-block': 'Make links look different from text beyond using color',
-  'avoid-inline-spacing': 'Allow custom text spacing',
-  'no-autoplay-audio': 'Disable auto-playing audio',
-  'color-contrast': 'Increase contrast for readability',
-  'color-contrast-enhanced': 'Increase contrast for AAA readability',
-  'frame-focusable-content': 'Let users tab into frames',
-  'server-side-image-map': 'Replace server-side image maps',
-  'scrollable-region-focusable': 'Make scrollable regions keyboard friendly',
-  'oobee-accessible-label': 'Label clickable custom elements',
-  'meta-refresh': 'Avoid timed refresh under 20 hours',
-  blink: 'Remove blinking text',
-  marquee: 'Remove scrolling text',
-  'meta-refresh-no-exceptions': 'Avoid timed refreshes',
-  bypass: 'Add a skip to content link',
-  'document-title': 'Add a page title',
-  'link-name': 'Add descriptive text to links',
-  'area-alt': 'Add labels to clickable image areas',
-  'identical-links-same-purpose': 'Match link text to its purpose',
-  'target-size': 'All touch targets must have sufficient space',
-  'html-has-lang': 'Set page language (lang)',
-  'html-lang-valid': 'Fix invalid language',
-  'html-xml-lang-mismatch': 'Make page language settings match',
-  'valid-lang': 'Use valid language',
-  'oobee-grading-text-contents': 'Write clear, plain text',
-  'form-field-multiple-labels': 'Keep one label per field',
-  'aria-allowed-attr': 'Remove inaccessible elements',
-  'aria-braille-equivalent': 'Add non-braille equivalent setting',
-  'aria-command-name': 'Add text to interactive commands',
-  'aria-conditional-attr': 'Use accessibility (ARIA) attributes for every element',
-  'aria-deprecated-role': 'Remove outdated accessibility (ARIA) attributes',
-  'aria-hidden-body': 'Remove hidden elements from page body',
-  'aria-hidden-focus': "Don't hide elements that require keyboard focus",
-  'aria-input-field-name': 'Add labels to custom inputs',
-  'aria-prohibited-attr': 'Remove attributes not allowed here',
-  'aria-required-attr': 'Add the required accessibility (ARIA) attributes',
-  'aria-roles': 'Every accessibility (ARIA) role is a valid element',
-  'aria-toggle-field-name': 'Add labels to toggle switches',
-  'aria-tooltip-name': 'Add labels to tooltips',
-  'aria-valid-attr': 'Use valid attribute names',
-  'aria-valid-attr-value': 'Use valid attribute values',
-  'button-name': 'Add text to buttons',
-  'duplicate-id-aria': 'Make referenced IDs unique',
-  'frame-title': 'Add a title to frames',
-  'frame-title-unique': 'Give each frame a unique title',
-  'input-button-name': 'Add text to input buttons',
-  label: 'Label each form field',
-  'nested-interactive': 'Avoid nested interactive controls',
-  'select-name': 'Name the select dropdown',
-  accesskeys: 'Use unique keyboard shortcuts',
-  'aria-allowed-role': 'Use the correct element type',
-  'aria-dialog-name': 'Add titles to dialog popups',
-  'aria-text': "Don't focus decorative text",
-  'aria-treeitem-name': 'Label items in expandable lists',
-  'empty-heading': 'Remove empty headings',
-  'empty-table-header': 'Add text to table headers',
-  'frame-tested': 'Test frames with accessibility tools',
-  'heading-order': 'Fix heading level order',
-  'image-redundant-alt': "Don't repeat image alt as text",
-  'label-title-only': 'Show a visible label for fields',
-  'landmark-banner-is-top-level': 'Keep header outside other regions',
-  'landmark-complementary-is-top-level': 'Keep sidebar outside other regions',
-  'landmark-contentinfo-is-top-level': 'Keep footer outside other regions',
-  'landmark-main-is-top-level': 'Keep main region top-level',
-  'landmark-no-duplicate-banner': 'Use one header region',
-  'landmark-no-duplicate-contentinfo': 'Use one footer region',
-  'landmark-no-duplicate-main': 'Use one main region',
-  'landmark-one-main': 'Add one main content region',
-  'landmark-unique': 'Differentiate page regions',
-  'meta-viewport-large': 'Allow pinch-to-zoom',
-  'page-has-heading-one': 'Add one H1 heading',
-  'presentation-role-conflict': 'Avoid focus on decorative elements',
-  region: 'Wrap page content in regions',
-  'scope-attr-valid': 'Use correct scope on headers',
-  'skip-link': 'Ensure skip link target exists',
-  tabindex: 'Remove positive tabindex values',
-  'table-duplicate-name': 'Avoid duplicate table summary/caption',
-  'meta-viewport': 'Allow zooming and scaling of pages',
+  'aria-meter-name': 'Meter elements need accessible labels',
+  'aria-progressbar-name': 'Progress bars need accessible labels',
+  'image-alt': 'Meaningful images need text descriptions',
+  'input-image-alt': 'Image buttons need action labels',
+  'object-alt': 'Embedded objects need identifying labels',
+  'oobee-confusing-alt-text': 'Replace vague image descriptions with meaningful text',
+  'role-img-alt': 'Elements marked as images need text descriptions',
+  'svg-img-alt': 'Vector graphics marked as images need text descriptions',
+  'video-caption': 'Videos need captions with transcript tracks',
+  'aria-required-children': 'ARIA roles must contain their required child elements',
+  'aria-required-parent': 'ARIA roles must be contained within their required parent elements',
+  'definition-list': 'Glossaries must use proper term and definition structure',
+  dlitem: 'Term and definition elements must be contained in definition lists',
+  list: 'Bullet and numbered lists must only contain list items as direct children',
+  listitem: 'List items must be placed inside a list container',
+  'td-headers-attr': 'Table headers must clearly identify their relationship to cells',
+  'th-has-data-cells': 'Table headers must be connected to their data cells',
+  'autocomplete-valid': 'Form fields must use valid autocomplete attributes',
+  'link-in-text-block': 'Links must be visually distinct beyond color alone',
+  'avoid-inline-spacing': 'Page layouts must allow users to adjust text spacing',
+  'no-autoplay-audio': 'Pages must not auto-play audio or must allow control',
+  'color-contrast': 'Text and background colors must meet minimum contrast requirements',
+  'color-contrast-enhanced': 'Text and background colors must meet enhanced contrast requirements',
+  'frame-focusable-content':
+    'Frames and iframes with interactive content must be keyboard accessible',
+  'server-side-image-map': 'Replace server-side image maps with client-side image maps',
+  'scrollable-region-focusable': 'Elements within scrollable regions must be keyboard accessible',
+  'oobee-accessible-label': 'Clickable elements must have accessible labels',
+  'meta-refresh': 'Pages must not use timed automatic refresh',
+  blink: 'Blinking elements must not be used',
+  marquee: 'Marquee animated elements must not be used',
+  'meta-refresh-no-exceptions': 'Pages must not use automatic timed refresh',
+  bypass: 'Pages must provide a way to bypass repeated blocks',
+  'document-title': 'Every page must have a descriptive title',
+  'link-name': 'Links must have descriptive accessible labels',
+  'area-alt': 'Clickable areas in image maps must have labels',
+  'identical-links-same-purpose':
+    'Links with identical text must have accessible labels describing their purpose',
+  'target-size': 'Clickable elements must be large enough or have sufficient spacing',
+  'html-has-lang': 'Every page must declare its language',
+  'html-lang-valid': 'Page language declaration must use valid language codes',
+  'html-xml-lang-mismatch': 'Make different page language settings match',
+  'valid-lang': 'Elements in different languages must use valid language codes',
+  'oobee-grading-text-contents': 'Page content must use clear, plain language',
+  'form-field-multiple-labels': 'Form fields must have only one label element',
+  'aria-allowed-attr': 'ARIA attributes must be used with appropriate roles',
+  'aria-braille-equivalent': 'Braille abbreviated labels must have full text equivalents',
+  'aria-command-name': 'Elements that use ARIA labels must have an accessible name.',
+  'aria-conditional-attr': 'ARIA attributes must not create conflicting or indeterminate states',
+  'aria-deprecated-role': 'Remove outdated accessibility (ARIA) roles',
+  'aria-hidden-body': 'The page body must not be hidden from screen readers',
+  'aria-hidden-focus': 'Hidden elements must not contain keyboard-focusable content',
+  'aria-input-field-name': 'Custom input fields must have accessible labels',
+  'aria-prohibited-attr': 'Remove ARIA attributes not allowed on these elements',
+  'aria-required-attr': 'Add required ARIA attributes for accessibility roles',
+  'aria-roles': 'Elements must use valid, supported accessibility roles',
+  'aria-toggle-field-name':
+    'Toggle switches, checkboxes and radio buttons must have descriptive labels',
+  'aria-tooltip-name': 'Tooltips must have accessible names',
+  'aria-valid-attr': 'ARIA attributes must use correct syntax and valid names',
+  'aria-valid-attr-value': 'ARIA attributes must use valid values',
+  'button-name': 'Buttons must have descriptive text or labels',
+  'duplicate-id-aria': 'Element IDs must be unique on the page',
+  'frame-title': 'Frames and iframes must have descriptive titles',
+  'frame-title-unique': 'Each frame must have a unique, descriptive title',
+  'input-button-name': 'Input buttons must have descriptive text or values',
+  label: 'Form fields must have associated labels',
+  'nested-interactive': 'Interactive elements must not be nested inside each other',
+  'select-name': 'Selected dropdowns must have associated labels',
+  accesskeys: 'Custom keyboard shortcuts must be unique',
+  'aria-dialog-name': 'Dialog popups must have descriptive titles',
+  'aria-text': 'Text elements must not contain focusable content',
+  'aria-treeitem-name': 'Tree view items must have accessible names',
+  'empty-heading': 'Headings must contain descriptive text and not be hidden',
+  'empty-table-header': 'Table headers must contain descriptive text',
+  'frame-tested': 'Frames and iframes must be tested for accessibility',
+  'heading-order': 'Heading levels must follow logical order',
+  'image-redundant-alt': 'Image descriptions must not repeat surrounding text',
+  'label-title-only': 'Form fields should have visible labels',
+  'landmark-banner-is-top-level':
+    "Header region or banner elements must be at the page's top level",
+  'landmark-complementary-is-top-level':
+    "Sidebar/complementary region must be at the page's top level",
+  'landmark-contentinfo-is-top-level': "Footer region must be at the page's top level",
+  'landmark-main-is-top-level': "Main content region must be at the page's top level",
+  'landmark-no-duplicate-banner': 'Pages must have only one header region',
+  'landmark-no-duplicate-contentinfo': 'Pages must have only one footer region',
+  'landmark-no-duplicate-main': 'Pages must have only one main content region',
+  'landmark-one-main': 'Every page must have a main content region',
+  'landmark-unique': 'Page landmarks must be unique or clearly distinguished',
+  'meta-viewport-large': 'Pages must allow zoom and scaling',
+  'page-has-heading-one': 'Every page must have one main H1 heading',
+  'presentation-role-conflict': 'Decorative elements must not be interactive or focusable',
+  region: 'All page content must be within marked landmarks or regions',
+  'scope-attr-valid': 'Table header scope attributes must be correct',
+  'skip-link': 'Skip links must have valid, reachable targets',
+  tabindex: 'Elements must not have positive tabindex values',
+  'table-duplicate-name': 'Table caption and summary must not be identical',
+  'meta-viewport': 'Pages must allow zoom and text scaling',
+  'aria-allowed-role': 'Elements must use appropriate roles matching their actual behavior',
 };
 
 export const a11yRuleLongDescriptionMap = {
   'aria-meter-name':
-    'Meters that show measurements (like storage usage) need text labels. This helps people using screen readers understand what the meter is tracking.',
+    'Meters are visual indicators that show measurements (like how much storage is used) and need text labels. This helps people using screen readers understand what the meter is tracking.',
   'aria-progressbar-name':
-    "Progress bars need clear labels describing what's being loaded or processed. This helps people using screen readers know what progress they're watching.",
+    "Progress bars are visual indicators showing completion status and need clear labels describing what's being loaded or processed. This helps people using screen readers know what progress they're watching.",
   'image-alt':
-    "Images need short text descriptions that explain what they show. This helps people using screen readers understand the image instead of just hearing 'image'.",
+    'Meaningful images (photos, charts, diagrams and other visuals) that communicate important information need text descriptions (called "alt text"). This helps people using screen readers understand what the image shows instead of just hearing/reading out as "image".',
   'input-image-alt':
-    'Image buttons (buttons that use images instead of text) need text descriptions. This helps people using screen readers know what the button does.',
+    'When a button uses only an image instead of text, that image needs a label that describes the button\'s action (called an "accessible name"). e.g., a delete button with a trash can icon should be labeled "Delete" not just "trash can". This helps people using screen readers know what action the button performs.',
   'object-alt':
-    'Embedded content like PDFs or videos need text descriptions. This helps people using screen readers understand what the embedded content is.',
+    'Embedded content, such as PDFs, videos, interactive maps, or other objects need a label that identifies what it is (called an "accessible name"). This helps people using screen readers understand what the object is and what it does. e.g., "View the 2024 annual report (PDF)" or "Video: Company overview (3 minutes)."',
   'oobee-confusing-alt-text':
-    "Image descriptions using vague words like 'image', 'photo', or 'graphic' are unhelpful. Replace them with actual descriptions of what the image shows.",
+    'Images that already have alt text (text descriptions for images) but use vague words like "image" "photo", need to be rewritten with actual descriptions of what the image shows. e.g., instead of alt text that says "photo," it should describe what the photo shows: "Team members at the 2024 conference".',
   'role-img-alt':
-    'When icons or graphics are marked as images, they need text descriptions. This helps people using screen readers understand what each icon represents.',
+    'When design elements are marked with image role (a technical way to treat elements as images), they need text descriptions (called "accessible names"). This helps people using screen readers understand what each element represents. e.g., an icon marked as an image needs a description like "Settings icon" not just "image".',
   'svg-img-alt':
-    'Vector graphics (SVGs) marked as images need text descriptions. This helps people using screen readers understand what the graphic represents.',
+    'Vector graphics (scalable graphics created with code called SVGs), that are marked with image role (treated as images) need text descriptions (called "accessible names"). This helps people using screen readers understand what the graphic represents. e.g., an SVG logo should be labeled "Company logo".',
   'video-caption':
-    'Videos need captions that show what people are saying and important sounds. This helps people with hearing loss understand video content.',
+    'Videos need captions that show what people are saying and important sounds (captions provided through <track> elements in HTML). This helps people who are deaf or hard of hearing understand video content. Captions should be synchronized with the video and readable.',
   'aria-required-children':
-    'Certain special HTML elements require specific child elements to work correctly. Fix this structural issue so screen readers can interpret the content properly.',
+    'Certain accessibility roles (ARIA roles, attributes that tell screen readers what type of element something is) require specific child elements nested inside them to work correctly. e.g., a menu role should contain "menu item" elements inside it. Without the proper child elements, screen readers cannot interpret the structure and the control won\'t work as intended.',
   'aria-required-parent':
-    'Certain special HTML elements must be placed inside specific parent elements. Fix this structural issue so the content makes sense to screen readers.',
+    'Certain accessibility roles (ARIA roles, attributes that tell screen readers what type of element something is) require specific parent elements to contain them. e.g., a tab element should be inside a "tab list" parent. When a role is outside its required parent, screen readers cannot understand the relationship and structure, breaking the functionality.',
   'definition-list':
-    'Glossary-style lists (terms paired with definitions) need proper list structure. This helps screen readers announce the relationships between terms and their meanings.',
+    'Glossaries and FAQs that pair terms with definitions must use proper structure (called a definition list). This means only term and definition elements should be direct children—no other content mixed in directly. This helps screen readers announce which definitions belong to which terms.',
   dlitem:
-    'Terms and definitions need to be grouped in proper list elements. This helps screen readers understand that definitions belong to specific terms.',
-  list: 'Bullet or numbered items need to be marked as proper lists. This helps screen readers announce list structure and item count to users.',
+    'Terms and their definitions must always be grouped inside a definition list (a special structure for glossaries and FAQs). When they appear outside this structure, screen readers cannot understand they are related.',
+  list: "When you create a bullet list or numbered list, only list item elements should be immediate children of the list container. This structure helps screen readers announce the list properly and count items correctly. (Note: list items themselves can contain other content like paragraphs, links, or formatting—that's allowed.)",
   listitem:
-    'List items need to be placed inside list elements. This helps screen readers recognize the list structure and count items correctly.',
+    'List item elements should only exist inside a list container (bullet list or numbered list). When list items appear outside a list container, screen readers cannot understand they are part of a list, breaking the list structure.',
   'td-headers-attr':
-    'Table cells need to link to their correct header cells. This helps screen reader users navigate tables and understand what each number means.',
+    'Table headers must clearly identify their purpose in relation to the cells they describe, whether they are column headers or row headers. e.g, a column header might be "Revenue" and a row header might be "Q1". Without clear header relationships, screen readers cannot help users understand what data they\'re reading.',
   'th-has-data-cells':
-    'Table headers need to link to the data cells they describe. This helps screen reader users understand which headers apply to which cells.',
+    'Table headers must be correctly labeled and connected to the data cells they describe. This relationship helps screen reader users understand which header applies to which data cell.',
   'autocomplete-valid':
-    'Form fields need correct autocomplete hints so browsers can prefill information correctly. This helps people with cognitive disabilities and slow typists.',
+    'Form fields need correct autocomplete attributes (coded hints that tell browsers what type of information goes in each field). When autocomplete attributes follow the specification, browsers can prefill information correctly. This helps people with cognitive disabilities and slow typists.',
   'link-in-text-block':
-    'Links must look different from regular text in ways other than just color. This helps people with color blindness and low vision identify clickable links.',
+    'Links must look different from regular text in ways other than just color (like underlining or special styling). This helps people with color blindness and low vision identify which text is clickable.',
   'avoid-inline-spacing':
-    'Text spacing should be adjustable through browser settings. This helps people with low vision who need wider spacing to read comfortably.',
+    "Users should be able to adjust text spacing in their browser settings (spacing is measured in units like ems, not percentages). When CSS styles don't have fixed line-spacing values, users with low vision can increase spacing to read comfortably. This helps people who need wider spacing to read without losing content.",
   'no-autoplay-audio':
-    "Audio or video shouldn't automatically play sound when the page loads. This helps people with hearing aids and those who need to focus on reading.",
+    'Pages with audio or video must not auto-play sound when the page loads, unless the sound is very brief (3 seconds or less). Audio that auto-plays longer than 3 seconds must have clear pause/stop controls. This helps people with hearing aids, those who use multiple tabs, and those who need to focus on reading.',
   'color-contrast':
-    'Text and background colors need enough contrast to be readable. This helps people with low vision see text clearly.',
+    'Text and background colors need enough contrast ratio (AA level—the baseline accessibility requirement) to be readable. This helps people with low vision see text clearly and read without strain.',
   'color-contrast-enhanced':
-    'For better accessibility, text and background colors should have very high contrast. This helps people with low vision see text clearly.',
+    'For enhanced accessibility, text and background colors should meet AAA level contrast (higher than the baseline AA requirement). This provides very high contrast and helps people with low vision see text with minimal strain.',
   'frame-focusable-content':
-    'Iframes containing interactive content need keyboard access. This helps people who navigate only with keyboards.',
+    'Frames and iframes that contain interactive content need to be accessible via keyboard. When users navigate using Tab, they should be able to reach and interact with content inside the frame. This helps people who navigate only with keyboards.',
   'server-side-image-map':
-    "Image maps using server-side clicking don't work with keyboards. Replace them with HTML-based image maps so everyone can use them.",
+    "Image maps that use server-side clicking (where the server determines what was clicked based on coordinates) don't work with keyboard navigation. Replace them with client-side image maps (HTML-based maps) so everyone can use them via keyboard or any input method.",
   'scrollable-region-focusable':
-    "Scrollable sections need keyboard access so users can scroll with the keyboard. This helps people who can't use a mouse.",
+    "Scrollable sections that contain interactive elements need to be accessible by keyboard and screen reader. Users should be able to scroll using the keyboard or a screen reader to reach/read all contents inside the scrollable regions. This helps people who can't use a mouse or those using screen readers.",
   'oobee-accessible-label':
-    'Clickable elements need clear labels or text. This helps screen reader users understand what will happen when they click.',
+    'Clickable elements (buttons, links, etc) need clear, accessible labels that describe what will happen when clicked. This helps screen reader users understand the purpose of each clickable element.',
   'meta-refresh':
-    "Pages shouldn't automatically refresh unless absolutely necessary, and if they do, users must have time to prepare or stop it. Automatic refreshes interrupt reading and frustrate users.",
+    'Pages should not automatically refresh using timed refresh (meta refresh with delays under 20 hours). Automatic page refreshes interrupt users while reading and frustrate those trying to focus on content. If refresh is necessary, users should control it with a button or link.',
   blink:
-    "Blinking or flashing content shouldn't be used. This helps people with motion sensitivity avoid discomfort.",
+    'Blinking or flashing text should not be used. This helps people with motion sensitivity, seizure disorders, and those who find flashing content distracting or disorienting.',
   marquee:
-    "Scrolling text (marquee) shouldn't be used. This makes content hard to read and causes problems for people with attention or motion sensitivities.",
+    'Scrolling or animated text (marquee elements) should not be used. Moving text is difficult to read and causes problems for people with attention disorders, motion sensitivities, or those with low vision. Content should be static or controlled by the user.',
   'meta-refresh-no-exceptions':
-    "The page shouldn't automatically refresh. This prevents frustration for all users and especially helps those with reading or attention disabilities.",
+    'Pages must not automatically refresh using meta refresh or similar timed mechanisms. Automatic page refreshes interrupt users reading or using the page, and especially frustrate people with attention disabilities or those trying to focus. If page updates are needed, users should have control.',
   bypass:
-    'Pages need a skip link so users can jump past repeated content like navigation. This helps keyboard users move through pages quickly.',
+    'Pages must provide a way for users to bypass repeated content blocks (e.g. navbars, sidebars, main, headings, footers). One common way to do this is through skip links. However, pages must also have a main landmark (a marked main content area) so screen readers and keyboard users can jump directly to the primary content. This helps users navigate pages more efficiently.',
   'document-title':
-    "Every page needs a descriptive title. This helps people understand what page they're on, especially those using screen readers.",
+    "Every page needs a unique, descriptive title that appears in the browser tab and is read first by screen readers. The title should help users understand what page they're on. This is especially important for people using screen readers who rely on the page title to understand context.",
   'link-name':
-    'Links need clear, descriptive text. This helps screen reader users understand where links go without reading surrounding text.',
+    "Links need clear, descriptive text or labels that explain where the link goes or what it does. This helps screen reader users understand the link's purpose without reading surrounding context. Links should have an accessible name (either visible text or a programmatic label).",
   'area-alt':
-    'Clickable regions in image maps need text descriptions. This helps screen reader users understand what each region does without relying on the image.',
+    'Image maps (images where different clickable regions have different links or actions) must have text labels for each clickable area (called alt text on area elements). Each clickable region should have a descriptive label explaining where it links or what happens when clicked. This helps screen reader users understand what each area does without relying on the image.',
   'identical-links-same-purpose':
-    'Links with the same text should go to the same page. This prevents confusion about where similar-looking links go.',
+    'When links use the same text but go to different destinations, they need additional accessible labels (like aria-label attributes) to distinguish them. This helps screen reader users understand the purpose of each link when they see the same text repeated.',
   'target-size':
-    'Clickable elements need to be large enough to tap easily. This helps people with mobility issues and those using mobile devices.',
+    'Clickable elements (buttons, links, form fields, etc) need to be at least 24 pixels in size or have adequate spacing between them. This helps people with mobility issues and those using mobile devices to accurately tap or click without missing or accidentally clicking the wrong element.',
   'html-has-lang':
-    'The page must declare its language. This helps screen readers pronounce text correctly and helps translation tools work better.',
+    'Every page (and any frames or iframes within it) must declare its primary language using a language attribute (lang). This helps screen readers pronounce text with the correct accent and pronunciation, and helps translation tools work correctly.',
   'html-lang-valid':
-    'The language declaration must be valid and accurate. This ensures screen readers and translation tools can work properly.',
+    'The language declared on the page must use a valid ISO language code (like "en" for English, "fr" for French). Invalid or nonstandard language codes prevent screen readers and translation tools from working correctly.',
   'html-xml-lang-mismatch':
-    'Language declarations using different formats need to match. This prevents confusion for screen readers and translation tools.',
+    'Language declarations using different formats (HTML and XML) need to match. If they disagree (e.g., lang="en" and xml:lang="fr" on the same element), screen readers and translation tools become confused about the content language.',
   'valid-lang':
-    'Parts of the page in different languages need correct language tags. This helps screen readers pronounce text in the right language.',
+    'When parts of a page use different languages (like a Spanish quote in an English article), those elements must be tagged with valid language codes. Invalid language codes prevent screen readers from switching to the correct pronunciation for that language.',
   'oobee-grading-text-contents':
-    'Page text should be clear and use simple language. This helps people with cognitive disabilities and non-native speakers understand content.',
+    'Text on the page should be clear and use simple language. This helps people with cognitive disabilities and non-native speakers understand content. Avoid jargon, long complex sentences, and unclear references.',
   'form-field-multiple-labels':
-    "Form fields shouldn't have multiple label elements. This prevents screen readers from announcing conflicting information.",
+    "Form fields should only have one label element associated with them. Multiple label elements cause screen readers to announce conflicting information and confuse users about the field's purpose.",
   'aria-allowed-attr':
-    'ARIA attributes need to be used with appropriate roles. This prevents conflicting or incorrect screen reader announcements.',
+    "ARIA attributes (accessibility attributes) must be used correctly with elements that support them. Using unsupported ARIA attributes on elements creates conflicting or incorrect screen reader announcements. This prevents users from understanding the element's purpose.",
   'aria-braille-equivalent':
-    'Text marked for braille needs a standard text equivalent. This ensures screen readers can read it correctly.',
+    'When braille-specific abbreviated text is used as a label (like using aria-label="vol" for "volume"), a full text equivalent must also be provided. This ensures non-braille screen reader users and braille display users both understand the label correctly.',
   'aria-command-name':
-    'Buttons, links, and menu items need text labels. This helps screen readers announce what they do.',
+    'Interactive command elements like role="button", role="link", must have clear, accessible labels. Labels can be visible text, aria-label attributes, or title attributes. Without labels, screen reader users don\'t know what each command does or where links go.',
   'aria-conditional-attr':
-    'ARIA attributes need to follow the rules for their roles. Using them incorrectly can confuse screen readers.',
+    'When ARIA attributes (accessibility attributes) are used on an element, they should not conflict with what the element actually does. Conflicting attributes create confusion about what the element is or what will happen when clicked. e.g., a checkbox is not checked but is aria-checked=true, conflicts for screen reader vs visual readers.',
   'aria-deprecated-role':
-    "Some ARIA roles are outdated and shouldn't be used. Update to current ARIA roles to ensure compatibility.",
+    'Some accessibility roles (ARIA roles—code attributes that tell screen readers what type of element something is) are outdated and no longer recommended. Using current, supported roles ensures screen readers announce elements correctly. Outdated roles may cause screen readers to announce elements incorrectly or not at all.',
   'aria-hidden-body':
-    "The main page content can't be hidden from screen readers. This would make the entire page inaccessible.",
+    'The main page content (the body element) cannot be marked as hidden from screen readers (using aria-hidden="true"). Hiding the page body makes the entire page inaccessible to screen reader users. This is a critical error that breaks accessibility completely.',
   'aria-hidden-focus':
-    "Elements hidden from screen readers shouldn't be focusable. This prevents keyboard users from getting stuck on hidden content.",
+    'Elements marked as hidden from screen readers (aria-hidden="true") should not contain interactive elements like buttons, links, or form fields that can receive keyboard focus. If hidden content is focusable, keyboard users can tab into it but won\'t hear what it is, becoming confused or stuck.',
   'aria-input-field-name':
-    'Input fields need labels or descriptions. This helps screen reader users understand what information to enter.',
+    "Custom input fields (created with code to look like text boxes, dropdowns etc) must have accessible labels that describe what information should be entered. Without labels, screen reader users don't know what to type.",
   'aria-prohibited-attr':
-    "Certain ARIA attributes can't be used with specific roles. Remove prohibited attributes to prevent screen reader confusion.",
+    "Certain ARIA attributes (accessibility attributes) are only allowed on specific element types. Using prohibited attributes on the wrong elements causes screen readers to become confused about the element's behavior. This creates conflicting or ignored announcements.",
   'aria-required-attr':
-    'Certain roles require specific ARIA attributes to work. Add missing attributes so screen readers get complete information.',
+    "Certain accessibility roles require specific attributes to work correctly. e.g., a slider role needs aria-valuemin, aria-valuemax, and aria-valuenow to function properly. Without required attributes, screen readers cannot announce the element's current state or allow users to interact with it correctly.",
   'aria-roles':
-    'ARIA roles must be valid. Invalid roles confuse screen readers and prevent assistive technology from working.',
+    'Elements must use valid ARIA roles from the official list. Invalid, misspelled, or unsupported role names confuse screen readers and prevent them from announcing elements correctly. This causes screen reader users to misunderstand what elements do.',
   'aria-toggle-field-name':
-    'Toggle fields need labels. This helps screen reader users understand what can be toggled.',
+    'Toggle switches and custom checkbox / radio button controls need clear labels that describe what is being toggled. e.g., a toggle should be labeled "Dark mode", not just "Toggle". This helps screen reader users understand what will change when they activate it.',
   'aria-tooltip-name':
-    'Tooltips need descriptive text. This helps screen reader users understand what the tooltip says.',
+    "Tooltips must have clear, accessible names. The name should describe what happens when the associated control is activated. This helps screen reader users understand a button's purpose before clicking.",
   'aria-valid-attr':
-    "ARIA attributes must be spelled correctly. Misspelled attributes won't work and screen readers will ignore them.",
+    'ARIA attributes must be spelled correctly and use valid, documented names. Misspelled or unsupported attribute names are ignored by screen readers, causing missing or incorrect announcements. e.g., "aria-labell" (misspelled) won\'t work; it must be "aria-label".',
   'aria-valid-attr-value':
-    'ARIA attributes need valid values. Using invalid values prevents screen readers from interpreting them correctly.',
+    'ARIA attributes need valid values from the official specification. Using invalid values (like misspelled or unsupported values) prevents screen readers from interpreting the attribute correctly. e.g., aria-pressed must use "true" or "false", not "yes" or "no".',
   'button-name':
-    'Buttons need clear, descriptive text. This helps screen reader users understand what the button does.',
+    "Every button must have descriptive text that explains what happens when clicked. This can be visible text inside the button, or a programmatic label (like aria-label or title attribute). Without clear text, screen reader users don't know what the button does.",
   'duplicate-id-aria':
-    'HTML IDs must be unique across the page. Duplicate IDs break connections between labels and form fields.',
+    'Every HTML ID on a page must be unique. When the same ID is used multiple times, it breaks connections between labels and form fields, and confuses accessibility tools. For example, if two form fields both have id="email", a label pointing to one won\'t work correctly.',
   'frame-title':
-    "Iframes need descriptive titles. This helps screen reader users understand what's inside each iframe.",
+    'Every frame or iframe (embedded content like maps, videos, widgets etc) must have a descriptive title attribute. The title helps screen reader users understand what content is in the frame before entering it.',
   'frame-title-unique':
-    'Each iframe needs a unique title. This helps screen reader users distinguish between multiple iframes.',
+    'When a page has multiple frames or iframes, each must have a unique title. If multiple frames share the same title, screen reader users cannot distinguish between them. e.g., a page with two maps needs titles like "Store locations map" and "Service area map"—not both "Map".',
   'input-button-name':
-    'Buttons made from input fields need descriptive text. This helps screen reader users know what action the button performs.',
+    'Buttons created using HTML input elements (like <input type="button">) must have descriptive text. This can be the value attribute for submit/button types, or alt text for image buttons. Screen reader users need to know what the button does.',
   label:
-    'Every form field needs a label. This helps screen reader users understand what information each field wants.',
+    "Every form field (text input, checkbox etc) needs a label that describes what information should be entered. Labels can be visible text associated with the field, or programmatic labels (aria-label). Without labels, screen reader users don't know what the field is for.",
   'nested-interactive':
-    "Buttons, links, and other interactive elements shouldn't be nested inside each other. This confuses both screen readers and keyboard users about what's clickable.",
+    'Buttons, links, and other interactive elements should not be nested inside one another. e.g., a link should not contain a button, and a button should not contain a link. Nested interactive elements confuse screen readers about which element is clickable and create unexpected keyboard behavior.',
   'select-name':
-    "Select dropdowns need labels. This helps screen reader users know what choice they're making.",
-  accesskeys: 'Access keys must be unique. Duplicate access keys cause unexpected behavior.',
-  'aria-allowed-role':
-    'ARIA roles need to match what the element actually does. This prevents screen readers from announcing incorrect information.',
+    "Selected dropdowns (HTML <select> elements) must have labels that describe what choice the dropdown controls. Without labels, screen reader users don't know what selections they're making. Labels can be visible text or programmatic labels.",
+  accesskeys:
+    'Custom keyboard shortcuts (accesskey attributes) must be unique across the page. Duplicate or conflicting access keys cause unexpected behavior when users try to use them. Additionally, access keys should not conflict with browser (like Ctrl+S), screen reader, or system shortcuts.',
   'aria-dialog-name':
-    'Dialog boxes need labels. This helps screen readers announce what dialog has opened.',
+    'Dialog boxes and modal popups must have accessible names (titles) that describe their purpose. When a dialog opens, screen reader users should hear what the dialog is for. This can be visible text at the top of the dialog or an aria-label attribute.',
   'aria-text':
-    "Elements with role='text' shouldn't have interactive children. This prevents keyboard users from getting confused about what can be interacted with.",
+    'Elements marked with role="text" (indicating non-interactive text) should not contain interactive elements like buttons, links, or form fields. If elements marked as role="text" contains focusable elements, keyboard and screen reader users become confused about what they can interact with when they tab through the page.',
   'aria-treeitem-name':
-    'Items in tree structures need labels. This helps screen readers announce each item.',
+    'Items in tree structures (e.g., navigation tree) or expandable lists (e.g., file explorer) must have clear, accessible names that describe each item. Without names, screen reader users cannot distinguish between different tree items or understand what each represents.',
   'empty-heading':
-    'Headings need text content. Empty headings are confusing for screen reader users.',
+    'Headings must not be empty or marked hidden. Every heading should have text that describes the section it introduces. Empty headings confuse screen reader users and break the document structure.',
   'empty-table-header':
-    'Table header cells need text. Empty headers confuse screen reader users about what columns mean.',
+    'Table header cells (<th> elements) must contain text that describes the column or row. Empty headers make tables unreadable for screen reader users who cannot see the visual layout to infer what each column represents.',
   'frame-tested':
-    'Iframes must contain the testing script for accessibility checking. This ensures all content gets properly analyzed.',
+    'All frames and iframes on a page should be tested with accessibility scanning tools (Oobee) to ensure embedded content is accessible. Testing tools need access to frame content to identify issues. Without testing frames, accessibility problems inside them may be missed.',
   'heading-order':
-    'Headings must follow a logical order (H1, then H2, then H3, etc.). This helps screen readers navigate page structure correctly.',
+    "Headings must follow a logical, hierarchical order: H1 (page title), then H2 (main sections), then H3 (subsections), etc. Headings should increase by only one level at a time. e.g., you shouldn't jump from H1 directly to H3. This helps screen reader users understand the page structure and navigate it correctly.",
   'image-redundant-alt':
-    "Image alt text shouldn't repeat text already visible on the page. This prevents screen reader users from hearing information twice.",
+    "When an image's alt text repeats text already visible on the page, screen reader users hear the same information twice—once as text, once as alt text. Alt text should provide new or clarifying information, not duplicate existing text. If an image is purely decorative or just illustrates text already present, its alt can be empty.",
   'label-title-only':
-    'Form fields need visible labels, not just hidden ones or tooltips. This helps all users understand what each field is for.',
+    'Form fields need visible text labels next to them, not just hidden labels or tooltips that only appear on hover. Visible labels help all users (screen reader users and sighted users) understand what to enter. Placeholders and hidden labels are not sufficient.',
   'landmark-banner-is-top-level':
-    'Headers should be at the top level, not nested inside other regions. This helps keyboard users navigate page structure.',
+    'The header/banner landmark (the main page header with site title and navigation) should be at the top level of the page, not nested inside the main content area or other landmarks. When headers are nested, keyboard users cannot easily skip to the main content and cannot navigate page structure correctly.',
   'landmark-complementary-is-top-level':
-    'Sidebars should be at the top level, not nested inside other regions. This helps keyboard users navigate to sidebars easily.',
+    'The sidebar or complementary content landmark (supporting content like related links or sidebars) should be at the top level of the page, not nested inside the main content. When sidebars are nested, keyboard and screen reader users cannot easily navigate to them and may not realize they exist.',
   'landmark-contentinfo-is-top-level':
-    'Footers should be at the top level, not nested inside other regions. This helps keyboard users access footer content.',
+    'The footer or contentinfo landmark (page footer with copyright, links, contact info) should be at the top level of the page, not nested inside the main content. When footers are nested, keyboard users cannot easily navigate to them and must scroll through all content to find footer information.',
   'landmark-main-is-top-level':
-    'Main content regions should be at the top level, not nested inside other regions. This helps keyboard users navigate pages quickly.',
+    'The main content landmark should be at the top level of the page, directly accessible. When main content is nested inside other landmarks or regions, keyboard users must navigate through unnecessary layers to reach the primary page content.',
   'landmark-no-duplicate-banner':
-    'Pages should have only one header region. Multiple headers confuse screen reader users about page structure.',
+    "A page should have only one main header/banner landmark. When multiple headers exist, screen reader and keyboard users become confused about page structure. They don't know which header is the main one or why there are duplicates.",
   'landmark-no-duplicate-contentinfo':
-    'Pages should have only one footer region. Multiple footers confuse screen reader users.',
+    "A page should have only one main footer/contentinfo landmark. Multiple footers confuse screen reader and keyboard users about page structure. They don't know which footer is the main one or why duplicates exist.",
   'landmark-no-duplicate-main':
-    'Pages should have only one main content region. Multiple main regions confuse screen reader users.',
+    'A page should have only one main content landmark. When multiple main regions are marked, screen reader and keyboard users become confused about where the primary content actually is. They don\'t know which region is the "real" main content.',
   'landmark-one-main':
-    'Pages need a main content region. This helps screen readers navigate to the most important content.',
+    "Every page needs one designated main content landmark (a marked region containing the page's primary content). This helps screen reader and keyboard users navigate directly to the most important content without having to skip through navigation, sidebars, or headers.",
   'landmark-unique':
-    'Each page region should have a unique label. This helps keyboard users and screen reader users distinguish between similar regions.',
+    'When a page has multiple landmarks of the same type (like two sidebars), each should have a unique label or title. This helps screen reader and keyboard users distinguish between them. e.g., instead of two unlabeled "navigation" regions, they should be labeled "Left sidebar" and "Right sidebar".',
   'meta-viewport-large':
-    'Pages must allow pinch-to-zoom on mobile devices. This helps people with low vision see content clearly.',
+    'Pages must allow users to zoom in and scale content. When zoom is blocked, people with low vision cannot enlarge text and controls to read them comfortably. The viewport meta tag should allow scaling and not restrict maximum zoom.',
   'page-has-heading-one':
-    'Pages need one main H1 heading. This helps screen reader users find the page title and understand page structure.',
+    'Every page should have one or more H1 heading that serves as the main topic. The H1 helps screen reader users quickly understand what the page is about and provides a structural anchor for the document.',
   'presentation-role-conflict':
-    "Elements marked as decorative shouldn't be focusable or have global ARIA attributes. This prevents keyboard users from getting confused.",
+    'Elements marked with role="presentation" or role="none" (which tells assistive technology to ignore them as they\'re decorative) should not be focusable or have interactive behavior. If an element is marked as decorative but is also focusable or interactive, there\'s a conflict—keyboard users can tab to it but won\'t understand what it is.',
   region:
-    'All page content should be in marked regions (header, main, footer, sidebar). This helps keyboard users navigate page sections efficiently.',
+    "Every piece of content on a page should be within a marked landmark or region (like header, main, footer, sidebar, or navigation). Orphaned content that's not inside any landmark can be missed by screen reader users. Marking content into regions helps keyboard users skip between sections and understand page organization.",
   'scope-attr-valid':
-    'Table header scope attributes must be correct. This helps screen readers match headers to data cells accurately.',
+    'Table headers should have scope attributes that correctly identify whether they\'re column headers (scope="col") or row headers (scope="row"). The scope attribute tells screen readers which header applies to which cells. Incorrect scope values confuse screen readers about cell relationships.',
   'skip-link':
-    'Skip links need working targets. This helps keyboard users jump directly to main content.',
+    'Skip links should be the first focusable element on a page (appear when you press Tab). When clicked, they should jump directly to the main content—which means the target (the element it points to) must exist and be reachable. Without a valid target, the skip link is broken and useless.',
   tabindex:
-    "Elements shouldn't have positive tabindex values. This prevents keyboard navigation from becoming confusing and broken.",
+    'The tabindex attribute should never have positive values (like tabindex="1"). Positive tabindex values override the natural page order and cause keyboard navigation to become confusing and chaotic—jumping around the page unpredictably.',
   'table-duplicate-name':
-    "Table captions and summaries shouldn't repeat the same text. This avoids confusion for screen reader users.",
+    'Tables should not have both a caption and a summary that say exactly the same thing. This causes screen reader users to hear the same information announced twice. The caption should briefly describe the table, and any summary should add additional context or explanation—not repeat the caption word-for-word.',
   'meta-viewport':
-    'Pages must allow users to zoom and scale the text. This helps people with low vision read content by making it larger.',
+    'Pages must allow users to zoom in and scale text using their browser or pinch-to-zoom on mobile devices. Disabling zoom locks people with low vision out of being able to enlarge content to read them comfortably. The viewport meta tag should allow scaling and not restrict maximum zoom.',
+  'aria-allowed-role': `Buttons, links, and interactive elements should behave the way they're marked. e.g., if something looks and acts like a button (performs an action), it should be labeled as a button. If it goes to a different page, it should be labeled as a link. When the label doesn't match the actual behavior, screen reader users get confused about what will happen when they click. When possible, use real buttons (<button>) and real links (<a>) instead of creating fake buttons or links from plain text and code.`,
 };
 
 export const disabilityBadgesMap = {

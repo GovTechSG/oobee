@@ -38,7 +38,6 @@
         textSpan.textContent = text;
 
         link.title = text;
-        link.setAttribute('aria-label', text);
 
         link.appendChild(textSpan);
         link.appendChild(createExternalIcon());
@@ -50,7 +49,6 @@
         const issueWord = issues === 1 ? 'issue' : 'issues';
         const occWord = occ === 1 ? 'occurrence' : 'occurrences';
         issuesSpan.textContent = `${issues} ${issueWord} (${occ} occ.)`;
-        issuesSpan.setAttribute('aria-label', `${issues} ${issueWord} (${occ} ${occWord})`);
 
         listItem.appendChild(link);
         listItem.appendChild(issuesSpan);
