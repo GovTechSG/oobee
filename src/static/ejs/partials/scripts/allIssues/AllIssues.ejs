@@ -13,6 +13,7 @@
       populateCriteriaFilter();
       renderTable();
       updateTotalCount();
+      initializeSortableHeaders();
 
       document.getElementById('severityFilter').addEventListener('change', handleFilterChange);
       document.getElementById('criteriaFilter').addEventListener('change', handleFilterChange);
@@ -45,6 +46,33 @@
       filteredIssues = [...allIssues];
     }
 
+    function initializeSortableHeaders() {
+      const headers = [
+        { element: document.querySelector('.issues-table th:nth-child(1)'), column: 'severity' },
+        { element: document.querySelector('.issues-table th:nth-child(2)'), column: 'issueName' },
+        { element: document.querySelector('.issues-table th:nth-child(3)'), column: 'occurrence' }
+      ];
+
+      headers.forEach(({ element, column }) => {
+        if (!element) return;
+
+        const sortHeader = function() {
+          window.sortTable(column);
+        };
+
+        // Click handler
+        element.addEventListener('click', sortHeader);
+
+        // Keyboard handler
+        element.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            sortHeader();
+          }
+        });
+      });
+    }
+
     function populateCriteriaFilter() {
       const criteriaFilter = document.getElementById('criteriaFilter');
       const criteriaSet = new Set();
@@ -72,19 +100,6 @@
         option.textContent = criteria;
         criteriaFilter.appendChild(option);
       });
-    }
-
-    function formatWcagId(wcag) {
-      if (!wcag) return '';
-      const numbers = wcag.replace('wcag', '').split('');
-      if (numbers.length === 3) {
-        return `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}`;
-      } else if (numbers.length === 4) {
-        return `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}${numbers[3]}`;
-      } else if (numbers.length === 5) {
-        return `WCAG ${numbers[0]}.${numbers[1]}.${numbers.slice(2).join('')}`;
-      }
-      return wcag;
     }
 
     window.filterByCategory = function (category) {
@@ -162,31 +177,42 @@
       // Update sort indicators
       document.querySelectorAll('.issues-table th[aria-sort]').forEach(th => {
         th.setAttribute('aria-sort', 'none');
-        th.querySelector('.sort-icon').classList.remove('active');
-        const paths = th.querySelectorAll('.sort-icon path');
-        if (paths.length === 2) {
-          paths[0].setAttribute('opacity', '0.3');
-          paths[1].setAttribute('opacity', '1');
+        const sortIcon = th.querySelector('.sort-icon');
+        if (sortIcon) {
+          sortIcon.classList.remove('active');
+          const paths = th.querySelectorAll('.sort-icon path');
+          if (paths.length === 2) {
+            paths[0].setAttribute('opacity', '0.3');
+            paths[1].setAttribute('opacity', '1');
+          }
         }
       });
 
-      const sortedTh = document.querySelector(`.issues-table th[onclick*="${column}"]`);
+      const columnIndex = {
+        severity: 1,
+        issueName: 2,
+        occurrence: 3
+      };
+
+      const sortedTh = document.querySelector(`.issues-table th:nth-child(${columnIndex[column]})`);
       if (sortedTh) {
         sortedTh.setAttribute(
           'aria-sort',
           currentSort.direction === 'asc' ? 'ascending' : 'descending',
         );
-        sortedTh.querySelector('.sort-icon').classList.add('active');
+        const sortIcon = sortedTh.querySelector('.sort-icon');
+        if (sortIcon) {
+          sortIcon.classList.add('active');
 
-        // Update arrow opacity based on sort direction
-        const paths = sortedTh.querySelectorAll('.sort-icon path');
-        if (paths.length === 2) {
-          if (currentSort.direction === 'asc') {
-            paths[0].setAttribute('opacity', '1');
-            paths[1].setAttribute('opacity', '0.3');
-          } else {
-            paths[0].setAttribute('opacity', '0.3');
-            paths[1].setAttribute('opacity', '1');
+          const paths = sortedTh.querySelectorAll('.sort-icon path');
+          if (paths.length === 2) {
+            if (currentSort.direction === 'asc') {
+              paths[0].setAttribute('opacity', '1');
+              paths[1].setAttribute('opacity', '0.3');
+            } else {
+              paths[0].setAttribute('opacity', '0.3');
+              paths[1].setAttribute('opacity', '1');
+            }
           }
         }
       }
@@ -263,7 +289,7 @@
             .join('');
 
           return `
-          <tr onclick="openIssueDetails('${issue.category}', ${JSON.stringify(issue).replace(/"/g, '&quot;')})">
+          <tr class="issue-row" data-category="${issue.category}" data-rule-id="${issue.ruleId}" role="button" tabindex="0" aria-label="${issue.description}, ${severityLabel}, ${issue.totalItems} occurrences">
             <td>
               <span class="category-badge ${severityClass}">${severityLabel}</span>
             </td>
@@ -279,7 +305,7 @@
               <span class="occurrence-count">${formatCount(issue.totalItems)} occ.</span>
             </td>
             <td>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <g clip-path="url(#clip0_263_236)">
                   <path d="M8.58984 16.59L13.1698 12L8.58984 7.41L9.99984 6L15.9998 12L9.99984 18L8.58984 16.59Z" fill="#5735DF"/>
                 </g>
@@ -294,6 +320,30 @@
         `;
         })
         .join('');
+
+      // Add event listeners after rendering
+      document.querySelectorAll('.issue-row').forEach(row => {
+        const openIssue = function() {
+          const category = row.getAttribute('data-category');
+          const ruleId = row.getAttribute('data-rule-id');
+          const issue = filteredIssues.find(i => i.ruleId === ruleId && i.category === category);
+          
+          if (issue) {
+            window.openIssueDetails(category, issue);
+          }
+        };
+
+        // Click handler
+        row.addEventListener('click', openIssue);
+
+        // Keyboard handler
+        row.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openIssue();
+          }
+        });
+      });
     }
 
     function formatCount(count) {
@@ -321,10 +371,10 @@
       if (ruleData && typeof expandRule === 'function') {
         expandRule(category, ruleData);
 
-        const offcanvasElement = document.getElementById('expandedRule');
-        if (offcanvasElement) {
-          const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
-          offcanvas.show();
+        const modalElement = document.getElementById('expandedRule');
+        if (modalElement) {
+          const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+          modal.show();
         }
       }
     };

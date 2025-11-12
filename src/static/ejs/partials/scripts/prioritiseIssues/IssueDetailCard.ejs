@@ -22,16 +22,7 @@
           const wcagCriteriaLabels = scanData?.wcagCriteriaLabels || {};
           
           for (const wcag of wcagConformance) {
-            const numbers = wcag.replace('wcag', '').split('');
-            let formattedWcag = '';
-
-            if (numbers.length === 3) {
-              formattedWcag = `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}`;
-            } else if (numbers.length === 4) {
-              formattedWcag = `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}${numbers[3]}`;
-            } else if (numbers.length === 5) {
-              formattedWcag = `WCAG ${numbers[0]}.${numbers[1]}.${numbers.slice(2).join('')}`;
-            }
+            const formattedWcag = formatWcagId(wcag);
 
             if (wcagCriteriaLabels[formattedWcag]) {
               const svg = window.getWcagSvg ? window.getWcagSvg(formattedWcag) : null;
@@ -62,16 +53,7 @@
         let level = null;
 
         wcagConformance.forEach(wcag => {
-          const numbers = wcag.replace('wcag', '').split('');
-          let formattedWcag = '';
-
-          if (numbers.length === 3) {
-            formattedWcag = `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}`;
-          } else if (numbers.length === 4) {
-            formattedWcag = `WCAG ${numbers[0]}.${numbers[1]}.${numbers[2]}${numbers[3]}`;
-          } else if (numbers.length === 5) {
-            formattedWcag = `WCAG ${numbers[0]}.${numbers[1]}.${numbers.slice(2).join('')}`;
-          }
+          const formattedWcag = formatWcagId(wcag);
 
           if (wcagCriteriaLabels[formattedWcag]) {
             criteriaNumbers.push(formattedWcag);
@@ -137,10 +119,10 @@
           if (ruleData && typeof expandRule === 'function') {
             expandRule(category, ruleData);
 
-            const offcanvasElement = document.getElementById('expandedRule');
-            if (offcanvasElement) {
-              const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
-              offcanvas.show();
+            const modalElement = document.getElementById('expandedRule');
+            if (modalElement) {
+              const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+              modal.show();
             }
           }
         });
