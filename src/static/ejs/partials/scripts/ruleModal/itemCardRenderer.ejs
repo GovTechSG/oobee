@@ -81,7 +81,7 @@
         <div class="mr-1">Occurrence no.</div>
         <button class="pagination-arrow pagination-prev" aria-label="Previous item" disabled>
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M7.41 1.41L6 0L0 6L6 12L7.41 10.59L2.83 6L7.41 1.41Z" fill="#323232"/>
+                <path d="M7.41 1.41L6 0L0 6L6 12L7.41 10.59L2.83 6L7.41 1.41Z" fill="#4D34BF"/>
             </svg>
         </button>
         <div class="pagination-page-info">
@@ -89,9 +89,10 @@
         </div>
         <button class="pagination-arrow pagination-next" aria-label="Next item" ${totalItems <= 1 ? 'disabled' : ''}>
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M1.41 0L0 1.41L4.58 6L0 10.59L1.41 12L7.41 6L1.41 0Z" fill="#323232"/>
+                <path d="M1.41 0L0 1.41L4.58 6L0 10.59L1.41 12L7.41 6L1.41 0Z" fill="#4D34BF"/>
             </svg>
         </button>
+        <div class="mr-1">of ${totalItems}</div>
       </div>
     `);
   }
