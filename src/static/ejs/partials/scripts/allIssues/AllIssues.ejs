@@ -302,7 +302,7 @@
               </div>
             </td>
             <td>
-              <span class="occurrence-count">${formatCount(issue.totalItems)} occ.</span>
+              <span class="occurrence-count">${issue.totalItems} occ.</span>
             </td>
             <td>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -344,12 +344,6 @@
           }
         });
       });
-    }
-
-    function formatCount(count) {
-      if (count < 1000) return count.toString();
-      if (count >= 9000) return '>9k';
-      return `${Math.floor(count / 1000)}k`;
     }
 
     function updateTotalCount() {
