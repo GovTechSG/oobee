@@ -1048,6 +1048,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
   // Window functions exposed in browser
   const handleOnScanClick: handleOnScanClickFunction = async () => {
+    consoleLogger.info('Scan: click detected');
     log('Scan: click detected');
     try {
       pagesDict[pageId].isScanning = true;
