@@ -110,8 +110,6 @@ export const screenshotFullPage = async (page, screenshotsDir: string, screensho
     return '';
   }
 
-  consoleLogger.info(`Successfully screenshot page at: ${page.url()}`);
-
   return `screenshots/${imgName}`; // relative path from reports folder
 };
 
@@ -217,6 +215,8 @@ export const processPage = async (page, processPageParams) => {
       dataset,
       urlsCrawled,
     );
+
+    consoleLogger.info(`Successfully screenshot page at: ${page.url()}`);
 
     guiInfoLog(guiInfoStatusTypes.SCANNED, {
       numScanned: urlsCrawled.scanned.length,
