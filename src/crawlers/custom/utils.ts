@@ -110,6 +110,8 @@ export const screenshotFullPage = async (page, screenshotsDir: string, screensho
     return '';
   }
 
+  consoleLogger.info(`Successfully screenshot page at: ${page.url()}`);
+
   return `screenshots/${imgName}`; // relative path from reports folder
 };
 
