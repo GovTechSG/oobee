@@ -3,11 +3,18 @@
     const wcagLinks = scanData?.wcagLinks || {};
     const wcagViolations = scanData?.wcagViolations || [];
     const wcagClauses = scanData?.wcagClauses || {};
+    const wcagCriteriaLabels = scanData?.wcagCriteriaLabels || {};
 
     const failedCriteria = [];
 
     wcagViolations.forEach(violation => {
       const formattedId = formatWcagId(violation);
+
+      const level = wcagCriteriaLabels[formattedId];
+
+      if (level === 'AAA') {
+        return;
+      }
 
       const wcagInfo = wcagLinks[formattedId];
 
@@ -20,6 +27,8 @@
         });
       }
     });
+
+    console.log('wcagViolations 111', wcagViolations)
 
     failedCriteria.sort((a, b) => {
       const aNum = a.id.replace('WCAG ', '').split('.').map(Number);
