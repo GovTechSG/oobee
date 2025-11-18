@@ -2,6 +2,25 @@
 include('./pageAccordionBuilder') %> <%- include('./constants') %>
 
 <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const modal = document.getElementById('expandedRule');
+    if (!modal) return;
+
+    modal.addEventListener('hidden.bs.modal', function () {
+      const openCollapses = modal.querySelectorAll('.accordion-collapse.show');
+      openCollapses.forEach(collapseEl => {
+        collapseEl.classList.remove('show');
+        collapseEl.style.height = '';
+      });
+
+      const accordionButtons = modal.querySelectorAll('.accordion-button');
+      accordionButtons.forEach(button => {
+        button.classList.add('collapsed');
+        button.setAttribute('aria-expanded', 'false');
+      });
+    });
+  });
+
   function populateStepByStepGuide(ruleId) {
     const container = document.getElementById('stepByStepContainer');
     if (!container) return;
