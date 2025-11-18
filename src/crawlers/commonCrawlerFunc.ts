@@ -458,7 +458,6 @@ export const runAxeScript = async ({
   if (includeScreenshots) {
     results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
-    consoleLogger.info(`Successfully screenshot page at: ${page.url()}`);
   }
 
   let pageTitle = null;

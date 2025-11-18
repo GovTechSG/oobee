@@ -216,7 +216,9 @@ export const processPage = async (page, processPageParams) => {
       urlsCrawled,
     );
 
-    consoleLogger.info(`Successfully screenshot page at: ${page.url()}`);
+    if (includeScreenshots) {
+      consoleLogger.info(`Successfully screenshot page at: ${page.url()}`);
+    }
 
     guiInfoLog(guiInfoStatusTypes.SCANNED, {
       numScanned: urlsCrawled.scanned.length,
