@@ -260,6 +260,26 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
       groupByHtmlRadio.checked = false;
     }
 
+    // Note: Need to check if we want to sort by default in scanItems or keep the function here
+    const sortCategoriesByConformance = (items) => {
+      ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
+        const categoryData = itemsToUse[category];
+        if (!categoryData || !Array.isArray(categoryData.rules)) return;
+
+        categoryData.rules.forEach(rule => {
+          if (!Array.isArray(rule.pagesAffected)) return;
+
+          rule.pagesAffected.sort((a, b) => {
+            const lenA = Array.isArray(a.items) ? a.items.length : 0;
+            const lenB = Array.isArray(b.items) ? b.items.length : 0;
+            return lenB - lenA; // DESC
+          });
+        });
+      });
+    };
+
+    sortCategoriesByConformance(itemsToUse);
+
     Object.keys(itemsToUse).forEach(category => {
       const ruleInCategory = itemsToUse[category]?.rules?.find(r => r.rule === selectedRule.rule);
 
