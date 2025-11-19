@@ -1,0 +1,141 @@
+<style>
+  .issue-detail-card {
+    width: 40%;
+    max-width: 500px;
+    background: var(--true-white);
+    border-radius: 5px;
+    padding: 24px;
+    align-self: flex-start;
+    border: 1px solid var(--soft-blue);
+    box-shadow: 0 2px 4px 0 rgb(77, 52, 191, 10%);
+  }
+
+  .issue-detail-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .issue-detail-image-container {
+    width: 100%;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+  }
+
+  .issue-detail-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  .issue-detail-title {
+    font-size: 1.125rem !important;
+    font-weight: 700 !important;
+    line-height: 1.3 !important;
+    margin: 0;
+  }
+
+  .issue-detail-section-label {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+  }
+
+  .issue-detail-conformance {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .issue-detail-conformance-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .issue-detail-conformance-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    border: 1px solid var(--a11y-black-100);
+    font-size: 12px;
+    padding: 0 4px;
+    width: fit-content;
+    height: 20px;
+    font-weight: 700;
+  }
+
+  .mustfix-badge-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--light-carmine-pink);
+    color: var(--true-white);
+    border-radius: 5px;
+    border: 1px solid var(--light-carmine-pink);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 0 4px;
+    width: fit-content;
+    height: 20px;
+  }
+
+  .info-alert {
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+  }
+
+  .disability-text {
+    font-weight: 600;
+    color: var(--dark-orange) !important;
+  }
+
+  .btn-view-issue-details {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    font-size: 16px;
+    width: fit-content;
+    gap: 8px;
+    margin: 0 auto;
+  }
+
+  .btn-view-issue-details:hover {
+    text-decoration: underline;
+  }
+
+  .prioritise-issues-container {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    margin-top: 20px;
+  }
+
+  .prioritise-issues-main {
+    flex: 1;
+    min-width: 0;
+    align-self: stretch;
+  }
+
+  @media (max-width: 1024px) {
+    .prioritise-issues-container {
+      flex-direction: column;
+    }
+
+    .issue-detail-card {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    .prioritise-issues-main {
+      width: 100%;
+    }
+  }
+</style>

@@ -1,0 +1,61 @@
+<script>
+  function createExternalIcon() {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("width", "16");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("viewBox", "0 0 8 8");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute(
+      "d",
+      "M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z"
+    );
+    path.setAttribute("fill", "#5735DF");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  const scanDataTop10Card = () => {
+    const topIssuesList = document.getElementById('top-issues-list');
+
+    scanData.topTenPagesWithMostIssues.forEach(page => {
+      if (page.totalIssues !== 0) {
+        const listItem = document.createElement('li');
+        listItem.className = 'd-flex justify-content-between';
+
+        const link = document.createElement('a');
+        link.href = page.url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.className = 'page-links';
+
+        const text = page.pageTitle.length > 0 ? page.pageTitle : page.url;
+        const textSpan = document.createElement('span');
+        textSpan.className = 'link-text';
+        textSpan.textContent = text;
+
+        link.title = text;
+
+        link.appendChild(textSpan);
+        link.appendChild(createExternalIcon());
+
+        const issuesSpan = document.createElement('span');
+        issuesSpan.className = 'ms-4 issues-badge';
+        const issues = Number(page.totalIssues) || 0;
+        const occ = Number(page.totalOccurrences) || 0;
+        const issueWord = issues === 1 ? 'issue' : 'issues';
+        const occWord = occ === 1 ? 'occurrence' : 'occurrences';
+        issuesSpan.textContent = `${issues} ${issueWord} (${occ} occ.)`;
+
+        listItem.appendChild(link);
+        listItem.appendChild(issuesSpan);
+        topIssuesList.appendChild(listItem);
+      }
+    });
+  };
+
+  scanDataTop10Card();
+</script>

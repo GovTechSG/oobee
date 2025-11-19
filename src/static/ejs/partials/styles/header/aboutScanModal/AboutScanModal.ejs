@@ -1,0 +1,82 @@
+<style>
+  #aboutScanModal {
+    --left-col: 320px;
+    --gap: 24px;
+    --divider: var(--bright-gray);
+    --xpad: 1rem;
+  }
+
+  #aboutScanModal .modal-dialog .modal-dialog-centered {
+    display: flex;
+    align-items: center;
+    min-height: calc(90svh - 2rem);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #aboutScanModal .modal-dialog {
+    --bs-modal-width: min(1080px, calc(100vw - 2rem));
+  }
+
+  #aboutScanModal .modal-header {
+    border-bottom: 0;
+  }
+
+  #aboutScanModal .modal-header::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: calc(var(--xpad) + var(--left-col));
+    width: 1px;
+    background:  var(--divider);
+    pointer-events: none;
+  }
+
+  #aboutScanModal .modal-body {
+    max-height: calc(100vh - 7.5rem);
+    overflow-y: auto;
+    padding-top: 0;
+  }
+
+  #aboutScanModal .about-scan-divider {
+    margin-bottom: 2rem;
+  }
+
+  #aboutScanModal .about-scan-modal-grid {
+    position: relative;
+    min-height: 0;
+  }
+
+  #aboutScanModal .about-scan-modal-grid::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--left-col);
+    width: 1px;
+    background: var(--divider);
+  }
+
+  #view-crawl > h2 {
+    line-height: 2rem;
+  }
+
+  #view-wcag > h2 {
+    line-height: 2rem;
+  }
+
+  #view-wcag > p {
+    margin-top: 1rem;
+    margin-bottom: 0;
+  }
+
+  .link-external-icon {
+    position: relative; top: -1px;
+  }
+
+  @media (max-width: 991.98px) {
+    #aboutScanModal .about-scan-modal-grid::before {
+      display: none;
+    }
+  }
+</style>

@@ -1,0 +1,149 @@
+<style>
+  .website-title {
+    word-break: break-word;
+  }
+
+  #scan-about > ul > li:first-child {
+    padding-top: 0.5rem;
+  }
+
+  #scan-about ul {
+    padding-left: 0;
+  }
+
+  #scan-about li {
+    display: flex;
+    line-height: 1.1rem;
+    margin-bottom: 2rem;
+  }
+
+  #scan-about li > svg {
+    flex-shrink: 0;
+    margin-left: 0.3rem;
+    margin-right: 0.6rem;
+  }
+
+  .about-scan-details-left {
+    width: var(--left-col);
+    padding-right: var(--gap);
+  }
+
+  .url-scanned-text {
+    color: var(--a11y-majorelle-blue);
+    word-break: break-word;
+  }
+
+  .wcag-criteria-label {
+    text-decoration: none;
+    margin-bottom: 0.3rem;
+  }
+
+  .advanced-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0 !important;
+  }
+
+  .advanced-group + .advanced-sublist,
+  .advanced-group + ul {
+    list-style: disc !important;
+    margin-left: 3.125rem;
+  }
+
+  .advanced-group + .advanced-sublist li,
+  .advanced-group + ul li {
+    margin: 0;
+  }
+
+  .advanced-sublist-li {
+    display: list-item !important;
+    margin-bottom: 0.3rem !important;
+  }
+
+  .advanced-sublist-li:first-child {
+    margin-top: 0.5rem !important;
+  }
+
+  .advanced-sublist-li:last-child {
+    margin-bottom: 2rem !important;
+  }
+
+  .about-scan-toggle {
+    border: none;
+    background-color: var(--true-white);
+    text-align: left;
+    padding: 0;
+    text-decoration: none;
+    cursor: default;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .about-scan-toggle:hover {
+    text-decoration: none;
+  }
+
+  .about-scan-toggle .about-us-type-of-scan-text {
+    color: var(--a11y-majorelle-blue) !important;
+    display: inline !important;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .about-scan-toggle:hover .about-us-type-of-scan-text,
+  .about-scan-toggle .about-us-type-of-scan-text:focus-visible {
+    text-decoration: underline;
+  }
+
+  .about-scan-link{
+    color: var(--a11y-majorelle-blue);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .about-scan-link:hover,
+  .about-scan-link:focus-visible,
+  .about-scan-toggle:hover .about-scan-link {
+    text-decoration: underline;
+  }
+
+  .about-scan-link-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.2;
+  }
+
+  .about-scan-link-text {
+    color: var(--a11y-majorelle-blue);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .about-scan-link-text:hover,
+  .about-scan-toggle:hover .about-scan-link-text,
+  .about-scan-link-text:focus-visible {
+    text-decoration: underline;
+  }
+
+  .about-scan-link-chev {
+    position: relative;
+    top: 0.1rem;
+  }
+
+  .oobee-version-text {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  @media (max-width: 991.98px) {
+    #aboutScanModal .modal-dialog{ --bs-modal-width: calc(100vw - 1rem); }
+    #aboutScanModal .modal-header::after,
+
+    .about-scan-details-left{ width:auto; padding-right:0; }
+
+    #aboutScanModal .modal-dialog.modal-dialog-centered{
+      align-items: flex-start;
+      min-height: auto;
+    }
+  }
+
+</style>

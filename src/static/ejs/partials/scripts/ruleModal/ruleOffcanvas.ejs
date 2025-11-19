@@ -1,0 +1,306 @@
+<%- include('./utilities') %> <%- include('./itemCardRenderer') %> <%-
+include('./pageAccordionBuilder') %> <%- include('./constants') %>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const modal = document.getElementById('expandedRule');
+    if (!modal) return;
+
+    modal.addEventListener('hidden.bs.modal', function () {
+      const openCollapses = modal.querySelectorAll('.accordion-collapse.show');
+      openCollapses.forEach(collapseEl => {
+        collapseEl.classList.remove('show');
+        collapseEl.style.height = '';
+      });
+
+      const accordionButtons = modal.querySelectorAll('.accordion-button');
+      accordionButtons.forEach(button => {
+        button.classList.add('collapsed');
+        button.setAttribute('aria-expanded', 'false');
+      });
+    });
+  });
+
+  function populateStepByStepGuide(ruleId) {
+    const container = document.getElementById('stepByStepContainer');
+    if (!container) return;
+
+    const steps = stepByStepGuide[ruleId];
+
+    if (!steps) {
+      // No step-by-step guide available for this rule
+      container.innerHTML = `
+        <div class="no-steps-message">
+          <p>Step-by-step guide not yet available for this issue.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Convert A11y Playground text to link
+    const linkifyA11yPlayground = (text) => {
+      const escaped = htmlEscapeString(text);
+      return escaped.replace(
+        /A11y Playground/g,
+        `<a href="${a11yPlaygroundLink}" target="_blank" rel="noopener noreferrer">A11y Playground</a>`
+      );
+    };
+
+    // Build the step-by-step HTML
+    const stepsHtml = `
+      <div class="rule-modal-step">
+        <div class="step-header">
+          <h4 class="step-title">1. Check</h4>
+        </div>
+        <div class="step-content">
+          <p class="step-text">${linkifyA11yPlayground(steps.check)}</p>
+        </div>
+      </div>
+
+      <div class="rule-modal-step">
+        <div class="step-header">
+          <h4 class="step-title">2. Fix</h4>
+        </div>
+        <div class="step-content">
+          <p class="step-text">${linkifyA11yPlayground(steps.fix)}</p>
+        </div>
+      </div>
+
+      <div class="rule-modal-step">
+        <div class="step-header">
+          <h4 class="step-title">3. Review</h4>
+        </div>
+        <div class="step-content">
+          <p class="step-text">${linkifyA11yPlayground(steps.review)}</p>
+        </div>
+      </div>
+
+      <div class="rule-modal-step">
+        <div class="step-header">
+          <h4 class="step-title">4. Learn</h4>
+        </div>
+        <div class="step-content">
+          <p class="step-text">${linkifyA11yPlayground(steps.learn)}</p>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = stepsHtml;
+  }
+
+  function expandRule(selectedCategory, selectedRule) {
+    const conformanceLevels = {
+      wcag2a: 'A',
+      wcag2aa: 'AA',
+      wcag21aa: 'AA',
+      wcag22aa: 'AA',
+      wcag2aaa: 'AAA',
+    };
+
+    const a11yRuleShortDescriptionMap = scanData?.a11yRuleShortDescriptionMap || {};
+    const a11yRuleLongDescriptionMap = scanData?.a11yRuleLongDescriptionMap || {};
+    const disabilityBadgesMap = scanData?.disabilityBadgesMap || {};
+
+    // Set image based on WCAG criterion
+    const imageElement = document.getElementById('expandedRuleImage');
+    const imageContainer = document.getElementById('expandedRuleImageContainer');
+
+    if (imageElement && imageContainer) {
+      let imageSrc = null;
+
+      // Get the first WCAG criterion from the rule's conformance
+      if (selectedRule.conformance && selectedRule.conformance.length > 0) {
+        const wcagConformance = selectedRule.conformance.filter(c => c.startsWith('wcag'));
+        const wcagCriteriaLabels = scanData?.wcagCriteriaLabels || {};
+
+        // Find the first matching WCAG criterion
+        for (const wcag of wcagConformance) {
+          const formattedWcag = formatWcagId(wcag);
+
+          if (wcagCriteriaLabels[formattedWcag]) {
+            // Try to get SVG from the map
+            const svg = window.getWcagSvg ? window.getWcagSvg(formattedWcag) : null;
+            if (svg) {
+              imageSrc = window.svgToDataUrl ? window.svgToDataUrl(svg) : svg;
+              break;
+            }
+          }
+        }
+      }
+
+      // Hide image container if no SVG found, otherwise show it
+      if (!imageSrc) {
+        imageContainer.style.display = 'none';
+      } else {
+        imageContainer.style.display = 'flex';
+        imageElement.src = imageSrc;
+        imageElement.alt = selectedRule.description || 'Issue illustration';
+      }
+    }
+
+    // Set title from a11yRuleShortDescriptionMap
+    const titleElement = document.getElementById('expandedRuleName');
+    if (titleElement) {
+      const shortDescription = a11yRuleShortDescriptionMap[selectedRule.rule];
+      titleElement.textContent = shortDescription || selectedRule.description || '';
+    }
+
+    // Set category badge
+    const categoryBadge = document.getElementById('expandedRuleCategoryBadge');
+    if (categoryBadge) {
+      const categoryLabels = {
+        mustFix: 'Must Fix',
+        goodToFix: 'Good to Fix',
+        needsReview: 'Manual Test',
+        passed: 'Passed',
+      };
+      categoryBadge.textContent = categoryLabels[selectedCategory] || 'Must Fix';
+
+      // Update badge class
+      categoryBadge.className = 'mustfix-badge-label';
+      if (selectedCategory === 'goodToFix') {
+        categoryBadge.style.background = 'var(--strong-orange)';
+        categoryBadge.style.borderColor = 'var(--strong-orange)';
+      } else if (selectedCategory === 'needsReview') {
+        categoryBadge.style.background = 'var(--very-dark-gray)';
+        categoryBadge.style.borderColor = 'var(--very-dark-gray)';
+      } else if (selectedCategory === 'mustFix') {
+        categoryBadge.style.background = 'var(--light-carmine-pink)';
+        categoryBadge.style.borderColor = 'var(--light-carmine-pink)';
+      }
+
+      // Update Manual Test Section
+      const manualTestSection = document.getElementById('expandedRuleManualTestSection');
+      if (selectedCategory === 'needsReview' && manualTestSection) {
+        manualTestSection.style.display = 'block';
+      } else if (manualTestSection) {
+        manualTestSection.style.display = 'none';
+      }
+    }
+
+    // Populate conformance badges
+    const conformanceContainer = document.getElementById('expandedRuleConformance');
+    if (conformanceContainer && selectedRule.conformance && selectedRule.conformance.length > 0) {
+      const wcagConformance = selectedRule.conformance.filter(c => c.startsWith('wcag'));
+      const wcagCriteriaLabels = scanData?.wcagCriteriaLabels || {};
+
+      const criteriaNumbers = [];
+      let level = null;
+
+      wcagConformance.forEach(wcag => {
+        const formattedWcag = formatWcagId(wcag);
+
+        if (wcagCriteriaLabels[formattedWcag]) {
+          criteriaNumbers.push(formattedWcag);
+          if (!level) {
+            level = wcagCriteriaLabels[formattedWcag];
+          }
+        }
+      });
+
+      const badges = criteriaNumbers.map(
+        criteria => `<span class="conformance-badge">${criteria}</span>`,
+      );
+
+      if (level) {
+        badges.push(`<span class="conformance-badge">Level ${level}</span>`);
+      }
+
+      conformanceContainer.innerHTML = badges.join('');
+    }
+
+    // Set long description from a11yRuleLongDescriptionMap
+    const longDescriptionElement = document.getElementById('expandedRuleDescription');
+    if (longDescriptionElement) {
+      const longDescription = a11yRuleLongDescriptionMap[selectedRule.rule];
+      longDescriptionElement.textContent = longDescription || whyItMatters[selectedRule.rule] || '';
+    }
+
+    // Populate disability impact
+    const disabilitySection = document.getElementById('expandedRuleDisabilitySection');
+    const disabilityMessage = document.getElementById('expandedRuleDisabilityMessage');
+    const disabilities = disabilityBadgesMap[selectedRule.rule] || [];
+
+    if (disabilityMessage && disabilities.length > 0) {
+      let disabilityText = '';
+      if (disabilities.length === 1) {
+        disabilityText = `${disabilities[0]} Disability`;
+      } else if (disabilities.length === 2) {
+        disabilityText = `${disabilities[0]} and ${disabilities[1]} Disability`;
+      } else {
+        const disabilityList = [...disabilities];
+        const lastDisability = disabilityList.pop();
+        disabilityText = `${disabilityList.join(', ')} and ${lastDisability} Disability`;
+      }
+
+      disabilityMessage.innerHTML = `This issue prevents users with <span class="disability-text">${disabilityText}</span> from navigating your website.`;
+      disabilitySection.style.display = 'block';
+    } else {
+      disabilitySection.style.display = 'none';
+    }
+
+    if (oobeeAiRules.includes(selectedRule.rule)) {
+      document.querySelector('#expandedRuleAiFeedback').style.display = 'block';
+    } else {
+      document.querySelector('#expandedRuleAiFeedback').style.display = 'none';
+    }
+
+    // Populate step-by-step guide
+    populateStepByStepGuide(selectedRule.rule);
+
+    const availableFixCategories = [];
+
+    const itemsToUse = typeof filteredItems !== 'undefined' ? filteredItems : scanItems;
+
+    // Reset group by radio buttons to "Page" when modal opens
+    const groupByPageRadio = document.getElementById('groupByPage');
+    const groupByHtmlRadio = document.getElementById('groupByHtmlElement');
+    if (groupByPageRadio && groupByHtmlRadio) {
+      groupByPageRadio.checked = true;
+      groupByHtmlRadio.checked = false;
+    }
+
+    // Note: Need to check if we want to sort by default in scanItems or keep the function here
+    const sortCategoriesByConformance = (items) => {
+      ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
+        const categoryData = itemsToUse[category];
+        if (!categoryData || !Array.isArray(categoryData.rules)) return;
+
+        categoryData.rules.forEach(rule => {
+          if (!Array.isArray(rule.pagesAffected)) return;
+
+          rule.pagesAffected.sort((a, b) => {
+            const lenA = Array.isArray(a.items) ? a.items.length : 0;
+            const lenB = Array.isArray(b.items) ? b.items.length : 0;
+            return lenB - lenA; // DESC
+          });
+        });
+      });
+    };
+
+    sortCategoriesByConformance(itemsToUse);
+
+    Object.keys(itemsToUse).forEach(category => {
+      const ruleInCategory = itemsToUse[category]?.rules?.find(r => r.rule === selectedRule.rule);
+
+      if (ruleInCategory !== undefined && category !== 'passed') {
+        if (category !== 'passed') {
+          availableFixCategories.push(category);
+        }
+
+        // Automatically display content for the selected category
+        if (category === selectedCategory) {
+            const occurrencesText = `${ruleInCategory.totalItems} Total occurrences`;
+            const dropdownToggle = document.getElementById('expandedRuleDropdownToggleCategoryInfo');
+            dropdownToggle.innerText = `${ruleInCategory.totalItems} Total occ.`;
+            dropdownToggle.setAttribute('aria-label', occurrencesText);
+          document.getElementById('expandedRuleDropdownTitle').innerText =
+            `Pages affected by this issue (${ruleInCategory.pagesAffected.length})`;
+          buildExpandedRuleCategoryContent(category, ruleInCategory);
+          document.getElementById('expandedRulePageContent').innerText =
+            `Total ${ruleInCategory.pagesAffected.length} affected pages`;
+        }
+      }
+    });
+  }
+</script>

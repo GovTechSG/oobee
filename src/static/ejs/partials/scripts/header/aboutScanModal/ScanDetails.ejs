@@ -1,0 +1,60 @@
+<script>
+  const formatAboutStartTime = dateString => {
+    const utcStartTimeDate = new Date(dateString);
+    const formattedStartTime = utcStartTimeDate.toLocaleTimeString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour12: false,
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'shortGeneric',
+    });
+
+    const timezoneAbbreviation = new Intl.DateTimeFormat('en', {
+      timeZoneName: 'shortOffset',
+    })
+      .formatToParts(utcStartTimeDate)
+      .find(part => part.type === 'timeZoneName').value;
+
+    //adding a breakline between the time and timezone so it looks neater on report
+    const timeColonIndex = formattedStartTime.lastIndexOf(':');
+    const timePart = formattedStartTime.slice(0, timeColonIndex + 3);
+    const timeZonePart = formattedStartTime.slice(timeColonIndex + 4);
+    const htmlFormattedStartTime = `${timePart}<br>${timeZonePart} ${timezoneAbbreviation}`;
+
+    return htmlFormattedStartTime;
+  };
+
+  const formattedViewerLocalStartTime = formatAboutStartTime(scanData.startTime);
+
+  document.getElementById('websiteTitle').innerHTML = scanData.siteName;
+
+  const urlA = document.getElementById('urlScanned');
+  const urlSpan = document.getElementById('urlScannedText');
+  urlSpan.textContent = scanData.urlScanned;
+  urlA.href = scanData.urlScanned;
+
+  document.getElementById('aboutStartTime').innerHTML = formattedViewerLocalStartTime;
+
+  document.getElementById('viewport-text').innerHTML = scanData.viewport.startsWith('CustomWidth')
+    ? `${scanData.viewport.split('_')[1]} Custom Width View`
+    : scanData.viewport + ' View';
+
+  const phAppVersionElement = document.getElementById('oobeeAppVersion');
+  const versionContent = 'Oobee Version ' + scanData.oobeeAppVersion;
+  phAppVersionElement.innerHTML = versionContent;
+
+  const cypressScanAboutMetadata = scanData.cypressScanAboutMetadata;
+  if (cypressScanAboutMetadata) {
+    const metadataItems = Object.keys(cypressScanAboutMetadata);
+    metadataItems.forEach(key => {
+      var metadataSpan = document.getElementById('cypressScanAboutMetadata');
+      if (metadataSpan) {
+        const metadataTitle = document.createElement('span');
+        metadataTitle.textContent =
+          key[0].toUpperCase() + key.slice(1) + ': ' + cypressScanAboutMetadata[key];
+      }
+    });
+  }
+</script>

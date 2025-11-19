@@ -228,7 +228,7 @@ const crawlSitemap = async ({
           pageTitle: request.url,
           actualUrl: request.url, // because about:blank is not useful
           metadata: STATUS_CODE_METADATA[1],
-          httpStatusCode: 0,
+          httpStatusCode: 1,
         });
 
         return;
@@ -273,7 +273,7 @@ const crawlSitemap = async ({
           pageTitle: request.url,
           actualUrl: request.url, // because about:blank is not useful
           metadata: STATUS_CODE_METADATA[1],
-          httpStatusCode: 0,
+          httpStatusCode: 1,
         });
 
         return;

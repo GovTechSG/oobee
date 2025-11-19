@@ -1,0 +1,949 @@
+<script>
+  const a11yPlaygroundLink = 'https://a11y.tech.gov.sg/';
+
+  const whyItMatters = {
+    accesskeys:
+      '<p>\n  Specifying a <code>accesskey</code> attribute value for some part of a\n  document allows users to quickly activate or move the focus to a specific\n  element by pressing the specified key (usually in combination with the\n  <code><kbd>alt</kbd></code> key). Duplicating <code>accesskey</code> values\n  creates unexpected effects that ultimately make the page less accessible.\n</p>',
+    'area-alt':
+      '<p>\n  Screen readers have no way of translating images into words. It is important\n  that all images, including image maps, have <code>alt</code> text values.\n</p>',
+    'aria-allowed-attr':
+      '<p>\n  Using ARIA attributes in roles where they are not allowed can interfere with\n  the accessibility of the web page. Using an invalid role-attribute combination\n  will, at best, result in no effect on the accessibility of the application\n  and, at worst, may trigger behavior that disables accessibility for entire\n  portions of an application.\n</p>',
+    'aria-command-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;link&quot;</code>, <code>role=&quot;button&quot;</code>, or\n  <code>role=&quot;menuitem&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-dialog-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;dialog&quot;</code> or <code>role=&quot;alertdialog&quot;</code> that do not have\n  an accessible name.\n</p>',
+    'aria-hidden-focus':
+      '<p>\n  Using the <code>aria-hidden=&quot;true&quot;</code> attribute on an element removes the\n  element and ALL of its child nodes from the accessibility API making it\n  completely inaccessible to screen readers and other assistive technologies.\n  Aria-hidden may be used with extreme caution to hide visibly rendered content\n  from assistive technologies only if the act of hiding this content is intended\n  to improve the experience for users of assistive technologies by removing\n  redundant or extraneous content. If aria-hidden is used to hide visible\n  content from screen readers, the identical or equivalent meaning and\n  functionality must be exposed to assistive technologies.\n</p>',
+    'aria-input-field-name':
+      '<p>\n  This new rule ensures every ARIA input field has an accessible name.\n  Accessible names must exist for the following input field roles:\n</p>\n<ul>\n  <li>combobox</li>\n  <li>listbox</li>\n  <li>searchbox</li>\n  <li>slider</li>\n  <li>spinbutton</li>\n  <li>textbox</li>\n</ul>',
+    'aria-meter-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;meter&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-progressbar-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;progressbar&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-required-children':
+      '<p>\n  For each role, WAI-ARIA explicitly defines which child and parent roles are\n  allowable and/or required. ARIA <code>role</code>s missing required child\n  <code>role</code>s will not be able to perform the accessibility functions\n  intended by the developer.\n</p>',
+    'aria-required-parent':
+      '<p>\n  For each role, WAI-ARIA explicitly defines which child and parent roles are\n  allowable and/or required. Elements containing ARIA <code>role</code> values\n  missing required parent element <code>role</code> values will not enable\n  assistive technology to function as intended by the developer.\n</p>',
+    'aria-roledescription':
+      '<p>\n  Inappropriate <code>aria-roledescription</code> attribute values that conflict\n  with an element&apos;s implied or explicit <code>role</code> value can interfere\n  with the accessibility of the web page. A conflicting\n  <code>aria-roledescription</code> attribute value may result in no effect on\n  the accessibility of the application and may trigger behavior that disables\n  accessibility for entire portions of an application.\n</p>',
+    'aria-text':
+      '<p>\n  When a text node is split by markup (e.g.\n  <code>&lt;h1&gt;Hello &lt;span&gt;World&lt;/span&gt;&lt;/h1&gt;</code>)\n  VoiceOver will treat it as two separate phrases instead of just one. Adding\n  <code>role=&quot;text&quot;</code> around the elements solves the problem. However, it\n  also overrides the role of the element and all descendants and treats them all\n  as text nodes. If one of the descendant elements is also focusable it would\n  create an empty tab stop. That is, you could tab to the element but VoiceOver\n  would not announce its name, role, or value.\n</p>',
+    'aria-toggle-field-name':
+      '<p>\n  Ensures every element with a semantic role also has an accessible name.\n  Semantic roles include:\n</p>\n<ul>\n  <li>checkbox</li>\n  <li>menu</li>\n  <li>menuitemcheckbox</li>\n  <li>menuitemradio</li>\n  <li>radio</li>\n  <li>radiogroup</li>\n  <li>switch</li>\n</ul>',
+    'aria-tooltip-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;tooltip&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-treeitem-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;treeitem&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-valid-attr-value':
+      '<p>\n  ARIA attributes (i.e. starting with <code>aria-</code>) must contain valid\n  values. These values must be spelled correctly and correspond to values that\n  make sense for a particular attribute to perform the intended accessibility\n  function.\n</p>',
+    'aria-valid-attr':
+      '<p>\n  If the developer uses a non-existent or misspelled ARIA attribute, the\n  attribute will not be able to perform the accessibility function intended by\n  the developer.\n</p>',
+    'autocomplete-valid':
+      '<p>\n  Failure to provide autocomplete values in form fields results in inaccessible\n  content. Screen readers do not read identified autocomplete form fields if the\n  appropriate autocomplete attribute values are missing. Users cannot correctly\n  navigate forms when screen readers cannot provide adequate information to the\n  user regarding form field interaction requirements.\n</p>',
+    'avoid-inline-spacing':
+      '<p>\n  Many people with cognitive disabilities have trouble tracking lines of text\n  when a block of text is single spaced. Providing spacing between 1.5 to 2\n  allows them to start a new line more easily once they have finished the\n  previous one.\n</p>',
+    blink:
+      '<p>\n  As the name suggests, <code>blink</code> tags cause content to flash. Though\n  you may like the effect, blinking text can be difficult to read, and blinking\n  objects (links, buttons, etc.) can be difficult to activate, especially for\n  users with imprecise or limited dexterity.\n</p>',
+    'definition-list':
+      '<p>\n  Screen readers have a specific way of announcing definition lists. When such\n  lists are not properly marked up, this creates the opportunity for confusing\n  or inaccurate screen reader output.\n</p>',
+    dlitem:
+      '<p>\n  A definition list item must be wrapped in parent <code>dl</code> elements,\n  otherwise it will be invalid.\n</p>',
+    'duplicate-id-active':
+      '<p>\n  The ID attribute uniquely identifies focusable elements on a page. It does not\n  make sense to duplicate an active ID.\n</p>',
+    'empty-table-header':
+      '<p>\n  Table header elements should have visible text that describes the purpose of\n  the row or column to both sighted users and screen reader users.\n</p>',
+    'frame-focusable-content':
+      '<p>\n  When a frame has a negative tabindex, the browser is prevented from\n  redirecting the focus to the content inside that frame. This causes all its\n  content from getting skipped in keyboard navigation, and if the frame is\n  scrollable also prevents the focus from reaching any element from which the\n  frame can be scrolled with the keyboard.\n</p>',
+    'frame-tested':
+      '<p>\n  Without the axe-core script, it is not possible for the tool to perform\n  violation checking on multiple levels of nested iframes.\n</p>',
+    'frame-title-unique':
+      '<p>\n  Screen reader users rely on a frame title to describe the contents of the\n  <code>frame</code>. Navigating through frames and iframes can quickly become\n  difficult and confusing for users of this technology if the frames are not\n  marked with a <code>title</code> attribute.\n</p>',
+    'frame-title':
+      '<p>\n  Screen reader users rely on a frame title to describe the contents of the\n  <code>frame</code>. Navigating through <code>frame</code> and\n  <code>iframe</code> elements quickly becomes difficult and confusing for users\n  of this technology if the markup does not contain a\n  <code>title</code> attribute.\n</p>',
+    'html-xml-lang-mismatch':
+      '<p>\n  When configuring a screen reader, users select a default language. If the\n  language of a webpage is not specified, the screen reader assumes the default\n  language set by the user. Multiple languages are an issue for users who speak\n  and access websites in multiple languages. It is essential to specify a\n  default language and ensure that it is valid for screen readers to function\n  correctly.\n</p>',
+    'image-alt':
+      '<p>\n  Screen readers have no way of translating an image into words that gets read\n  to the user, even if the image only consists of text. As a result, it&apos;s\n  necessary for images to have short, descriptive <code>alt</code> text so\n  screen reader users clearly understand the image&apos;s contents and purpose.\n</p>',
+    'image-redundant-alt':
+      '<p>\n  It is unnecessary and potentially confusing to have alternative text for a\n  link or image to be repeated in text adjacent to the link or image since it\n  would be read twice by a screen reader.\n</p>',
+    'input-button-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of an\n  <code>input type=&quot;button&quot;</code> without an accessible name.\n</p>',
+    'input-image-alt':
+      '<p>\n  An <code>&lt;input type=&quot;image&quot;&gt;</code> button must have\n  alternate text, otherwise screen reader users will not know the button&apos;s\n  purpose. Even if the image contains only text, it still requires alternate\n  text, since a screen reader cannot translate images of words into output.\n</p>',
+    'landmark-banner-is-top-level':
+      '<p>\n  If the banner landmark is not the top-level landmark (and is contained within\n  another landmark), it does not effectively designate the pre-defined header\n  portion of the layout in the design and therefore prevents screen reader users\n  from being able to easily find their way around the layout.\n</p>',
+    'landmark-complementary-is-top-level':
+      '<p>\n  Complementary content is ancillary content to the main theme of a document or\n  page. Screen reader users have the option to skip over complementary content\n  when it appears at the top level of the accessibility API. Embedding an\n  <code>&lt;aside&gt;</code> element in another landmark may disable screen\n  reader functionality allowing users to navigate through complementary content.\n</p>',
+    'landmark-contentinfo-is-top-level':
+      '<p>\n  The purpose of the <code>contentinfo</code> landmark can be defeated when\n  placed within another landmark, as it can prevent blind screen reader users\n  from being able to quickly find and navigate to the appropriate landmark.\n</p>',
+    'landmark-main-is-top-level':
+      '<p>\n  Navigating a web page is far simpler for screen reader users if the content\n  splits between some high-level sections. Content outside of these sections is\n  difficult to find, and its purpose may be unclear.\n</p>',
+    'landmark-no-duplicate-banner':
+      '<p>\n  Landmarks allow blind users to navigate and find content quickly. Missing\n  landmarks require screen reader users to sort through too much extra\n  information to find anything.\n</p>',
+    'landmark-no-duplicate-contentinfo':
+      '<p>\n  One of the main purposes of landmarks is to allow blind users to quickly find\n  and navigate to the appropriate landmark, so you should keep the total number\n  of landmarks relatively low. If you don&apos;t, screen reader users will have to\n  sort through too much extra information to find what they&apos;re looking for.\n</p>',
+    'landmark-no-duplicate-main':
+      '<p>\n  Navigating a web page is far simpler for screen reader users if all of the\n  content splits between one or more high-level sections. Content outside of\n  these sections is difficult to find, and its purpose may be unclear.\n</p>',
+    'landmark-unique':
+      '<p>\n  <code>landmark-unique</code> is a new best practice rule ensures that\n  landmarks have a unique role or accessible name (i.e. role, label, title)\n  combination.\n</p>',
+    list: '<p>\n  Screen readers have a specific way of announcing lists. This feature makes\n  lists clearer to understand, but will only work if lists are properly\n  structured.\n</p>',
+    listitem:
+      '<p>\n  For a list to be valid, it must have both parent and child elements. Parent\n  elements can either be a set of <code>ul</code> tags or a set of\n  <code>ol</code> tags. Child elements must be declared inside of these tags\n  using the <code>li</code> tag.\n</p>',
+    marquee:
+      '<p>\n  The <code>marquee</code> element creates scrolling text that is difficult to\n  read and click on. Beyond that, it can be distracting to viewers, especially\n  to those with low vision, cognitive disabilities, or attention deficits.\n</p>',
+    'meta-refresh':
+      '<p>\n  Since users do not expect a page to refresh automatically, such refreshing can\n  be disorienting. Refreshing also moves the programmatic focus back to the top\n  of the page, away from where the user had it. Such resetting is frustrating\n  for users.\n</p>',
+    'object-alt':
+      '<p>\n  Screen readers have no way of translating non-text content into text announced\n  to users. Instead, they read out alternative text. For screen reader users to\n  obtain the information contained in embedded <code>object</code> elements\n  which must contain short, descriptive alternative text.\n</p>',
+    'presentation-role-conflict':
+      '<p>\n  There are certain cases where the semantic role of an element with\n  <code>role=&quot;none&quot;</code> or <code>role=&quot;presentation&quot;</code> does not resolve\n  to none or presentation (respectively). When this happens, the element is not\n  removed from the accessibility tree (as expected) and screen readers are able\n  to interact with it.\n</p>',
+    'role-img-alt':
+      '<p>\n  Screen readers have no way of translating an image into words that gets read\n  to the user, even if the image only consists of text. As a result, it&apos;s\n  necessary for images to have short, descriptive and accessible alternative\n  text so screen reader users clearly understand the image&apos;s contents and\n  purpose.\n</p>',
+    'scope-attr-valid':
+      '<p>\n  The <code>scope</code> attribute makes table navigation much easier for screen\n  reader users, provided that it is used correctly. Incorrectly used,\n  <code>scope</code> can make table navigation much harder and less efficient.\n</p>',
+    'scrollable-region-focusable':
+      '<p>\n  Checks scrollable content for focusable elements enabling keyboard navigation.\n  Keyboard navigation should not fail when focus moves to an element within a\n  scrollable region.\n</p>',
+    'select-name':
+      '<p>\n  Effective form labels are required to make forms accessible. The purpose of\n  form elements such as checkboxes, radio buttons, input fields, etcetera, is\n  often apparent to sighted users, even if the form element is not\n  programmatically labeled. Screen readers users require useful form labels to\n  identify form fields. Adding a label to all form elements eliminates ambiguity\n  and contributes to a more accessible product.\n</p>',
+    'server-side-image-map':
+      '<p>\n  Server-side image maps are not keyboard accessible; mouse clicks are required\n  to access the links contained in the image, making the image inaccessible to\n  people who only use keyboards for their navigation.\n</p>',
+    'skip-link':
+      '<p>\n  Screen readers announce content sequentially as it appears in the HTML file.\n  What this means for users of assistive technology is that the content at the\n  top of the page, typically including the entire navigation, is read out to the\n  user before reaching any of the main content. Since content at the top of the\n  page can often be very lengthy, it can be time-consuming to listen to or tab\n  through all of it when the user is only interested in the main content.\n  Including a skip link in an HTML page is beneficial to blind users, users with\n  low vision, and mouse-only users.\n</p>',
+    'svg-img-alt':
+      "<p>\n If you can't see, images are completely useless without a digital text alternative. The same is true in varying degrees for people with low vision or colour-blindness. \n</p>",
+    tabindex:
+      '<p>\n  Using <code>tabindex</code> with a value greater than 0 can create as many\n  problems as it solves. It creates an unexpected tab order, which makes the\n  page less intuitive and can give the appearance of skipping certain elements\n  entirely.\n</p>',
+    'table-duplicate-name':
+      '<p>\n  When tables have summary and caption text that is identical, screen reader\n  users can be confused and find it difficult to know the name and purpose of\n  the table.\n</p>',
+    'td-headers-attr':
+      "<p>\n  Sighted users can usually tell at a glance what the table's headers are and\n  what their relationship to the data is. For non-sighted users this must be\n  done in the markup.\n</p>",
+    'th-has-data-cells':
+      '<p>\n  When tables are not marked up semantically and do not have the correct header\n  structure, screen reader users cannot correctly perceive the relationships\n  between the cells and their contents visually.\n</p>',
+    'valid-lang':
+      '<p>\n  When configuring a screen reader, users select a default language. If the\n  language of a webpage is not specified, the screen reader assumes it is the\n  default language set by the user. Language selection becomes an issue for\n  users who speak multiple languages and access the website in more than one\n  language. It is essential to specify a language and ensure that it is valid so\n  website text is pronounced correctly.\n</p>',
+    'video-caption':
+      '<p>\n  If a video has no caption, deaf users have limited or no access to the\n  information contained in it. Even if a captions track is available, ensure\n  that it contains all meaningful information in the video, not just dialogue.\n</p>',
+    'no-autoplay-audio':
+      '<p>\n  People who are blind or have low vision and use screen reading software can\n  find it hard to hear the screen reader&apos;s speech output if there is other audio\n  playing at the same time. If automatically playing audio lasts more than three\n  seconds, an easily located, accessible mechanism must be provided to pause or\n  stop the audio or control the audio volume. An audio control allows screen\n  reader users to hear the screen reader without other sounds playing.\n</p>',
+    'aria-hidden-body':
+      '<p>\n  Screen readers do not read content marked with the <code>aria-hidden="true"</code> attribute value. Users can still tab to focusable elements in the hidden objects, but screen readers remain silent.\n</p>',
+    'aria-required-attr':
+      '<p>\n  ARIA widget roles require additional attributes that describe the state of the\n  widget. The state of the widget is not communicated to screen reader users if\n  a required attribute is omitted.\n</p>',
+    bypass:
+      '<p>\n  Since web sites often display secondary, repeated content on multiple pages\n  (such as navigation links, heading graphics, and advertising frames),\n  keyboard-only users benefit from faster, more direct access to the primary\n  content on a page. This reduces keystrokes and minimizes associated physical\n  pain.\n</p>',
+    'color-contrast':
+      '<p>\n  Some people with low vision experience low contrast, meaning that there aren&apos;t\n  very many bright or dark areas. Everything tends to appear about the same\n  brightness, which makes it hard to distinguish outlines, borders, edges, and\n  details. Text that is too close in luminance (brightness) to the background\n  can be hard to read.\n</p>',
+    'document-title':
+      '<p>\n  Screen reader users use page titles to get an overview of the contents of the\n  page. Navigating through pages can quickly become difficult and confusing for\n  screen reader users if the pages are not marked with a title. The page\n  <code>title</code> element is the first thing screen reader users hear when\n  first loading a web page.\n</p>',
+    'duplicate-id-aria':
+      '<p>\n  Duplicate IDs are common validation errors that may break the accessibility of\n  labels, e.g., ARIA elements, form fields, table header cells.\n</p>',
+    'duplicate-id':
+      "<p>\n  The ID attribute uniquely identifies elements on a page. It does not make\n  sense to duplicate an ID.\n</p>\n\n<p>\n  Duplicate ID's can break the accessibility of labels for forms, table header\n  cells, etc., by the second instance being skipped by screen readers, or by\n  client-side scripts. They are common markup validation errors that can\n  eliminate possible sources of accessibility problems, when not breaking\n  accessibility.\n</p>",
+    'empty-heading':
+      '<p>\n  Screen readers alert users to the presence of a heading tag. If the heading is\n  empty or the text cannot be accessed, this could either confuse users or even\n  prevent them from accessing information on the page&apos;s structure.\n</p>',
+    'form-field-multiple-labels':
+      '<p>\n  Assigning multiple labels to the same form field can cause problems for some\n  combinations of screen readers and browsers, and the results are inconsistent\n  from one combination to the next. Some combinations will read the first label.\n  Some will read the last label. Others will read both labels.\n</p>',
+    'heading-order':
+      '<p>\n  The underlying purpose of headers is to convey the structure of the page. For\n  sighted users, the same purpose is achieved using different sizes of text.\n  Text size, however, is not helpful for users of screen readers, because a\n  screen reader identifies a header only if it is properly marked-up. When\n  heading elements are applied correctly, the page becomes much easier to\n  navigate for screen reader users and sighted users alike.\n</p>',
+    'html-has-lang':
+      '<p>\n  When configuring a screen reader, users select a default language. If the\n  language of a webpage is not specified, the screen reader assumes the default\n  language set by the user. Language settings become an issue for users who\n  speak multiple languages and access website in more than one language. It is\n  essential to specify a language and ensure that it is valid so website text is\n  pronounced correctly.\n</p>',
+    'html-lang-valid':
+      '<p>\n  When configuring a screen reader, users select a default language. If the\n  language of a webpage is not specified, the screen reader assumes the default\n  language set by the user. Language settings are an issue for users who speak\n  multiple languages and access website in more than one language. It is\n  essential to specify a language and ensure that it is valid so website text is\n  pronounced correctly.\n</p>',
+    'label-title-only':
+      '<p>\n  The <code>title</code> and <code>aria-describedby</code> attributes are used\n  to provide additional information such as a hint. Hints are exposed to\n  accessibility APIs differently than labels and as such, this can cause\n  problems with assistive technologies.\n</p>',
+    'link-in-text-block':
+      '<p>\n  Some people with low vision experience low contrast, meaning that there aren&apos;t\n  very many bright or dark areas. Everything tends to appear about the same\n  brightness, which makes it hard to distinguish outlines, borders, edges, and\n  details. Text that is too close in luminance (brightness) to the background\n  can be hard to read.\n</p>',
+    'link-name':
+      '<p>\n Inaccessible link elements pose barriers to accessibility, as they are a fundamental component of a website.\n </p>',
+    'meta-viewport-large':
+      '<p>\n  The <code>user-scalable=&quot;no&quot;</code> parameter inside the\n  <code>content</code> attribute of\n  <code>&lt;meta name=&quot;viewport&quot;&gt;</code> element disables zooming on a page.\n  The <code>maximum-scale</code> parameter limits the amount the user can zoom.\n  This is problematic for people with low vision who rely on screen magnifiers\n  to properly see the contents of a web page.\n</p>',
+    'meta-viewport':
+      '<p>\n  The <code>user-scalable=&quot;no&quot;</code> parameter inside the\n  <code>content</code> attribute of\n  <code>&lt;meta name=&quot;viewport&quot;&gt;</code> element disables zooming on a page.\n  The <code>maximum-scale</code> parameter limits the amount the user can zoom.\n  This is problematic for people with low vision who rely on screen magnifiers\n  to properly see the contents of a web page.\n</p>',
+    'nested-interactive':
+      '<p>\n  Focusable elements with an interactive control ancestor (any element that\n  accepts user input such as button or anchor elements) are not announced by\n  screen readers and create an empty tab stop. That is, you could tab to the\n  element but the screen reader will not announce its name, role, or state.\n</p>',
+    'page-has-heading-one':
+      '<p>\n  Screen reader users can use keyboard shortcuts to navigate directly to the\n  first <code>h1</code>, which, in principle, should allow them to jump directly\n  to the main content of the web page. If there is no <code>h1</code>, or if the\n  <code>h1</code> appears somewhere other than at the start of the main content,\n  screen reader users must listen to more of the web page to understand its\n  structure, wasting valuable time.\n</p>',
+    region:
+      '<p>\n  Navigating a web page is far simpler for screen reader users if the content\n  splits between multiple high-level sections. Content outside of sections is\n  difficult to find, and the content&apos;s purpose may be unclear.\n</p>',
+    'button-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;link&quot;</code>, <code>role=&quot;button&quot;</code>, or\n  <code>role=&quot;menuitem&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-allowed-role':
+      '<p>\n  Intended accessible technology behavior by a developer is not enabled when an\n  assigned WAI-ARIA role value is invalid for the parent element.\n</p>',
+    'aria-roles':
+      '<p>\n  Elements assigned invalid ARIA role values are not interpreted by assistive\n  technology as intended by the developer.\n</p>',
+    label:
+      '<p>\n  Effective form labels are required to make forms accessible. The purpose of\n  form elements such as checkboxes, radio buttons, input fields, etcetera, is\n  often apparent to sighted users, even if the form element is not\n  programmatically labeled. Screen readers users require useful form labels to\n  identify form fields. Adding a label to all form elements eliminates ambiguity\n  and contributes to a more accessible product.\n</p>',
+    'landmark-one-main':
+      '<p>\n  Navigating a web page is far simpler for screen reader users if all of the\n  content splits between one or more high-level sections. Content outside of\n  these sections is difficult to find, and its purpose may be unclear.\n</p>',
+    'aria-braille-equivalent':
+      '<p class="rule-desc-text">\nARIA braille attributes were introduced to allow adjusting how labels and role descriptions are rendered on a braille display. They cannot be the only attribute providing a label, or a role description. When used without a corresponding label or role description ARIA says to ignore these attributes, although this may not happen consistently in screen readers and other assistive technologies.\n</p>',
+    'aria-conditional-attr':
+      '<p class="rule-desc-text">\nUsing ARIA attributes on elements where they are not expected can result in unpredictable behavior for assistive technologies. This can lead to a poor user experience for people with disabilities who rely on these technologies. It is important to follow the ARIA specification to ensure that assistive technologies can properly interpret and communicate the intended meaning of the content.\n</p>',
+    'aria-deprecated-role':
+      '<p class="rule-desc-text">\nUsing deprecated WAI-ARIA roles is bad for accessibility. They will not be recognized or correctly processed by screen readers and other assistive technologies. Using these means not everyone will be able to access essential information.\n</p>',
+    'aria-prohibited-attr':
+      '<p class="rule-desc-text">\nUsing ARIA attributes in roles where they are prohibited can mean that important information is not communicated to users of assistive technologies. assistive technologies may also attempt to compensate for the issue, resulting in inconsistent and confusing behavior of these tools.\n</p>',
+    'target-size':
+      '<p>\n Touch targets must have sufficient size and spacing in order to "be easily activated without accidentally activating an adjacent target." When touch targets are too small or too close together, it becomes difficult for users to activate them.\n</p>',
+    'oobee-confusing-alt-text':
+      '<p>\n Alt text should be clear and concise. It should relay informative content / function of the image. If the alt text is too long or confusing, it can be difficult for screen reader users to understand the image.\n</p>',
+    'oobee-accessible-label':
+      '<p>\n Unlabelled clickable elements are inaccessible because it prevents screen readers from effectively conveying the purpose of the element. This causes challenges for screen reader users to navigate and understand the webpage. Clickable elements should also be made focusable by screen readers unless deliberately excluded (e.g. decorative or functionally redundant).\n</p>',
+    'oobee-grading-text-contents':
+      '<p>\n Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.\n</p>',
+  };
+
+  const stepByStepGuide = {
+    'aria-meter-name': {
+      check:
+        'Find visual progress or measurement indicators (like storage capacity bars or battery level indicators, volume controls)',
+      fix: '(Developer) Add a text alternative that says what the meter measures (e.g., "Storage used")',
+      review: 'Use a screen reader to confirm it announces the measurement and what it refers to',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-progressbar-name': {
+      check: 'Find progress bars on the page (e.g., file upload, page loading, processing)',
+      fix: '(Developer) Add a text alternative that says what\'s in progress (e.g., "File upload")',
+      review:
+        'Trigger the progress action and confirm the screen reader announces both the label and the current percentage',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'image-alt': {
+      check:
+        'Find images on the page that carry meaning (product photos, charts, diagrams, icons that communicate something important). Skip images that are just decoration, like spacers or background patterns.',
+      fix: '(Developer) Add short, specific alt text for each meaningful image. If an image is only decoration, mark it so screen readers skip it.',
+      review:
+        "Use a screen reader to read each image's description and confirm it adequately explains what the image shows and why it matters.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'input-image-alt': {
+      check:
+        "Find buttons that use only images or icons like a delete icon, search icon, menu icon, print icon, etc. Look for buttons where you'd only see a picture, not text.",
+      fix: '(Developer) Add a clear label to each image button that describes the ACTION, not just the icon. e.g., "Delete".',
+      review:
+        'Use a screen reader on the button and confirm it announces the action clearly. When you tab to a delete button, the screen reader should say "Delete button" (or similar), not "Trash can image."',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'object-alt': {
+      check:
+        "Find embedded objects on the page: PDFs, videos, interactive tools, maps, or other content that's embedded within the page. These are different from regular images.",
+      fix: '(Developer) Add a clear, descriptive label or title for each embedded object. The label should identify what the content is and, if helpful, provide additional context (file type, duration, etc.).',
+      review:
+        'Use a screen reader to navigate to each embedded object and confirm the screen reader announces: (1) What the object is (PDF, video, map, etc.) (2) What it contains (3) Any relevant additional info (like duration for videos, file size for PDFs).',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'oobee-confusing-alt-text': {
+      check:
+        'Find images that already have descriptions but the descriptions are too vague or unhelpful. Look for descriptions that just say: "image"',
+      fix: '(Developer) Rewrite each vague description to actually describe what the image shows.',
+      review:
+        "Use a screen reader to read the updated descriptions and confirm they now adequately convey what the image shows and its purpose. A person listening should understand the image's content and why it matters.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'role-img-alt': {
+      check:
+        "Find elements that are marked as images but aren't traditional image elements (like custom icons or graphics).",
+      fix: '(Developer) Add a text description that identifies what the element is e.g., "Settings icon"',
+      review:
+        "Use a screen reader to read each element's description and confirm it adequately conveys what the element represents and its purpose.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'svg-img-alt': {
+      check:
+        'Find vector graphics (SVG elements) on the page that are marked as images. These might be logos, icons, diagrams, or other graphics',
+      fix: '(Developer) Add a text description that identifies what the graphic is. e.g., "Company logo"',
+      review:
+        "Use a screen reader to read each SVG's description and confirm it adequately conveys what the graphic shows and its purpose",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'video-caption': {
+      check: 'Identify which videos on the page lack captions',
+      fix: '(Developer) Add caption tracks (<track> elements) to those videos with synchronized captions that include dialogue and important sounds',
+      review:
+        'Play the video muted to confirm captions display, are synchronized with the video, and cover all spoken dialogue and important sounds',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-required-children': {
+      check: 'Open the reported page and locate the element with the missing child elements',
+      fix: "(Developer) Add the required child elements as described in the issue's fix. e.g., if a list role is missing list item children, add them",
+      review:
+        'Use a screen reader to navigate the control and confirm it is working as expected—the structure is announced correctly and all items/options are accessible',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-required-parent': {
+      check: 'Open the reported page and locate the element that is missing its required parent',
+      fix: "(Developer) Move or nest the element inside its required parent element as described in the issue's fix. e.g., if a tab element is incorrectly placed outside a parent, move it inside a 'tab list' parent",
+      review:
+        'Use a screen reader to navigate the control and confirm it is working as expected—the relationship between parent and child is announced correctly and the control functions properly.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'definition-list': {
+      check: 'Find glossary or FAQ sections where terms are paired with answers or definitions.',
+      fix: '(Developer) Ensure the definition list (<dl>) contains only <dt> (term) and <dd> (definition) elements as direct children. Remove any other HTML elements that may be incorrectly placed directly inside the <dl>',
+      review:
+        'Use a screen reader to navigate the definition list and confirm it correctly announces the term-definition relationships.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    dlitem: {
+      check:
+        'Find any terms or definitions on the page that appear outside a proper glossary structure.',
+      fix: '(Developer) Ensure the definition list (<dl>) contains only <dt> (term) and <dd> (definition) elements as direct children. Remove any other HTML elements that may be incorrectly placed directly inside the <dl>',
+      review:
+        'Use a screen reader to navigate the definition list and confirm it correctly announces the term-definition relationships.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    list: {
+      check:
+        'Find bullet point or numbered lists on the page. Check that each item is wrapped in a list item element and that list items have a list container as their parent. Look for any text appearing directly in the list without being in a list item.',
+      fix: '(Developer) Wrap each list item in <li> elements. Ensure <li> elements are direct children of <ul> or <ol>—nothing else should be a direct child.',
+      review:
+        'Use a screen reader to navigate the list and confirm it announces the list structure and item count correctly.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    listitem: {
+      check:
+        'Find content formatted as list items (usually bullets or numbers). Verify each item is inside a list container. Look for orphaned list items appearing outside any list.',
+      fix: '(Developer) Ensure all <li> elements are direct children of a <ul> or <ol> parent. Move any orphaned <li> elements into the correct list container.',
+      review:
+        'Use a screen reader to navigate and confirm the list announces correctly with proper list structure and item count.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'td-headers-attr': {
+      check:
+        'Pick a table on the page and use a screen reader to read one row cell-by-cell. As you move through cells, the screen reader should announce the relevant header so you understand what each cell represents.',
+      fix: '(Developer) Link headers to cells and add any missing header text that helps identify the meaning of the column or row.',
+      review:
+        'Use a screen reader to move cell-by-cell through the table and confirm the correct header is announced for each cell.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'th-has-data-cells': {
+      check:
+        'Pick a table and use a screen reader to read one row cell-by-cell. For each data cell you read, the screen reader should announce the header that applies to it.',
+      fix: '(Developer) Ensure headers are properly connected to their data cells. Mark headers correctly as row or column headers. Add any missing header information or remove invalid table headers.',
+      review:
+        "Use a screen reader to move cell-by-cell through the table and confirm each data cell's correct header is announced.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'autocomplete-valid': {
+      check:
+        'Find forms that collect common information like names, or emails. Check if fields have autocomplete attributes.',
+      fix: '(Developer) Set valid autocomplete attributes on each field. e.g., name → "name", email → "email". Use attributes that match the specification.',
+      review:
+        "Test browser autofill: Type information into your browser's profile and see if fields autofill correctly with the matching data.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'link-in-text-block': {
+      check:
+        'Scan text blocks on the page: Can you identify every link without hovering? Look for links that depend only on color to stand out.',
+      fix: '(Developer) Add visual distinction beyond color—such as underline, bold, or different font style. Ensure the distinction has good contrast and remains visible.',
+      review:
+        'Check a sample page: Without hovering over text, do links stand out clearly? Try viewing the page in grayscale to verify links are still distinguishable.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'avoid-inline-spacing': {
+      check:
+        'Open the page and increase browser text spacing to between 1.5 and 2 times normal (e.g. using a Chrome Extension). Observe: Does the text spacing actually adjust on the page? Can you still read all the content?',
+      fix: '(Developer) Check CSS style sheets and ensure they do not contain fixed line-spacing or text spacing values e.g. !important. Allow browser and user settings to control spacing. Ensure the layout remains functional when spacing is increased.',
+      review:
+        'Confirm that with increased text spacing, no content is cut off and nothing overlaps making it unreadable.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'no-autoplay-audio': {
+      check:
+        'Open pages that contain media (audio, video, animated content). Does sound start automatically when the page loads? If so, does it play longer than 3 seconds?',
+      fix: '(Developer) If auto-play exists and plays longer than 3 seconds, either remove the auto-play or add controls e.g. buttons labelled pause/mute/stop so that users can easily find and activate.',
+      review:
+        "Reload the page and confirm it is silent by default when it loads. If auto-play audio exists, verify it's only a brief notification (3 seconds or less) or has visible controls.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'color-contrast': {
+      check:
+        "Scan the page and note specific text that's hard to read: buttons, image captions, footer text, placeholder text in form fields. If you have to focus hard to read it, contrast is likely too low.",
+      fix: '(Developer) Adjust text and background colors to meet AA contrast ratio standards. Check using a contrast checking tool.',
+      review:
+        'Check readability on mobile phones and with dark mode enabled to confirm contrast remains adequate in different viewing conditions.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'color-contrast-enhanced': {
+      check:
+        'Scan the page and note specific text that could be clearer: buttons, captions, footers, labels. Even if contrast is acceptable for AA, AAA requires even higher contrast for better visibility.',
+      fix: '(Developer) Adjust text and background colors to meet AAA contrast ratio standards (higher than AA). Use a contrast checking tool that supports AAA verification.',
+      review:
+        'Check readability on mobile phones and with dark mode enabled to confirm enhanced contrast is maintained in different viewing conditions.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'frame-focusable-content': {
+      check:
+        'Use keyboard only (no mouse) to navigate the page. Press Tab to move through interactive elements. When you reach a frame or iframe with interactive content, can you tab into it? Can you interact with content inside it?',
+      fix: '(Developer) Ensure frames and iframes with focusable content allow keyboard focus to enter in normal tab order. Do not block keyboard access.',
+      review:
+        'Test with keyboard: Press Tab to navigate to the frame/iframe and verify you can access interactive content inside. Use keyboard shortcuts specific to the frame content. Shift+Tab back out to confirm keyboard can exit the frame.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'server-side-image-map': {
+      check:
+        "Open the reported page and locate the image map element. Check if it's a server-side image map (uses server-side processing for clicks).",
+      fix: '(Developer) Replace the server-side image map with a client-side image map using HTML <map> and <area> elements, or replace it with standard HTML buttons/links.',
+      review:
+        'Test with keyboard navigation: Use Tab to navigate and Enter to activate different areas of the map. Confirm all previously clickable areas are now keyboard accessible.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'scrollable-region-focusable': {
+      check:
+        'Open the reported page and locate the scrollable region. Use keyboard only to try scrolling within this region. Can you reach all interactive elements (buttons, links) inside the scrollable area using Tab?',
+      fix: '(Developer) Make interactive elements within the scrollable region focusable and reachable via keyboard with tabindex=0.',
+      review:
+        'Test with keyboard: Use Tab to reach elements in the scrollable region. Use arrow keys or other keyboard controls to scroll within the region. Confirm all interactive content is accessible.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'oobee-accessible-label': {
+      check:
+        'Find clickable elements on the page (buttons, links, custom buttons created with code). Check if each has a clear label or text describing its action.',
+      fix: '(Developer) Add visible labels or programmatic names that match the action. For elements that should not be keyboard accessible (like decorative interactive elements), use tabindex=-1 to remove them from keyboard navigation.',
+      review:
+        'Use Tab to navigate to each clickable element and confirm a meaningful name is announced by screen readers.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'meta-refresh': {
+      check:
+        'Open the page and watch for several minutes: Does the page reload or redirect automatically? If so, how often and without any warning?',
+      fix: '(Developer) Remove any timed automatic refresh. If updates are needed, use standard links or buttons that users can click manually.',
+      review:
+        'Wait on the page again to confirm it does not automatically reload or redirect on its own.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    blink: {
+      check:
+        'Scan the page for any text that blinks, flashes, or moves repeatedly on its own. Look for CSS animations that create blinking effects.',
+      fix: '(Developer) Remove any blinking elements or CSS animations that create flashing effects. Replace with static content or use non-animated styling.',
+      review: 'Confirm nothing on the page blinks, flashes, or moves continuously on its own.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    marquee: {
+      check:
+        'Scan the page for any text that scrolls, moves horizontally, or animates continuously on its own (e.g., a ticker or scrolling banner).',
+      fix: '(Developer) Remove marquee elements and CSS animations that create scrolling text effects. Replace with static content or allow users to control the pace of any necessary animation.',
+      review:
+        'Confirm nothing scrolls or animates automatically on the page. All content should be readable at a normal pace.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'meta-refresh-no-exceptions': {
+      check:
+        'Stay on the page for several minutes: Does it reload or redirect automatically without user action? Check if it happens without any user prompts or warnings.',
+      fix: '(Developer) Remove meta refresh and any other automatic timed page refresh mechanisms. If users need to access updated content, provide standard links or buttons they can click manually.',
+      review:
+        'Wait on the page again to confirm it does not automatically refresh or redirect on its own under any circumstances.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    bypass: {
+      check:
+        'Use keyboard navigation (Tab key) on the page: Can you quickly reach the main content without tabbing through all navigation? Is there a main content area marked or a skip link available?',
+      fix: '(Developer) Implement a bypass method— mark a main content area with a main landmark, headings so screen readers can navigate to it directly.',
+      review:
+        'Test keyboard navigation: Use assistive tools (VoiceOver Rotor, Android or NVDA/JAWS shortcuts) to confirm you can reach the main content and sections of the page area quickly without tabbing through repeated navigation blocks.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'document-title': {
+      check:
+        'Open the page and look at the browser tab: Does the tab title describe the page content? Or does it just say "Untitled" or show the organization name only?',
+      fix: '(Developer) Add a short, specific page title that describes the page content. The title should be unique across the site if possible. e.g., "Contact Us"',
+      review:
+        'Reload the page and confirm the browser tab displays a meaningful title that makes sense for the page.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'link-name': {
+      check:
+        'Find links on the page (underlined text or styled links). For each link, ask: "Does the link text clearly explain where it goes or what it does?" Look for vague link text like "click here" or "read more".',
+      fix: '(Developer) Add descriptive link text that explains the link\'s destination or purpose. e.g., Instead of "click here", use "Learn more about our services".',
+      review:
+        'Use Tab to navigate through each link and confirm screen readers announce meaningful, descriptive text for each link.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'area-alt': {
+      check:
+        'Find image maps on the page (images with multiple clickable regions). Use a screen reader to check: Does each clickable area have a text label? Or are regions unlabeled?',
+      fix: '(Developer) Add descriptive alt text labels to each clickable area in the image map. e.g., for a map with clickable regions for different cities, each region should be labeled "Click for information about Singapore" or similar. All areas must have labels—no decorative or unlabeled areas.',
+      review:
+        'Use a screen reader to navigate the image map and confirm each clickable area is announced with its descriptive label.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'identical-links-same-purpose': {
+      check:
+        'Scan the page for links that use identical text (like multiple "Read more" or "Learn more" links). Note which ones go to different destinations.',
+      fix: '(Developer) For each link with identical text going to different pages, add an accessible label (aria-label or title) that specifies the destination. e.g.,: For "Read more" links, add aria-label="Read more about Product A" and aria-label="Read more about Product B".',
+      review:
+        'Use a screen reader to navigate the page and confirm each identical-text link is announced with its unique accessible label showing the destination or purpose.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'target-size': {
+      check:
+        'Try to tap buttons and clickable elements on the page, are they hard to tap? Check spacing between adjacent clickable elements.',
+      fix: '(Developer) Increase clickable element sizes to at least 24px, or increase the space/padding between adjacent clickable elements. Ensure minimum spacing recommendations are met.',
+      review:
+        'Test again with touch or by simulating small target areas: Confirm buttons and clickable elements are now easy to tap accurately without accidentally clicking nearby elements.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'html-has-lang': {
+      check: 'Identify what language the page is written in (e.g., English).',
+      fix: '(Developer) Set the language attribute on the page and on any frames/iframes. Use the correct language code (e.g., lang="en" for English).',
+      review:
+        'Open the page and a localized version if available. Confirm the language attribute is set correctly on each.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'html-lang-valid': {
+      check:
+        'Check the page\'s language declaration. Is it using a valid ISO language code (like "en")? Or is it using something invalid or unclear?',
+      fix: '(Developer) Fix the language code on the page to use a valid ISO code. e.g., "en" (English), "en-US" (US English)',
+      review:
+        'Verify the corrected language code is saved. Open the page and confirm screen readers and translation tools now recognize the language correctly.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'html-xml-lang-mismatch': {
+      check:
+        'Check if the page or any elements use different lang attributes. If so, verify they use the same language code.',
+      fix: '(Developer) Ensure different lang attributes match on the same elements. Set both to the same valid language code. e.g.,: Set both to lang="en" and xml:lang="en".',
+      review:
+        'Verify the matching language declarations are saved. Open the page and test that screen readers recognize the language correctly.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'valid-lang': {
+      check:
+        "Identify any content on the page that uses different languages than the page's main language. Check if those elements have language attributes.",
+      fix: '(Developer) Add valid language codes to elements in different languages. Use valid ISO codes e.g., "es" for Spanish sections. <p lang="es">Este es un párrafo en español</p>.',
+      review:
+        'Test with a screen reader: Navigate to content in different languages and confirm the screen reader switches to correct pronunciation for each language.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'oobee-grading-text-contents': {
+      check:
+        'Identify the pages with the most complex or dense text content. Highlight sentences that are very long or use jargon/technical terms unfamiliar to general audiences.',
+      fix: 'Rewrite complex sections using shorter sentences, common words, and one idea per sentence. Define any necessary technical terms. Remove or simplify jargon.',
+      review:
+        'Ask a colleague unfamiliar with the topic to read the revised content and explain it back in their own words. If they struggle to understand, simplify further.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'form-field-multiple-labels': {
+      check:
+        'Find form fields on the page that display more than one label or title. Check if there are multiple label elements pointing to the same field.',
+      fix: '(Developer) Keep only one main label per field. Move extra text (hints, error messages) to separate help or error areas instead of making them labels.',
+      review:
+        'Use a screen reader to tab through form fields and confirm each field announces only one clear label. Click the label and verify it correctly focuses the associated field.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-allowed-attr': {
+      check:
+        'Find the elements identified in the report on the page. Check what ARIA attributes are applied to them.',
+      fix: "(Developer) Remove invalid ARIA attributes from elements that don't support them (this will revert the element to its normal implicit behavior), or move the ARIA attributes to the correct element type that supports them.",
+      review:
+        'Use a screen reader to navigate to those elements and confirm they now announce correctly with normal name and type.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-braille-equivalent': {
+      check:
+        'Find controls or elements that have braille-specific abbreviated labels or descriptions (labels written specifically for braille displays).',
+      fix: '(Developer) Add a full, non-abbreviated equivalent label. For example, if aria-braillelabel="vol", also provide aria-label="volume" or a full text label that braille and non-braille users both see.',
+      review:
+        'Test with both braille and non-braille screen readers to confirm the control is announced clearly with the full equivalent. Both methods should provide the same information.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-command-name': {
+      check:
+        'Find elements like role="button" that don\'t have visible text or labels. Check: Does each have text inside it, an aria-label, or a title attribute describing what it does?',
+      fix: '(Developer) Add accessible labels using one of these methods: (1) Visible text inside the element, (2) aria-label attribute, (3) aria-labelledby pointing to another element with text, or (4) title attribute. e.g.,: role="button" aria-label="Save document" or title="Delete item".',
+      review:
+        'Use a screen reader to Tab through command elements and confirm each announces what it does (e.g., "Save document button").',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-conditional-attr': {
+      check:
+        'Find elements identified in the issue. Check: Do the accessibility attributes on this element match the actual state of the element? Or do they contradict each other? Look for elements where the type and behavior seem confused.',
+      fix: '(Developer) Remove or replace conflicting ARIA attributes. Prefer native HTML elements and implicit attributes: Use <button> instead of <div role="button">. Use <a> for links instead of <div role="link">. Remove ARIA attributes that create conflicts or unclear states.',
+      review:
+        'Use a screen reader to navigate the element and confirm it now announces clearly without conflicting information. The element should sound like one clear type (button, link, etc.), not confused or contradictory.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-deprecated-role': {
+      check:
+        'Find elements listed in the issue that use outdated roles. Note the role names. Ask: Are these controlling buttons, tabs, menus, or other interactive elements?',
+      fix: '(Developer) Replace each outdated role with a current supported role, or replace with a native HTML element (like real <button> or <a> instead of custom code).',
+      review:
+        "Use a screen reader to test: Navigate to each updated element and confirm it's announced correctly (as a button, tab, menu, etc.).",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-hidden-body': {
+      check:
+        'Check if the page body has aria-hidden="true" applied to it. This would hide all content from screen readers.',
+      fix: '(Developer) Remove aria-hidden="true" from the body element or any wrapper containing the main page content.',
+      review:
+        'Use a screen reader to confirm the page content is now readable and all text and interactive elements are announced.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-hidden-focus': {
+      check:
+        'Locate the elements identified in the issue that are marked as hidden. Check: Do they contain buttons, links, form fields, or other interactive elements that can be focused via keyboard?',
+      fix: '(Developer) Either remove aria-hidden="true" from the container, or remove keyboard focus from the interactive elements inside it using tabindex="-1".',
+      review:
+        'Test with keyboard: Use Tab to navigate through the page. Confirm you cannot tab into content that is hidden from screen readers. If you can tab to it, you can hear it announced.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-input-field-name': {
+      check:
+        'Find custom input fields on the page. Check each one: Does it have a visible label or associated text describing what to enter?',
+      fix: '(Developer) Add an accessible label to each input using aria-label or by associating a visible label element. e.g., aria-label="Email address".',
+      review:
+        'Use a screen reader to Tab through input fields and confirm each announces its label/purpose clearly.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-prohibited-attr': {
+      check:
+        'Find the elements identified in the issue. Check: What ARIA attributes do they have applied? Are those attributes appropriate for this element type?',
+      fix: '(Developer) Remove ARIA attributes that are not permitted on these elements according to the accessibility specification.',
+      review:
+        'Test with a screen reader: Navigate to the element and confirm it now announces correctly without conflicting or confusing information.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-required-attr': {
+      check:
+        'Identify each interactive element mentioned in the issue (tabs, sliders, etc.). Check: Does it have all the required ARIA attributes for its role?',
+      fix: "(Developer) Add the missing required ARIA attributes for each element's role. e.g., For tabs, add aria-selected.",
+      review:
+        'Use a screen reader to interact with the element and confirm it announces the name, state, and current value correctly.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-roles': {
+      check:
+        'Find elements identified in the issue. Check: Do they have ARIA role attributes? Are those role names valid and supported (like "button", "link")? Or are they misspelled or unsupported?',
+      fix: '(Developer) Replace invalid role names with valid, supported ones. If no valid role exists for the element, replace with a native HTML element (real <button>, <a>, <input>) instead.',
+      review:
+        "Use a screen reader and keyboard to test: Tab to the element and confirm it's announced correctly (as a button, link, or other expected type). Confirm keyboard activation works as expected.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-toggle-field-name': {
+      check:
+        'Find toggle switches or checkbox-style controls on the page. Check: Does each have a visible label or descriptive text? Or is it labeled vaguely like "On/Off" without context?',
+      fix: '(Developer) Add descriptive labels or aria-labels to each toggle. e.g., aria-label="Dark mode toggle", or visible text saying "Dark mode".',
+      review:
+        'Use a screen reader to Tab through toggles and confirm each announces what will be toggled.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-tooltip-name': {
+      check:
+        'Find tooltips on the page. Check: Does each have a visible label or aria-label describing what it does?',
+      fix: '(Developer) Add labels using visible text, title attribute, or aria-label. e.g., aria-label="Save document", title="Print page"',
+      review:
+        'Use a screen reader to Tab to buttons and confirm each announces what it does (e.g., "Save document button" not just "button").',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-valid-attr': {
+      check:
+        'Find elements identified in the issue. Check their ARIA attributes: Are they spelled correctly? Are they documented, supported attribute names? Look for common typos.',
+      fix: '(Developer) Correct any misspelled or unsupported ARIA attribute names to valid, documented ones. Use official ARIA attribute reference to verify correct spelling.',
+      review:
+        'Test with a screen reader and confirm elements now announce correctly with the corrected attributes. No missing or odd announcements.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-valid-attr-value': {
+      check:
+        'Find elements identified in the issue. Check: What values are assigned to their ARIA attributes? Are they valid according to the ARIA specification? Or are they using invalid/unsupported values?',
+      fix: '(Developer) Change each ARIA attribute value to a valid, supported value. e.g., Change aria-pressed="yes" to aria-pressed="true"',
+      review:
+        'Use a screen reader to test elements and confirm they now announce the correct state or value.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'button-name': {
+      check:
+        "Find buttons on the page that don't have text inside them or visible labels. e.g., icon-only buttons",
+      fix: '(Developer) Add descriptive text. This can be: (1) Text inside the button ("Save", "Submit"), (2) aria-label attribute ("Save document", "Submit form"), or (3) title attribute with the action.',
+      review:
+        'Use a screen reader to Tab through buttons and confirm each announces what it does (e.g., "Save button", "Delete item button").',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'duplicate-id-aria': {
+      check:
+        'Find elements that use duplicate IDs—especially form fields and elements referenced by labels or ARIA attributes. Check the page source or use developer tools to identify duplicates.',
+      fix: '(Developer) Give each element a unique ID. Update any labels or ARIA references (like aria-labelledby) to point to the correct unique ID. e.g., Change duplicate id="email" to id="email-address" and id="email-subscribe".',
+      review:
+        'Test form fields and labels: Click each label and verify it focuses only its intended field. Use Tab to navigate and confirm focus works correctly.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'frame-title': {
+      check:
+        'Find all frames and iframes on the page—maps, videos, widgets, etc. Check if each has a title attribute. If not, note what it contains.',
+      fix: '(Developer) Add a descriptive title attribute to each frame. e.g., title="Location map showing branch offices"',
+      review:
+        'Use a screen reader and Tab through the page. When you reach each frame/iframe, confirm its title is announced.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'frame-title-unique': {
+      check:
+        'Identify pages with multiple frames or iframes of the same type (like multiple videos, etc.). Check: Do they all have the same title? Or unique titles?',
+      fix: '(Developer) Give each frame a unique, descriptive title that distinguishes it. e.g., "Product demo video" vs. "Customer testimonial video".',
+      review:
+        'Use a screen reader and Tab to each frame. Confirm each frame announces a unique title that helps distinguish it from other frames.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'input-button-name': {
+      check:
+        "Find input-based buttons on the page that don't have visible text or labels. e.g., submit buttons with no text, image buttons without alt text.",
+      fix: '(Developer) Add descriptive text: (1) For <input type="submit">, add a value attribute like value="Submit Form". (2) For <input type="image">, add alt text like alt="Search button".',
+      review:
+        'Use a screen reader to Tab through buttons and confirm each announces its purpose (e.g., "Submit form button").',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    label: {
+      check:
+        'Find form fields on the page without visible labels or programmatic labels. Check: Does each field have text near it explaining what to enter? Or can you see what the field is for?',
+      fix: '(Developer) Associate labels with fields: (1) Use <label> elements with for attribute pointing to the field\'s ID, (2) Or use aria-label/aria-labelledby on the field. e.g., <label for="email">Email address:</label> <input id="email">.',
+      review:
+        'Use a screen reader to Tab through form fields and confirm each announces its label. Click visible labels and verify they focus the corresponding field.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'nested-interactive': {
+      check:
+        'Find nested interactive elements on the page. Use Tab or inspect the HTML: Are buttons inside links, links inside buttons, or multiple interactive elements nested together?',
+      fix: '(Developer) Restructure the HTML to remove nesting. Make interactive elements siblings instead of nested. If you need multiple actions, use separate buttons/links at the same level.',
+      review:
+        "Use Tab and click: Confirm you can click and interact with each interactive element separately. Use a screen reader to verify no confusion about what's clickable.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'select-name': {
+      check:
+        "Find select dropdowns on the page. Check each one: Does it have a visible label explaining what the dropdown controls? Or can you tell what it's for without reading surrounding text?",
+      fix: '(Developer) Associate labels with select elements: (1) Use <label> elements with for attribute pointing to the select\'s ID, (2) Or use aria-label/aria-labelledby. e.g., <label for="country">Choose your country:</label> <select id="country">.',
+      review:
+        'Use a screen reader to Tab to each dropdown and confirm it announces the label. Open the dropdown and confirm options are readable.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    accesskeys: {
+      check:
+        'Find elements with accesskey attributes on the page. List which keys are used. Are any duplicates? Do any conflict with common browser/system shortcuts (Ctrl+S, Ctrl+P, etc.)?',
+      fix: '(Developer) Remove duplicate access keys. Rename conflicting keys to avoid browser/system conflicts. Document all access keys on a help page so users know they exist. e.g., "Press Alt+S to search".',
+      review:
+        "Test: Press each documented access key and confirm only one action fires. Verify access keys don't conflict with browser functions (like opening the File menu).",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-dialog-name': {
+      check:
+        'Open popup or modal dialogs on the page. Check each one: Does it have a visible title at the top explaining its purpose? Or any accessible label? e.g.,  "Confirm delete", "Sign in".',
+      fix: '(Developer) Add a clear, descriptive title/label to each dialog: (1) Visible text at the top of the dialog, (2) aria-label or title attribute on the dialog container, or (3) aria-labelledby pointing to the title element.',
+      review:
+        'Use a screen reader to open each dialog and confirm it announces the dialog type and reads the title/purpose clearly.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-text': {
+      check:
+        'Navigate through the page text with a screen reader. Identify if any interactive elements inside text-only role that are not correctly focussed or announced by screen reader.',
+      fix: '(Developer) Remove interactive elements from text elements. If interactive content must be inside, remove the text role or make the interactive element focusable at a higher level.',
+      review:
+        'Use a screen reader and navigate through the page and confirm interactive elements (buttons, links, form fields) receive focus.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-treeitem-name': {
+      check:
+        'Find tree or expandable list items on the page (like file explorers or navigation trees). Check each item: Does it have visible text describing what it is? Can you tell items apart?',
+      fix: '(Developer) Add accessible labels to each tree item: (1) Visible text inside the item, (2) title, (3) aria-label attribute, or (4) aria-labelledby pointing to text elsewhere. e.g., "Folder: Documents", "File: Report.pdf".',
+      review:
+        'Use a screen reader to navigate through tree items and confirm each announces its name. Use arrow keys to expand/collapse and verify screen reader announces state changes.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'empty-heading': {
+      check:
+        'Skim the page and look for empty heading elements (h1, h2, h3, etc.) that have no text content or only contain images/icons without text.',
+      fix: '(Developer) Remove empty headings entirely, remove aria-hidden="true", or add meaningful text that describes the section. e.g.,: "Features", "Contact information".',
+      review:
+        "Use a screen reader to review the page's heading structure and confirm no headings are empty. Use a heading navigation list to verify all headings have descriptive text.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'empty-table-header': {
+      check:
+        'Inspect data tables on the page for empty header cells (column or row headers with no text content). Check: Do all headers have labels? Or are some blank?',
+      fix: '(Developer) Add descriptive text to each header cell. e.g., Column headers might be "Name". Row headers might be "Q1 Sales".  Remove aria-label/aria-labelledby attribute to each header cell.',
+      review:
+        "Use a screen reader to move cell-by-cell through the table and confirm each data cell's header is announced. The announcement should make clear what data is in each cell.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'frame-tested': {
+      check:
+        'Open a page containing embedded frames or iframes (videos, widgets etc). Run a scan and check: Does it report issues in the frames? Or is frame content being skipped?',
+      fix: '(Developer) Test frames with Oobee to surface any issues inside them. Configure tools to scan frames when possible. Fix accessibility issues found within frames. Ensure third-party content meets accessibility standards.',
+      review:
+        'Test keyboard navigation across the page: Tab into and out of frames. Confirm all interactive content in frames is keyboard accessible. Retest with Oobee to confirm frame content is now properly analyzed and accessible.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'heading-order': {
+      check:
+        "Use the browser's headings outline or a screen reader to view the heading structure. Check: Does the page have one H1 at the top? Do headings increase logically (H1 → H2)? Or are levels skipped or out of order?",
+      fix: "(Developer) Restructure headings to follow proper order: Set one H1 for the main page title. Use H2 for primary sections. Use H3 for subsections within H2. Don't skip levels.  Use CSS styles to modify the size of text.",
+      review:
+        'Review the heading outline/list with a screen reader to confirm all headings are in logical, hierarchical order with no gaps or backwards jumps.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'image-redundant-alt': {
+      check:
+        'Find images with alt text on the page. For each image, check: Is there text near the image saying the same thing? Would a screen reader user hear the information twice?',
+      fix: '(Developer) For images that are decorative or just illustrate existing text, use empty alt: alt="". For informative images, write alt text that adds new information or context not already in nearby text.',
+      review:
+        'Use a screen reader to read through the page and confirm no information is announced twice. Images should either add new information or have empty alt if decorative.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'label-title-only': {
+      check:
+        'Find form fields on the page. Check each one: Is there visible text labeling the field? Or is the label hidden, only appearing as a tooltip on hover, or in placeholder text only?',
+      fix: "(Developer) Add visible text labels next to or above each form field. Use <label> elements properly associated with fields. Place labels where they're always visible—not in tooltips or placeholders.",
+      review:
+        'Visually scan the page and verify every form field has a visible label. Tab through with a screen reader and confirm the label is announced.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'landmark-banner-is-top-level': {
+      check:
+        'Check the page structure: Is the header (banner landmark) at the very top level? Or is it nested inside the main content area or another landmark? Use a landmark navigator or browser inspector to verify.',
+      fix: '(Developer) Move the header/banner landmark to the top level of the page, outside the main content and other landmarks. Structure should be: header, then main content, then sidebar, then footer.',
+      review:
+        'Use a landmark navigator (or screen reader landmark commands) to jump between page regions. Confirm you can reach the header directly without being trapped inside other content areas.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'landmark-complementary-is-top-level': {
+      check:
+        'Check the page structure: Is the sidebar (complementary landmark) at the top level? Or nested inside the main content or another landmark? Use a landmark navigator to verify.',
+      fix: '(Developer) Move the sidebar/complementary landmark to the top level, outside the main content. Structure should be: header, main content, sidebar, footer.',
+      review:
+        'Use a landmark navigator to jump to the sidebar region. Confirm you can reach it directly at the top level without being trapped inside other areas.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'landmark-contentinfo-is-top-level': {
+      check:
+        'Check the page structure: Is the footer (contentinfo landmark) at the top level? Or nested inside the main content or another landmark? Use a landmark navigator to verify.',
+      fix: '(Developer) Move the footer/contentinfo landmark to the top level of the page, outside all other content areas. Proper structure: header, main, sidebar, then footer.',
+      review:
+        'Use a landmark navigator to jump to the footer. Confirm you can reach it at the top level. Use a screen reader skip link or landmark navigation to verify you can access footer content without scrolling through all main content.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'landmark-main-is-top-level': {
+      check:
+        'Check the page structure: Is the main content landmark at the top level? Or nested inside other landmarks or containers? Use a landmark navigator or page outline to verify.',
+      fix: '(Developer) Restructure the page so the main content region is at the top level, alongside but separate from header, sidebar, and footer regions.',
+      review:
+        'Use keyboard shortcuts or landmark navigation to jump directly to the main content. Confirm you can reach it quickly from any page location without navigating through other regions first.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'landmark-no-duplicate-banner': {
+      check:
+        'Use a landmark navigator or screen reader to scan the page. Count how many header/banner landmarks exist. Are there multiple headers? Or just one at the top?',
+      fix: '(Developer) Combine multiple headers into one. Remove duplicate headers. Keep only one main header/banner landmark at the top of the page.',
+      review:
+        'Verify with a landmark navigator that the page now has exactly one header/banner region. Use screen reader landmark commands to confirm only one header is announced.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'landmark-no-duplicate-contentinfo': {
+      check:
+        'Use a landmark navigator or screen reader to scan the page. Count how many footer/contentinfo landmarks exist. Are there multiple footers? Or just one at the bottom?',
+      fix: '(Developer) Combine multiple footers into one. Remove duplicate footers. Keep only one main footer/contentinfo landmark at the bottom of the page.',
+      review:
+        'Verify with a landmark navigator that the page now has exactly one footer/contentinfo region. Use screen reader landmark commands to confirm only one footer is announced.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'landmark-no-duplicate-main': {
+      check:
+        'Use a landmark navigator or screen reader to scan the page. Count how many main content landmarks exist. Is there more than one? Or just one?',
+      fix: "(Developer) Consolidate into one main region. Remove or reclassify any duplicate main landmarks. Keep only one main landmark containing the page's primary content. Secondary content should use other landmarks (complementary, regions, etc.).",
+      review:
+        'Verify with a landmark navigator that the page now has exactly one main region. Use screen reader landmark navigation to confirm only one main content area is announced.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'landmark-one-main': {
+      check:
+        'Check if the page has a marked main content region. Is there a <main> element or an element with role="main"? Or does the page lack a clear main content area?',
+      fix: '(Developer) Add a main landmark that wraps the primary page content. Use the semantic <main> element, or use role="main" on a <div>. All important page content should be inside this region.',
+      review:
+        'Use a landmark navigator or screen reader to jump to the main region. Confirm you can reach the primary content directly without navigating through other page areas first.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'landmark-unique': {
+      check:
+        'Use a landmark navigator to scan the page. Are there multiple regions with the same type? Do they have different labels, or are they identical and indistinguishable?',
+      fix: '(Developer) If there are multiple landmarks of the same type, add unique labels using aria-label or aria-labelledby. e.g., role="complementary" aria-label="Featured products sidebar".',
+      review:
+        'Use a landmark navigator and verify each region is announced with its unique label. Confirm you can distinguish one from another.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'meta-viewport-large': {
+      check:
+        'On a mobile device or mobile browser view, try to pinch-zoom (pinch your fingers apart) to enlarge the page. Does it zoom in? Or is zoom blocked and the page stays the same size?',
+      fix: '(Developer) Check the viewport meta tag. It should NOT have user-scalable="no" or maximum-scale="1". Allow zooming by either removing these restrictions or setting maximum-scale to 2 or higher.',
+      review:
+        'Test on mobile: Pinch-zoom to enlarge content to 200%. Confirm text is readable and buttons/controls are still usable and clickable at larger zoom levels.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'page-has-heading-one': {
+      check:
+        'Look at the page and check: Is there a main page title or headline at the top? Is it marked as an H1 heading? Or is there no H1, or multiple H1s?',
+      fix: "(Developer) Add one H1 heading at the top of the page content that describes the page's main topic. Use <h1> tags. This should be the page title or main section. After H1, use H2 for main sections, H3 for subsections, etc.",
+      review:
+        "Use a screen reader or headings list to verify the page has one or more H1 and it's the first heading on the page.",
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'presentation-role-conflict': {
+      check:
+        'Tab through the page looking for odd focus behavior. Do you get stuck on decorative elements? Do some elements receive focus but seem to have no purpose?',
+      fix: '(Developer) Remove role="presentation" or role="none" from interactive elements, OR remove interactive behavior and focus from purely decorative elements. Don\'t mark the element as aria-hidden="true" if role="role="presentation" or role="none" is used as this changes the semantic meaning of the element for screen reader users.',
+      review:
+        'Test with Tab: Navigate through the page in order from top to bottom. Confirm only meaningful interactive elements (buttons, links, form fields) receive focus. Decorative elements should be skipped.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    region: {
+      check:
+        'Check the page structure: Is all meaningful content inside marked regions or landmarks? Or is there orphaned content outside any landmark? Look for text, buttons, or links that float outside structural areas.',
+      fix: '(Developer) Wrap all page content in appropriate landmarks: <header>, <main>, <footer>, <nav>, <aside>, or <section role="region">. Every piece of content should belong to one of these sections.',
+      review:
+        'Use a landmark navigator to verify all page content is inside landmarks. Keyboard navigation should move smoothly between regions with no orphaned content.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'scope-attr-valid': {
+      check:
+        'Pick a table with headers. Check the headers: Do they use scope="col" for column headers? Do they use scope="row" for row headers? Or are scope values missing or incorrect?',
+      fix: '(Developer) Add correct scope attributes to all table headers. Use scope="col" for headers that label columns. Use scope="row" for headers that label rows.',
+      review:
+        'Use a screen reader to navigate the table cell-by-cell. Confirm that as you move through cells, the correct header (column or row) is announced.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'skip-link': {
+      check:
+        'Open the page and press Tab immediately. Does a "Skip to content" or similar link appear? If yes, click it or press Enter. Does it jump to the main content? Or does it fail?',
+      fix: '(Developer) Ensure the skip link exists as the first focusable element. Make sure the hyperlink points to a valid target of the same page (e.g. href="#maincontent"). Test that clicking the link actually moves focus to that target.',
+      review:
+        'Test with keyboard: Press Tab to reveal the skip link. Press Enter to activate it. Confirm your focus moves to the main content area and you can continue from there.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    tabindex: {
+      check:
+        'Use Tab to navigate through the page from top to bottom. Does focus move in a logical, left-to-right, top-to-bottom order? Or does it jump around randomly?',
+      fix: '(Developer) Search the HTML for any tabindex attributes with positive numbers (1, 2, 3, etc.) and remove them. Use tabindex="0" to include elements in normal tab order, or tabindex="-1" to exclude them. Finally check that HTML elements are ordered semantically in a logical way from top to bottom, and re-order them where necessary.',
+      review:
+        'Test keyboard navigation again: Tab from the top of the page down. Focus should move in a logical, predictable order. No random jumps or skips.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'table-duplicate-name': {
+      check:
+        'Find tables with both a <caption> element and a summary attribute (or aria-label). Check: Do they say the same thing? Or does each add different information?',
+      fix: '(Developer) If caption and summary are identical, remove one. Keep the caption. Or revise the summary to add context or explanation not already in the caption.',
+      review:
+        'Use a screen reader to navigate the table and confirm the caption/summary is announced once with clear information. No duplicate announcements.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'meta-viewport': {
+      check:
+        'Test zooming: On desktop, use browser zoom (Ctrl and +, or Cmd and +). On laptop or mobile, pinch your fingers apart to zoom. Can you enlarge the page content? Or is zoom blocked and nothing happens?',
+      fix: '(Developer) Check the <meta name="viewport"> tag in the page\'s HTML. Remove or change: user-scalable="no" (change to user-scalable="yes"), and maximum-scale="1" (increase to at least 2). e.g., <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2, user-scalable=yes">.',
+      review:
+        'Test zoom on both desktop and mobile: Zoom to 200% (double size). Confirm text is readable, buttons are clickable, and page functionality works normally at larger zoom levels.',
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+    'aria-allowed-role': {
+      check:
+        'Find elements that look clickable on the page. Ask: Does this do something (like submit a form or open a menu)? Or does it go somewhere else (navigate to a new page)? Check if the label matches what it actually does.',
+      fix: '(Developer) Use real <button> for actions, real <a> for navigation links. If you must use code to create buttons or links, make sure they actually behave like real ones—buttons activate with Space/Enter, links activate with Enter and navigate away.',
+      review: `Test with keyboard: Try clicking buttons (Space or Enter), try clicking links (Enter). Use a screen reader to hear if it's announced as a button or link. Confirm what it announces matches what it actually does.`,
+      learn: 'Review and learn more about this issue on A11y Playground',
+    },
+  };
+</script>

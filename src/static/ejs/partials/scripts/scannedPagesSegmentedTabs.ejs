@@ -1,0 +1,35 @@
+<script>
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.seg-pill');
+    if (!btn) return;
+
+    const container = btn.closest('.segmented-tabs');
+    const targetSel = btn.getAttribute('data-tab-target');
+    const panel = document.querySelector(targetSel);
+    if (!panel) return;
+
+    container.querySelectorAll('.seg-pill').forEach((p) =>
+      p.setAttribute('aria-selected', 'false')
+    );
+    btn.setAttribute('aria-selected', 'true');
+
+    document
+      .querySelectorAll('.seg-panels > [role="tabpanel"]')
+      .forEach((p) => (p.hidden = true));
+    panel.hidden = false;
+  });
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const pairs = [
+      ['#seg-not-scanned', '#totalPagesNotScannedLabel'],
+      ['#seg-unsupported', '#totalUnsupportedDocsLabel']
+    ];
+    pairs.forEach(([btnSel, countSel]) => {
+      const btn = document.querySelector(btnSel);
+      const countEl = document.querySelector(countSel);
+      if (btn && countEl && countEl.textContent.trim() === '0') {
+        btn.style.display = 'none';
+      }
+    });
+  });
+</script>

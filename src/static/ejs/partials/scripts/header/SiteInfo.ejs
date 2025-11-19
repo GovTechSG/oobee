@@ -1,0 +1,44 @@
+<script>
+  (function populateSiteInfo() {
+    const siteName = scanData.siteName || 'N/A';
+    document.getElementById('siteName').textContent = siteName;
+
+    const siteUrl = scanData.urlScanned || '#';
+    const siteUrlElement = document.getElementById('siteUrl');
+    const urlTextElement = siteUrlElement.querySelector('.url-text');
+    if (urlTextElement) {
+      const svgElement = urlTextElement.querySelector('svg');
+      const textNode = document.createTextNode(siteUrl);
+      urlTextElement.textContent = '';
+      urlTextElement.appendChild(textNode);
+      if (svgElement) {
+        urlTextElement.appendChild(svgElement);
+      }
+    }
+    siteUrlElement.href = siteUrl;
+
+    const formatScanDate = dateString => {
+      const utcDate = new Date(dateString);
+      const formattedDate = utcDate.toLocaleString('en-GB', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour12: false,
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZoneName: 'short',
+      });
+      return formattedDate;
+    };
+
+    if (scanData.startTime) {
+      const formattedScanDate = formatScanDate(scanData.startTime).replace(
+        /GMT([+-])(\d{1,2})/,
+        (_, sign, hour) => `(GMT ${sign}${hour.padStart(2, '0')})`,
+      );
+      document.getElementById('siteScannedOn').textContent = `Scanned on ${formattedScanDate}`;
+    } else {
+      document.getElementById('siteScannedOn').textContent = 'Scan date: N/A';
+    }
+  })();
+</script>

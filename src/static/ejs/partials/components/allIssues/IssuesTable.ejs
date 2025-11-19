@@ -1,0 +1,41 @@
+<div class="issues-table-container" tabindex="0">
+  <table class="issues-table" id="issuesTable">
+    <thead>
+      <tr>
+        <th class="sortable" role="button" tabindex="0" aria-sort="none" style="width: 15%;">
+          <span>Severity</span>
+          <svg class="sort-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 9L12 4L17 9H7Z" fill="currentColor" opacity="1" />
+            <path d="M7 15L12 20L17 15H7Z" fill="currentColor" opacity="0.3" />
+          </svg>
+        </th>
+        <th class="sortable" role="button" tabindex="0" aria-sort="none">
+          <span>Issue Name</span>
+          <svg class="sort-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 9L12 4L17 9H7Z" fill="currentColor" opacity="0.3" />
+            <path d="M7 15L12 20L17 15H7Z" fill="currentColor" opacity="1" />
+          </svg>
+        </th>
+        <th class="sortable" role="button" tabindex="0" aria-sort="descending" style="width: 15%;">
+          <span>Occurrence</span>
+          <svg class="sort-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 9L12 4L17 9H7Z" fill="currentColor" opacity="0.3" />
+            <path d="M7 15L12 20L17 15H7Z" fill="currentColor" opacity="1" />
+          </svg>
+        </th>
+        <th style="width: 30%;" aria-hidden="true"></th>
+      </tr>
+    </thead>
+    <tbody id="issuesTableBody">
+      <!-- Dynamically populated by script -->
+    </tbody>
+  </table>
+
+  <div id="emptyState" class="empty-state" style="display: none">
+    <p>No issues found matching your criteria.</p>
+  </div>
+
+  <div id="totalIssuesCount" class="total-issues-count">
+    <!-- Dynamically updated -->
+  </div>
+</div>

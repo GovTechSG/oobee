@@ -1,0 +1,50 @@
+<style>
+  .about-scan-details-right {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--left-col) + var(--gap));
+    right: 0;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .about-scan-details-right .unbulleted-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .about-scan-details-right .unbulleted-list > li {
+    padding: 0.4rem 0;
+  }
+
+  .about-scan-details-right .unbulleted-list > li + li {
+    border-top: 1px solid var(--divider, --bright-gray);
+  }
+
+  #pagesScannedList > li:first-child {
+    padding-top: 0;
+  }
+
+  #pagesScannedList > li:last-child {
+    padding-bottom: 0;
+  }
+
+  #pagesScannedList > li > p {
+    margin-bottom: 0;
+  }
+
+  .display-url-container {
+    flex: 1;
+    min-width: 0;
+  }
+
+  @media (max-width: 991.98px) {
+    .about-scan-details-right {
+      position: static;
+      overflow: visible;
+      padding: 0;
+    }
+  }
+</style>
