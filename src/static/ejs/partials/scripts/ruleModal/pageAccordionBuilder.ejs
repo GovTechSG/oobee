@@ -106,8 +106,19 @@
     const accordionsList = createElementFromString(`<ul class="unbulleted-list"></ul>`);
     let htmlIndex = 0;
 
-    Object.entries(groupedByHtml).forEach(([htmlElement, items]) => {
-      const accordion = createHtmlElementAccordion(htmlElement, items, htmlIndex, category, ruleInCategory, isCustomFlow);
+    const sortedGroups = Object.entries(groupedByHtml).sort(([, itemsA], [, itemsB]) => {
+      return itemsB.length - itemsA.length; // DESC
+    });
+
+    sortedGroups.forEach(([htmlElement, items]) => {
+      const accordion = createHtmlElementAccordion(
+        htmlElement,
+        items,
+        htmlIndex,
+        category,
+        ruleInCategory,
+        isCustomFlow
+      );
       accordionsList.appendChild(accordion);
       htmlIndex++;
     });
