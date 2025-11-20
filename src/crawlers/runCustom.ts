@@ -1,7 +1,7 @@
 /* eslint-env browser */
 import { chromium } from 'playwright';
 import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
-import { cleanUpAndExit, register} from '../utils.js';
+import { cleanUpAndExit, register, registerSoftClose } from '../utils.js';
 import constants, {
   getIntermediateScreenshotsPath,
   guiInfoStatusTypes,
@@ -100,6 +100,9 @@ const runCustom = async (
       } catch {
       }
     };
+
+    // For handling closing playwright browser and continue generate artifacts etc
+    registerSoftClose(processPageParams.stopAll);
 
     addUrlGuardScript(context, { fallbackUrl: url });
 
