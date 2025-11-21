@@ -168,7 +168,6 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | Issue ID                            | Issue Description                                                                                                                              | Severity    |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | accesskeys                          | Ensures every accesskey attribute value is unique                                                                                              | Good to Fix |
-| aria-allowed-role                   | Ensures role attribute has an appropriate value for the element                                                                                | Good to Fix |
 | aria-dialog-name                    | Ensures every ARIA dialog and alertdialog node has an accessible name                                                                          | Good to Fix |
 | aria-text                           | Ensures role="text" is used on elements with no focusable descendants                                                                          | Good to Fix |
 | aria-treeitem-name                  | Ensures every ARIA treeitem node has an accessible name                                                                                        | Good to Fix |
