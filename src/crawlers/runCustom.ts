@@ -1,7 +1,7 @@
 /* eslint-env browser */
 import { chromium } from 'playwright';
 import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
-import { cleanUpAndExit, register} from '../utils.js';
+import { cleanUpAndExit, register, registerSoftClose } from '../utils.js';
 import constants, {
   getIntermediateScreenshotsPath,
   guiInfoStatusTypes,
@@ -22,6 +22,9 @@ export class ProcessPageParams {
   intermediateScreenshotsPath: string;
   urlsCrawled: UrlsCrawled;
   randomToken: string;
+  customFlowLabel?: string;
+  stopAll?: () => Promise<void>;
+
   constructor(
     scannedIdx: number,
     blacklistedPatterns: string[] | null,
@@ -47,6 +50,7 @@ const runCustom = async (
   viewportSettings: ViewportSettingsClass,
   blacklistedPatterns: string[] | null,
   includeScreenshots: boolean,
+  initialCustomFlowLabel?: string,
 ) => {
   // checks and delete datasets path if it already exists
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
@@ -63,6 +67,10 @@ const runCustom = async (
     urlsCrawled,
     randomToken,
   );
+
+  if (initialCustomFlowLabel && initialCustomFlowLabel.trim()) {
+    processPageParams.customFlowLabel = initialCustomFlowLabel.trim();
+  }
 
   const pagesDict = {};
   const pageClosePromises = [];
@@ -84,6 +92,17 @@ const runCustom = async (
     });
 
     register(context);
+
+    processPageParams.stopAll = async () => {
+      try {
+        await context.close().catch(() => {});
+        await browser.close().catch(() => {});
+      } catch {
+      }
+    };
+
+    // For handling closing playwright browser and continue generate artifacts etc
+    registerSoftClose(processPageParams.stopAll);
 
     addUrlGuardScript(context, { fallbackUrl: url });
 
@@ -115,7 +134,10 @@ const runCustom = async (
   }
 
   guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
-  return urlsCrawled;
+  return {
+    urlsCrawled,
+    customFlowLabel: processPageParams.customFlowLabel,
+  };
 };
 
 export default runCustom;

@@ -1834,6 +1834,9 @@ const generateArtifacts = async (
 
   flattenAndSortResults(allIssues, isCustomFlow);
 
+  const labelKey = scanType.toLowerCase() === 'custom' ? 'CustomFlowLabel' : 'Label';
+  const labelValue = allIssues.customFlowLabel || 'N/A';
+
   printMessage([
     'Scan Summary',
     `Oobee App Version: ${allIssues.oobeeAppVersion}`,
@@ -1847,7 +1850,7 @@ const generateArtifacts = async (
     `Device: ${allIssues.deviceChosen}`,
     `Viewport: ${allIssues.viewport}`,
     `Scan Type: ${allIssues.scanType}`,
-    `Label: ${allIssues.customFlowLabel || 'N/A'}`,
+    `${labelKey}: ${labelValue}`,
     '',
     `Must Fix: ${allIssues.items.mustFix.rules.length} ${Object.keys(allIssues.items.mustFix.rules).length === 1 ? 'issue' : 'issues'} / ${allIssues.items.mustFix.totalItems} ${allIssues.items.mustFix.totalItems === 1 ? 'occurrence' : 'occurrences'}`,
     `Good to Fix: ${allIssues.items.goodToFix.rules.length} ${Object.keys(allIssues.items.goodToFix.rules).length === 1 ? 'issue' : 'issues'} / ${allIssues.items.goodToFix.totalItems} ${allIssues.items.goodToFix.totalItems === 1 ? 'occurrence' : 'occurrences'}`,
