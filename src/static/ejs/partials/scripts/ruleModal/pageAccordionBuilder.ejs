@@ -22,14 +22,33 @@
     groupByPage.parentNode.replaceChild(newGroupByPage, groupByPage);
     groupByHtmlElement.parentNode.replaceChild(newGroupByHtmlElement, groupByHtmlElement);
 
+    const updateDropdownTitle = (isHtmlGrouping) => {
+      const itemsToUse = typeof filteredItems !== 'undefined' ? filteredItems : scanItems;
+        const dropdownTitle = document.getElementById('expandedRuleDropdownTitle');
+        if (dropdownTitle) {
+          const selectedCategory = itemsToUse[category]?.rules?.find(r => r.rule === ruleInCategory.rule);
+          if (selectedCategory) {
+            const count = selectedCategory.pagesAffected.length;
+            if (isHtmlGrouping) {
+              dropdownTitle.innerText = `HTML elements affected by this issue (${count})`;
+            } else {
+              dropdownTitle.innerText = `Pages affected by this issue (${count})`;
+            }
+          }
+        }
+      };
+
+
     newGroupByPage.addEventListener('change', () => {
       if (newGroupByPage.checked) {
         renderGroupedByPage(category, ruleInCategory, isCustomFlow);
+        updateDropdownTitle(false);
       }
     });
 
     newGroupByHtmlElement.addEventListener('change', async () => {
       if (newGroupByHtmlElement.checked) {
+        updateDropdownTitle(true);
         const contentContainer = document.getElementById('expandedRuleCategoryContent');
         contentContainer.innerHTML = `
           <div class="p-4 text-center">
