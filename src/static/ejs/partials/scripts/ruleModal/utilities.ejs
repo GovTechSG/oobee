@@ -76,4 +76,340 @@
       return elements.join('');
     }
   }
+
+  // Generate AI-powered fix suggestions using wcag-eval API
+  const generateGenAiSuggestFix = async (ruleId, accordionDiv, html, buttonDiv, errorDiv) => {
+    console.log('Gen AI Suggest Fix called:', { ruleId, accordionDiv, html, buttonDiv, errorDiv });
+
+    const SUPPORTED_RULES = ['color-contrast', 'oobee-accessible-label'];
+    if (!SUPPORTED_RULES.includes(ruleId)) {
+      console.warn(`Gen AI Suggest Fix not yet available for ${ruleId}`);
+      return;
+    }
+
+    // Update button state
+    const button = document.getElementById(buttonDiv);
+    if (!button) {
+      console.error('Gen AI button not found:', buttonDiv);
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Generating Fix...';
+
+    // Clear previous errors
+    const errorContainer = document.getElementById(errorDiv);
+    if (errorContainer) {
+      errorContainer.innerHTML = '';
+    }
+
+    try {
+      let violationContext = null;
+      let elementContext = null;
+
+      // Attempt to get violation context from embedded JSON data
+      if (window.oobeeJsonContextParser && window.oobeeJsonContextParser.jsonData) {
+        violationContext = window.oobeeJsonContextParser.getViolationContextByHtml(html, ruleId);
+
+        if (violationContext) {
+          console.log('Found violation context from embedded JSON:', violationContext);
+        } else {
+          console.warn('No matching violation found in embedded JSON data, will extract context from DOM');
+        }
+      } else {
+        console.warn('Embedded JSON context parser not available, will extract context from DOM');
+      }
+
+      // Extract element context from DOM if embedded JSON data is not available
+      if (!violationContext || !violationContext.colorData) {
+        console.log('Extracting element context from DOM as fallback');
+        elementContext = extractElementContext(html);
+      } else {
+        console.log('Using embedded JSON violation context, skipping DOM extraction');
+      }
+
+      // Build scanner findings from embedded JSON data or fallback to extracted context
+      let scannerFindings;
+      if (violationContext && violationContext.colorData) {
+        const colorData = violationContext.colorData;
+        console.log('Using color data from embedded JSON:', {
+          foreground: colorData.foreground,
+          background: colorData.background,
+          currentRatio: colorData.currentRatio,
+          requiredRatio: colorData.requiredRatio,
+          fontSize: colorData.fontSize,
+          fontWeight: colorData.fontWeight
+        });
+
+        scannerFindings = {
+          foreground: colorData.foreground || '#000000',
+          background: colorData.background || '#ffffff',
+          font_size_px: colorData.fontSize || 16,
+          font_weight: colorData.fontWeight || '400',
+          contrast_ratio: colorData.currentRatio || 1.0,
+          required_ratio: colorData.requiredRatio || 4.5,
+          actual_html: violationContext.html,
+          xpath_selector: violationContext.xpath
+        };
+        console.log('Using embedded JSON-based scanner findings with contrast ratio:', scannerFindings.contrast_ratio);
+      } else {
+        scannerFindings = {
+          foreground: elementContext?.foreground || '#000000',
+          background: elementContext?.background || '#ffffff',
+          font_size_px: elementContext?.fontSize || 16,
+          font_weight: elementContext?.fontWeight || '400',
+          contrast_ratio: elementContext?.contrastRatio || 1.0,
+          required_ratio: 4.5
+        };
+        console.log('Using fallback scanner findings:', scannerFindings);
+      }
+
+      let violationType = ruleId === 'color-contrast' ? 'color-contrast' : 'accessible-label';
+
+      // Prepare payload for wcag-eval API
+      const apiPayload = {
+        violation_type: violationType,
+        html: html,
+        css: elementContext?.css || '',
+        violation_context: violationContext ? {
+          severity: violationContext.severity,
+          issue_description: violationContext.issueDescription,
+          wcag_conformance: violationContext.wcagConformance,
+          page_title: violationContext.pageTitle,
+          page_url: violationContext.url,
+          how_to_fix: violationContext.howToFix,
+          axe_impact: violationContext.axeImpact,
+          learn_more: violationContext.learnMore
+        } : {},
+        context: {
+          rule_id: ruleId,
+          timestamp: new Date().toISOString(),
+          data_source: violationContext ? 'json_scan_results' : 'dom_extraction'
+        }
+      };
+
+      // Add scanner_findings for color-contrast violations
+      if (violationType === 'color-contrast') {
+        apiPayload.scanner_findings = scannerFindings;
+      }
+
+      console.log('Sending request to wcag-eval API:', apiPayload);
+
+      // Call wcag-eval API
+      const wcagEvalApiUrl = 'http://localhost:5000/generate-fix';
+      const response = await fetch(wcagEvalApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(apiPayload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const apiResponse = await response.json();
+      console.log('Received response from wcag-eval API:', apiResponse);
+
+      if (!apiResponse.success) {
+        throw new Error(apiResponse.error || 'API returned unsuccessful response');
+      }
+
+      const fixSuggestion = apiResponse.fix_suggestion;
+      console.log('Fix suggestion data:', fixSuggestion);
+      console.log('Code fixes array:', fixSuggestion?.code_fixes);
+
+      // Format the AI response for display
+      const formattedResponse = formatFixSuggestionResponse(fixSuggestion);
+
+      // Display the generated fix
+      const responseContainer = document.getElementById(accordionDiv);
+      if (responseContainer) {
+        responseContainer.innerHTML = formattedResponse;
+
+        // Highlight code blocks
+        responseContainer.querySelectorAll('.codeForAiResponse').forEach(el => {
+          if (typeof hljs !== 'undefined') {
+            hljs.highlightElement(el);
+          }
+        });
+      }
+
+      // Reset button to regenerate state
+      button.disabled = false;
+      button.style = 'border: 1px solid var(--oobee-blue-100); color: var(--oobee-blue-100);';
+      button.textContent = 'Regenerate Fix';
+
+    } catch (error) {
+      console.error('Error in Gen AI fix generation:', error);
+
+      // Reset button to initial state
+      button.disabled = false;
+      button.style = 'border: 1px solid var(--oobee-blue-100); color: var(--oobee-blue-100);';
+      button.textContent = 'Gen AI Suggest Fix';
+
+      if (errorContainer) {
+        const isConnectionError = error.message.includes('fetch') || error.message.includes('Failed to fetch');
+        const errorMessage = isConnectionError
+          ? 'Unable to connect to AI service. Please ensure the wcag-eval API is running on port 5000.'
+          : `Failed to generate fix suggestion: ${error.message}`;
+
+        errorContainer.innerHTML = `<div class="generateAiError">${errorMessage}</div>`;
+      }
+    }
+  };
+
+  // Helper function to extract element context from HTML/CSS
+  function extractElementContext(html) {
+    const context = {
+      css: '',
+      foreground: '#000000',
+      background: '#ffffff',
+      fontSize: 16,
+      fontWeight: '400',
+      contrastRatio: 1.0
+    };
+
+    try {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      const element = tempDiv.querySelector('*') || tempDiv;
+
+      if (element && element.parentNode) {
+        document.body.appendChild(tempDiv);
+        const computedStyle = window.getComputedStyle(element);
+
+        context.foreground = rgbToHex(computedStyle.color) || context.foreground;
+        context.background = rgbToHex(computedStyle.backgroundColor) || context.background;
+        context.fontSize = parseFloat(computedStyle.fontSize) || context.fontSize;
+        context.fontWeight = computedStyle.fontWeight || context.fontWeight;
+
+        if (element.style && element.style.cssText) {
+          context.css = element.style.cssText;
+        }
+
+        document.body.removeChild(tempDiv);
+      }
+
+      if (context.foreground && context.background) {
+        context.contrastRatio = calculateContrastRatio(context.foreground, context.background);
+      }
+
+    } catch (error) {
+      console.warn('Could not extract element context:', error);
+    }
+
+    return context;
+  }
+
+  // Format fix suggestion response for display
+  function formatFixSuggestionResponse(fixSuggestion) {
+    const contrastAnalysis = fixSuggestion.contrast_analysis || {};
+    const plainExplanation = fixSuggestion.why_it_matters || 'This fix improves accessibility for users with visual impairments.';
+    const diagnosis = fixSuggestion.diagnosis || plainExplanation;
+
+    // Escape HTML for safe rendering
+    const escapeHtml = (text) => String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+    // Build code fixes section
+    let codeFixesHtml = '';
+
+    if (fixSuggestion.code_fixes && Array.isArray(fixSuggestion.code_fixes) && fixSuggestion.code_fixes.length > 0) {
+      const codeFixes = fixSuggestion.code_fixes.map((fix, index) => {
+        const language = fix.language || 'html';
+        const description = fix.description || `Option ${index + 1}`;
+        const code = fix.after || fix.before || '';
+        const marginBottom = index === fixSuggestion.code_fixes.length - 1 ? '0' : '20px';
+
+        return `
+        <div style="margin-bottom: ${marginBottom};">
+          <p style="font-size: 13px; margin-bottom: 8px; color: #666; font-weight: 500;">${escapeHtml(description)}</p>
+          <code class="codeForAiResponse language-${escapeHtml(language)} hljs" style="display: block; padding: 16px; background: #f8f9fa; border-radius: 6px; font-size: 13px; border: 1px solid #e0e0e0; white-space: pre-wrap; word-break: break-all;">${escapeHtml(code)}</code>
+        </div>`;
+      }).join('');
+
+      codeFixesHtml = `
+      <div style="margin-bottom: 16px;">
+        <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">Code Fix${fixSuggestion.code_fixes.length > 1 ? 'es' : ''}:</h4>
+        ${codeFixes}
+      </div>
+    `;
+    }
+
+    return `
+      <div class="genai-response-card">
+        <div style="margin-bottom: 24px;">
+          <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">What's the problem?</h4>
+          <p style="font-size: 14px; line-height: 1.6; margin-bottom: 16px; color: #333;">
+            ${escapeHtml(diagnosis)}
+          </p>
+
+          ${contrastAnalysis.current_ratio ? `
+          <div style="background: #FAF8FD; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+            <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #333;">
+              The current text has a contrast ratio of <strong>${contrastAnalysis.current_ratio}:1</strong>,
+              but it needs at least <strong>${contrastAnalysis.required_ratio}:1</strong> to meet accessibility standards.
+              ${contrastAnalysis.passes_aa
+                ? `The suggested fix achieves <strong>${contrastAnalysis.proposed_ratio}:1</strong>, which passes WCAG AA requirements.`
+                : `The suggested fix improves it to <strong>${contrastAnalysis.proposed_ratio}:1</strong>.`}
+            </p>
+          </div>
+          ` : ''}
+
+          ${fixSuggestion.fix_steps && fixSuggestion.fix_steps.length > 0 ? `
+          <div style="margin-top: 16px;">
+            <h5 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">How to fix it:</h5>
+            <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #333;">
+              ${fixSuggestion.fix_steps.map(step => `<li style="word-wrap: break-word; overflow-wrap: break-word;">${escapeHtml(step)}</li>`).join('')}
+            </ol>
+          </div>
+          ` : ''}
+        </div>
+
+        ${codeFixesHtml}
+      </div>
+    `;
+  }
+
+  // Convert RGB color to hex format
+  function rgbToHex(rgb) {
+    if (!rgb || rgb === 'transparent' || rgb === 'inherit') return null;
+
+    const result = rgb.match(/\d+/g);
+    if (!result || result.length < 3) return null;
+
+    const r = parseInt(result[0]);
+    const g = parseInt(result[1]);
+    const b = parseInt(result[2]);
+
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  // Calculate WCAG contrast ratio between two colors
+  function calculateContrastRatio(color1, color2) {
+    try {
+      const getLuminance = (hex) => {
+        const rgb = hex.match(/\w\w/g).map(h => parseInt(h, 16) / 255);
+        const [r, g, b] = rgb.map(c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+
+      const l1 = getLuminance(color1.replace('#', ''));
+      const l2 = getLuminance(color2.replace('#', ''));
+      const lightest = Math.max(l1, l2);
+      const darkest = Math.min(l1, l2);
+
+      return Math.round(((lightest + 0.05) / (darkest + 0.05)) * 100) / 100;
+    } catch (error) {
+      console.warn('Could not calculate contrast ratio:', error);
+      return 1.0;
+    }
+  }
 </script>

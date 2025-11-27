@@ -3,6 +3,9 @@
     const accordionAIId = `${ruleInCategory.rule}-${category}-accordion-AI-${index}`;
     const buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-${index}`;
     const errorAIId = `${ruleInCategory.rule}-${category}-error-AI-${index}`;
+    const genAiAccordionId = `${ruleInCategory.rule}-${category}-genai-accordion-${index}`;
+    const genAiButtonId = `${ruleInCategory.rule}-${category}-genai-button-${index}`;
+    const genAiErrorId = `${ruleInCategory.rule}-${category}-genai-error-${index}`;
     const accordion = document.getElementById(`${accordionId}-title`).parentElement.parentElement
       .parentElement;
 
@@ -22,6 +25,9 @@
       const accordionDivToAppendAI = `${accordionAIId}-${itemIndex}`;
       const buttonDivForAiFeedback = `${buttonAIId}-${itemIndex}`;
       const aiErrorDiv = `${errorAIId}-${itemIndex}`;
+      const genAiAccordionDiv = `${genAiAccordionId}-${itemIndex}`;
+      const genAiButtonDiv = `${genAiButtonId}-${itemIndex}`;
+      const genAiErrorDiv = `${genAiErrorId}-${itemIndex}`;
 
       const isPurpleAiRule = oobeeAiRules.includes(ruleInCategory.rule);
       let oobeeAiQueryLabel;
@@ -33,6 +39,9 @@
         accordionDivToAppendAI,
         buttonDivForAiFeedback,
         aiErrorDiv,
+        genAiAccordionDiv,
+        genAiButtonDiv,
+        genAiErrorDiv,
         ruleInCategory,
       });
 
@@ -137,6 +146,8 @@
   }
 
   function createItemCard(item, isPurpleAiRule, oobeeAiQueryLabel, aiConfig) {
+    const isGenAiSupportedRule = ['color-contrast', 'oobee-accessible-label'].includes(aiConfig.ruleInCategory.rule);
+
     return createElementFromString(`
       <div>
         <div class="d-flex gap-3 flex-column">
@@ -155,6 +166,7 @@
               : ''
           }
           ${isPurpleAiRule ? createAiSuggestionSection(item, oobeeAiQueryLabel, aiConfig) : ''}
+          ${isGenAiSupportedRule ? createGenAiSuggestFixSection(item, aiConfig) : ''}
         </div>
       </div>
     `);
@@ -271,6 +283,31 @@
         <div class="fw-semibold page-item-card-section-title">AI suggestion</div>
         <div id="${accordionDivToAppendAI}" class="page-item-card-section-content">
           ${aiContent}
+        </div>
+      </div>
+    `;
+  }
+
+  function createGenAiSuggestFixSection(item, aiConfig) {
+    const { genAiAccordionDiv, genAiButtonDiv, genAiErrorDiv, ruleInCategory } = aiConfig;
+
+    return `
+      <div class="d-flex g-one genai-fix-section">
+        <div class="fw-semibold page-item-card-section-title">Generative AI Fix</div>
+        <div id="${genAiAccordionDiv}" class="page-item-card-section-content">
+          <button
+            id="${genAiButtonDiv}"
+            class="genAiSuggestFixButton"
+            onClick="generateGenAiSuggestFix(
+              '${ruleInCategory.rule}',
+              '${genAiAccordionDiv}',
+              '${escapeHtmlStringForArg(item.html)}',
+              '${genAiButtonDiv}',
+              '${genAiErrorDiv}')"
+          >
+            Gen AI Suggest Fix
+          </button>
+          <div id="${genAiErrorDiv}"></div>
         </div>
       </div>
     `;
