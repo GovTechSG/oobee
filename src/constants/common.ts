@@ -314,9 +314,8 @@ const checkUrlConnectivityWithBrowser = async (
     return res;
   }
 
-    // STEP 1: For local file scans
+  // STEP 1: For local file scans
   let contentType = '';
-
   const protocol = new URL(url).protocol;
 
   if (protocol !== 'http:' && protocol !== 'https:') {
@@ -386,39 +385,34 @@ const checkUrlConnectivityWithBrowser = async (
       consoleLogger.info(`Unable to set download deny: ${(e as Error).message}`);
     }
 
+    // OPTIMIZATION: Block heavy visual resources (Images/Fonts/CSS)
+    // This allows the "Connectivity Check" to pass as soon as HTML is ready
+    await page.route('**/*', (route) => {
+      const type = route.request().resourceType();
+      if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
+        return route.abort(); 
+      }
+      return route.continue();
+    });
+
     // STEP 2: Navigate (follows server-side redirects)
     page.once('download', () => { 
       res.status = constants.urlCheckStatuses.notASupportedDocument.code;
       return res;
     });
     
+    // OPTIMIZATION: Wait for 'domcontentloaded' only
     const response = await page.goto(url, {
       timeout: 15000,
       waitUntil: 'domcontentloaded', // enough to get status + allow potential client redirects to kick in
     });
 
-    // Give client-side redirects (meta refresh / JS location.*) a moment
-    try {
-      await page.waitForLoadState('networkidle', { timeout: 8000 });
-    } catch {
-      consoleLogger.info('networkidle not reached; proceeding with verification GET');
-    }
+    if (!response) throw new Error('No response from navigation');
 
-    // STEP 3: Verify final URL with a GET (follows redirects)
+    // We use the response headers from the navigation we just performed.
     const finalUrl = page.url();
-    let verifyResp = response;
-    try {
-      verifyResp = await page.request.fetch(finalUrl, {
-        method: 'GET',
-        headers: extraHTTPHeaders,
-      });
-    } catch (e) {
-      consoleLogger.info(`Verification GET failed, falling back to navigation response: ${e.message}`);
-    }
-
-    // Prefer verification GET; fall back to nav response
-    const finalStatus = verifyResp?.status?.() ?? response?.status?.() ?? 0;
-    const headers = (verifyResp?.headers?.() ?? response?.headers?.()) || {};
+    const finalStatus = response.status();
+    const headers = response.headers();
     contentType = headers['content-type'] || '';
 
     if (!isAllowedContentType(contentType)) {
@@ -448,6 +442,7 @@ const checkUrlConnectivityWithBrowser = async (
     } else {
       try {
         // Try to get a stable DOM; don't fail the check if it times out
+        // Note: Since we used 'domcontentloaded' in goto, this is fast, but kept for safety/stability
         await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
       } catch {}
       res.content = await page.content();
