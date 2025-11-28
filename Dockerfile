@@ -22,18 +22,6 @@ COPY . .
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
 
-# --- OPTIMIZATION SECTION ---
-
-# 1. NETWORK: Fix AWS ECS 5-second DNS Timeout
-#    - ipv4first: Skips waiting for IPv6 timeouts on Fargate
-#    - no-warnings: Keeps logs clean
-ENV NODE_OPTIONS="--dns-result-order=ipv4first --no-warnings"
-
-# 2. STARTUP SPEED: Enable Node 22 Native Compile Cache
-ENV NODE_COMPILE_CACHE=/app/oobee/.node_compile_cache
-
-# --- END OPTIMIZATION ---
-
 # Install oobee dependencies
 RUN npm ci --omit=dev
 
@@ -56,3 +44,14 @@ WORKDIR /app/oobee
 
 # Run everything after as non-privileged user
 USER purple
+
+# NETWORK OPTIMISATION: Fix AWS ECS 5-second DNS Timeout
+#    - ipv4first: Skips waiting for IPv6 timeouts on Fargate
+#    - no-warnings: Keeps logs clean
+ENV NODE_OPTIONS="--dns-result-order=ipv4first --no-warnings"
+
+# STARTUP OPTIMISATION: Enable Node 22 Native Compile Cache
+ENV NODE_COMPILE_CACHE=/app/oobee/.node_compile_cache
+
+# CREATE WARM CACHE: Cache Node Running Oobee
+RUN OOBEE_SENTRY_DSN=http://localhost npm run cli -- -u https://www.tech.gov.sg -c 2 -p 1 -k 'Build:41898282+github-actions[bot]@users.noreply.github.com' -a none
