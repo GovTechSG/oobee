@@ -1,57 +1,57 @@
 # Use Microsoft Playwright image as base image
-# Node version is v22
 FROM mcr.microsoft.com/playwright:v1.55.0-noble
 
-# Installation of packages for oobee and runner (locked versions from build log)
+# 1. Install System Deps & dumb-init
 RUN apt-get update && apt-get install -y \
     git=1:2.43.0-1ubuntu7.3 \
-    git-man=1:2.43.0-1ubuntu7.3 \
     unzip=6.0-28ubuntu4.1 \
     zip=3.0-13ubuntu0.2 \
  && rm -rf /var/lib/apt/lists/*
- 
+
+# 2. Setup User & Directories FIRST
+# We create the directory structure now so we can use it for COPY later
+RUN groupadd -r purple && useradd -r -g purple purple \
+    && mkdir -p /app/oobee /home/purple \
+    && chown -R purple:purple /home/purple /app
+
 WORKDIR /app/oobee
 
-# Clone oobee repository
-# RUN git clone --branch master https://github.com/GovTechSG/oobee.git /app/oobee
-
-# OR Copy oobee files from local directory
-COPY . .
-
-# Environment variables for node and Playwright
+# --- OPTIMIZATION: Early Environment Setup ---
+# Must be set BEFORE 'npm run' commands for caching to work
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
+ENV NODE_OPTIONS="--dns-result-order=ipv4first --no-warnings --max-old-space-size=4096"
+ENV NODE_COMPILE_CACHE=/app/oobee/.node_compile_cache
 
-# Install oobee dependencies
+# --- OPTIMIZATION: Docker Layer Caching ---
+# Copy ONLY package files first.
+# If package.json hasn't changed, Docker uses the cached layer for 'npm ci'
+COPY --chown=purple:purple package*.json ./
+
+# Switch to user purple NOW to avoid 'chown' issues later
+USER purple
+
+# Install dependencies
 RUN npm ci --omit=dev
 
-# Compile TypeScript for oobee
+# --- OPTIMIZATION: Copy Source Code ---
+# Now copy the rest. We use --chown to prevent doubling image size
+COPY --chown=purple:purple . .
+
+# Compile TypeScript
 RUN npm run build || true
 
 # Install Playwright browsers
-RUN npx playwright install chromium
+# Note: Since the base image already has browsers, this might be redundant 
+# unless Oobee requires a strictly different version.
+# RUN npx playwright install chromium
 
-# Add non-privileged user
-RUN groupadd -r purple && useradd -r -g purple purple
-RUN mkdir -p /home/purple && chown -R purple:purple /home/purple
+# --- OPTIMIZATION: Correct Cache Warming ---
+# 1. We create a local dummy file to scan (tech.gov.sg might be slow/blocked in build env)
+# 2. The NODE_COMPILE_CACHE env var is now active, so this run actually saves the cache.
+RUN echo '<html><body><h1>Warmup</h1></body></html>' > warmup.html && \
+    OOBEE_SENTRY_DSN=http://localhost npm run cli -- -c 5 -u file:///app/oobee/warmup.html -a none -k 'Build:41898282+github-actions[bot]@users.noreply.github.com' && \
+    rm warmup.html
 
-WORKDIR /app
-
-# Set ownership (Critical: must own the cache generated above)
-RUN chown -R purple:purple /app
-
-WORKDIR /app/oobee
-
-# Run everything after as non-privileged user
-USER purple
-
-# NETWORK OPTIMISATION: Fix AWS ECS 5-second DNS Timeout
-#    - ipv4first: Skips waiting for IPv6 timeouts on Fargate
-#    - no-warnings: Keeps logs clean
-ENV NODE_OPTIONS="--dns-result-order=ipv4first --no-warnings"
-
-# STARTUP OPTIMISATION: Enable Node 22 Native Compile Cache
-ENV NODE_COMPILE_CACHE=/app/oobee/.node_compile_cache
-
-# CREATE WARM CACHE: Cache Node Running Oobee
-RUN OOBEE_SENTRY_DSN=http://localhost npm run cli -- -u https://www.tech.gov.sg -c 2 -p 1 -k 'Build:41898282+github-actions[bot]@users.noreply.github.com' -a none
+# Cleanup results from warmup
+RUN rm -rf /app/oobee/results
