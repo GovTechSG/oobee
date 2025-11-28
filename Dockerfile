@@ -22,38 +22,37 @@ COPY . .
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
 
+# --- OPTIMIZATION SECTION ---
+
+# 1. NETWORK: Fix AWS ECS 5-second DNS Timeout
+#    - ipv4first: Skips waiting for IPv6 timeouts on Fargate
+#    - no-warnings: Keeps logs clean
+ENV NODE_OPTIONS="--dns-result-order=ipv4first --no-warnings"
+
+# 2. STARTUP SPEED: Enable Node 22 Native Compile Cache
+ENV NODE_COMPILE_CACHE=/app/oobee/.node_compile_cache
+
+# --- END OPTIMIZATION ---
+
 # Install oobee dependencies
 RUN npm ci --omit=dev
 
 # Compile TypeScript for oobee
-RUN npm run build || true # true exits with code 0 - workaround for TS errors
+RUN npm run build || true
 
 # Install Playwright browsers
 RUN npx playwright install chromium
 
 # Add non-privileged user
-# Create a group named "purple"
-RUN groupadd -r purple
-
-# Create a user named "purple" and assign it to the group "purple"
-RUN useradd -r -g purple purple
-
-# Create a dedicated directory for the "purple" user and set permissions
+RUN groupadd -r purple && useradd -r -g purple purple
 RUN mkdir -p /home/purple && chown -R purple:purple /home/purple
 
 WORKDIR /app
 
-# Set the ownership of the oobee directory to the user "purple"
+# Set ownership (Critical: must own the cache generated above)
 RUN chown -R purple:purple /app
 
-# Copy any application and support files
-# COPY . .
-
-# Install any app dependencies for your application
-# RUN npm ci --omit=dev
-
-# For oobee to be run from present working directory, comment out as necessary
 WORKDIR /app/oobee
 
-# Run everything after as non-privileged user.
+# Run everything after as non-privileged user
 USER purple
