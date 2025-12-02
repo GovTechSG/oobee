@@ -1,5 +1,8 @@
 import { defineConfig } from "cypress";
 import oobeeA11yInit from "@govtechsg/oobee";
+import fs from 'fs-extra';
+import { glob } from 'glob';
+import path from 'path';
 
 // viewport used in tests to optimise screenshots
 const viewportSettings = { width: 1920, height: 1040 };
@@ -15,7 +18,7 @@ const oobeeA11y = await oobeeA11yInit({
   testLabel: "Demo Cypress Scan", // label for test
   name: "Your Name",
   email: "email@domain.com",
-  includeScreenshots: true, // include screenshots of affected elements in the report
+  includeScreenshots: false, // include screenshots of affected elements in the report
   viewportSettings,
   thresholds,
   scanAboutMetadata,
@@ -55,6 +58,24 @@ export default defineConfig({
         },
         async terminateOobeeA11y() {
           return await oobeeA11y.terminate();
+        },
+        returnOobeeRandomTokenAndPage() {
+          return {
+            randomToken: oobeeA11y.randomToken,
+            // page: `${String(oobeeA11y.scanDetails.urlsCrawled.scanned.length).padStart(9, '0')}.json`,
+          };
+        },
+        copyFiles({fromPattern, toDir}) {
+          !fs.existsSync(toDir) && fs.mkdirSync(toDir, {recursive: true});
+
+          const files = glob.sync(fromPattern);
+
+          for (const file of files) {
+            const to = path.join(toDir, path.basename(file));
+            fs.copyFileSync(file, to);
+          }
+
+          return null;
         },
       });
     },
