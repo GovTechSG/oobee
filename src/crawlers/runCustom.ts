@@ -76,8 +76,13 @@ const runCustom = async (
   const pageClosePromises = [];
 
   try {
+    const hasCustomViewport =
+      viewportSettings.deviceChosen !== undefined ||
+      viewportSettings.customDevice !== undefined ||
+      viewportSettings.viewportWidth !== undefined;
+
     const browser = await chromium.launch({
-      args: ['--window-size=1920,1040'],
+      args: hasCustomViewport ? ['--window-size=1920,1040'] : ['--start-maximized'],
       headless: false,
       channel: 'chrome',
       // bypassCSP: true,
@@ -88,7 +93,7 @@ const runCustom = async (
       ignoreHTTPSErrors: true,
       serviceWorkers: 'block',
       viewport: null,
-      ...viewportSettings.playwrightDeviceDetailsObject,
+      ...(hasCustomViewport ? viewportSettings.playwrightDeviceDetailsObject : {}),
     });
 
     register(context);
