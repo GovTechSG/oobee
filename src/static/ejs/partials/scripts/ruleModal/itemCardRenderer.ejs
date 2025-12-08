@@ -146,7 +146,7 @@
   }
 
   function createItemCard(item, isPurpleAiRule, oobeeAiQueryLabel, aiConfig) {
-    const isGenAiSupportedRule = ['color-contrast', 'oobee-accessible-label', 'image-alt', 'listitem', 'link-in-text-block'].includes(aiConfig.ruleInCategory.rule);
+    const isGenAiSupportedRule = ['color-contrast', 'oobee-accessible-label', 'image-alt', 'listitem', 'link-in-text-block', 'target-size'].includes(aiConfig.ruleInCategory.rule);
 
     return createElementFromString(`
       <div>

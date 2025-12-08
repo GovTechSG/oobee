@@ -81,7 +81,7 @@
   const generateGenAiSuggestFix = async (ruleId, accordionDiv, html, buttonDiv, errorDiv) => {
     console.log('Gen AI Suggest Fix called:', { ruleId, accordionDiv, html, buttonDiv, errorDiv });
 
-    const SUPPORTED_RULES = ['color-contrast', 'oobee-accessible-label', 'image-alt', 'listitem', 'link-in-text-block'];
+    const SUPPORTED_RULES = ['color-contrast', 'oobee-accessible-label', 'image-alt', 'listitem', 'link-in-text-block', 'target-size'];
     if (!SUPPORTED_RULES.includes(ruleId)) {
       console.warn(`Gen AI Suggest Fix not yet available for ${ruleId}`);
       return;
@@ -168,7 +168,8 @@
         'color-contrast': 'color-contrast',
         'oobee-accessible-label': 'accessible-label',
         'image-alt': 'image-alt',
-        'listitem': 'listitem'
+        'listitem': 'listitem',
+        'target-size': 'target-size'
       };
       let violationType = violationTypeMap[ruleId] || ruleId;
 
@@ -313,6 +314,7 @@
   // Format fix suggestion response for display
   function formatFixSuggestionResponse(fixSuggestion) {
     const contrastAnalysis = fixSuggestion.contrast_analysis || {};
+    const targetSizeAnalysis = fixSuggestion.target_size_analysis || {};
     const plainExplanation = fixSuggestion.why_it_matters || 'This fix improves accessibility for users with visual impairments.';
     const diagnosis = fixSuggestion.diagnosis || plainExplanation;
 
@@ -365,6 +367,23 @@
               ${contrastAnalysis.passes_aa
                 ? `The suggested fix achieves <strong>${contrastAnalysis.proposed_ratio}:1</strong>, which passes WCAG AA requirements.`
                 : `The suggested fix improves it to <strong>${contrastAnalysis.proposed_ratio}:1</strong>.`}
+            </p>
+          </div>
+          ` : ''}
+
+          ${targetSizeAnalysis && (targetSizeAnalysis.estimated_width !== undefined || targetSizeAnalysis.estimated_height !== undefined || targetSizeAnalysis.notes) ? `
+          <div style="background: #F5FAFF; padding: 12px; border-radius: 6px; margin-bottom: 16px; border: 1px solid #e0efff;">
+            <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #333;">
+              ${targetSizeAnalysis.meets_minimum === false
+                ? 'Estimated hit area is below the WCAG 2.5.8 minimum of 24x24 CSS pixels.'
+                : 'Target size analysis for this control:'}
+              ${targetSizeAnalysis.estimated_width !== undefined && targetSizeAnalysis.estimated_width !== null
+                ? ` Estimated width: <strong>${targetSizeAnalysis.estimated_width}${typeof targetSizeAnalysis.estimated_width === 'number' ? 'px' : ''}</strong>.`
+                : ''}
+              ${targetSizeAnalysis.estimated_height !== undefined && targetSizeAnalysis.estimated_height !== null
+                ? ` Estimated height: <strong>${targetSizeAnalysis.estimated_height}${typeof targetSizeAnalysis.estimated_height === 'number' ? 'px' : ''}</strong>.`
+                : ''}
+              ${targetSizeAnalysis.notes ? ` ${escapeHtml(targetSizeAnalysis.notes)}` : ''}
             </p>
           </div>
           ` : ''}
