@@ -421,6 +421,7 @@
   function escapeHtmlStringForArg(string) {
     return htmlEscapeString(string)
       .replaceAll('&#039;', "\\'")
+      .replace(/\r?\n/g, '\\n')
       .replace(/&gt;\s+(.*?)\s+&lt;\//g, '&gt;$1&lt;/');
   }
 
