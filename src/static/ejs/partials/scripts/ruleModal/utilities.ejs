@@ -81,7 +81,7 @@
   const generateGenAiSuggestFix = async (ruleId, accordionDiv, html, buttonDiv, errorDiv) => {
     console.log('Gen AI Suggest Fix called:', { ruleId, accordionDiv, html, buttonDiv, errorDiv });
 
-    const SUPPORTED_RULES = ['color-contrast', 'oobee-accessible-label'];
+    const SUPPORTED_RULES = ['color-contrast', 'oobee-accessible-label', 'image-alt'];
     if (!SUPPORTED_RULES.includes(ruleId)) {
       console.warn(`Gen AI Suggest Fix not yet available for ${ruleId}`);
       return;
@@ -164,7 +164,12 @@
         console.log('Using fallback scanner findings:', scannerFindings);
       }
 
-      let violationType = ruleId === 'color-contrast' ? 'color-contrast' : 'accessible-label';
+      const violationTypeMap = {
+        'color-contrast': 'color-contrast',
+        'oobee-accessible-label': 'accessible-label',
+        'image-alt': 'image-alt'
+      };
+      let violationType = violationTypeMap[ruleId] || ruleId;
 
       // Prepare payload for wcag-eval API
       const apiPayload = {
