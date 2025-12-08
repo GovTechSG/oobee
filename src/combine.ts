@@ -5,13 +5,19 @@ import crawlDomain from './crawlers/crawlDomain.js';
 import crawlLocalFile from './crawlers/crawlLocalFile.js';
 import crawlIntelligentSitemap from './crawlers/crawlIntelligentSitemap.js';
 import generateArtifacts from './mergeAxeResults.js';
-import { getHost, createAndUpdateResultsFolders, cleanUpAndExit } from './utils.js';
+import { getHost, createAndUpdateResultsFolders, cleanUpAndExit, getStoragePath } from './utils.js';
 import { ScannerTypes, UrlsCrawled } from './constants/constants.js';
 import { getBlackListedPatterns, submitForm } from './constants/common.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import runCustom from './crawlers/runCustom.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
 import { Data } from './index.js';
+import {
+  isS3UploadEnabled,
+  getS3MetadataFromEnv,
+  getS3UploadPrefix,
+  uploadFolderToS3,
+} from './services/s3Uploader.js';
 
 // Class exports
 export class ViewportSettingsClass {
@@ -61,18 +67,18 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     zip,
     ruleset, // Enable custom checks, Enable WCAG AAA: if checked, = 'enable-wcag-aaa')
     generateJsonFiles,
-    scanDuration
+    scanDuration,
   } = envDetails;
 
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
 
   if (process.env.CRAWLEE_SYSTEM_INFO_V2 === undefined) {
-  // Set the environment variable to enable system info v2
-  // Resolves issue with when wmic is not installed on Windows
+    // Set the environment variable to enable system info v2
+    // Resolves issue with when wmic is not installed on Windows
     process.env.CRAWLEE_SYSTEM_INFO_V2 = '1';
   }
-  
+
   const host = type === ScannerTypes.SITEMAP || type === ScannerTypes.LOCALFILE ? '' : getHost(url);
 
   let blacklistedPatterns: string[] | null = null;
@@ -133,7 +139,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       break;
 
     case ScannerTypes.SITEMAP:
-        urlsCrawledObj = await crawlSitemap({
+      urlsCrawledObj = await crawlSitemap({
         sitemapUrl: url,
         randomToken,
         host,
@@ -185,7 +191,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         followRobots,
         extraHTTPHeaders,
         safeMode,
-        scanDuration
+        scanDuration,
       );
       break;
 
@@ -243,6 +249,33 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       );
       const [name, email] = nameEmail.split(':');
 
+      // Upload results to S3 if environment variables are set
+      if (isS3UploadEnabled()) {
+        const scanMetadata = getS3MetadataFromEnv();
+        const s3Prefix = getS3UploadPrefix();
+
+        if (scanMetadata && s3Prefix) {
+          try {
+            const storagePath = getStoragePath(randomToken);
+            consoleLogger.info('Starting S3 upload...');
+            consoleLogger.info(`Upload path: ${s3Prefix}`);
+
+            const uploadedFiles = await uploadFolderToS3(storagePath, s3Prefix, scanMetadata);
+
+            consoleLogger.info(`Successfully uploaded ${uploadedFiles.length} files to S3`);
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            consoleLogger.error(`Failed to upload results to S3: ${errorMessage}`);
+            // Don't fail the scan if S3 upload fails
+            consoleLogger.warn('Continuing without S3 upload...');
+          }
+        } else {
+          consoleLogger.warn('S3 upload enabled but metadata/prefix not available');
+        }
+      } else {
+        consoleLogger.info('S3 upload not enabled (missing environment variables)');
+      }
+
       await submitForm(
         browser,
         userDataDirectory,
@@ -258,13 +291,11 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         metadata,
       );
     } else {
-
       // No page were scanned because the URL loaded does not meet the crawler requirements
       printMessage([`No pages were scanned.`], alertMessageOptions);
       cleanUpAndExit(1, randomToken, true);
     }
   } else {
-
     // No page were scanned because the URL loaded does not meet the crawler requirements
     printMessage([`No pages were scanned.`], alertMessageOptions);
     cleanUpAndExit(1, randomToken, true);
