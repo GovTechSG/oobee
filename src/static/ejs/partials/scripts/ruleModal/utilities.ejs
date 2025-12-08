@@ -81,7 +81,7 @@
   const generateGenAiSuggestFix = async (ruleId, accordionDiv, html, buttonDiv, errorDiv) => {
     console.log('Gen AI Suggest Fix called:', { ruleId, accordionDiv, html, buttonDiv, errorDiv });
 
-    const SUPPORTED_RULES = ['color-contrast', 'oobee-accessible-label', 'image-alt'];
+    const SUPPORTED_RULES = ['color-contrast', 'oobee-accessible-label', 'image-alt', 'listitem'];
     if (!SUPPORTED_RULES.includes(ruleId)) {
       console.warn(`Gen AI Suggest Fix not yet available for ${ruleId}`);
       return;
@@ -167,7 +167,8 @@
       const violationTypeMap = {
         'color-contrast': 'color-contrast',
         'oobee-accessible-label': 'accessible-label',
-        'image-alt': 'image-alt'
+        'image-alt': 'image-alt',
+        'listitem': 'listitem'
       };
       let violationType = violationTypeMap[ruleId] || ruleId;
 
