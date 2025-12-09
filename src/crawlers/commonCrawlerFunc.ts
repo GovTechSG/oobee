@@ -24,6 +24,8 @@ import type { Response as PlaywrightResponse } from 'playwright';
 import fs from 'fs';
 import { getStoragePath } from '../utils.js';
 import path from 'path';
+import { detectOverlaysInDom, type OverlayDetection } from '../overlays/overlayDetector.js';
+import { scrubOverlaysOnPage } from '../overlays/overlayNeutralizer.js';
 
 // types
 interface AxeResultsWithScreenshot extends AxeResults {
@@ -72,6 +74,7 @@ type FilteredResults = {
   needsReview: ResultCategory;
   passed: ResultCategory;
   actualUrl?: string;
+  overlayDetections?: OverlayDetection[];
 };
 
 const truncateHtml = (html: string, maxBytes = 1024, suffix = '…'): string => {
@@ -102,6 +105,7 @@ export const filterAxeResults = (
   results: AxeResultsWithScreenshot,
   pageTitle: string,
   customFlowDetails?: CustomFlowDetails,
+  overlayDetections?: OverlayDetection[],
 ): FilteredResults => {
   const { violations, passes, incomplete, url } = results;
 
@@ -230,6 +234,7 @@ export const filterAxeResults = (
     goodToFix,
     needsReview,
     passed,
+    ...(overlayDetections && overlayDetections.length > 0 && { overlayDetections }),
   };
 };
 
@@ -240,6 +245,7 @@ export const runAxeScript = async ({
   customFlowDetails = null,
   selectors = [],
   ruleset = [],
+  crawler = null,
 }: {
   includeScreenshots: boolean;
   page: Page;
@@ -247,6 +253,7 @@ export const runAxeScript = async ({
   customFlowDetails?: CustomFlowDetails;
   selectors?: string[];
   ruleset?: RuleFlags[];
+  crawler?: any;
 }) => {
   const browserContext: BrowserContext = page.context();
   const requestUrl = page.url();
@@ -327,6 +334,42 @@ export const runAxeScript = async ({
 
   const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
+
+  consoleLogger.info(`[overlay-neutralizer] ═══════════════════════════════════════════════`);
+  consoleLogger.info(`[overlay-neutralizer] Starting overlay detection and neutralization`);
+  consoleLogger.info(`[overlay-neutralizer] Page URL: ${requestUrl}`);
+  consoleLogger.info(`[overlay-neutralizer] ═══════════════════════════════════════════════`);
+  
+  // Get blocked overlays from network interception (if available)
+  const getBlockedOverlays = (crawler as any)?.__getBlockedOverlays;
+  const blockedOverlays = typeof getBlockedOverlays === 'function' ? getBlockedOverlays() : [];
+  
+  // Detect overlays in DOM
+  const domDetections = await detectOverlaysInDom(page);
+  
+  // Merge blocked overlays with DOM detections
+  const overlayDetections = [...blockedOverlays, ...domDetections];
+  
+  // Log overlay detections
+  if (overlayDetections.length > 0) {
+    consoleLogger.info(
+      `[overlay-neutralizer] ⚠️  OVERLAYS FOUND: ${overlayDetections.map(d => d.vendor).join(', ')} on ${requestUrl}`,
+    );
+    overlayDetections.forEach(detection => {
+      consoleLogger.info(
+        `[overlay-neutralizer]   - ${detection.vendor}: detected by ${detection.detectedBy.join(' & ')}, details: ${detection.details.join(', ')}`,
+      );
+    });
+  } else {
+    consoleLogger.info(`[overlay-neutralizer] ✓ No overlays detected on ${requestUrl}`);
+  }
+
+  // Scrub overlay DOM elements before running axe
+  await scrubOverlaysOnPage(page);
+  
+  consoleLogger.info(`[overlay-neutralizer] ═══════════════════════════════════════════════`);
+  consoleLogger.info(`[overlay-neutralizer] Overlay neutralization complete, proceeding with axe scan`);
+  consoleLogger.info(`[overlay-neutralizer] ═══════════════════════════════════════════════`);
 
   const gradingReadabilityFlag = await extractAndGradeText(page); // Ensure flag is obtained before proceeding
 
@@ -473,7 +516,7 @@ export const runAxeScript = async ({
     }
   }
 
-  return filterAxeResults(results, pageTitle, customFlowDetails);
+  return filterAxeResults(results, pageTitle, customFlowDetails, overlayDetections);
 };
 
 export const createCrawleeSubFolders = async (

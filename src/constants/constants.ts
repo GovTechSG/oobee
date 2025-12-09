@@ -270,11 +270,24 @@ export const guiInfoStatusTypes = {
   DUPLICATE: 'duplicate',
 };
 
-let launchOptionsArgs: string[] = [];
+let launchOptionsArgs: string[] = [
+  // Stealth options to bypass bot detection
+  '--disable-blink-features=AutomationControlled',
+  '--disable-features=IsolateOrigins,site-per-process',
+  '--disable-site-isolation-trials',
+];
 
 // Check if running in docker container
 if (fs.existsSync('/.dockerenv')) {
-  launchOptionsArgs = ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'];
+  launchOptionsArgs = [
+    '--disable-gpu',
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
+    // Keep stealth options in Docker too
+    '--disable-blink-features=AutomationControlled',
+    '--disable-features=IsolateOrigins,site-per-process',
+    '--disable-site-isolation-trials',
+  ];
 }
 
 export const impactOrder = {

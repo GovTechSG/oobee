@@ -111,8 +111,9 @@ Oobee can perform the following to scan the target URL.
 
 - To **run** Oobee in **terminal**, run `npm start`. Questions will be prompted to assist you in providing the right inputs.
 - Results will be compiled in JSON format, followed by generating a HTML report.
+- **NEW**: Automatic detection and neutralization of accessibility overlays (UserWay, accessiBe, etc.) for accurate baseline testing. See [OVERLAY-DETECTION.md](./OVERLAY-DETECTION.md) for details.
 
-> NOTE: For your initial scan, there may be some loading time required before use. Oobee will also ask for your name and email address and collect your app usage data to personalise your experience. Your information fully complies with [GovTech’s Privacy Policy](https://www.tech.gov.sg/privacy/).
+> NOTE: For your initial scan, there may be some loading time required before use. Oobee will also ask for your name and email address and collect your app usage data to personalise your experience. Your information fully complies with [GovTech's Privacy Policy](https://www.tech.gov.sg/privacy/).
 
 #### Delete/Edit Details
 
