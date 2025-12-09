@@ -378,6 +378,37 @@ const checkUrlConnectivityWithBrowser = async (
   try {
     const page = await browserContext.newPage();
 
+    // Apply stealth techniques to bypass bot detection
+    await page.addInitScript(() => {
+      // Remove webdriver property
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+      
+      // Override plugins to make it look real
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      
+      // Override languages
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en'],
+      });
+      
+      // Mock chrome object
+      (window as any).chrome = {
+        runtime: {},
+      };
+      
+      // Override permissions
+      const originalQuery = window.navigator.permissions.query;
+      window.navigator.permissions.query = (parameters: any) => (
+        parameters.name === 'notifications' ?
+          Promise.resolve({ state: 'denied' } as PermissionStatus) :
+          originalQuery(parameters)
+      );
+    });
+
     // Block native Chrome download UI
     try {
       const cdp = await browserContext.newCDPSession(page as any);
@@ -401,24 +432,20 @@ const checkUrlConnectivityWithBrowser = async (
     try {
       await page.waitForLoadState('networkidle', { timeout: 8000 });
     } catch {
-      consoleLogger.info('networkidle not reached; proceeding with verification GET');
+      consoleLogger.info('networkidle not reached; proceeding with page response');
     }
 
-    // STEP 3: Verify final URL with a GET (follows redirects)
+    // STEP 3: Get final URL and status from the page navigation
+    // Note: We skip the verification GET because some sites block API requests
+    // but allow browser navigation (403 on fetch but 200 on browser navigation)
     const finalUrl = page.url();
-    let verifyResp = response;
-    try {
-      verifyResp = await page.request.fetch(finalUrl, {
-        method: 'GET',
-        headers: extraHTTPHeaders,
-      });
-    } catch (e) {
-      consoleLogger.info(`Verification GET failed, falling back to navigation response: ${e.message}`);
-    }
-
-    // Prefer verification GET; fall back to nav response
-    const finalStatus = verifyResp?.status?.() ?? response?.status?.() ?? 0;
-    const headers = (verifyResp?.headers?.() ?? response?.headers?.()) || {};
+    const navigationStatus = response?.status?.() ?? 0;
+    
+    consoleLogger.info(`Navigation to ${finalUrl} returned status: ${navigationStatus}`);
+    
+    // Use navigation response directly
+    const finalStatus = navigationStatus;
+    const headers = response?.headers?.() || {};
     contentType = headers['content-type'] || '';
 
     if (!isAllowedContentType(contentType)) {

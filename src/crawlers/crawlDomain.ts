@@ -11,6 +11,7 @@ import {
   shouldSkipClickDueToDisallowedHref,
   shouldSkipDueToUnsupportedContent,
 } from './commonCrawlerFunc.js';
+import { attachOverlayNeutralization } from '../overlays/overlayNeutralizer.js';
 import constants, {
   UrlsCrawled,
   blackListedFileExtensions,
@@ -381,7 +382,50 @@ const crawlDomain = async ({
     requestQueue,
     postNavigationHooks: [
       async crawlingContext => {
-        const { page, request } = crawlingContext;
+        const { page, request, crawler } = crawlingContext;
+
+        // Apply stealth techniques to bypass bot detection
+        await page.addInitScript(() => {
+          // Remove webdriver property
+          Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined,
+          });
+          
+          // Override plugins to make it look real
+          Object.defineProperty(navigator, 'plugins', {
+            get: () => [1, 2, 3, 4, 5],
+          });
+          
+          // Override languages
+          Object.defineProperty(navigator, 'languages', {
+            get: () => ['en-US', 'en'],
+          });
+          
+          // Mock chrome object
+          (window as any).chrome = {
+            runtime: {},
+          };
+          
+          // Override permissions
+          const originalQuery = window.navigator.permissions.query;
+          window.navigator.permissions.query = (parameters: any) => (
+            parameters.name === 'notifications' ?
+              Promise.resolve({ state: 'denied' } as PermissionStatus) :
+              originalQuery(parameters)
+          );
+        });
+
+        // Attach overlay neutralization to the browser context on first page
+        // This is done per-page but context.route() calls are idempotent
+        const context = page.context();
+        if (context && typeof context.route === 'function') {
+          consoleLogger.info(`[overlay-neutralizer] 🔧 Attaching overlay neutralization to browser context for: ${page.url()}`);
+          const getBlockedOverlays = attachOverlayNeutralization(context);
+          // Store in crawler state so runAxeScript can access it
+          (crawler as any).__getBlockedOverlays = getBlockedOverlays;
+        } else {
+          consoleLogger.warn('[overlay-neutralizer] ⚠️  Unable to attach overlay neutralization - no context.route() available');
+        }
 
         await page.evaluate(() => {
           return new Promise(resolve => {
@@ -586,7 +630,7 @@ const crawlDomain = async ({
             return;
           }
 
-          const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
+          const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset, crawler });
 
           if (isRedirected) {
             const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
