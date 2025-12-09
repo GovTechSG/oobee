@@ -35,3 +35,4 @@ jre
 # test folders
 /test-codes
 _test-ui
+nohup.out
