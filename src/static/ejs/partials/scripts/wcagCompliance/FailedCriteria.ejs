@@ -1,0 +1,103 @@
+<script>
+  (function populateFailedCriteria() {
+    const wcagLinks = scanData?.wcagLinks || {};
+    const wcagViolations = scanData?.wcagViolations || [];
+    const wcagClauses = scanData?.wcagClauses || {};
+    const wcagCriteriaLabels = scanData?.wcagCriteriaLabels || {};
+
+    const failedCriteria = [];
+
+    wcagViolations.forEach(violation => {
+      const formattedId = formatWcagId(violation);
+
+      const level = wcagCriteriaLabels[formattedId];
+
+      if (level === 'AAA') {
+        return;
+      }
+
+      const wcagInfo = wcagLinks[formattedId];
+
+      if (wcagInfo) {
+        const clauseKey = formattedId.replace('WCAG ', '');
+
+        failedCriteria.push({
+          id: formattedId,
+          name: wcagClauses[clauseKey] || formattedId,
+        });
+      }
+    });
+
+    console.log('wcagViolations 111', wcagViolations)
+
+    failedCriteria.sort((a, b) => {
+      const aNum = a.id.replace('WCAG ', '').split('.').map(Number);
+      const bNum = b.id.replace('WCAG ', '').split('.').map(Number);
+
+      for (let i = 0; i < Math.max(aNum.length, bNum.length); i++) {
+        if ((aNum[i] || 0) !== (bNum[i] || 0)) {
+          return (aNum[i] || 0) - (bNum[i] || 0);
+        }
+      }
+      return 0;
+    });
+
+    const countElement = document.getElementById('failedCriteriaCount');
+    if (countElement) {
+      countElement.textContent = failedCriteria.length;
+    }
+
+    const modalCountElement = document.getElementById('failedCriteriaModalCount');
+    if (modalCountElement) {
+      modalCountElement.textContent = failedCriteria.length;
+    }
+
+    const listElement = document.getElementById('failedCriteriaList');
+    const cardElement = document.getElementById('failedCriteriaCard');
+    
+    if (listElement && failedCriteria.length > 0) {
+      const maxDisplay = 5;
+      const displayCriteria = failedCriteria.slice(0, maxDisplay);
+
+      const listHTML = displayCriteria
+        .map(
+          criteria => `
+        <li class="d-flex justify-content-between">
+          <span>${criteria.id} – ${criteria.name}</span>
+        </li>
+      `,
+        )
+        .join('');
+
+      listElement.innerHTML = listHTML;
+
+      // Populate modal with all criteria
+      const modalListElement = document.getElementById('failedCriteriaModalList');
+      if (modalListElement) {
+        const allListHTML = failedCriteria
+          .map(
+            criteria => `
+            <li class="d-flex justify-content-between">
+              <span>${criteria.id} – ${criteria.name}</span>
+            </li>
+          `,
+          )
+          .join('');
+
+        modalListElement.innerHTML = allListHTML;
+      }
+
+      // Show "View all" button if there are more than maxDisplay criteria
+      if (failedCriteria.length > maxDisplay) {
+        const viewAllButton = document.getElementById('viewAllFailedCriteria');
+        if (viewAllButton) {
+          viewAllButton.hidden = false;
+        }
+      }
+    } else {
+      if (cardElement) {
+        cardElement.style.display = 'none';
+      }
+    }
+  })();
+</script>

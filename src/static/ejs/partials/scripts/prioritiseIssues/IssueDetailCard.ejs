@@ -1,0 +1,137 @@
+<script>
+  (function initIssueDetailCard() {
+    window.populateIssueDetailCard = function (issue) {
+      const detailCard = document.getElementById('a11yIssueDetailCard');
+      if (!detailCard) return;
+
+      detailCard.style.display = 'block';
+
+      const titleElement = document.getElementById('issueDetailTitle');
+      if (titleElement) {
+        titleElement.textContent = issue.description || 'Issue';
+      }
+
+      const imageElement = document.getElementById('issueDetailImage');
+      const imageContainer = imageElement?.closest('.issue-detail-image-container');
+      
+      if (imageElement && imageContainer) {
+        let imageSrc = null;
+        
+        if (issue.conformance && issue.conformance.length > 0) {
+          const wcagConformance = issue.conformance.filter(c => c.startsWith('wcag'));
+          const wcagCriteriaLabels = scanData?.wcagCriteriaLabels || {};
+          
+          for (const wcag of wcagConformance) {
+            const formattedWcag = formatWcagId(wcag);
+
+            if (wcagCriteriaLabels[formattedWcag]) {
+              const svg = window.getWcagSvg ? window.getWcagSvg(formattedWcag) : null;
+              if (svg) {
+                imageSrc = window.svgToDataUrl ? window.svgToDataUrl(svg) : svg;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!imageSrc) {
+          imageContainer.style.display = 'none';
+        } else {
+          imageContainer.style.display = 'flex';
+          imageElement.src = imageSrc;
+          imageElement.alt = issue.description || 'Issue illustration';
+        }
+      }
+
+      // Populate conformance badges
+      const conformanceContainer = document.getElementById('issueDetailConformance');
+      if (conformanceContainer && issue.conformance && issue.conformance.length > 0) {
+        const wcagConformance = issue.conformance.filter(c => c.startsWith('wcag'));
+        const wcagCriteriaLabels = scanData?.wcagCriteriaLabels || {};
+
+        const criteriaNumbers = [];
+        let level = null;
+
+        wcagConformance.forEach(wcag => {
+          const formattedWcag = formatWcagId(wcag);
+
+          if (wcagCriteriaLabels[formattedWcag]) {
+            criteriaNumbers.push(formattedWcag);
+            if (!level) {
+              level = wcagCriteriaLabels[formattedWcag];
+            }
+          }
+        });
+
+        const badges = criteriaNumbers.map(
+          criteria => `<span class="issue-detail-conformance-badge">${criteria}</span>`,
+        );
+
+        if (level) {
+          badges.push(`<span class="issue-detail-conformance-badge">Level ${level}</span>`);
+        }
+
+        conformanceContainer.innerHTML = badges.join('');
+      }
+
+      // Populate long description
+      const longDescriptionElement = document.getElementById('issueDetailLongDescription');
+      const a11yRuleLongDescriptionMap = scanData?.a11yRuleLongDescriptionMap || {};
+      if (longDescriptionElement) {
+        const longDescription = a11yRuleLongDescriptionMap[issue.ruleId] || '';
+        longDescriptionElement.textContent = longDescription;
+      }
+
+      // Populate disability impact
+      const disabilitySection = document.getElementById('issueDetailDisabilitySection');
+      const disabilityMessage = document.getElementById('issueDetailDisabilityMessage');
+      const disabilityBadgesMap = scanData?.disabilityBadgesMap || {};
+      const disabilities = disabilityBadgesMap[issue.ruleId] || [];
+
+      if (disabilityMessage && disabilities.length > 0) {
+        let disabilityText = '';
+        if (disabilities.length === 1) {
+          disabilityText = `${disabilities[0]} Disability `;
+        } else if (disabilities.length === 2) {
+          disabilityText = `${disabilities[0]} and ${disabilities[1]} Disability`;
+        } else {
+          const boldedDisabilities = disabilities.map(d => `${d}`);
+          const lastDisability = boldedDisabilities.pop();
+          disabilityText = `${boldedDisabilities.join(', ')} and ${lastDisability} Disability`;
+        }
+
+        disabilityMessage.innerHTML = `This issue prevents users with <span class="disability-text">${disabilityText}</span> from navigating your website.`;
+        disabilitySection.style.display = 'block';
+      } else {
+        disabilitySection.style.display = 'none';
+      }
+
+      // Handle "View issue details" button
+      const viewDetailsBtn = document.getElementById('viewIssueDetailsBtn');
+      if (viewDetailsBtn) {
+        const newBtn = viewDetailsBtn.cloneNode(true);
+        viewDetailsBtn.parentNode.replaceChild(newBtn, viewDetailsBtn);
+
+        newBtn.addEventListener('click', function () {
+          const category = issue.category || 'mustFix';
+          const ruleData = scanItems[category]?.rules?.find(r => r.rule === issue.ruleId);
+
+          if (ruleData && typeof expandRule === 'function') {
+            expandRule(category, ruleData);
+
+            const modalElement = document.getElementById('expandedRule');
+            if (modalElement) {
+              const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+              modal.show();
+            }
+          }
+        });
+      }
+    };
+
+    const detailCard = document.getElementById('a11yIssueDetailCard');
+    if (detailCard) {
+      detailCard.style.display = 'none';
+    }
+  })();
+</script>

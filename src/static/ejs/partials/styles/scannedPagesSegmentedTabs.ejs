@@ -1,0 +1,46 @@
+<style>
+  .seg-pill {
+    display: inline-flex;
+    align-items: center;
+    margin: 0.05rem;
+    padding: 0.25rem 0.675rem;
+    border: 0;
+    background: transparent;
+    border-radius: 999px;
+    line-height: 1;
+    color: var(--body-text, --a11y-black-100);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .seg-pill[aria-selected="false"]:hover,
+  .seg-pill[aria-selected="false"]:focus-visible {
+    text-decoration: underline;
+  }
+  .seg-pill[aria-selected="true"]  {
+    background: var(--a11y-majorelle-blue, #5735DF);
+  }
+  .seg-pill[aria-selected="true"] * {
+    color: #fff;
+  }
+
+  .seg-panels > [role="tabpanel"][hidden] {
+    display: none;
+  }
+
+  .segmented-tabs {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--divider, --bright-gray);
+    border-radius: 999px;
+    background: var(--true-white);
+    margin: 1rem 0 1rem;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 600px) {
+    .segmented-tabs {
+      flex-wrap: wrap;
+    }
+  }
+</style>

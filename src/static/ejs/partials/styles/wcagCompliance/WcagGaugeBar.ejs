@@ -1,0 +1,62 @@
+<style>
+	.wcag-gauge {
+    --size: 140;
+    --thickness: 0.35rem;
+    width: calc(var(--size) * 1px);
+    position: relative;
+    padding-bottom: calc(var(--size) * 0.18px);
+  }
+
+  .gauge-track,
+  .gauge-fill {
+    fill: none;
+    stroke-width: var(--thickness);
+  }
+
+  .gauge-track {
+    stroke: var(--bright-gray);
+  }
+  .gauge-fill {
+    stroke: var(--deep-green-cyan-turquoise);
+    transition: stroke-dashoffset 300ms ease;
+  }
+
+  .gauge-fill.bad  {
+    stroke: var(--light-carmine-pink);
+  }
+  .gauge-fill.good {
+    stroke: var(--deep-green-cyan-turquoise);
+  }
+
+  .gauge-center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .gauge-number {
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .gauge-caption {
+    position: absolute;
+    left: 50%;
+    top: 80%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    text-align: center;
+    margin: 0;
+    font-size: 14px;
+  }
+
+  .gauge-value-number {
+    font-size: 24px;
+  }
+
+  .gauge-value-number.perfect-score {
+    color: var(--deep-green-cyan-turquoise);
+  }
+</style>

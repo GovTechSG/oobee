@@ -1,0 +1,376 @@
+<script>
+  (function initAllIssues() {
+    let allIssues = [];
+    let filteredIssues = [];
+    let currentSort = { column: 'occurrence', direction: 'desc' };
+    let currentCategory = 'mustFix';
+    const a11yRuleShortDescriptionMap = scanData?.a11yRuleShortDescriptionMap;
+    const wcagCriteriaLabels = scanData?.wcagCriteriaLabels;
+    const disabilityBadgesMap = scanData?.disabilityBadgesMap;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initializeIssues();
+      populateCriteriaFilter();
+      renderTable();
+      updateTotalCount();
+      initializeSortableHeaders();
+
+      document.getElementById('severityFilter').addEventListener('change', handleFilterChange);
+      document.getElementById('criteriaFilter').addEventListener('change', handleFilterChange);
+      document.getElementById('disabilityFilter').addEventListener('change', handleFilterChange);
+      document.getElementById('issuesSearchInput').addEventListener('input', handleSearch);
+    });
+
+    function initializeIssues() {
+      const categories = ['mustFix', 'goodToFix', 'needsReview'];
+      allIssues = [];
+
+      categories.forEach(category => {
+        if (scanItems[category] && scanItems[category].rules) {
+          scanItems[category].rules.forEach(rule => {
+            allIssues.push({
+              category,
+              ruleId: rule.rule,
+              description: a11yRuleShortDescriptionMap[rule.rule] || rule.description,
+              totalItems: rule.totalItems,
+              conformance: rule.conformance || [],
+              pagesAffected: rule.pagesAffected || [],
+              axeImpact: rule.axeImpact || '',
+              helpUrl: rule.helpUrl || '',
+              disabilities: disabilityBadgesMap[rule.rule] || [],
+            });
+          });
+        }
+      });
+
+      filteredIssues = [...allIssues];
+    }
+
+    function initializeSortableHeaders() {
+      const headers = [
+        { element: document.querySelector('.issues-table th:nth-child(1)'), column: 'severity' },
+        { element: document.querySelector('.issues-table th:nth-child(2)'), column: 'issueName' },
+        { element: document.querySelector('.issues-table th:nth-child(3)'), column: 'occurrence' }
+      ];
+
+      headers.forEach(({ element, column }) => {
+        if (!element) return;
+
+        const sortHeader = function() {
+          window.sortTable(column);
+        };
+
+        // Click handler
+        element.addEventListener('click', sortHeader);
+
+        // Keyboard handler
+        element.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            sortHeader();
+          }
+        });
+      });
+    }
+
+    function populateCriteriaFilter() {
+      const criteriaFilter = document.getElementById('criteriaFilter');
+      const criteriaSet = new Set();
+
+      allIssues.forEach(issue => {
+        if (issue.conformance) {
+          issue.conformance.forEach(conf => {
+            if (conf.startsWith('wcag')) {
+              const formatted = formatWcagId(conf);
+              if (wcagCriteriaLabels[formatted]) criteriaSet.add(formatted);
+            }
+          });
+        }
+      });
+
+      const sortedCriteria = Array.from(criteriaSet).sort((a, b) => {
+        const aNum = a.replace(/[^\d]/g, '');
+        const bNum = b.replace(/[^\d]/g, '');
+        return aNum.localeCompare(bNum, undefined, { numeric: true });
+      });
+
+      sortedCriteria.forEach(criteria => {
+        const option = document.createElement('option');
+        option.value = criteria;
+        option.textContent = criteria;
+        criteriaFilter.appendChild(option);
+      });
+    }
+
+    window.filterByCategory = function (category) {
+      currentCategory = category;
+
+      // Update active badge
+      document.querySelectorAll('.category-badge').forEach(badge => {
+        badge.classList.remove('active');
+      });
+      document.getElementById(category + 'Badge').classList.add('active');
+
+      // Update severity filter
+      const severityMap = {
+        mustFix: 'mustFix',
+        goodToFix: 'goodToFix',
+        needsReview: 'needsReview',
+      };
+      document.getElementById('severityFilter').value = severityMap[category];
+
+      handleFilterChange();
+    };
+
+    function handleFilterChange() {
+      const severityFilter = document.getElementById('severityFilter').value;
+      const criteriaFilter = document.getElementById('criteriaFilter').value;
+      const disabilityFilter = document.getElementById('disabilityFilter').value;
+      const searchValue = document.getElementById('issuesSearchInput').value.toLowerCase();
+
+      filteredIssues = allIssues.filter(issue => {
+        // Severity filter
+        if (severityFilter !== 'all' && issue.category !== severityFilter) {
+          return false;
+        }
+
+        // Criteria filter
+        if (criteriaFilter !== 'all') {
+          const hasCriteria =
+            issue.conformance &&
+            issue.conformance.some(conf => {
+              return formatWcagId(conf) === criteriaFilter;
+            });
+          if (!hasCriteria) return false;
+        }
+
+        // Disability filter
+        if (disabilityFilter !== 'all') {
+          const disabilities = disabilityBadgesMap[issue.ruleId] || [];
+          if (!disabilities.includes(disabilityFilter)) return false;
+        }
+
+        // Search filter
+        if (searchValue && !issue.description.toLowerCase().includes(searchValue)) {
+          return false;
+        }
+
+        return true;
+      });
+
+      renderTable();
+      updateTotalCount();
+    }
+
+    function handleSearch(event) {
+      handleFilterChange();
+    }
+
+    window.sortTable = function (column) {
+      if (currentSort.column === column) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSort.column = column;
+        currentSort.direction = 'desc';
+      }
+
+      // Update sort indicators
+      document.querySelectorAll('.issues-table th[aria-sort]').forEach(th => {
+        th.setAttribute('aria-sort', 'none');
+        const sortIcon = th.querySelector('.sort-icon');
+        if (sortIcon) {
+          sortIcon.classList.remove('active');
+          const paths = th.querySelectorAll('.sort-icon path');
+          if (paths.length === 2) {
+            paths[0].setAttribute('opacity', '0.3');
+            paths[1].setAttribute('opacity', '1');
+          }
+        }
+      });
+
+      const columnIndex = {
+        severity: 1,
+        issueName: 2,
+        occurrence: 3
+      };
+
+      const sortedTh = document.querySelector(`.issues-table th:nth-child(${columnIndex[column]})`);
+      if (sortedTh) {
+        sortedTh.setAttribute(
+          'aria-sort',
+          currentSort.direction === 'asc' ? 'ascending' : 'descending',
+        );
+        const sortIcon = sortedTh.querySelector('.sort-icon');
+        if (sortIcon) {
+          sortIcon.classList.add('active');
+
+          const paths = sortedTh.querySelectorAll('.sort-icon path');
+          if (paths.length === 2) {
+            if (currentSort.direction === 'asc') {
+              paths[0].setAttribute('opacity', '1');
+              paths[1].setAttribute('opacity', '0.3');
+            } else {
+              paths[0].setAttribute('opacity', '0.3');
+              paths[1].setAttribute('opacity', '1');
+            }
+          }
+        }
+      }
+
+      sortIssues();
+      renderTable();
+    };
+
+    function sortIssues() {
+      filteredIssues.sort((a, b) => {
+        let aValue, bValue;
+
+        switch (currentSort.column) {
+          case 'severity':
+            const severityOrder = { mustFix: 1, goodToFix: 2, needsReview: 3 };
+            aValue = severityOrder[a.category];
+            bValue = severityOrder[b.category];
+            break;
+          case 'issueName':
+            aValue = a.description.toLowerCase();
+            bValue = b.description.toLowerCase();
+            break;
+          case 'occurrence':
+            aValue = a.totalItems;
+            bValue = b.totalItems;
+            break;
+        }
+
+        if (aValue < bValue) return currentSort.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return currentSort.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('issuesTableBody');
+      const emptyState = document.getElementById('emptyState');
+      const table = document.querySelector('.issues-table');
+
+      if (filteredIssues.length === 0) {
+        table.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      table.style.display = 'table';
+      emptyState.style.display = 'none';
+
+      tbody.innerHTML = filteredIssues
+        .map(issue => {
+          const severityLabel = {
+            mustFix: 'Must Fix',
+            goodToFix: 'Good to Fix',
+            needsReview: 'Manual Test',
+          }[issue.category];
+
+          const severityClass = issue.category.replace(/([A-Z])/g, '-$1').toLowerCase();
+
+          const conformanceBadges = issue.conformance
+            .filter(c => c.startsWith('wcag'))
+            .slice(0, 3)
+            .map(conf => {
+              const formatted = formatWcagId(conf);
+              if (wcagCriteriaLabels[formatted]) {
+                return `<span class="conformance-badge" title="${formatted}">${formatted}</span>`;
+              }
+            })
+            .join('');
+
+          const disabilitiesBadges = issue.disabilities
+            .map(disability => {
+              return `<span class="conformance-badge" title="${disability}">${disability} Disability</span>`;
+            })
+            .join('');
+
+          return `
+          <tr class="issue-row" data-category="${issue.category}" data-rule-id="${issue.ruleId}" role="button" tabindex="0" aria-label="${issue.description}, ${severityLabel}, ${issue.totalItems} occurrences">
+            <td>
+              <span class="category-badge ${severityClass}">${severityLabel}</span>
+            </td>
+            <td>
+              <div class="issue-name-cell">
+                <div class="issue-description">${htmlEscapeString(issue.description)}</div>
+                <div class="issue-conformance-badges">
+                  ${conformanceBadges}${disabilitiesBadges}
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="occurrence-count">${issue.totalItems} occ.</span>
+            </td>
+            <td>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <g clip-path="url(#clip0_263_236)">
+                  <path d="M8.58984 16.59L13.1698 12L8.58984 7.41L9.99984 6L15.9998 12L9.99984 18L8.58984 16.59Z" fill="#5735DF"/>
+                </g>
+                <defs>
+                  <clipPath id="clip0_263_236">
+                    <rect width="24" height="24" fill="white"/>
+                  </clipPath>
+                </defs>
+              </svg>
+            </td>
+          </tr>
+        `;
+        })
+        .join('');
+
+      // Add event listeners after rendering
+      document.querySelectorAll('.issue-row').forEach(row => {
+        const openIssue = function() {
+          const category = row.getAttribute('data-category');
+          const ruleId = row.getAttribute('data-rule-id');
+          const issue = filteredIssues.find(i => i.ruleId === ruleId && i.category === category);
+          
+          if (issue) {
+            window.openIssueDetails(category, issue);
+          }
+        };
+
+        // Click handler
+        row.addEventListener('click', openIssue);
+
+        // Keyboard handler
+        row.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openIssue();
+          }
+        });
+      });
+    }
+
+    function updateTotalCount() {
+      const countElement = document.getElementById('totalIssuesCount');
+      const totalCount = filteredIssues.length;
+      const allCount = allIssues.length;
+
+      if (totalCount === allCount) {
+        countElement.textContent = `Total ${totalCount} issues`;
+      } else {
+        countElement.textContent = `Showing ${totalCount} issues`;
+      }
+    }
+
+    window.openIssueDetails = function (category, issueData) {
+      const issue = typeof issueData === 'string' ? JSON.parse(issueData) : issueData;
+      const ruleData = scanItems[category]?.rules?.find(r => r.rule === issue.ruleId);
+
+      if (ruleData && typeof expandRule === 'function') {
+        expandRule(category, ruleData);
+
+        const modalElement = document.getElementById('expandedRule');
+        if (modalElement) {
+          const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+          modal.show();
+        }
+      }
+    };
+  })();
+</script>

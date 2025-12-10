@@ -1,32 +1,20 @@
-<div class="d-flex flex-grow-1 align-items-stretch">
-  <!-- main.ejs -->
-  <%- include("components/pagesScannedModal") %> <%- include("components/screenshotLightbox") %>
-  <main class="d-flex flex-grow-1">
-    <%- include("components/scanAbout") %>
-    <!-- wcag compliance + top 5 -->
-    <section class="w-100">
-      <div class="compliance-summary">
-        <div class="col card rounded"><%- include("components/wcagCompliance") %></div>
-        <div class="col card rounded"><%- include("components/topFive") %></div>
+<div class="d-flex flex-grow-1 align-items-stretch main-container">
+  <%- include("components/screenshotLightbox") %>
+  <main class="d-flex flex-grow-1" style="min-width: 0;">
+    <section class="w-100 m-4" style="max-width: calc(100% - 3rem); box-sizing: border-box;">
+      <%- include("components/header/SiteInfo") %>
+      <div class="compliance-summary gap-4 mt-4">
+        <div class="col card rounded"><%- include("components/wcagCompliance/WcagCompliance") %></div>
+        <div class="col card rounded"><%- include("components/topTen") %></div>
       </div>
-      <hr class="my-4 mx-3" />
+      <%- include("components/prioritiseIssues/PrioritiseIssues") %>
       <!-- jsOffMessage -->
       <p id="jsOffMessage" class="mx-3">
         Please open this file in a browser to experience the report's full functionality.
       </p>
+      <%- include("components/allIssues/AllIssues") %>
       <div id="jsOn" class="d-none">
-        <!-- Search Feat Input -->
-        <div id="searchGroup" class="row m-0 px-3"><%- include("components/reportSearch") %></div>
-        <!-- Button Category Selector -->
-        <%- include("components/categorySelector") %>
-
-        <!-- Dropdown Category Selector -->
-        <%- include("components/categorySelectorDropdown") %>
-        <ul id="categorySummary" class="unbulleted-list px-3 py-4 mb-3 flex-grow-1">
-          <!-- dynamically generated section from scripts/categorySummary -->
-          <%# dynamically generated section from scripts/categorySummary %>
-        </ul>
-        <%- include("components/ruleOffcanvas") %>
+        <%- include("components/ruleModal/ruleOffcanvas") %>
         <p id="containsAISuggestions" class="d-none">Tooltip: Contains AI suggestions.</p>
         <p id="mustFixAriaDescription" class="d-none">Tooltip: <%= items.mustFix.description %></p>
         <p id="goodToFixAriaDescription" class="d-none">
@@ -38,3 +26,4 @@
   </main>
 </div>
 <%- include("footer") %>
+<%- include("components/header/aboutScanModal/AboutScanModal") %>

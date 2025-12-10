@@ -1,0 +1,119 @@
+<div id="site-header">
+  <div class="d-flex flex-column">
+    <div id="site-container">
+      <!-- Site Name -->
+      <div class="d-flex align-items-center gap-2">
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M18.2222 4H5.77778C4.79111 4 4 4.8 4 5.77778V18.2222C4 19.2 4.79111 20 5.77778 20H18.2222C19.2 20 20 19.2 20 18.2222V5.77778C20 4.8 19.2089 4 18.2222 4ZM18.2222 18.2222H5.77778V7.55556H18.2222V18.2222ZM16.4444 12H7.55556V10.2222H16.4444V12ZM12.8889 15.5556H7.55556V13.7778H12.8889V15.5556Z"
+            fill="#686868"
+          />
+        </svg>
+        <div class="flex-grow-1">
+          <p class="label" id="siteName">N/A</p>
+        </div>
+      </div>
+
+      <!-- Site URL -->
+      <div class="d-flex align-items-center gap-2">
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <g clip-path="url(#clip0_343_424)">
+            <path
+              d="M5.52 12C5.52 10.632 6.632 9.52 8 9.52H11.2V8H8C5.792 8 4 9.792 4 12C4 14.208 5.792 16 8 16H11.2V14.48H8C6.632 14.48 5.52 13.368 5.52 12ZM8.8 12.8H15.2V11.2H8.8V12.8ZM16 8H12.8V9.52H16C17.368 9.52 18.48 10.632 18.48 12C18.48 13.368 17.368 14.48 16 14.48H12.8V16H16C18.208 16 20 14.208 20 12C20 9.792 18.208 8 16 8Z"
+              fill="#686868"
+            />
+          </g>
+          <defs>
+            <clipPath id="clip0_343_424">
+              <rect width="24" height="24" fill="white" />
+            </clipPath>
+          </defs>
+        </svg>
+        <a
+          id="siteUrl"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="link d-flex align-items-center gap-1"
+          aria-label="Visit scanned page (opens in a new tab)"
+          ><span class="url-text link">N/A
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <g clip-path="url(#clip0_182_3910)">
+                <path
+                  d="M16.6667 16.6667H7.33333V7.33333H12V6H7.33333C6.59333 6 6 6.6 6 7.33333V16.6667C6 17.4 6.59333 18 7.33333 18H16.6667C17.4 18 18 17.4 18 16.6667V12H16.6667V16.6667ZM13.3333 6V7.33333H15.7267L9.17333 13.8867L10.1133 14.8267L16.6667 8.27333V10.6667H18V6H13.3333Z"
+                  fill="#5735DF"
+                />
+              </g>
+              <defs>
+                <clipPath id="clip0_182_3910">
+                  <rect width="24" height="24" fill="white" />
+                </clipPath>
+              </defs>
+            </svg>
+          </span>
+        </a>
+      </div>
+
+      <!-- Scanned On -->
+      <div class="d-flex align-items-center gap-2">
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <g clip-path="url(#clip0_343_419)">
+            <path
+              d="M11.992 4C7.576 4 4 7.584 4 12C4 16.416 7.576 20 11.992 20C16.416 20 20 16.416 20 12C20 7.584 16.416 4 11.992 4ZM12 18.4C8.464 18.4 5.6 15.536 5.6 12C5.6 8.464 8.464 5.6 12 5.6C15.536 5.6 18.4 8.464 18.4 12C18.4 15.536 15.536 18.4 12 18.4Z"
+              fill="#686868"
+            />
+            <path d="M12.25 8H11V12.5902L15.375 15L16 14.059L12.25 12.0164V8Z" fill="#4E4E4E" />
+          </g>
+          <defs>
+            <clipPath id="clip0_343_419">
+              <rect width="24" height="24" fill="white" />
+            </clipPath>
+          </defs>
+        </svg>
+        <p id="siteScannedOn" class="label">N/A</p>
+      </div>
+    </div>
+
+    <!-- More Details Link -->
+    <div class="d-flex justify-content-between">
+      <button
+        type="button"
+        class="wcag-link p-0 border-0 bg-transparent link"
+        data-bs-toggle="modal"
+        data-bs-target="#aboutScanModal"
+      >
+        <span class="link">More details about this scan</span>
+        <svg width="8" height="10" viewBox="0 0 6 10" aria-hidden="true" focusable="false">
+          <path
+            d="M0.726562 7.06L3.7799 4L0.726562 0.94L1.66656 0L5.66656 4L1.66656 8L0.726562 7.06Z"
+            fill="#5735DF"
+          />
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
