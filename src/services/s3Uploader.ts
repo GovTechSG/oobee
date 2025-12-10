@@ -17,8 +17,6 @@ export interface ScanMetadata {
   scanId: string;
   userId: string;
   email: string;
-  siteName?: string;
-  durationExceeded?: boolean;
 }
 
 export const uploadFileToS3 = async (
@@ -73,10 +71,6 @@ export const uploadFolderToS3 = async (
     scanid: scanMetadata.scanId,
     userid: scanMetadata.userId,
     useremail: scanMetadata.email,
-    ...(scanMetadata.siteName && { sitename: scanMetadata.siteName }),
-    ...(scanMetadata.durationExceeded !== undefined && {
-      durationexceeded: scanMetadata.durationExceeded ? 'true' : 'false',
-    }),
   };
 
   consoleLogger.info(`Uploading ${files.length} files to S3...`);
@@ -135,8 +129,6 @@ export const getS3MetadataFromEnv = (): ScanMetadata | null => {
     scanId,
     userId,
     email,
-    siteName: process.env.OOBEE_SITE_NAME,
-    durationExceeded: process.env.OOBEE_DURATION_EXCEEDED === 'true',
   };
 };
 
