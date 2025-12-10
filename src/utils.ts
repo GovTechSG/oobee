@@ -208,6 +208,25 @@ export const createScreenshotsFolder = (randomToken: string): void => {
 
 let __shuttingDown = false;
 let __stopAllLock: Promise<void> | null = null;
+let __softCloseHandler: (() => Promise<void>) | null = null;
+
+export function registerSoftClose(handler: () => Promise<void>) {
+  __softCloseHandler = handler;
+}
+
+export async function softCloseBrowserAndContext() {
+  if (!__softCloseHandler) {
+    consoleLogger.info('softCloseBrowserAndContext: no handler registered (probably not a custom-flow scan)');
+    return;
+  }
+
+  try {
+    consoleLogger.info('softCloseBrowserAndContext: calling registered handler...');
+    await __softCloseHandler();
+  } catch (e: any) {
+    consoleLogger.warn(`softCloseBrowserAndContext error: ${e?.message || e}`);
+  }
+}
 
 /**
  * Register a resource so it can be stopped later.
@@ -465,6 +484,13 @@ export const listenForCleanUp = (randomToken: string): void => {
   process.on('SIGTERM', async () => {  // ← keep handler installed
     consoleLogger.info('SIGTERM received. Cleaning up and exiting.');
     await cleanUpAndExit(143, randomToken, true);
+  });
+
+  // Note: user-defined signal reserved for application-specific use.
+  // SIGUSR1 for handling closing playwright browser and continue generate artifacts etc
+  process.on('SIGUSR1', async () => {
+    consoleLogger.info('SIGUSR1 received. Soft-closing browser/context only.');
+    await softCloseBrowserAndContext();
   });
 };
 

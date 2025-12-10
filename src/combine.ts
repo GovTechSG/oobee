@@ -121,15 +121,21 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   );
 
   let urlsCrawledObj: UrlsCrawled;
+  let uiCustomFlowLabel: string | undefined;
+
   switch (type) {
-    case ScannerTypes.CUSTOM:
-      urlsCrawledObj = await runCustom(
-        url,
-        randomToken,
-        viewportSettings,
-        blacklistedPatterns,
-        includeScreenshots,
-      );
+   case ScannerTypes.CUSTOM:
+     const res = await runCustom(
+       url,
+       randomToken,
+       viewportSettings,
+       blacklistedPatterns,
+       includeScreenshots,
+       (customFlowLabel && customFlowLabel !== 'None') ? customFlowLabel : ''
+     );
+
+      urlsCrawledObj = res.urlsCrawled;
+      uiCustomFlowLabel = res.customFlowLabel;
       break;
 
     case ScannerTypes.SITEMAP:
@@ -235,7 +241,9 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         deviceToScan,
         urlsCrawledObj.scanned,
         pagesNotScanned,
-        customFlowLabel,
+        (uiCustomFlowLabel && uiCustomFlowLabel.length > 0)
+          ? uiCustomFlowLabel
+          : (customFlowLabel || 'None'),
         undefined,
         scanDetails,
         zip,
