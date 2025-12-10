@@ -47,8 +47,8 @@ When running Oobee in a containerized or orchestrated environment, pass the requ
 
 ```bash
 # Docker example
-docker run -e OOBEE_SCAN_ID="scan-123" \
-           -e OOBEE_USER_ID="user-456" \
+docker run -e OOBEE_SCAN_ID="650e8400-e29b-41d4-a716-446655440001" \
+           -e OOBEE_USER_ID="550e8400-e29b-41d4-a716-446655440000" \
            -e OOBEE_USER_EMAIL="user@example.com" \
            -e S3_BUCKET_NAME="oobee-scan-results" \
            -e AWS_REGION="ap-southeast-1" \
@@ -57,9 +57,9 @@ docker run -e OOBEE_SCAN_ID="scan-123" \
 # Kubernetes example
 env:
   - name: OOBEE_SCAN_ID
-    value: "scan-123"
+    value: "650e8400-e29b-41d4-a716-446655440001"
   - name: OOBEE_USER_ID
-    value: "user-456"
+    value: "550e8400-e29b-41d4-a716-446655440000"
   - name: OOBEE_USER_EMAIL
     value: "user@example.com"
   - name: S3_BUCKET_NAME
@@ -110,8 +110,6 @@ All files are uploaded with S3 metadata containing:
 - `scanid` - Scan ID
 - `userid` - User ID
 - `useremail` - User email
-- `sitename` - Site name (if available)
-- `durationexceeded` - "true" or "false"
 
 ### S3 Metadata
 
@@ -122,8 +120,6 @@ Each uploaded file includes metadata that the S3 Lambda processor uses:
   "scanid": "650e8400-e29b-41d4-a716-446655440001",
   "userid": "550e8400-e29b-41d4-a716-446655440000",
   "useremail": "user@example.com",
-  "sitename": "Example Website",
-  "durationexceeded": "false"
 }
 ```
 
