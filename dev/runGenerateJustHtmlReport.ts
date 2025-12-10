@@ -1,5 +1,10 @@
+/* 
+For developemnt and testing purposes only. Run the report generator
+on an existing results directory.
+*/
+
 import path from 'path';
-import { generateHtmlReport } from './generateHtmlReport.js';
+import { generateHtmlReport } from '../src/generateHtmlReport.js';
 
 async function main() {
   const dirArg = process.argv[2];
