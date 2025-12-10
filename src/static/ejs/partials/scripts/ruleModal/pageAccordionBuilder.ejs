@@ -1,0 +1,468 @@
+<script>
+  function buildExpandedRuleCategoryContent(category, ruleInCategory) {
+    const contentContainer = document.getElementById('expandedRuleCategoryContent');
+    const isCustomFlow = <%- isCustomFlow -%>;
+
+    if (category === 'passed') {
+      contentContainer.innerHTML = `You may find the list of passed HTML elements in <a href='./passed_items.json' target='_blank'>passed_items.json.txt</a>.`;
+      return;
+    }
+
+    setupGroupByToggle(category, ruleInCategory, isCustomFlow);
+
+    renderGroupedByPage(category, ruleInCategory, isCustomFlow);
+  }
+
+  function setupGroupByToggle(category, ruleInCategory, isCustomFlow) {
+    const groupByPage = document.getElementById('groupByPage');
+    const groupByHtmlElement = document.getElementById('groupByHtmlElement');
+
+    const newGroupByPage = groupByPage.cloneNode(true);
+    const newGroupByHtmlElement = groupByHtmlElement.cloneNode(true);
+    groupByPage.parentNode.replaceChild(newGroupByPage, groupByPage);
+    groupByHtmlElement.parentNode.replaceChild(newGroupByHtmlElement, groupByHtmlElement);
+
+    const updateDropdownTitle = (isHtmlGrouping) => {
+      const itemsToUse = typeof filteredItems !== 'undefined' ? filteredItems : scanItems;
+        const dropdownTitle = document.getElementById('expandedRuleDropdownTitle');
+        if (dropdownTitle) {
+          const selectedCategory = itemsToUse[category]?.rules?.find(r => r.rule === ruleInCategory.rule);
+          if (selectedCategory) {
+            const count = selectedCategory.pagesAffected.length;
+            if (isHtmlGrouping) {
+              dropdownTitle.innerText = `HTML elements affected by this issue (${count})`;
+            } else {
+              dropdownTitle.innerText = `Pages affected by this issue (${count})`;
+            }
+          }
+        }
+      };
+
+
+    newGroupByPage.addEventListener('change', () => {
+      if (newGroupByPage.checked) {
+        renderGroupedByPage(category, ruleInCategory, isCustomFlow);
+        updateDropdownTitle(false);
+      }
+    });
+
+    newGroupByHtmlElement.addEventListener('change', async () => {
+      if (newGroupByHtmlElement.checked) {
+        updateDropdownTitle(true);
+        const contentContainer = document.getElementById('expandedRuleCategoryContent');
+        contentContainer.innerHTML = `
+          <div class="p-4 text-center">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading all items for grouping...</p>
+          </div>
+        `;
+
+        await loadAllPageItems(ruleInCategory);
+
+        renderGroupedByHtmlElement(category, ruleInCategory, isCustomFlow);
+      }
+    });
+  }
+
+  async function loadAllPageItems(ruleInCategory) {
+    const loadPromises = ruleInCategory.pagesAffected.map(async (page) => {
+      if (!page.items && page.itemsCount > 0) {
+        page.items = [];
+      }
+    });
+
+    await Promise.all(loadPromises);
+  }
+
+  function renderGroupedByPage(category, ruleInCategory, isCustomFlow) {
+    const contentContainer = document.getElementById('expandedRuleCategoryContent');
+    const accordionsList = createElementFromString(`<ul class="unbulleted-list"></ul>`);
+
+    ruleInCategory.pagesAffected.forEach((page, index) => {
+      const accordion = createPageAccordion(page, index, category, ruleInCategory, isCustomFlow);
+      accordionsList.appendChild(accordion);
+    });
+
+    contentContainer.replaceChildren(accordionsList);
+    hljs.highlightAll();
+  }
+
+  function renderGroupedByHtmlElement(category, ruleInCategory, isCustomFlow) {
+    const contentContainer = document.getElementById('expandedRuleCategoryContent');
+
+    // Group items by HTML element
+    const groupedByHtml = {};
+    ruleInCategory.pagesAffected.forEach((page) => {
+      if (!page.items || page.items.length === 0) {
+        return;
+      }
+
+      page.items.forEach((item) => {
+        const htmlKey = item.html || 'No HTML element';
+        if (!groupedByHtml[htmlKey]) {
+          groupedByHtml[htmlKey] = [];
+        }
+        groupedByHtml[htmlKey].push({
+          ...item,
+          pageUrl: page.url,
+          pageTitle: page.pageTitle || page.metadata,
+        });
+      });
+    });
+
+    if (Object.keys(groupedByHtml).length === 0) {
+      contentContainer.innerHTML = `
+        <div class="p-4 text-center">
+          <p class="mb-0">No items available for grouping by HTML element.</p>
+          <p class="text-muted small">Items may need to be loaded first by expanding pages.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const accordionsList = createElementFromString(`<ul class="unbulleted-list"></ul>`);
+    let htmlIndex = 0;
+
+    const sortedGroups = Object.entries(groupedByHtml).sort(([, itemsA], [, itemsB]) => {
+      return itemsB.length - itemsA.length; // DESC
+    });
+
+    sortedGroups.forEach(([htmlElement, items]) => {
+      const accordion = createHtmlElementAccordion(
+        htmlElement,
+        items,
+        htmlIndex,
+        category,
+        ruleInCategory,
+        isCustomFlow
+      );
+      accordionsList.appendChild(accordion);
+      htmlIndex++;
+    });
+
+    contentContainer.replaceChildren(accordionsList);
+    hljs.highlightAll();
+  }
+
+  function createHtmlElementAccordion(htmlElement, items, index, category, ruleInCategory, isCustomFlow) {
+    const accordionId = `${ruleInCategory.rule}-${category}-html-${index}`;
+    const itemsCount = items.length;
+
+    const htmlPreview = htmlElement === 'No HTML element' ? htmlElement : htmlElement;
+    const escapedPreview = htmlEscapeString(htmlPreview);
+
+    const accordion = createElementFromString(`
+      <li>
+        <div class="accordion mt-2 ${category}">
+          <div class="accordion-item rule-modal-item">
+            <div class="accordion-header" id="${accordionId}-title">
+              <button
+                aria-label="HTML element ${index + 1}, ${itemsCount} ${itemsCount === 1 ? 'occurrence' : 'occurrences'}"
+                class="accordion-button collapsed"
+                type="button"
+              >
+                <span class="sr-only visually-hidden">${itemsCount} ${itemsCount === 1 ? 'occurrence' : 'occurrences'}</span>
+                <svg
+                  class="accordion-arrow"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M7.41 8.58984L12 13.1698L16.59 8.58984L18 9.99984L12 15.9998L6 9.99984L7.41 8.58984Z"
+                    fill="#5735DF"
+                  />
+                </svg>
+                <div class="me-3 html-element-preview flex-1">${escapedPreview}</div>
+                <div class="ms-auto rule-occurrence-count counter">${itemsCount} occ.</div>
+              </button>
+            </div>
+            <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
+              <div class="accordion-body p-3">
+              </div>
+            </div>
+          </div>
+        </div>
+      </li>
+    `);
+
+    setupHtmlElementAccordionHandlers(accordion, accordionId, category, ruleInCategory, items, index);
+
+    return accordion;
+  }
+
+  function setupHtmlElementAccordionHandlers(accordion, accordionId, category, ruleInCategory, items, index) {
+    const button = accordion.querySelector('button');
+
+    button.addEventListener('click', function loadContent(event) {
+      const accordionBody = accordion.querySelector(".accordion-body");
+
+      if (!accordionBody.querySelector(".item-pagination-controls")) {
+        buildHtmlElementItemCards(accordionId, category, ruleInCategory, items, index);
+        this.setAttribute('data-bs-target', '#' + accordionId + "-content");
+        this.removeEventListener('click', loadContent);
+        this.click();
+      }
+    });
+
+    button.addEventListener('click', function initCollapse(event) {
+      this.setAttribute('data-bs-toggle', 'collapse');
+      this.setAttribute('data-bs-target', '#' + accordionId + "-content");
+      this.setAttribute('aria-expanded', 'false');
+      this.setAttribute('aria-controls', accordionId + "-content");
+
+      new bootstrap.Collapse(this, { toggle: false });
+
+      this.removeEventListener('click', initCollapse);
+      setTimeout(() => {
+        this.click();
+      }, 0);
+    });
+  }
+
+  function buildHtmlElementItemCards(accordionId, category, ruleInCategory, items, index) {
+    const accordion = document.getElementById(`${accordionId}-title`).parentElement.parentElement.parentElement;
+    const accordionBody = accordion.getElementsByClassName('accordion-body')[0];
+    const totalItems = items.length;
+    let currentItemIndex = 0;
+
+    const paginationControls = createPaginationControls(totalItems);
+
+    const itemCardContainer = createElementFromString('<div></div>');
+
+    async function renderItem(itemIndex) {
+      const item = items[itemIndex];
+      const accordionAIId = `${ruleInCategory.rule}-${category}-accordion-AI-html-${index}-${itemIndex}`;
+      const buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-html-${index}-${itemIndex}`;
+      const errorAIId = `${ruleInCategory.rule}-${category}-error-AI-html-${index}-${itemIndex}`;
+
+      const isPurpleAiRule = oobeeAiRules.includes(ruleInCategory.rule);
+      let oobeeAiQueryLabel;
+      if (isPurpleAiRule) {
+        oobeeAiQueryLabel = await checkPurpleAiQueryLabel(ruleInCategory.rule, item.html);
+      }
+
+      const itemCard = createHtmlGroupedItemCard(item, isPurpleAiRule, oobeeAiQueryLabel, {
+        accordionDivToAppendAI: accordionAIId,
+        buttonDivForAiFeedback: buttonAIId,
+        aiErrorDiv: errorAIId,
+        ruleInCategory,
+      }, item.html);
+
+      itemCardContainer.replaceChildren(itemCard);
+
+      setupCopyButton(itemCard, item.xpath);
+
+      hljs.configure({ ignoreUnescapedHTML: true });
+      hljs.highlightAll();
+    }
+
+    function updatePaginationState() {
+      const prevBtn = paginationControls.querySelector('.pagination-prev');
+      const nextBtn = paginationControls.querySelector('.pagination-next');
+      const pageInput = paginationControls.querySelector('.pagination-page-input');
+
+      prevBtn.disabled = currentItemIndex === 0;
+      nextBtn.disabled = currentItemIndex === totalItems - 1;
+      pageInput.value = currentItemIndex + 1;
+    }
+
+    setupPaginationHandlers(paginationControls, totalItems, {
+      onPageChange: newIndex => {
+        currentItemIndex = newIndex;
+        renderItem(currentItemIndex);
+        updatePaginationState();
+      },
+    });
+
+    accordionBody.appendChild(paginationControls);
+    accordionBody.appendChild(itemCardContainer);
+
+    renderItem(0);
+  }
+
+  function createHtmlGroupedItemCard(item, isPurpleAiRule, oobeeAiQueryLabel, aiConfig, htmlElement) {
+    return createElementFromString(`
+      <div>
+        <div class="d-flex gap-3 flex-column">
+          <h3>Where to find this issue</h3>
+          ${item.screenshotPath ? createScreenshotSection(item.screenshotPath) : ''}
+          ${item.xpath ? createXpathSection(item.xpath) : ''}
+
+          <div class="d-flex justify-content-between g-one modal-view">
+            <div class="fw-semibold">URL</div>
+            <div class="page-item-card-section-content">
+              <a href="${item.pageUrl}" target="_blank">${item.pageUrl}</a>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <g clip-path="url(#clip0_174_1993)">
+                      <path d="M12.6667 12.6667H3.33333V3.33333H8V2H3.33333C2.59333 2 2 2.6 2 3.33333V12.6667C2 13.4 2.59333 14 3.33333 14H12.6667C13.4 14 14 13.4 14 12.6667V8H12.6667V12.6667ZM9.33333 2V3.33333H11.7267L5.17333 9.88667L6.11333 10.8267L12.6667 4.27333V6.66667H14V2H9.33333Z" fill="#5735DF"/>
+                  </g>
+                  <defs>
+                      <clipPath id="clip0_174_1993">
+                          <rect width="16" height="16" fill="white"/>
+                      </clipPath>
+                  </defs>
+              </svg>
+            </div>
+          </div>
+
+        <div class="d-flex justify-content-between g-one modal-view">
+            <div class="fw-semibold mb-2">HTML element</div>
+            <pre class="page-item-card-section-content">
+                <code class="language-html">${htmlEscapeString(htmlElement)}</code>
+            </pre>
+        </div>
+
+          ${
+            item.displayNeedsReview
+              ? `<div class="d-flex justify-content-between g-one modal-view">
+            <div class="fw-semibold page-item-card-section-title">Details</div>
+            <div class="page-item-card-section-content">
+              ${generateItemMessageElement(item.displayNeedsReview, item.message)}
+            </div>
+          </div>`
+              : ''
+          }
+          ${isPurpleAiRule ? createAiSuggestionSection(item, oobeeAiQueryLabel, aiConfig) : ''}
+        </div>
+      </div>
+    `);
+  }
+
+  function createPageAccordion(page, index, category, ruleInCategory, isCustomFlow) {
+    const accordionId = `${ruleInCategory.rule}-${category}-page-${index}`;
+    const pageItemsCount = page.items.length || page.itemsCount || 0;
+    const normalMode = page.itemsCount === undefined;
+
+    const accordion = createElementFromString(`
+      <li class="${normalMode ? '' : 'no-chevron'}">
+        <div class="accordion mt-2 ${category}">
+          <div class="accordion-item rule-modal-item">
+            <div class="accordion-header" id="${accordionId}-title">
+              ${normalMode ? '<button' : '<div'}
+                aria-label="Page ${index + 1}: ${page.pageTitle}, ${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}"
+                class="accordion-button collapsed"
+                ${normalMode ? 'type="button"' : ''}
+              >
+                <span class="sr-only visually-hidden">${pageItemsCount} ${pageItemsCount === 1 ? 'occurrence' : 'occurrences'}</span>
+                <svg
+                  class="accordion-arrow"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M7.41 8.58984L12 13.1698L16.59 8.58984L18 9.99984L12 15.9998L6 9.99984L7.41 8.58984Z"
+                    fill="#5735DF"
+                  />
+                </svg>
+                <div class="me-3 flex-1">${page.metadata ? page.metadata : page.pageTitle}</div>
+                <div class="ms-auto rule-occurrence-count counter">${pageItemsCount} occ.</div>
+              ${normalMode ? '</button>' : '</div>'}
+            </div>
+            <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
+              <div class="accordion-body p-3">
+                ${isCustomFlow
+                  ? createCustomFlowContent(page)
+                  :
+                  `<div class="d-flex align-items-center gap-1 accordion-link" style="    word-wrap: break-word; word-break: break-word;">
+                    <a href="${page.url}" target="_blank">${page.url}
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-left: 0.25rem;">
+                        <g clip-path="url(#clip0_174_1993)">
+                            <path d="M12.6667 12.6667H3.33333V3.33333H8V2H3.33333C2.59333 2 2 2.6 2 3.33333V12.6667C2 13.4 2.59333 14 3.33333 14H12.6667C13.4 14 14 13.4 14 12.6667V8H12.6667V12.6667ZM9.33333 2V3.33333H11.7267L5.17333 9.88667L6.11333 10.8267L12.6667 4.27333V6.66667H14V2H9.33333Z" fill="#5735DF"/>
+                        </g>
+                        <defs>
+                            <clipPath id="clip0_174_1993">
+                                <rect width="16" height="16" fill="white"/>
+                            </clipPath>
+                        </defs>
+                    </svg>
+                    </a>
+                  </div>`
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      </li>
+    `);
+
+    if (normalMode) {
+      setupPageAccordionHandlers(accordion, accordionId, category, ruleInCategory, page, index);
+    }
+
+    if (isCustomFlow) {
+      setupCustomFlowScreenshot(accordion, page);
+    }
+
+    return accordion;
+  }
+
+  function createCustomFlowContent(page) {
+    return `
+      <div class="custom-flow-screenshot-container">
+          <div class="custom-flow-thumb">
+            <img
+              src="${page.pageImagePath}"
+              alt="Screenshot of ${page.url}"
+              class="custom-flow-screenshot"
+              onerror="this.onerror = null; this.remove();"
+            >
+          </div>
+          <div class="display-url-container">
+            <div><a href="${page.url}" target="_blank">${page.url}</a></div>
+          </div>
+        </div>
+    `;
+  }
+
+  function setupPageAccordionHandlers(accordion, accordionId, category, ruleInCategory, page, index) {
+    const button = accordion.querySelector('button');
+
+    button.addEventListener('click', function loadContent(event) {
+      const accordionBody = accordion.querySelector(".accordion-body");
+
+      if (!accordionBody.querySelector(".item-pagination-controls") &&
+          !accordionBody.querySelector(".unbulleted-list")) {
+        buildItemCardsWithPagination(accordionId, category, ruleInCategory, page, index);
+        this.setAttribute('data-bs-target', '#' + accordionId + "-content");
+        this.removeEventListener('click', loadContent);
+        this.click();
+      }
+    });
+
+    button.addEventListener('click', function initCollapse(event) {
+      this.setAttribute('data-bs-toggle', 'collapse');
+      this.setAttribute('data-bs-target', '#' + accordionId + "-content");
+      this.setAttribute('aria-expanded', 'false');
+      this.setAttribute('aria-controls', accordionId + "-content");
+
+      new bootstrap.Collapse(this, { toggle: false });
+
+      this.removeEventListener('click', initCollapse);
+      setTimeout(() => {
+        this.click();
+      }, 0);
+    });
+  }
+
+  function setupCustomFlowScreenshot(accordion, page) {
+    const customScreenshotElem = accordion.getElementsByClassName('custom-flow-screenshot')[0];
+
+    customScreenshotElem.onerror = function(event) {
+      this.onerror = null;
+      this.remove();
+    };
+
+    customScreenshotElem.onclick = function(event) {
+      event.preventDefault();
+      openLightbox(this.src, page.pageTitle, page.url);
+    };
+  }
+</script>

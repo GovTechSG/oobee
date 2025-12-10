@@ -1,71 +1,75 @@
 <%# functions used to show lightbox of screenshot when thumbnail is clicked on %>
 <script>
-    const lightbox = document.getElementsByClassName('screenshot-lightbox')[0];
-    const lightboxHeader = document.getElementsByClassName('lightbox-header')[0];
-    const lightboxTitle = document.querySelector('.lightbox-header h5');
-    const lightboxContent = document.getElementsByClassName('lightbox-content')[0]; 
-    const lightboxImg = document.getElementById('lightbox-image');
+  const lightbox = document.getElementsByClassName('screenshot-lightbox')[0];
+  const lightboxHeader = document.getElementsByClassName('lightbox-header')[0];
+  const lightboxTitle = document.querySelector('.lightbox-header h5');
+  const lightboxContent = document.getElementsByClassName('lightbox-content')[0];
+  const lightboxImg = document.getElementById('lightbox-image');
 
-    var customFlowScreenshots = document.getElementsByClassName('custom-flow-screenshot'); 
-    Array.from(customFlowScreenshots).forEach(screenshot => {
-        screenshot.onerror = function(event) {
-            screenshot.onerror = null;
-            screenshot.remove();
-        }
-        screenshot.onclick = event => {
-            event.preventDefault();
-            const pageTitle = screenshot.parentNode.getElementsByTagName('a')[0].textContent;
-            const pageUrl = screenshot.parentNode.getElementsByTagName('a')[0].href;
-            openLightbox(screenshot.src, pageTitle, pageUrl);
-        }
-    }) 
+  var customFlowScreenshots = document.getElementsByClassName('custom-flow-screenshot');
+  Array.from(customFlowScreenshots).forEach(screenshot => {
+    screenshot.onerror = function (event) {
+      screenshot.onerror = null;
+      screenshot.remove();
+    };
+    screenshot.onclick = event => {
+      event.preventDefault();
+      const pageTitle = screenshot.parentNode.getElementsByTagName('a')[0].textContent;
+      const pageUrl = screenshot.parentNode.getElementsByTagName('a')[0].href;
+      openLightbox(screenshot.src, pageTitle, pageUrl);
+    };
+  });
 
-    lightbox.addEventListener('click', event => {
-        if (event.target === lightbox || event.target === lightboxHeader || event.target === lightboxTitle) {
-            closeLightbox();
-        }
-    })
+  lightbox.addEventListener('click', event => {
+    if (
+      event.target === lightbox ||
+      event.target === lightboxHeader ||
+      event.target === lightboxTitle
+    ) {
+      closeLightbox();
+    }
+  });
 
-    const offcanvasElem = document.getElementsByClassName('offcanvas')[0];
-    const offcanvasItem = new bootstrap.Offcanvas(offcanvasElem); 
-    offcanvasItem._config.keyboard = false; // Disable default keyboard handling
+  const offcanvasElem = document.getElementsByClassName('offcanvas')[0];
+  const offcanvasItem = new bootstrap.Offcanvas(offcanvasElem);
+  offcanvasItem._config.keyboard = false; // Disable default keyboard handling
 
-    const pagesScannedModalElem = document.getElementById('pagesScannedModal'); 
-    const pagesScannedModalItem = new bootstrap.Modal(pagesScannedModalElem);
-    pagesScannedModalItem._config.keyboard = false; 
+  const pagesScannedModalElem = document.getElementById('pagesScannedModal');
+  const pagesScannedModalItem = new bootstrap.Modal(pagesScannedModalElem);
+  pagesScannedModalItem._config.keyboard = false;
 
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape') {
-        if (offcanvasItem._isShown) {
-          if (lightbox.style.display === 'block') {
-            event.preventDefault(); // Prevent default bootstrap behaviour
-            closeLightbox(); 
-          } else {
-            offcanvasItem.hide();
-          }
-        }
-
-        if (pagesScannedModalItem._isShown) {
-          if (lightbox.style.display === 'block') {
-            event.preventDefault(); // Prevent default bootstrap behaviour
-            closeLightbox(); 
-          } else {
-            pagesScannedModalItem.hide();
-          }
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (offcanvasItem._isShown) {
+        if (lightbox.style.display === 'block') {
+          event.preventDefault(); // Prevent default bootstrap behaviour
+          closeLightbox();
+        } else {
+          offcanvasItem.hide();
         }
       }
-    })
 
-    const openLightbox = (imgSrc, pageTitle, pageUrl) => {
-        lightbox.style.display = 'block';
-        
-        lightboxImg.src = imgSrc;
-        lightboxImg.alt = `Screenshot of ${pageUrl}`;
-
-        lightboxTitle.textContent = pageTitle;
+      if (pagesScannedModalItem._isShown) {
+        if (lightbox.style.display === 'block') {
+          event.preventDefault(); // Prevent default bootstrap behaviour
+          closeLightbox();
+        } else {
+          pagesScannedModalItem.hide();
+        }
+      }
     }
+  });
 
-    const closeLightbox = () => {
-        lightbox.style.display = 'none'; 
-    }
+  function openLightbox(imgSrc, pageTitle, pageUrl) {
+    lightbox.style.display = 'block';
+
+    lightboxImg.src = imgSrc;
+    lightboxImg.alt = `Screenshot of ${pageUrl}`;
+
+    lightboxTitle.textContent = pageTitle;
+  };
+
+  function closeLightbox() {
+    lightbox.style.display = 'none';
+  };
 </script>

@@ -1,0 +1,16 @@
+<div id="wcag-compliance-card" class="wcag-card">
+  <div class="wcag-row">
+    <div>
+      <h2 class="wcag-title">WCAG Score</h2>
+
+      <p class="wcag-sub">Based on Automated Checks</p>
+
+      <p id="wcagStatus" class="wcag-status" hidden>
+        This website does not meet the minimum accessibility standards.
+      </p>
+    </div>
+
+    <div><%- include('WcagGaugeBar') %></div>
+  </div>
+  <div><%- include('FailedCriteria') %></div>
+</div>

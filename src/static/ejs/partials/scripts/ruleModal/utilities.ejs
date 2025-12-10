@@ -1,0 +1,79 @@
+<script>
+  function generateWcagConformanceLinks(conformanceList) {
+    const wcagConformanceUrls = {
+      wcag111: 'https://www.w3.org/TR/WCAG22/#non-text-content',
+      wcag122: 'https://www.w3.org/TR/WCAG22/#captions-prerecorded',
+      wcag131: 'https://www.w3.org/TR/WCAG22/#info-and-relationships',
+      wcag135: 'https://www.w3.org/TR/WCAG22/#identify-input-purpose',
+      wcag141: 'https://www.w3.org/TR/WCAG22/#use-of-color',
+      wcag142: 'https://www.w3.org/TR/WCAG22/#audio-control',
+      wcag143: 'https://www.w3.org/TR/WCAG22/#contrast-minimum',
+      wcag144: 'https://www.w3.org/TR/WCAG22/#resize-text',
+      wcag146: 'https://www.w3.org/TR/WCAG22/#contrast-enhanced',
+      wcag1412: 'https://www.w3.org/TR/WCAG22/#text-spacing',
+      wcag211: 'https://www.w3.org/TR/WCAG22/#keyboard',
+      wcag213: 'https://www.w3.org/WAI/WCAG22/Understanding/keyboard-no-exception.html',
+      wcag221: 'https://www.w3.org/TR/WCAG22/#timing-adjustable',
+      wcag222: 'https://www.w3.org/TR/WCAG22/#pause-stop-hide',
+      wcag224: 'https://www.w3.org/TR/WCAG22/#interruptions',
+      wcag241: 'https://www.w3.org/TR/WCAG22/#bypass-blocks',
+      wcag242: 'https://www.w3.org/TR/WCAG22/#page-titled',
+      wcag244: 'https://www.w3.org/TR/WCAG22/#link-purpose-in-context',
+      wcag249: 'https://www.w3.org/TR/WCAG22/#link-purpose-link-only',
+      wcag258: 'https://www.w3.org/TR/WCAG22/#target-size-minimum',
+      wcag311: 'https://www.w3.org/TR/WCAG22/#language-of-page',
+      wcag312: 'https://www.w3.org/TR/WCAG22/#language-of-parts',
+      wcag315: 'https://www.w3.org/TR/WCAG22/#reading-level',
+      wcag325: 'https://www.w3.org/TR/WCAG22/#change-on-request',
+      wcag332: 'https://www.w3.org/TR/WCAG22/#labels-or-instructions',
+      wcag412: 'https://www.w3.org/TR/WCAG22/#name-role-value',
+    };
+
+    const links = [];
+    for (let i = 1; i < conformanceList.length; i++) {
+      const [wcagSection, subSection, ...sectionItem] = conformanceList[i].slice(4);
+      const formattedConformanceNumber = `${wcagSection}.${subSection}.${sectionItem.join('')}`;
+      links.push(
+        `<a href="${wcagConformanceUrls[conformanceList[i]]}" target="_blank">WCAG ${formattedConformanceNumber}</a>`,
+      );
+    }
+    return links.join('&nbsp&nbsp,&nbsp&nbsp&nbsp');
+  }
+
+  function generateItemMessageElement(displayNeedsReview, rawMessage) {
+    if (rawMessage.includes('\n\nFix')) {
+      rawMessage = rawMessage.replace('\n\nFix', '\n  Fix');
+    }
+
+    const htmlEscapedMessageArray = rawMessage.split('\n  ').map(m => htmlEscapeString(m));
+
+    if (displayNeedsReview) {
+      if (htmlEscapedMessageArray.length === 1) {
+        return `<p class="mb-0">${htmlEscapedMessageArray[0]}</p>`;
+      } else {
+        return `<ul>${htmlEscapedMessageArray.map(m => `<li>${m}</li>`).join('')}</ul>`;
+      }
+    } else {
+      let i = 0;
+      const elements = [];
+      while (i < htmlEscapedMessageArray.length) {
+        if (htmlEscapedMessageArray[i].startsWith('Fix ')) {
+          elements.push(`<p class="mb-0">${htmlEscapedMessageArray[i]}</p>`);
+          i++;
+        } else {
+          const fixesList = [];
+          while (
+            i < htmlEscapedMessageArray.length &&
+            !htmlEscapedMessageArray[i].startsWith('Fix a')
+          ) {
+            fixesList.push(`<li>${htmlEscapedMessageArray[i]}</li>`);
+            i++;
+          }
+          elements.push(`<ul>${fixesList.join('')}</ul>`);
+        }
+      }
+
+      return elements.join('');
+    }
+  }
+</script>
