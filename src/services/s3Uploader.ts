@@ -78,30 +78,11 @@ export const uploadFolderToS3 = async (
     scanid: scanMetadata.scanId,
     userid: scanMetadata.userId,
     useremail: scanMetadata.email,
+    ...(scanMetadata.siteName && { sitename: scanMetadata.siteName }),
+    ...(scanMetadata.durationExceeded !== undefined && {
+      durationexceeded: scanMetadata.durationExceeded ? 'true' : 'false',
+    }),
   };
-
-  // Add optional metadata fields if present
-  if (scanMetadata.messageId) {
-    metadata.messageid = scanMetadata.messageId;
-  }
-  if (scanMetadata.amplitudeUserId) {
-    metadata.amplitudeuserid = scanMetadata.amplitudeUserId;
-  }
-  if (scanMetadata.deviceId) {
-    metadata.deviceid = scanMetadata.deviceId;
-  }
-  if (scanMetadata.orgId) {
-    metadata.orgid = scanMetadata.orgId;
-  }
-  if (scanMetadata.userRole) {
-    metadata.userrole = scanMetadata.userRole;
-  }
-  if (scanMetadata.siteName) {
-    metadata.sitename = scanMetadata.siteName;
-  }
-  if (scanMetadata.durationExceeded) {
-    metadata.durationexceeded = scanMetadata.durationExceeded;
-  }
 
   consoleLogger.info(`Uploading ${files.length} files to S3...`);
 
@@ -159,13 +140,8 @@ export const getS3MetadataFromEnv = (): ScanMetadata | null => {
     scanId,
     userId,
     email,
-    messageId: process.env.OOBEE_MESSAGE_ID,
-    amplitudeUserId: process.env.OOBEE_AMPLITUDE_USER_ID,
-    deviceId: process.env.OOBEE_DEVICE_ID,
-    orgId: process.env.OOBEE_ORG_ID,
-    userRole: process.env.OOBEE_USER_ROLE,
     siteName: process.env.OOBEE_SITE_NAME,
-    durationExceeded: process.env.OOBEE_DURATION_EXCEEDED,
+    durationExceeded: process.env.OOBEE_DURATION_EXCEEDED === 'true',
   };
 };
 
