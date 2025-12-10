@@ -5,6 +5,7 @@
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.943.0",
     "@json2csv/node": "^7.0.3",
     "@napi-rs/canvas": "^0.1.53",
     "@sentry/node": "^9.13.0",
@@ -16,7 +17,7 @@
     "ejs": "^3.1.9",
     "file-type": "^19.5.0",
     "fs-extra": "^11.2.0",
-    "glob": "^10.3.10",
+    "glob": "^11.1.0",
     "https": "^1.0.0",
     "inquirer": "^9.2.12",
     "jsdom": "^21.1.2",
