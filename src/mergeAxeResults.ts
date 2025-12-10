@@ -359,6 +359,7 @@ const writeHTML = async (
   htmlFilename = 'report',
   scanDetailsFilePath: string,
   scanItemsFilePath: string,
+  scanItemsPassedFilePath?: string,
 ) => {
   const htmlFilePath = await compileHtmlWithEJS(allIssues, storagePath, htmlFilename);
   const { topFilePath, bottomFilePath } = await splitHtmlAndCreateFiles(htmlFilePath, storagePath);
@@ -376,6 +377,12 @@ const writeHTML = async (
     encoding: 'utf8',
     highWaterMark: BUFFER_LIMIT,
   });
+  const scanItemsPassedReadStream = scanItemsPassedFilePath
+    ? fs.createReadStream(scanItemsPassedFilePath, {
+        encoding: 'utf8',
+        highWaterMark: BUFFER_LIMIT,
+      })
+    : null;
 
   const outputFilePath = `${storagePath}/${htmlFilename}.html`;
   const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a' });
@@ -388,18 +395,20 @@ const writeHTML = async (
     }
   };
 
+  const finishOutput = () => {
+    outputStream.write(suffixData);
+    outputStream.end();
+  };
+
   outputStream.write(prefixData);
 
-  // outputStream.write("scanData = decompressJsonObject('");
   outputStream.write(
     "let scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse('",
   );
   scanDetailsReadStream.pipe(outputStream, { end: false });
 
   scanDetailsReadStream.on('end', () => {
-    // outputStream.write("')\n\n");
     outputStream.write("'); })();\n\n");
-    // outputStream.write("(scanItems = decompressJsonObject('");
     outputStream.write(
       "let scanItemsPromise = (async () => { console.log('Loading scanItems...'); scanItems = await decodeUnzipParse('",
     );
@@ -412,16 +421,36 @@ const writeHTML = async (
   });
 
   scanItemsReadStream.on('end', () => {
-    // outputStream.write("')\n\n");
     outputStream.write("'); })();\n\n");
-    outputStream.write(suffixData);
-    outputStream.end();
+
+    if (scanItemsPassedReadStream) {
+      outputStream.write(
+        "let scanItemsPassedPromise = (async () => { console.log('Loading scanItemsPassed...'); scanItemsPassed = await decodeUnzipParse('",
+      );
+      scanItemsPassedReadStream.pipe(outputStream, { end: false });
+    } else {
+      finishOutput();
+    }
   });
 
   scanItemsReadStream.on('error', err => {
     console.error('Read stream error:', err);
     outputStream.end();
   });
+
+  if (scanItemsPassedReadStream) {
+    scanItemsPassedReadStream.on('end', () => {
+      outputStream.write("'); })();\n\n");
+      finishOutput();
+    });
+
+    scanItemsPassedReadStream.on('error', err => {
+      console.error('Read stream error:', err);
+      outputStream.end();
+    });
+  } else {
+    finishOutput();
+  }
 
   consoleLogger.info('Content appended successfully.');
   await cleanupFiles();
@@ -758,6 +787,8 @@ const writeJsonAndBase64Files = async (
   scanDataBase64FilePath: string;
   scanItemsJsonFilePath: string;
   scanItemsBase64FilePath: string;
+  scanItemsPassedJsonFilePath: string;
+  scanItemsPassedBase64FilePath: string;
   scanItemsSummaryJsonFilePath: string;
   scanItemsSummaryBase64FilePath: string;
   scanItemsMiniReportJsonFilePath: string;
@@ -774,12 +805,24 @@ const writeJsonAndBase64Files = async (
   const { items, ...rest } = allIssues;
   const { jsonFilePath: scanDataJsonFilePath, base64FilePath: scanDataBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(rest, storagePath, 'scanData');
+  
+  // Write non-passed items to scanItems.json
+  const nonPassedItems = {
+    oobeeAppVersion: allIssues.oobeeAppVersion,
+    mustFix: items.mustFix,
+    goodToFix: items.goodToFix,
+    needsReview: items.needsReview,
+  };
   const { jsonFilePath: scanItemsJsonFilePath, base64FilePath: scanItemsBase64FilePath } =
-    await writeJsonFileAndCompressedJsonFile(
-      { oobeeAppVersion: allIssues.oobeeAppVersion, ...items },
-      storagePath,
-      'scanItems',
-    );
+    await writeJsonFileAndCompressedJsonFile(nonPassedItems, storagePath, 'scanItems');
+
+  // Write passed items to scanItemsPassed.json
+  const passedItems = {
+    oobeeAppVersion: allIssues.oobeeAppVersion,
+    passed: items.passed,
+  };
+  const { jsonFilePath: scanItemsPassedJsonFilePath, base64FilePath: scanItemsPassedBase64FilePath } =
+    await writeJsonFileAndCompressedJsonFile(passedItems, storagePath, 'scanItemsPassed');
 
   // Add pagesAffectedCount to each rule in scanItemsMiniReport (items) and sort them in descending order of pagesAffectedCount
   ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
@@ -932,6 +975,8 @@ const writeJsonAndBase64Files = async (
     scanDataBase64FilePath,
     scanItemsJsonFilePath,
     scanItemsBase64FilePath,
+    scanItemsPassedJsonFilePath,
+    scanItemsPassedBase64FilePath,
     scanItemsSummaryJsonFilePath,
     scanItemsSummaryBase64FilePath,
     scanItemsMiniReportJsonFilePath,
@@ -1876,7 +1921,7 @@ const generateArtifacts = async (
     `Passed: ${allIssues.items.passed.totalItems} ${allIssues.items.passed.totalItems === 1 ? 'occurrence' : 'occurrences'}`,
   ]);
 
-  // move screenshots folder to report folders
+  // move screenshots folder to report
   moveElemScreenshots(randomToken, storagePath);
   if (isCustomFlow) {
     createScreenshotsFolder(randomToken);
@@ -1954,6 +1999,8 @@ const generateArtifacts = async (
     scanDataBase64FilePath,
     scanItemsJsonFilePath,
     scanItemsBase64FilePath,
+    scanItemsPassedJsonFilePath,
+    scanItemsPassedBase64FilePath,
     scanItemsSummaryJsonFilePath,
     scanItemsSummaryBase64FilePath,
     scanItemsMiniReportJsonFilePath,
@@ -1984,6 +2031,7 @@ const generateArtifacts = async (
     'report',
     scanDataBase64FilePath,
     resultsTooBig ? scanItemsMiniReportBase64FilePath : scanItemsBase64FilePath,
+    scanItemsPassedBase64FilePath,
   );
 
   if (!generateJsonFiles) {
@@ -1992,6 +2040,8 @@ const generateArtifacts = async (
       scanDataBase64FilePath,
       scanItemsJsonFilePath,
       scanItemsBase64FilePath,
+      scanItemsPassedJsonFilePath,
+      scanItemsPassedBase64FilePath,
       scanItemsSummaryJsonFilePath,
       scanItemsSummaryBase64FilePath,
       scanItemsMiniReportJsonFilePath,
@@ -2109,6 +2159,25 @@ const generateArtifacts = async (
   return ruleIdJson;
 };
 
+// Helper to extract passed items only
+const extractPassedItems = (allIssues: AllIssues) => {
+  return {
+    oobeeAppVersion: allIssues.oobeeAppVersion,
+    passed: allIssues.items.passed,
+  };
+};
+
+// Helper to extract non-passed items (existing behavior)
+const extractNonPassedItems = (allIssues: AllIssues) => {
+  const { passed, ...nonPassedItems } = allIssues.items;
+  return {
+    oobeeAppVersion: allIssues.oobeeAppVersion,
+    mustFix: nonPassedItems.mustFix,
+    goodToFix: nonPassedItems.goodToFix,
+    needsReview: nonPassedItems.needsReview,
+  };
+};
+
 export {
   writeHTML,
   compressJsonFileStreaming,
@@ -2121,6 +2190,8 @@ export {
   oobeeAiHtmlETL,
   oobeeAiRules,
   formatAboutStartTime,
+  extractPassedItems,
+  extractNonPassedItems,
 };
 
 export default generateArtifacts;
