@@ -35,6 +35,11 @@ export const uploadFileToS3 = async (
     ...(metadata && { Metadata: metadata }),
   };
 
+  console.log('s3Client 111', s3Client)
+  console.log('process.env.S3_BUCKET_NAME 111', process.env.S3_BUCKET_NAME)
+  console.log('process.env.CLOUDFRONT_BASE_URL 111', process.env.CLOUDFRONT_BASE_URL)
+  console.log('s3Key 111', s3Key)
+
   const command = new PutObjectCommand(uploadParams);
   await s3Client.send(command);
 
