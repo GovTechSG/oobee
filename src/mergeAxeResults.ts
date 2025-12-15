@@ -2074,6 +2074,28 @@ const generateArtifacts = async (
     }
 
     printMessage(messageToDisplay);
+
+    // Upload to S3 if enabled
+    const { isS3UploadEnabled, uploadFolderToS3, getS3MetadataFromEnv, getS3UploadPrefix } =
+      await import('./services/s3Uploader.js');
+
+    if (isS3UploadEnabled()) {
+      try {
+        const scanMetadata = getS3MetadataFromEnv();
+        const s3Prefix = getS3UploadPrefix();
+
+        if (scanMetadata && s3Prefix) {
+          consoleLogger.info('Uploading scan results to S3...');
+          await uploadFolderToS3(storagePath, s3Prefix, scanMetadata);
+          consoleLogger.info('Successfully uploaded scan results to S3');
+        }
+      } catch (s3Error) {
+        consoleLogger.error(
+          `Failed to upload to S3: ${s3Error instanceof Error ? s3Error.message : String(s3Error)}`,
+        );
+        // Don't throw - S3 upload is optional
+      }
+    }
   } catch (error) {
     printMessage([`Error in zipping results: ${error}`]);
   }
