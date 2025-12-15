@@ -175,10 +175,10 @@
 
       // Prepare payload for wcag-eval API
       const apiPayload = {
-        violation_type: violationType,
+        violationType: violationType,
         html: html,
         css: elementContext?.css || '',
-        violation_context: violationContext ? {
+        violationContext: violationContext ? {
           severity: violationContext.severity,
           issue_description: violationContext.issueDescription,
           wcag_conformance: violationContext.wcagConformance,
@@ -195,15 +195,15 @@
         }
       };
 
-      // Add scanner_findings for color-contrast violations
+      // Add scannerFindings for color-contrast violations
       if (violationType === 'color-contrast') {
-        apiPayload.scanner_findings = scannerFindings;
+        apiPayload.scannerFindings = scannerFindings;
       }
 
       console.log('Sending request to wcag-eval API:', apiPayload);
 
-      // Call wcag-eval API
-      const wcagEvalApiUrl = 'http://localhost:5000/generate-fix';
+      // Call wcag-eval API (now in oobee-web-proxy)
+      const wcagEvalApiUrl = 'http://localhost:3002/api/ai/generate-fix';
       const response = await fetch(wcagEvalApiUrl, {
         method: 'POST',
         headers: {
@@ -224,9 +224,9 @@
         throw new Error(apiResponse.error || 'API returned unsuccessful response');
       }
 
-      const fixSuggestion = apiResponse.fix_suggestion;
+      const fixSuggestion = apiResponse.fixSuggestion;
       console.log('Fix suggestion data:', fixSuggestion);
-      console.log('Code fixes array:', fixSuggestion?.code_fixes);
+      console.log('Code fixes array:', fixSuggestion?.codeFixes);
 
       // Format the AI response for display
       const formattedResponse = formatFixSuggestionResponse(fixSuggestion);
@@ -313,10 +313,11 @@
 
   // Format fix suggestion response for display
   function formatFixSuggestionResponse(fixSuggestion) {
-    const contrastAnalysis = fixSuggestion.contrast_analysis || {};
-    const targetSizeAnalysis = fixSuggestion.target_size_analysis || {};
-    const plainExplanation = fixSuggestion.why_it_matters || 'This fix improves accessibility for users with visual impairments.';
-    const diagnosis = fixSuggestion.diagnosis || plainExplanation;
+    // Support both snake_case (Python) and camelCase (TypeScript) responses
+    const contrastAnalysis = fixSuggestion.contrast_analysis || fixSuggestion.contrastAnalysis || {};
+    const targetSizeAnalysis = fixSuggestion.target_size_analysis || fixSuggestion.targetSizeAnalysis || {};
+    const plainExplanation = fixSuggestion.why_it_matters || fixSuggestion.explanation || 'This fix improves accessibility for users with visual impairments.';
+    const diagnosis = fixSuggestion.diagnosis || fixSuggestion.explanation || plainExplanation;
 
     // Escape HTML for safe rendering
     const escapeHtml = (text) => String(text)
@@ -329,7 +330,49 @@
     // Build code fixes section
     let codeFixesHtml = '';
 
-    if (fixSuggestion.code_fixes && Array.isArray(fixSuggestion.code_fixes) && fixSuggestion.code_fixes.length > 0) {
+    // Handle TypeScript format (css/html directly in response)
+    if (fixSuggestion.css || fixSuggestion.html) {
+      const mainFix = [];
+      if (fixSuggestion.css) {
+        mainFix.push(`
+          <div style="margin-bottom: 16px;">
+            <p style="font-size: 13px; margin-bottom: 8px; color: #666; font-weight: 500;">Recommended CSS Fix:</p>
+            <code class="codeForAiResponse language-css hljs" style="display: block; padding: 16px; background: #f8f9fa; border-radius: 6px; font-size: 13px; border: 1px solid #e0e0e0; white-space: pre-wrap; word-break: break-all;">${escapeHtml(fixSuggestion.css)}</code>
+          </div>
+        `);
+      }
+      if (fixSuggestion.html) {
+        mainFix.push(`
+          <div style="margin-bottom: 16px;">
+            <p style="font-size: 13px; margin-bottom: 8px; color: #666; font-weight: 500;">Recommended HTML Fix:</p>
+            <code class="codeForAiResponse language-html hljs" style="display: block; padding: 16px; background: #f8f9fa; border-radius: 6px; font-size: 13px; border: 1px solid #e0e0e0; white-space: pre-wrap; word-break: break-all;">${escapeHtml(fixSuggestion.html)}</code>
+          </div>
+        `);
+      }
+
+      // Handle alternatives
+      if (fixSuggestion.alternatives && Array.isArray(fixSuggestion.alternatives) && fixSuggestion.alternatives.length > 0) {
+        const alternatives = fixSuggestion.alternatives.map((alt, index) => {
+          const altCode = alt.css || alt.html || '';
+          return `
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+              <p style="font-size: 13px; margin-bottom: 8px; color: #666; font-weight: 500;">Alternative ${index + 1}: ${escapeHtml(alt.explanation || '')}</p>
+              <code class="codeForAiResponse language-${alt.css ? 'css' : 'html'} hljs" style="display: block; padding: 16px; background: #f8f9fa; border-radius: 6px; font-size: 13px; border: 1px solid #e0e0e0; white-space: pre-wrap; word-break: break-all;">${escapeHtml(altCode)}</code>
+            </div>
+          `;
+        }).join('');
+        mainFix.push(alternatives);
+      }
+
+      codeFixesHtml = `
+        <div style="margin-bottom: 16px;">
+          <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a;">Code Fix:</h4>
+          ${mainFix.join('')}
+        </div>
+      `;
+    }
+    // Handle Python format (code_fixes array)
+    else if (fixSuggestion.code_fixes && Array.isArray(fixSuggestion.code_fixes) && fixSuggestion.code_fixes.length > 0) {
       const codeFixes = fixSuggestion.code_fixes.map((fix, index) => {
         const language = fix.language || 'html';
         const description = fix.description || `Option ${index + 1}`;
