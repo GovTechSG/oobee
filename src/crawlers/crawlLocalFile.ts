@@ -61,11 +61,12 @@ export const crawlLocalFile = async ({
   let dataset: any;
   let urlsCrawled: UrlsCrawled;
   let linksFromSitemap = [];
-  let sitemapUrl: string; 
+  let sitemapUrl: string;
+  let durationExceeded = false;
 
   // Boolean to omit axe scan for basic auth URL
   let isBasicAuth: boolean;
-  let basicAuthPage: number = 0;
+  const basicAuthPage: number = 0;
   let finalLinks: Request[] = [];
   const { playwrightDeviceDetailsObject } = viewportSettings;
 
@@ -75,7 +76,6 @@ export const crawlLocalFile = async ({
   } else {
     ({ dataset } = await createCrawleeSubFolders(randomToken));
     urlsCrawled = { ...constants.urlsCrawledObj };
-
   }
 
   // Checks if its in the right file format, and change it before placing into linksFromSitemap
@@ -100,7 +100,7 @@ export const crawlLocalFile = async ({
 
   // XML Files
   if (!(url.match(/\.xml$/i) || url.match(/\.txt$/i))) {
-    linksFromSitemap = [new Request({ url: url })];
+    linksFromSitemap = [new Request({ url })];
     // Non XML file
   } else {
     sitemapUrl = url;
@@ -143,25 +143,29 @@ export const crawlLocalFile = async ({
   let shouldAbort = false;
 
   if (!isUrlPdf(url)) {
-    const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
-      ? userDataDirectory
-      : '';
+    const effectiveUserDataDirectory =
+      process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
 
-    const browserContext = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
-      headless: process.env.CRAWLEE_HEADLESS === '1',
-      ...getPlaywrightLaunchOptions(browser),
-      ...playwrightDeviceDetailsObject,
-      ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
-    });
+    const browserContext = await constants.launcher.launchPersistentContext(
+      effectiveUserDataDirectory,
+      {
+        headless: process.env.CRAWLEE_HEADLESS === '1',
+        ...getPlaywrightLaunchOptions(browser),
+        ...playwrightDeviceDetailsObject,
+        ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
+      },
+    );
 
     register(browserContext);
 
-    const timeoutId = scanDuration > 0
-    ? setTimeout(() => {
-        console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting local file scan.`);
-        shouldAbort = true;
-      }, scanDuration * 1000)
-    : null;
+    const timeoutId =
+      scanDuration > 0
+        ? setTimeout(() => {
+            console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting local file scan.`);
+            durationExceeded = true;
+            shouldAbort = true;
+          }, scanDuration * 1000)
+        : null;
 
     const page = await browserContext.newPage();
     url = convertPathToLocalFile(url);
@@ -184,9 +188,9 @@ export const crawlLocalFile = async ({
     });
 
     urlsCrawled.scanned.push({
-      url: url,
+      url,
       pageTitle: results.pageTitle,
-      actualUrl: actualUrl, // i.e. actualUrl
+      actualUrl, // i.e. actualUrl
     });
 
     urlsCrawled.scannedRedirects.push({
@@ -198,19 +202,17 @@ export const crawlLocalFile = async ({
     results.actualUrl = actualUrl;
 
     await dataset.pushData(results);
-    
+
     // Ensure proper cleanup of browser context before PDF generation
     await browserContext.close().catch(() => {});
-    
   } else {
-
     const pdfFileName = path.basename(url);
     const destinationFilePath: string = path.join(getPdfStoragePath(randomToken), pdfFileName);
     fs.copyFileSync(url, destinationFilePath);
     uuidToPdfMapping[pdfFileName] = url;
 
     urlsCrawled.scanned.push({
-      url: url,
+      url,
       pageTitle: pdfFileName,
       actualUrl: url,
     });
@@ -228,6 +230,6 @@ export const crawlLocalFile = async ({
     await Promise.all(pdfResults.map(result => dataset.pushData(result)));
   }
 
-  return urlsCrawled;
+  return { urlsCrawled, durationExceeded };
 };
 export default crawlLocalFile;
