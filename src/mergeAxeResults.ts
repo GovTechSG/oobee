@@ -390,6 +390,10 @@ const writeHTML = async (
 
   outputStream.write(prefixData);
 
+  outputStream.write(
+    `let proxyUrl = "${process.env.PROXY_API_BASE_URL}"\n`
+  )
+
   // outputStream.write("scanData = decompressJsonObject('");
   outputStream.write(
     "let scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse('",

@@ -203,7 +203,7 @@
       console.log('Sending request to wcag-eval API:', apiPayload);
 
       // Call wcag-eval API (now in oobee-web-proxy)
-      const wcagEvalApiUrl = `${process.env.PROXY_BASE_URL}/api/ai/generate-fix` || 'http://localhost:3002/api/ai/generate-fix';
+      const wcagEvalApiUrl = `${proxyUrl}/api/ai/generate-fix` || 'http://localhost:3002/api/ai/generate-fix';
       const response = await fetch(wcagEvalApiUrl, {
         method: 'POST',
         headers: {
