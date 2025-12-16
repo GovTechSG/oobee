@@ -128,6 +128,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
   let urlsCrawledObj: UrlsCrawled;
   let uiCustomFlowLabel: string | undefined;
+  let durationExceeded = false;
 
   switch (type) {
     case ScannerTypes.CUSTOM:
@@ -145,7 +146,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       break;
 
     case ScannerTypes.SITEMAP:
-      urlsCrawledObj = await crawlSitemap({
+      const sitemapResult = await crawlSitemap({
         sitemapUrl: url,
         randomToken,
         host,
@@ -160,10 +161,12 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         extraHTTPHeaders,
         scanDuration,
       });
+      urlsCrawledObj = sitemapResult.urlsCrawled;
+      durationExceeded = sitemapResult.durationExceeded;
       break;
 
     case ScannerTypes.LOCALFILE:
-      urlsCrawledObj = await crawlLocalFile({
+      const localFileResult = await crawlLocalFile({
         url,
         randomToken,
         host,
@@ -178,10 +181,18 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         extraHTTPHeaders,
         scanDuration,
       });
+      if (localFileResult) {
+        if ('urlsCrawled' in localFileResult) {
+          urlsCrawledObj = localFileResult.urlsCrawled;
+          durationExceeded = localFileResult.durationExceeded;
+        } else {
+          urlsCrawledObj = localFileResult;
+        }
+      }
       break;
 
     case ScannerTypes.INTELLIGENT:
-      urlsCrawledObj = await crawlIntelligentSitemap(
+      const intelligentResult = await crawlIntelligentSitemap(
         url,
         randomToken,
         host,
@@ -199,10 +210,12 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         safeMode,
         scanDuration,
       );
+      urlsCrawledObj = intelligentResult.urlsCrawled;
+      durationExceeded = intelligentResult.durationExceeded;
       break;
 
     case ScannerTypes.WEBSITE:
-      urlsCrawledObj = await crawlDomain({
+      const websiteResult = await crawlDomain({
         url,
         randomToken,
         host,
@@ -221,6 +234,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         safeMode,
         ruleset,
       });
+      urlsCrawledObj = websiteResult.urlsCrawled;
+      durationExceeded = websiteResult.durationExceeded;
       break;
 
     default:
@@ -262,7 +277,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         const siteName = (urlsCrawledObj.scanned[0]?.pageTitle ?? '')
           .replace(/^\d+\s*:\s*/, '')
           .trim();
-        const scanMetadata = getS3MetadataFromEnv(siteName);
+        const scanMetadata = getS3MetadataFromEnv(siteName, durationExceeded);
         const s3Prefix = getS3UploadPrefix();
 
         if (scanMetadata && s3Prefix) {

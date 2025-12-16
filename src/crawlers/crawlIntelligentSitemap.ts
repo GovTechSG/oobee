@@ -1,11 +1,11 @@
 import fs from 'fs';
 import { chromium, Page } from 'playwright';
+import { EnqueueStrategy } from 'crawlee';
 import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
 import constants, { FileTypes, guiInfoStatusTypes, sitemapPaths } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
-import { EnqueueStrategy } from 'crawlee';
 import { ViewportSettingsClass } from '../combine.js';
 import { getPlaywrightLaunchOptions } from '../constants/common.js';
 import { register } from '../utils.js';
@@ -26,16 +26,17 @@ const crawlIntelligentSitemap = async (
   followRobots: boolean,
   extraHTTPHeaders: Record<string, string>,
   safeMode: boolean,
-  scanDuration: number
+  scanDuration: number,
 ) => {
   const startTime = Date.now(); // Track start time
 
   let urlsCrawledFinal;
-  let urlsCrawled = { ...constants.urlsCrawledObj };
+  const urlsCrawled = { ...constants.urlsCrawledObj };
   let dataset;
   let sitemapExist = false;
   const fromCrawlIntelligentSitemap = true;
   let sitemapUrl;
+  let durationExceeded = false;
 
   ({ dataset } = await createCrawleeSubFolders(randomToken));
 
@@ -44,17 +45,20 @@ const crawlIntelligentSitemap = async (
     return `${urlObject.protocol}//${urlObject.hostname}${urlObject.port ? `:${urlObject.port}` : ''}`;
   }
 
-  async function findSitemap(link: string, userDataDirectory: string, extraHTTPHeaders: Record<string, string>) {
+  async function findSitemap(
+    link: string,
+    userDataDirectory: string,
+    extraHTTPHeaders: Record<string, string>,
+  ) {
     const homeUrl = getHomeUrl(link);
     let sitemapLink = '';
 
-    const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1'
-        ? userDataDirectory
-        : '';
+    const effectiveUserDataDirectory =
+      process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
     const context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
-        headless: process.env.CRAWLEE_HEADLESS === '1',
-        ...getPlaywrightLaunchOptions(browser),
-        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+      headless: process.env.CRAWLEE_HEADLESS === '1',
+      ...getPlaywrightLaunchOptions(browser),
+      ...(extraHTTPHeaders && { extraHTTPHeaders }),
     });
     register(context);
 
@@ -68,7 +72,7 @@ const crawlIntelligentSitemap = async (
       }
     }
     await page.close();
-    await context.close().catch(() => { });
+    await context.close().catch(() => {});
     return sitemapExist ? sitemapLink : '';
   }
 
@@ -135,11 +139,10 @@ const crawlIntelligentSitemap = async (
   const elapsed = Date.now() - startTime;
   const remainingScanDuration = Math.max(scanDuration - elapsed / 1000, 0); // in seconds
 
-  if (
-    urlsCrawledFinal.scanned.length < maxRequestsPerCrawl &&
-    remainingScanDuration > 0
-  ) {
-    console.log(`Continuing crawl from root website. Remaining scan time: ${remainingScanDuration.toFixed(1)}s`);
+  if (urlsCrawledFinal.scanned.length < maxRequestsPerCrawl && remainingScanDuration > 0) {
+    console.log(
+      `Continuing crawl from root website. Remaining scan time: ${remainingScanDuration.toFixed(1)}s`,
+    );
     urlsCrawledFinal = await crawlDomain({
       url,
       randomToken,
@@ -162,11 +165,14 @@ const crawlIntelligentSitemap = async (
       scanDuration: remainingScanDuration,
     });
   } else if (remainingScanDuration <= 0) {
-    console.log(`Crawl duration exceeded before more pages could be found (limit: ${scanDuration}s).`);
+    console.log(
+      `Crawl duration exceeded before more pages could be found (limit: ${scanDuration}s).`,
+    );
+    durationExceeded = true;
   }
 
   guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
-  return urlsCrawledFinal;
+  return { urlsCrawled: urlsCrawledFinal, durationExceeded };
 };
 
 export default crawlIntelligentSitemap;

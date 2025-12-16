@@ -146,7 +146,10 @@ export const isS3UploadEnabled = (): boolean => {
   );
 };
 
-export const getS3MetadataFromEnv = (siteName: string | undefined): ScanMetadata | null => {
+export const getS3MetadataFromEnv = (
+  siteName: string | undefined,
+  durationExceeded: boolean,
+): ScanMetadata | null => {
   const scanId = process.env.OOBEE_SCAN_ID;
   const userId = process.env.OOBEE_USER_ID;
   const email = process.env.OOBEE_USER_EMAIL;
@@ -165,7 +168,7 @@ export const getS3MetadataFromEnv = (siteName: string | undefined): ScanMetadata
     orgId: process.env.OOBEE_ORG_ID,
     userRole: process.env.OOBEE_USER_ROLE,
     siteName,
-    durationExceeded: process.env.OOBEE_DURATION_EXCEEDED,
+    durationExceeded: durationExceeded ? 'true' : undefined,
   };
 };
 
