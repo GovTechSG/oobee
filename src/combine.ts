@@ -130,15 +130,15 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   let uiCustomFlowLabel: string | undefined;
 
   switch (type) {
-   case ScannerTypes.CUSTOM:
-     const res = await runCustom(
-       url,
-       randomToken,
-       viewportSettings,
-       blacklistedPatterns,
-       includeScreenshots,
-       (customFlowLabel && customFlowLabel !== 'None') ? customFlowLabel : ''
-     );
+    case ScannerTypes.CUSTOM:
+      const res = await runCustom(
+        url,
+        randomToken,
+        viewportSettings,
+        blacklistedPatterns,
+        includeScreenshots,
+        customFlowLabel && customFlowLabel !== 'None' ? customFlowLabel : '',
+      );
 
       urlsCrawledObj = res.urlsCrawled;
       uiCustomFlowLabel = res.customFlowLabel;
@@ -247,9 +247,9 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         deviceToScan,
         urlsCrawledObj.scanned,
         pagesNotScanned,
-        (uiCustomFlowLabel && uiCustomFlowLabel.length > 0)
+        uiCustomFlowLabel && uiCustomFlowLabel.length > 0
           ? uiCustomFlowLabel
-          : (customFlowLabel || 'None'),
+          : customFlowLabel || 'None',
         undefined,
         scanDetails,
         zip,
@@ -259,7 +259,10 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
       // Upload results to S3 if environment variables are set
       if (isS3UploadEnabled()) {
-        const scanMetadata = getS3MetadataFromEnv();
+        const siteName = (urlsCrawledObj.scanned[0]?.pageTitle ?? '')
+          .replace(/^\d+\s*:\s*/, '')
+          .trim();
+        const scanMetadata = getS3MetadataFromEnv(siteName);
         const s3Prefix = getS3UploadPrefix();
 
         if (scanMetadata && s3Prefix) {
