@@ -39,7 +39,8 @@
     "winston": "^3.11.0",
     "xml2js": "^0.6.2",
     "xpath-to-css": "^1.2.0",
-    "yargs": "^17.7.2"
+    "yargs": "^17.7.2",
+    "@aws-sdk/client-s3": "^3.948.0"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.948.0",
