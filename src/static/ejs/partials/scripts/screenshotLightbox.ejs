@@ -12,12 +12,19 @@
       screenshot.onerror = null;
       screenshot.remove();
     };
-    screenshot.onclick = event => {
+  });
+
+  // Use event delegation for screenshots (handles dynamically added elements)
+  document.addEventListener('click', event => {
+    const screenshot = event.target.closest('.custom-flow-screenshot');
+    if (screenshot) {
       event.preventDefault();
-      const pageTitle = screenshot.parentNode.getElementsByTagName('a')[0].textContent;
-      const pageUrl = screenshot.parentNode.getElementsByTagName('a')[0].href;
+      const container = screenshot.closest('.custom-flow-screenshot-container');
+      const anchor = container.querySelector('a');
+      const pageTitle = anchor ? anchor.textContent : '';
+      const pageUrl = anchor ? anchor.href : '';
       openLightbox(screenshot.src, pageTitle, pageUrl);
-    };
+    }
   });
 
   lightbox.addEventListener('click', event => {
@@ -67,9 +74,24 @@
     lightboxImg.alt = `Screenshot of ${pageUrl}`;
 
     lightboxTitle.textContent = pageTitle;
+
+    // Add keyboard listener when lightbox opens
+    document.addEventListener('keydown', handleLightboxKeydown, true);
   };
 
   function closeLightbox() {
     lightbox.style.display = 'none';
+    // Remove keyboard listener when lightbox closes
+    document.removeEventListener('keydown', handleLightboxKeydown, true);
   };
+
+  function handleLightboxKeydown(event) {
+    if (lightbox.style.display === 'block') {
+      if (event.key === 'Escape' || event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeLightbox();
+      }
+    }
+  }
 </script>
