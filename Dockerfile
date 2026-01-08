@@ -1,5 +1,5 @@
 # Use Microsoft Playwright image as base image
-FROM mcr.microsoft.com/playwright:v1.55.0-noble
+FROM mcr.microsoft.com/playwright:v1.56.1-noble
 
 # 1. Install System Deps & dumb-init
 RUN apt-get update && apt-get install -y \
