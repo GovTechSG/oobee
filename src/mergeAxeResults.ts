@@ -210,7 +210,7 @@ const writeCsv = async (allIssues, storagePath) => {
           scanCompletedAt: allIssues.endTime ? allIssues.endTime.toISOString() : '',
           severity: severity || '',
           issueId: issueId || '',
-          issueDescription: issueDescription || '',
+          issueDescription: a11yRuleShortDescriptionMap[issueId] || issueDescription || '',
           wcagConformance: wcagConformance || '',
           url: url || '',
           pageTitle: affectedPage.pageTitle || 'No page title',
