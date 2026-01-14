@@ -44,7 +44,6 @@
     "yargs": "^17.7.2"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.948.0",
     "@eslint/eslintrc": "^3.0.2",
     "@eslint/js": "^9.6.0",
     "@types/base64-stream": "^1.0.5",
