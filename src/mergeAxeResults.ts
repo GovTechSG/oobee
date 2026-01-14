@@ -390,34 +390,32 @@ const writeHTML = async (
 
   outputStream.write(prefixData);
 
-  outputStream.write(
-    `let proxyUrl = "${process.env.PROXY_API_BASE_URL}"\n`
-  )
+  outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL}"\n`);
 
   // Initialize GenAI feature flag
   outputStream.write(`
-// Fetch GenAI feature flag from backend
-window.oobeeGenAiFeatureEnabled = false;
-(async () => {
-  try {
-    const featuresUrl = proxyUrl + '/api/ai/features';
-    const response = await fetch(featuresUrl, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' }
-    });
-    if (response.ok) {
-      const features = await response.json();
-      window.oobeeGenAiFeatureEnabled = features.genai_ui_enabled || false;
-      console.log('GenAI UI feature flag:', window.oobeeGenAiFeatureEnabled);
-    } else {
-      console.warn('Failed to fetch GenAI feature flag:', response.status);
+  // Fetch GenAI feature flag from backend
+  window.oobeeGenAiFeatureEnabled = false;
+  (async () => {
+    try {
+      const featuresUrl = proxyUrl + '/api/ai/features';
+      const response = await fetch(featuresUrl, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (response.ok) {
+        const features = await response.json();
+        window.oobeeGenAiFeatureEnabled = features.genai_ui_enabled || false;
+        console.log('GenAI UI feature flag:', window.oobeeGenAiFeatureEnabled);
+      } else {
+        console.warn('Failed to fetch GenAI feature flag:', response.status);
+      }
+    } catch (error) {
+      console.warn('Error fetching GenAI feature flag:', error);
     }
-  } catch (error) {
-    console.warn('Error fetching GenAI feature flag:', error);
-  }
-})();
-\n`)
-
+  })();
+  \n`)
+  
   // outputStream.write("scanData = decompressJsonObject('");
   outputStream.write(
     "let scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse('",
@@ -2102,28 +2100,6 @@ const generateArtifacts = async (
     }
 
     printMessage(messageToDisplay);
-
-    // Upload to S3 if enabled
-    const { isS3UploadEnabled, uploadFolderToS3, getS3MetadataFromEnv, getS3UploadPrefix } =
-      await import('./services/s3Uploader.js');
-
-    if (isS3UploadEnabled()) {
-      try {
-        const scanMetadata = getS3MetadataFromEnv();
-        const s3Prefix = getS3UploadPrefix();
-
-        if (scanMetadata && s3Prefix) {
-          consoleLogger.info('Uploading scan results to S3...');
-          await uploadFolderToS3(storagePath, s3Prefix, scanMetadata);
-          consoleLogger.info('Successfully uploaded scan results to S3');
-        }
-      } catch (s3Error) {
-        consoleLogger.error(
-          `Failed to upload to S3: ${s3Error instanceof Error ? s3Error.message : String(s3Error)}`,
-        );
-        // Don't throw - S3 upload is optional
-      }
-    }
   } catch (error) {
     printMessage([`Error in zipping results: ${error}`]);
   }

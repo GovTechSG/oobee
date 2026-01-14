@@ -4,6 +4,8 @@ import type { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
 import type { EnqueueLinksOptions, RequestOptions } from 'crawlee';
 import https from 'https';
 import type { BatchAddRequestsResult } from '@crawlee/types';
+import * as path from 'path';
+import fsp from 'fs/promises';
 import {
   createCrawleeSubFolders,
   runAxeScript,
@@ -39,8 +41,6 @@ import {
 } from './pdfScanFunc.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
-import * as path from 'path';
-import fsp from 'fs/promises';
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
@@ -94,7 +94,7 @@ const crawlDomain = async ({
   includeScreenshots: boolean;
   followRobots: boolean;
   extraHTTPHeaders: Record<string, string>;
-  scanDuration?: number; 
+  scanDuration?: number;
   safeMode?: boolean;
   fromCrawlIntelligentSitemap?: boolean;
   datasetFromIntelligent?: crawlee.Dataset;
@@ -105,6 +105,7 @@ const crawlDomain = async ({
   let dataset: crawlee.Dataset;
   let urlsCrawled: UrlsCrawled;
   let requestQueue: crawlee.RequestQueue;
+  let durationExceeded = false;
 
   if (fromCrawlIntelligentSitemap) {
     dataset = datasetFromIntelligent;
@@ -340,154 +341,161 @@ const crawlDomain = async ({
 
   let isAbortingScanNow = false;
 
-  const crawler = register(new crawlee.PlaywrightCrawler({
-    launchContext: {
-      launcher: constants.launcher,
-      launchOptions: getPlaywrightLaunchOptions(browser),
-      // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
-      ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
-    },
-    retryOnBlocked: true,
-    browserPoolOptions: {
-      useFingerprints: false,
-      preLaunchHooks: [
-        async (_pageId, launchContext) => {
-          const baseDir = userDataDirectory; // e.g., /Users/young/.../Chrome/oobee-...
+  const crawler = register(
+    new crawlee.PlaywrightCrawler({
+      launchContext: {
+        launcher: constants.launcher,
+        launchOptions: getPlaywrightLaunchOptions(browser),
+        // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
+        ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
+      },
+      retryOnBlocked: true,
+      browserPoolOptions: {
+        useFingerprints: false,
+        preLaunchHooks: [
+          async (_pageId, launchContext) => {
+            const baseDir = userDataDirectory; // e.g., /Users/young/.../Chrome/oobee-...
 
-          // Ensure base exists
-          await fsp.mkdir(baseDir, { recursive: true });
+            // Ensure base exists
+            await fsp.mkdir(baseDir, { recursive: true });
 
-          // Create a unique subdir per browser
-          const subProfileDir = path.join(baseDir, `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-          await fsp.mkdir(subProfileDir, { recursive: true });
+            // Create a unique subdir per browser
+            const subProfileDir = path.join(
+              baseDir,
+              `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            );
+            await fsp.mkdir(subProfileDir, { recursive: true });
 
-          // Assign to Crawlee's launcher
-          launchContext.userDataDir = subProfileDir;
+            // Assign to Crawlee's launcher
+            launchContext.userDataDir = subProfileDir;
 
-          // Safely extend launchOptions
-          launchContext.launchOptions = {
-            ...launchContext.launchOptions,
-            ignoreHTTPSErrors: true,
-            ...playwrightDeviceDetailsObject,
-            ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
-            ...(extraHTTPHeaders && { extraHTTPHeaders }),
-          };
+            // Safely extend launchOptions
+            launchContext.launchOptions = {
+              ...launchContext.launchOptions,
+              ignoreHTTPSErrors: true,
+              ...playwrightDeviceDetailsObject,
+              ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
+              ...(extraHTTPHeaders && { extraHTTPHeaders }),
+            };
 
-          // Optionally log for debugging
-          // console.log(`[HOOK] Using userDataDir: ${subProfileDir}`);
-        },
-      ],
-    },
-    requestQueue,
-    postNavigationHooks: [
-      async crawlingContext => {
-        const { page, request } = crawlingContext;
+            // Optionally log for debugging
+            // console.log(`[HOOK] Using userDataDir: ${subProfileDir}`);
+          },
+        ],
+      },
+      requestQueue,
+      postNavigationHooks: [
+        async crawlingContext => {
+          const { page, request } = crawlingContext;
 
-        await page.evaluate(() => {
-          return new Promise(resolve => {
-            let timeout;
-            let mutationCount = 0;
-            const MAX_MUTATIONS = 500; // stop if things never quiet down
-            const OBSERVER_TIMEOUT = 5000; // hard cap on total wait
+          await page.evaluate(() => {
+            return new Promise(resolve => {
+              let timeout;
+              let mutationCount = 0;
+              const MAX_MUTATIONS = 500; // stop if things never quiet down
+              const OBSERVER_TIMEOUT = 5000; // hard cap on total wait
 
-            const observer = new MutationObserver(() => {
-              clearTimeout(timeout);
+              const observer = new MutationObserver(() => {
+                clearTimeout(timeout);
 
-              mutationCount++;
-              if (mutationCount > MAX_MUTATIONS) {
-                observer.disconnect();
-                resolve('Too many mutations, exiting.');
-                return;
-              }
+                mutationCount++;
+                if (mutationCount > MAX_MUTATIONS) {
+                  observer.disconnect();
+                  resolve('Too many mutations, exiting.');
+                  return;
+                }
 
-              // restart quiet‑period timer
+                // restart quiet‑period timer
+                timeout = setTimeout(() => {
+                  observer.disconnect();
+                  resolve('DOM stabilized.');
+                }, 1000);
+              });
+
+              // overall timeout in case the page never settles
               timeout = setTimeout(() => {
                 observer.disconnect();
-                resolve('DOM stabilized.');
-              }, 1000);
+                resolve('Observer timeout reached.');
+              }, OBSERVER_TIMEOUT);
+
+              const root = document.documentElement || document.body || document;
+              if (!root || typeof observer.observe !== 'function') {
+                resolve('No root node to observe.');
+              }
             });
-
-            // overall timeout in case the page never settles
-            timeout = setTimeout(() => {
-              observer.disconnect();
-              resolve('Observer timeout reached.');
-            }, OBSERVER_TIMEOUT);
-
-            const root = document.documentElement || document.body || document;
-            if (!root || typeof observer.observe !== 'function') {
-              resolve('No root node to observe.');
-            }
           });
-        });
 
-        let finalUrl = page.url();
-        const requestLabelUrl = request.label;
+          let finalUrl = page.url();
+          const requestLabelUrl = request.label;
 
-        // to handle scenario where the redirected link is not within the scanning website
-        const isLoadedUrlFollowStrategy = isFollowStrategy(finalUrl, requestLabelUrl, strategy);
-        if (!isLoadedUrlFollowStrategy) {
-          finalUrl = requestLabelUrl;
-        }
-
-        const isRedirected = !areLinksEqual(finalUrl, requestLabelUrl);
-        if (isRedirected) {
-          await requestQueue.addRequest({ url: finalUrl, label: finalUrl });
-        } else {
-          request.skipNavigation = false;
-        }
-      },
-    ],
-    requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
-    requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
-      const browserContext: BrowserContext = page.context();
-      try {
-        await waitForPageLoaded(page, 10000);
-        let actualUrl = page.url() || request.loadedUrl || request.url;
-
-        if (page.url() !== 'about:blank') {
-          actualUrl = page.url();
-        }
-
-        if (
-          !isFollowStrategy(url, actualUrl, strategy) &&
-          (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))
-        ) {
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: actualUrl,
-          });
-          return;
-        }
-
-        const hasExceededDuration =
-          scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
-
-        if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
-          if (hasExceededDuration) {
-            console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting website crawl.`);
+          // to handle scenario where the redirected link is not within the scanning website
+          const isLoadedUrlFollowStrategy = isFollowStrategy(finalUrl, requestLabelUrl, strategy);
+          if (!isLoadedUrlFollowStrategy) {
+            finalUrl = requestLabelUrl;
           }
-          isAbortingScanNow = true;
-          crawler.autoscaledPool.abort();
-          return;
-        }
 
-        // if URL has already been scanned
-        if (urlsCrawled.scanned.some(item => item.url === request.url)) {
-          // await enqueueProcess(page, enqueueLinks, browserContext);
-          return;
-        }
+          const isRedirected = !areLinksEqual(finalUrl, requestLabelUrl);
+          if (isRedirected) {
+            await requestQueue.addRequest({ url: finalUrl, label: finalUrl });
+          } else {
+            request.skipNavigation = false;
+          }
+        },
+      ],
+      requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
+      requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
+        const browserContext: BrowserContext = page.context();
+        try {
+          await waitForPageLoaded(page, 10000);
+          let actualUrl = page.url() || request.loadedUrl || request.url;
 
-        if (isDisallowedInRobotsTxt(request.url)) {
-          await enqueueProcess(page, enqueueLinks, browserContext);
-          return;
-        }
+          if (page.url() !== 'about:blank') {
+            actualUrl = page.url();
+          }
 
-        // handle pdfs
-        if (shouldSkipDueToUnsupportedContent(response, request.url) || (request.skipNavigation && actualUrl === 'about:blank')) {
-          if (!isScanPdfs) {
+          if (
+            !isFollowStrategy(url, actualUrl, strategy) &&
+            (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))
+          ) {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: actualUrl,
+            });
+            return;
+          }
 
-            // Don't inform the user it is skipped since web crawler is best-effort.
-            /*
+          const hasExceededDuration =
+            scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
+
+          if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
+            if (hasExceededDuration) {
+              console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting website crawl.`);
+              durationExceeded = true;
+            }
+            isAbortingScanNow = true;
+            crawler.autoscaledPool.abort();
+            return;
+          }
+
+          // if URL has already been scanned
+          if (urlsCrawled.scanned.some(item => item.url === request.url)) {
+            // await enqueueProcess(page, enqueueLinks, browserContext);
+            return;
+          }
+
+          if (isDisallowedInRobotsTxt(request.url)) {
+            await enqueueProcess(page, enqueueLinks, browserContext);
+            return;
+          }
+
+          // handle pdfs
+          if (
+            shouldSkipDueToUnsupportedContent(response, request.url) ||
+            (request.skipNavigation && actualUrl === 'about:blank')
+          ) {
+            if (!isScanPdfs) {
+              // Don't inform the user it is skipped since web crawler is best-effort.
+              /*
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
@@ -501,24 +509,23 @@ const crawlDomain = async ({
             });
             */
 
+              return;
+            }
+            const { pdfFileName, url } = handlePdfDownload(
+              randomToken,
+              pdfDownloads,
+              request,
+              sendRequest,
+              urlsCrawled,
+            );
+
+            uuidToPdfMapping[pdfFileName] = url;
             return;
           }
-          const { pdfFileName, url } = handlePdfDownload(
-            randomToken,
-            pdfDownloads,
-            request,
-            sendRequest,
-            urlsCrawled,
-          );
 
-          uuidToPdfMapping[pdfFileName] = url;
-          return;
-        }
-
-        if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
-
-          // Don't inform the user it is skipped since web crawler is best-effort.
-          /*
+          if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
+            // Don't inform the user it is skipped since web crawler is best-effort.
+            /*
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
@@ -531,69 +538,38 @@ const crawlDomain = async ({
             httpStatusCode: 0,
           });
           */
-          return;
-        }
-
-        if (
-          !isFollowStrategy(url, actualUrl, strategy) &&
-          blacklistedPatterns &&
-          isSkippedUrl(actualUrl, blacklistedPatterns)
-        ) {
-          urlsCrawled.userExcluded.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl,
-            metadata: STATUS_CODE_METADATA[0],
-            httpStatusCode: 0,
-          });
-
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-
-          await enqueueProcess(page, enqueueLinks, browserContext);
-          return;
-        }
-
-        if (isScanHtml) {
-          // For deduplication, if the URL is redirected, we want to store the original URL and the redirected URL (actualUrl)
-          const isRedirected = !areLinksEqual(actualUrl, request.url);
-
-          // check if redirected link is following strategy (same-domain/same-hostname)
-          const isLoadedUrlFollowStrategy = isFollowStrategy(actualUrl, request.url, strategy);
-          if (isRedirected && !isLoadedUrlFollowStrategy) {
-            urlsCrawled.notScannedRedirects.push({
-              fromUrl: request.url,
-              toUrl: actualUrl, // i.e. actualUrl
-            });
             return;
           }
 
-          const responseStatus = response?.status();
-          if (responseStatus && responseStatus >= 300) {
-            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
+          if (
+            !isFollowStrategy(url, actualUrl, strategy) &&
+            blacklistedPatterns &&
+            isSkippedUrl(actualUrl, blacklistedPatterns)
+          ) {
             urlsCrawled.userExcluded.push({
               url: request.url,
               pageTitle: request.url,
               actualUrl,
-              metadata: STATUS_CODE_METADATA[responseStatus] || STATUS_CODE_METADATA[599],
-              httpStatusCode: responseStatus,
+              metadata: STATUS_CODE_METADATA[0],
+              httpStatusCode: 0,
             });
+
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+
+            await enqueueProcess(page, enqueueLinks, browserContext);
             return;
           }
 
-          const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
+          if (isScanHtml) {
+            // For deduplication, if the URL is redirected, we want to store the original URL and the redirected URL (actualUrl)
+            const isRedirected = !areLinksEqual(actualUrl, request.url);
 
-          if (isRedirected) {
-            const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-              item => (item.actualUrl || item.url) === actualUrl,
-            );
-
-            if (isLoadedUrlInCrawledUrls) {
+            // check if redirected link is following strategy (same-domain/same-hostname)
+            const isLoadedUrlFollowStrategy = isFollowStrategy(actualUrl, request.url, strategy);
+            if (isRedirected && !isLoadedUrlFollowStrategy) {
               urlsCrawled.notScannedRedirects.push({
                 fromUrl: request.url,
                 toUrl: actualUrl, // i.e. actualUrl
@@ -601,47 +577,77 @@ const crawlDomain = async ({
               return;
             }
 
-            // One more check if scanned pages have reached limit due to multi-instances of handler running
-            if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
-              guiInfoLog(guiInfoStatusTypes.SCANNED, {
+            const responseStatus = response?.status();
+            if (responseStatus && responseStatus >= 300) {
+              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
-
-              urlsCrawled.scanned.push({
+              urlsCrawled.userExcluded.push({
                 url: request.url,
-                pageTitle: results.pageTitle,
-                actualUrl, // i.e. actualUrl
+                pageTitle: request.url,
+                actualUrl,
+                metadata: STATUS_CODE_METADATA[responseStatus] || STATUS_CODE_METADATA[599],
+                httpStatusCode: responseStatus,
               });
+              return;
+            }
 
-              urlsCrawled.scannedRedirects.push({
-                fromUrl: request.url,
-                toUrl: actualUrl, // i.e. actualUrl
-              });
+            const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
-              results.url = request.url;
-              results.actualUrl = actualUrl;
-              await dataset.pushData(results);
+            if (isRedirected) {
+              const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
+                item => (item.actualUrl || item.url) === actualUrl,
+              );
+
+              if (isLoadedUrlInCrawledUrls) {
+                urlsCrawled.notScannedRedirects.push({
+                  fromUrl: request.url,
+                  toUrl: actualUrl, // i.e. actualUrl
+                });
+                return;
+              }
+
+              // One more check if scanned pages have reached limit due to multi-instances of handler running
+              if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
+                guiInfoLog(guiInfoStatusTypes.SCANNED, {
+                  numScanned: urlsCrawled.scanned.length,
+                  urlScanned: request.url,
+                });
+
+                urlsCrawled.scanned.push({
+                  url: request.url,
+                  pageTitle: results.pageTitle,
+                  actualUrl, // i.e. actualUrl
+                });
+
+                urlsCrawled.scannedRedirects.push({
+                  fromUrl: request.url,
+                  toUrl: actualUrl, // i.e. actualUrl
+                });
+
+                results.url = request.url;
+                results.actualUrl = actualUrl;
+                await dataset.pushData(results);
+              }
+            } else {
+              // One more check if scanned pages have reached limit due to multi-instances of handler running
+              if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
+                guiInfoLog(guiInfoStatusTypes.SCANNED, {
+                  numScanned: urlsCrawled.scanned.length,
+                  urlScanned: request.url,
+                });
+                urlsCrawled.scanned.push({
+                  url: request.url,
+                  actualUrl: request.url,
+                  pageTitle: results.pageTitle,
+                });
+                await dataset.pushData(results);
+              }
             }
           } else {
-            // One more check if scanned pages have reached limit due to multi-instances of handler running
-            if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
-              guiInfoLog(guiInfoStatusTypes.SCANNED, {
-                numScanned: urlsCrawled.scanned.length,
-                urlScanned: request.url,
-              });
-              urlsCrawled.scanned.push({
-                url: request.url,
-                actualUrl: request.url,
-                pageTitle: results.pageTitle,
-              });
-              await dataset.pushData(results);
-            }
-          }
-        } else {
-
-          // Don't inform the user it is skipped since web crawler is best-effort.
-          /*
+            // Don't inform the user it is skipped since web crawler is best-effort.
+            /*
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
@@ -654,89 +660,91 @@ const crawlDomain = async ({
             httpStatusCode: 0,
           });
           */
-        }
+          }
 
-        if (followRobots) await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory, extraHTTPHeaders);
-        await enqueueProcess(page, enqueueLinks, browserContext);
-      } catch (e) {
-        try {
-          if (!e.message.includes('page.evaluate')) {
-            // do nothing;
+          if (followRobots)
+            await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory, extraHTTPHeaders);
+          await enqueueProcess(page, enqueueLinks, browserContext);
+        } catch (e) {
+          try {
+            if (!e.message.includes('page.evaluate')) {
+              // do nothing;
+              guiInfoLog(guiInfoStatusTypes.ERROR, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+
+              page = await browserContext.newPage();
+              await page.goto(request.url);
+
+              await page.route('**/*', async route => {
+                const interceptedRequest = route.request();
+                if (interceptedRequest.resourceType() === 'document') {
+                  const interceptedRequestUrl = interceptedRequest
+                    .url()
+                    .replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
+                  await requestQueue.addRequest({
+                    url: interceptedRequestUrl,
+                    skipNavigation: isUrlPdf(interceptedRequest.url()),
+                    label: interceptedRequestUrl,
+                  });
+                }
+              });
+            }
+          } catch {
+            // Do nothing since the error will be pushed
+          }
+
+          // when max pages have been scanned, scan will abort and all relevant pages still opened will close instantly.
+          // a browser close error will then be flagged. Since this is an intended behaviour, this error will be excluded.
+          if (!isAbortingScanNow) {
             guiInfoLog(guiInfoStatusTypes.ERROR, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
 
-            page = await browserContext.newPage();
-            await page.goto(request.url);
-
-            await page.route('**/*', async route => {
-              const interceptedRequest = route.request();
-              if (interceptedRequest.resourceType() === 'document') {
-                const interceptedRequestUrl = interceptedRequest
-                  .url()
-                  .replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
-                await requestQueue.addRequest({
-                  url: interceptedRequestUrl,
-                  skipNavigation: isUrlPdf(interceptedRequest.url()),
-                  label: interceptedRequestUrl,
-                });
-              }
+            urlsCrawled.error.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: request.url,
+              metadata: STATUS_CODE_METADATA[2],
             });
           }
-        } catch {
-          // Do nothing since the error will be pushed
         }
-
-        // when max pages have been scanned, scan will abort and all relevant pages still opened will close instantly.
-        // a browser close error will then be flagged. Since this is an intended behaviour, this error will be excluded.
-        if (!isAbortingScanNow) {
-          guiInfoLog(guiInfoStatusTypes.ERROR, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-
-          urlsCrawled.error.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl: request.url,
-            metadata: STATUS_CODE_METADATA[2],
-          });
-        }
-      }
-    },
-    failedRequestHandler: async ({ request, response }) => {
-      guiInfoLog(guiInfoStatusTypes.ERROR, {
-        numScanned: urlsCrawled.scanned.length,
-        urlScanned: request.url,
-      });
-
-      const status = response?.status();
-      const metadata =
-        typeof status === 'number'
-          ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
-          : STATUS_CODE_METADATA[2];
-
-      urlsCrawled.error.push({
-        url: request.url,
-        pageTitle: request.url,
-        actualUrl: request.url,
-        metadata,
-        httpStatusCode: typeof status === 'number' ? status : 0,
-      });
-    },
-    maxRequestsPerCrawl: Infinity,
-    maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
-    ...(process.env.OOBEE_FAST_CRAWLER && {
-      autoscaledPoolOptions: {
-        minConcurrency: specifiedMaxConcurrency ? Math.min(specifiedMaxConcurrency, 10) : 10,
-        maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
-        desiredConcurrencyRatio: 0.98, // Increase threshold for scaling up
-        scaleUpStepRatio: 0.99,        // Scale up faster
-        scaleDownStepRatio: 0.1,       // Scale down slower
       },
+      failedRequestHandler: async ({ request, response }) => {
+        guiInfoLog(guiInfoStatusTypes.ERROR, {
+          numScanned: urlsCrawled.scanned.length,
+          urlScanned: request.url,
+        });
+
+        const status = response?.status();
+        const metadata =
+          typeof status === 'number'
+            ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
+            : STATUS_CODE_METADATA[2];
+
+        urlsCrawled.error.push({
+          url: request.url,
+          pageTitle: request.url,
+          actualUrl: request.url,
+          metadata,
+          httpStatusCode: typeof status === 'number' ? status : 0,
+        });
+      },
+      maxRequestsPerCrawl: Infinity,
+      maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
+      ...(process.env.OOBEE_FAST_CRAWLER && {
+        autoscaledPoolOptions: {
+          minConcurrency: specifiedMaxConcurrency ? Math.min(specifiedMaxConcurrency, 10) : 10,
+          maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
+          desiredConcurrencyRatio: 0.98, // Increase threshold for scaling up
+          scaleUpStepRatio: 0.99, // Scale up faster
+          scaleDownStepRatio: 0.1, // Scale down slower
+        },
+      }),
     }),
-  }));
+  );
 
   await crawler.run();
 
@@ -769,7 +777,7 @@ const crawlDomain = async ({
     const elapsed = Math.round((Date.now() - crawlStartTime) / 1000);
     console.log(`Crawl ended after ${elapsed}s. Limit: ${scanDuration}s.`);
   }
-  return urlsCrawled;
+  return { urlsCrawled, durationExceeded };
 };
 
 export default crawlDomain;
