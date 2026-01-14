@@ -390,30 +390,35 @@ const writeHTML = async (
 
   outputStream.write(prefixData);
 
-  outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL}"\n`);
+  // For Proxied AI environments only
+  outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ""}"\n`);
 
   // Initialize GenAI feature flag
   outputStream.write(`
   // Fetch GenAI feature flag from backend
   window.oobeeGenAiFeatureEnabled = false;
-  (async () => {
-    try {
-      const featuresUrl = proxyUrl + '/api/ai/features';
-      const response = await fetch(featuresUrl, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-      });
-      if (response.ok) {
-        const features = await response.json();
-        window.oobeeGenAiFeatureEnabled = features.genai_ui_enabled || false;
-        console.log('GenAI UI feature flag:', window.oobeeGenAiFeatureEnabled);
-      } else {
-        console.warn('Failed to fetch GenAI feature flag:', response.status);
+  if (proxyUrl !== "" && proxyUrl !== undefined && proxyUrl !== null) {
+    (async () => {
+      try {
+        const featuresUrl = proxyUrl + '/api/ai/features';
+        const response = await fetch(featuresUrl, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        });
+        if (response.ok) {
+          const features = await response.json();
+          window.oobeeGenAiFeatureEnabled = features.genai_ui_enabled || false;
+          console.log('GenAI UI feature flag:', window.oobeeGenAiFeatureEnabled);
+        } else {
+          console.warn('Failed to fetch GenAI feature flag:', response.status);
+        }
+      } catch (error) {
+        console.warn('Error fetching GenAI feature flag:', error);
       }
-    } catch (error) {
-      console.warn('Error fetching GenAI feature flag:', error);
-    }
-  })();
+    })();
+  } else {
+    console.warn('Skipping fetch GenAI feature as it is local report');
+  }
   \n`)
   
   // outputStream.write("scanData = decompressJsonObject('");
