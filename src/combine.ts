@@ -246,9 +246,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   scanDetails.endTime = new Date();
   scanDetails.urlsCrawled = urlsCrawledObj;
 
-  consoleLogger.info('scanDetails.urlsCrawled 111', scanDetails.urlsCrawled);
   if (scanDetails.urlsCrawled) {
-    consoleLogger.info('scanDetails.urlsCrawled 222', scanDetails.urlsCrawled.scanned.length);
     if (scanDetails.urlsCrawled.scanned.length > 0) {
       await createAndUpdateResultsFolders(randomToken);
       const pagesNotScanned = [
@@ -275,7 +273,6 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       const [name, email] = nameEmail.split(':');
 
       // Upload results to S3 if environment variables are set
-      consoleLogger.info('isS3UploadEnabled 111', isS3UploadEnabled());
       if (isS3UploadEnabled()) {
         const siteName = (urlsCrawledObj.scanned[0]?.pageTitle ?? '')
           .replace(/^\d+\s*:\s*/, '')
