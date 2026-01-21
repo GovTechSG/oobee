@@ -803,8 +803,6 @@ export const a11yRuleLongDescriptionMap = {
   'aria-allowed-role': `Buttons, links, and interactive elements should behave the way they're marked. e.g., if something looks and acts like a button (performs an action), it should be labeled as a button. If it goes to a different page, it should be labeled as a link. When the label doesn't match the actual behavior, screen reader users get confused about what will happen when they click. When possible, use real buttons (<button>) and real links (<a>) instead of creating fake buttons or links from plain text and code.`,
 };
 
-export const whyItMatters = a11yRuleLongDescriptionMap;
-
 export const disabilityBadgesMap = {
   'aria-meter-name': ['Visual'],
   'aria-progressbar-name': ['Visual'],
