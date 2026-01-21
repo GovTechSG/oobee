@@ -475,6 +475,13 @@ const writeSummaryHTML = async (
   fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
 };
 
+const writeSitemap = async (pagesScanned: PageInfo[], storagePath: string) => {
+  const sitemapPath = path.join(storagePath, 'sitemap.txt');
+  const content = pagesScanned.map(p => p.url).join('\n');
+  await fs.writeFile(sitemapPath, content, { encoding: 'utf-8' });
+  consoleLogger.info(`Sitemap written to ${sitemapPath}`);
+};
+
 const cleanUpJsonFiles = async (filesToDelete: string[]) => {
   consoleLogger.info('Cleaning up JSON files...');
   filesToDelete.forEach(file => {
@@ -1980,6 +1987,7 @@ const generateArtifacts = async (
   }
 
   await writeCsv(allIssues, storagePath);
+  await writeSitemap(pagesScanned, storagePath);
   const {
     scanDataJsonFilePath,
     scanDataBase64FilePath,
