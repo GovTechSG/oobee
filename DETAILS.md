@@ -130,6 +130,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | td-headers-attr             | Ensure that each cell in a table that uses the headers attribute refers only to other cells in that table                                             | Must Fix    | WCAG 1.3.1             |
 | th-has-data-cells           | Ensure that `<th>` elements and elements with role=columnheader/rowheader have data cells they describe                                               | Must Fix    | WCAG 1.3.1             |
 | video-caption               | Ensures `<video>` elements have captions                                                                                                              | Must Fix    | WCAG 1.2.2             |
+| summary-name                | Ensure summary elements have discernible text                                                                                                         | Must Fix    | WCAG 4.1.2    
 | oobee-confusing-alt-text               | The image alt text set as 'img', 'image', 'picture', 'photo', or 'graphic' is confusing or not useful                                                                                                                            | Must Fix    | WCAG 1.1.1  
 | oobee-accessible-label               | Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.                                                                                                              | Must Fix    | WCAG 2.1.1, WCAG 4.1.2             |
 
