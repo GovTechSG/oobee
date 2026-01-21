@@ -802,7 +802,7 @@ export const a11yRuleLongDescriptionMap = {
   'meta-viewport':
     'Pages must allow users to zoom in and scale text using their browser or pinch-to-zoom on mobile devices. Disabling zoom locks people with low vision out of being able to enlarge content to read them comfortably. The viewport meta tag should allow scaling and not restrict maximum zoom.',
   'aria-allowed-role': `Buttons, links, and interactive elements should behave the way they're marked. e.g., if something looks and acts like a button (performs an action), it should be labeled as a button. If it goes to a different page, it should be labeled as a link. When the label doesn't match the actual behavior, screen reader users get confused about what will happen when they click. When possible, use real buttons (<button>) and real links (<a>) instead of creating fake buttons or links from plain text and code.`,
-  'summary-name': 'Ensure summary elements have discernible text text that clearly indicates the topic or purpose of the information that will be revealed when using the summary control.'
+  'summary-name': 'Ensure summary elements have discernible text that clearly indicates the topic or purpose of the information that will be revealed when using the summary control.'
 };
 
 export const disabilityBadgesMap = {
