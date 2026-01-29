@@ -20,24 +20,26 @@ declare global {
   }
 }
 
-const sameDomain = (a: string, b: string) => {
-  const domainA = getDomain(a);
-  const domainB = getDomain(b);
-  return (domainA && domainB) ? domainA === domainB : a === b;
+const sameRegistrableDomain = (hostA: string, hostB: string) => {
+  const domainA = getDomain(hostA);
+  const domainB = getDomain(hostB);
+
+  if (!domainA || !domainB) return hostA === hostB;
+
+  return domainA === domainB;
 };
 
-const isOverlayAllowed = (currentUrl: string, entryUrl: string, strategy?: 'same-domain' | 'same-hostname') => {
+const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
   try {
     const cur = new URL(currentUrl);
+
     if (cur.protocol !== 'http:' && cur.protocol !== 'https:') return false;
 
-    if (!OVERLAY_SCOPED) return true;
+    if (!RESTRICT_OVERLAY_TO_ENTRY_DOMAIN) return true;
 
     const base = new URL(entryUrl);
-    const s = strategy ?? 'same-domain';
 
-    if (s === 'same-hostname') return cur.hostname === base.hostname;
-    return sameDomain(cur.hostname, base.hostname);
+    return sameRegistrableDomain(cur.hostname, base.hostname);
   } catch {
     return false;
   }
@@ -54,7 +56,7 @@ const parseBoolEnv = (val: string | undefined, defaultVal: boolean) => {
 //! For Cypress Test
 // env to check if Cypress test is running
 const isCypressTest = process.env.IS_CYPRESS_TEST === 'true';
-const OVERLAY_SCOPED = parseBoolEnv(process.env.OOBEE_OVERLAY_SCOPED, false);
+const RESTRICT_OVERLAY_TO_ENTRY_DOMAIN = parseBoolEnv(process.env.RESTRICT_OVERLAY_TO_ENTRY_DOMAIN, false);
 
 export const DEBUG = false;
 export const log = str => {
@@ -1033,7 +1035,7 @@ export const addOverlayMenu = async (
       log('Overlay menu: successfully added');
     })
     .catch(error => {
-      error('Overlay menu: failed to add', error);
+      consoleLogger.error('Overlay menu: failed to add', error);
     });
 };
 
@@ -1092,11 +1094,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       log('Scan: success');
       pagesDict[pageId].isScanning = false;
 
-      const allowed = isOverlayAllowed(
-        page.url(),
-        processPageParams.entryUrl,
-        processPageParams.strategy,
-      );
+      const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
 
       if (allowed) {
         await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
@@ -1170,11 +1168,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
   page.on('domcontentloaded', async () => {
     try {
-      const allowed = isOverlayAllowed(
-        page.url(),
-        processPageParams.entryUrl,
-        processPageParams.strategy,
-      );
+      const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
 
       if (!allowed) {
         await removeOverlayMenu(page);

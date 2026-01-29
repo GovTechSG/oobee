@@ -50,7 +50,6 @@ const runCustom = async (
   blacklistedPatterns: string[] | null,
   includeScreenshots: boolean,
   initialCustomFlowLabel?: string,
-  strategy?: string,
 ) => {
   // checks and delete datasets path if it already exists
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
@@ -69,7 +68,6 @@ const runCustom = async (
   );
 
   processPageParams.entryUrl = url;
-  processPageParams.strategy = strategy;
 
   if (initialCustomFlowLabel && initialCustomFlowLabel.trim()) {
     processPageParams.customFlowLabel = initialCustomFlowLabel.trim();

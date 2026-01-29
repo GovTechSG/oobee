@@ -204,8 +204,8 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     return duration;
   })
   .check(argvs => {
-    if (argvs.scanner === ScannerTypes.CUSTOM && typeof argvs.scanDuration === 'number' && argvs.scanDuration > 0) {
-      throw new Error('-l or --scanDuration is not allowed for custom flow scans.');
+    if (argvs.scanner !== ScannerTypes.WEBSITE && argvs.strategy) {
+      throw new Error('-s or --strategy is only available in website scans.');
     }
     return true;
   })
