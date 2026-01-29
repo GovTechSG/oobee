@@ -11,9 +11,6 @@ import { DEBUG, initNewPage, log } from './custom/utils.js';
 import { guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { addUrlGuardScript } from './guards/urlGuard.js';
-
-// Export of classes
-
 export class ProcessPageParams {
   scannedIdx: number;
   blacklistedPatterns: string[] | null;
@@ -24,6 +21,8 @@ export class ProcessPageParams {
   randomToken: string;
   customFlowLabel?: string;
   stopAll?: () => Promise<void>;
+  entryUrl!: string;
+  strategy: string;
 
   constructor(
     scannedIdx: number,
@@ -67,6 +66,8 @@ const runCustom = async (
     urlsCrawled,
     randomToken,
   );
+
+  processPageParams.entryUrl = url;
 
   if (initialCustomFlowLabel && initialCustomFlowLabel.trim()) {
     processPageParams.customFlowLabel = initialCustomFlowLabel.trim();

@@ -7,6 +7,7 @@ import { runAxeScript } from '../commonCrawlerFunc.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
 import { guiInfoStatusTypes } from '../../constants/constants.js';
 import { isSkippedUrl, validateCustomFlowLabel } from '../../constants/common.js';
+import { getDomain } from 'tldts';
 
 declare global {
   interface Window {
@@ -19,9 +20,43 @@ declare global {
   }
 }
 
+const sameRegistrableDomain = (hostA: string, hostB: string) => {
+  const domainA = getDomain(hostA);
+  const domainB = getDomain(hostB);
+
+  if (!domainA || !domainB) return hostA === hostB;
+
+  return domainA === domainB;
+};
+
+const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
+  try {
+    const cur = new URL(currentUrl);
+
+    if (cur.protocol !== 'http:' && cur.protocol !== 'https:') return false;
+
+    if (!RESTRICT_OVERLAY_TO_ENTRY_DOMAIN) return true;
+
+    const base = new URL(entryUrl);
+
+    return sameRegistrableDomain(cur.hostname, base.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const parseBoolEnv = (val: string | undefined, defaultVal: boolean) => {
+  if (val == null) return defaultVal;
+  const v = String(val).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(v)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(v)) return false;
+  return defaultVal;
+};
+
 //! For Cypress Test
 // env to check if Cypress test is running
 const isCypressTest = process.env.IS_CYPRESS_TEST === 'true';
+const RESTRICT_OVERLAY_TO_ENTRY_DOMAIN = parseBoolEnv(process.env.RESTRICT_OVERLAY_TO_ENTRY_DOMAIN, false);
 
 export const DEBUG = false;
 export const log = str => {
@@ -248,7 +283,7 @@ export const updateMenu = async (page, urlsCrawled) => {
   log(`Overlay menu: updating: ${page.url()}`);
   await page.evaluate(
     vars => {
-      const shadowHost = document.querySelector('#oobee-shadow-host');
+      const shadowHost = document.querySelector('#oobeeShadowHost');
       if (shadowHost) {
         const p = shadowHost.shadowRoot.querySelector('#oobee-p-pages-scanned');
         if (p) {
@@ -1000,7 +1035,7 @@ export const addOverlayMenu = async (
       log('Overlay menu: successfully added');
     })
     .catch(error => {
-      error('Overlay menu: failed to add', error);
+      consoleLogger.error('Overlay menu: failed to add', error);
     });
 };
 
@@ -1058,11 +1093,18 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       await processPage(page, processPageParams);
       log('Scan: success');
       pagesDict[pageId].isScanning = false;
-       await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
-         inProgress: false,
-         collapsed: !!pagesDict[pageId]?.collapsed,
-         hideStopInput: !!processPageParams.customFlowLabel,
-       });
+
+      const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
+
+      if (allowed) {
+        await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
+          inProgress: false,
+          collapsed: !!pagesDict[pageId]?.collapsed,
+          hideStopInput: !!processPageParams.customFlowLabel,
+        });
+      } else {
+        await removeOverlayMenu(page);
+      }
     } catch (error) {
       log(`Scan failed ${error}`);
     }
@@ -1126,6 +1168,13 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
   page.on('domcontentloaded', async () => {
     try {
+      const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
+
+      if (!allowed) {
+        await removeOverlayMenu(page);
+        return;
+      }
+
       const existingOverlay = await page.evaluate(() => {
         return document.querySelector('#oobeeShadowHost');
       });
@@ -1141,12 +1190,6 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         });
       }
 
-      setTimeout(() => {
-        // Timeout here to slow things down a little
-      }, 1000);
-
-      //! For Cypress Test
-      // Auto-clicks 'Scan this page' button only once
       if (isCypressTest) {
         try {
           await handleOnScanClick();
@@ -1155,10 +1198,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
           consoleLogger.info(`Error in calling handleOnScanClick, isCypressTest: ${isCypressTest}`);
         }
       }
-
-      consoleLogger.info(`Overlay state: ${existingOverlay}`);
     } catch {
-      consoleLogger.info('Error in adding overlay menu to page');
       consoleLogger.info('Error in adding overlay menu to page');
     }
   });
