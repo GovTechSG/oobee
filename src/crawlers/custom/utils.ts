@@ -248,7 +248,7 @@ export const updateMenu = async (page, urlsCrawled) => {
   log(`Overlay menu: updating: ${page.url()}`);
   await page.evaluate(
     vars => {
-      const shadowHost = document.querySelector('#oobee-shadow-host');
+      const shadowHost = document.querySelector('#oobeeShadowHost');
       if (shadowHost) {
         const p = shadowHost.shadowRoot.querySelector('#oobee-p-pages-scanned');
         if (p) {
