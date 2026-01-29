@@ -184,9 +184,11 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     }
     return true;
   })
-  .check(argvs => {
-    if (argvs.scanner !== ScannerTypes.WEBSITE && argvs.strategy) {
-      throw new Error('-s or --strategy is only available in website scans.');
+  .check((argvs) => {
+    const scanner = String(argvs.scanner ?? '');
+
+    if (argvs.strategy && scanner !== ScannerTypes.WEBSITE && scanner !== ScannerTypes.CUSTOM) {
+      throw new Error('-s or --strategy is only available in website and custom flow scans.');
     }
     return true;
   })

@@ -7,6 +7,7 @@ import { runAxeScript } from '../commonCrawlerFunc.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
 import { guiInfoStatusTypes } from '../../constants/constants.js';
 import { isSkippedUrl, validateCustomFlowLabel } from '../../constants/common.js';
+import { getDomain } from 'tldts';
 
 declare global {
   interface Window {
@@ -19,9 +20,41 @@ declare global {
   }
 }
 
+const sameDomain = (a: string, b: string) => {
+  const domainA = getDomain(a);
+  const domainB = getDomain(b);
+  return (domainA && domainB) ? domainA === domainB : a === b;
+};
+
+const isOverlayAllowed = (currentUrl: string, entryUrl: string, strategy?: 'same-domain' | 'same-hostname') => {
+  try {
+    const cur = new URL(currentUrl);
+    if (cur.protocol !== 'http:' && cur.protocol !== 'https:') return false;
+
+    if (!OVERLAY_SCOPED) return true;
+
+    const base = new URL(entryUrl);
+    const s = strategy ?? 'same-domain';
+
+    if (s === 'same-hostname') return cur.hostname === base.hostname;
+    return sameDomain(cur.hostname, base.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const parseBoolEnv = (val: string | undefined, defaultVal: boolean) => {
+  if (val == null) return defaultVal;
+  const v = String(val).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(v)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(v)) return false;
+  return defaultVal;
+};
+
 //! For Cypress Test
 // env to check if Cypress test is running
 const isCypressTest = process.env.IS_CYPRESS_TEST === 'true';
+const OVERLAY_SCOPED = parseBoolEnv(process.env.OOBEE_OVERLAY_SCOPED, false);
 
 export const DEBUG = false;
 export const log = str => {
@@ -1058,11 +1091,22 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       await processPage(page, processPageParams);
       log('Scan: success');
       pagesDict[pageId].isScanning = false;
-       await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
-         inProgress: false,
-         collapsed: !!pagesDict[pageId]?.collapsed,
-         hideStopInput: !!processPageParams.customFlowLabel,
-       });
+
+      const allowed = isOverlayAllowed(
+        page.url(),
+        processPageParams.entryUrl,
+        processPageParams.strategy,
+      );
+
+      if (allowed) {
+        await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
+          inProgress: false,
+          collapsed: !!pagesDict[pageId]?.collapsed,
+          hideStopInput: !!processPageParams.customFlowLabel,
+        });
+      } else {
+        await removeOverlayMenu(page);
+      }
     } catch (error) {
       log(`Scan failed ${error}`);
     }
@@ -1126,6 +1170,17 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
   page.on('domcontentloaded', async () => {
     try {
+      const allowed = isOverlayAllowed(
+        page.url(),
+        processPageParams.entryUrl,
+        processPageParams.strategy,
+      );
+
+      if (!allowed) {
+        await removeOverlayMenu(page);
+        return;
+      }
+
       const existingOverlay = await page.evaluate(() => {
         return document.querySelector('#oobeeShadowHost');
       });
@@ -1141,12 +1196,6 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         });
       }
 
-      setTimeout(() => {
-        // Timeout here to slow things down a little
-      }, 1000);
-
-      //! For Cypress Test
-      // Auto-clicks 'Scan this page' button only once
       if (isCypressTest) {
         try {
           await handleOnScanClick();
@@ -1155,10 +1204,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
           consoleLogger.info(`Error in calling handleOnScanClick, isCypressTest: ${isCypressTest}`);
         }
       }
-
-      consoleLogger.info(`Overlay state: ${existingOverlay}`);
     } catch {
-      consoleLogger.info('Error in adding overlay menu to page');
       consoleLogger.info('Error in adding overlay menu to page');
     }
   });

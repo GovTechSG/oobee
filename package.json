@@ -31,6 +31,7 @@
     "print-message": "^3.0.1",
     "safe-regex": "^2.1.1",
     "text-readability": "^1.1.0",
+    "tldts": "^7.0.19",
     "typescript": "^5.4.5",
     "url": "^0.11.3",
     "uuid": "^11.0.3",

@@ -11,9 +11,6 @@ import { DEBUG, initNewPage, log } from './custom/utils.js';
 import { guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { addUrlGuardScript } from './guards/urlGuard.js';
-
-// Export of classes
-
 export class ProcessPageParams {
   scannedIdx: number;
   blacklistedPatterns: string[] | null;
@@ -24,6 +21,8 @@ export class ProcessPageParams {
   randomToken: string;
   customFlowLabel?: string;
   stopAll?: () => Promise<void>;
+  entryUrl!: string;
+  strategy: string;
 
   constructor(
     scannedIdx: number,
@@ -51,6 +50,7 @@ const runCustom = async (
   blacklistedPatterns: string[] | null,
   includeScreenshots: boolean,
   initialCustomFlowLabel?: string,
+  strategy?: string,
 ) => {
   // checks and delete datasets path if it already exists
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
@@ -67,6 +67,9 @@ const runCustom = async (
     urlsCrawled,
     randomToken,
   );
+
+  processPageParams.entryUrl = url;
+  processPageParams.strategy = strategy;
 
   if (initialCustomFlowLabel && initialCustomFlowLabel.trim()) {
     processPageParams.customFlowLabel = initialCustomFlowLabel.trim();
