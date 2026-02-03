@@ -1,5 +1,7 @@
 import { defineConfig } from "cypress";
 import oobeeA11yInit from "@govtechsg/oobee";
+import * as fs from 'fs';
+import * as path from 'path';
 
 // viewport used in tests to optimise screenshots
 const viewportSettings = { width: 1920, height: 1040 };
@@ -44,7 +46,49 @@ export default defineConfig({
           return oobeeA11y.gradeReadability(sentences);
         },
         async pushOobeeA11yScanResults({ res, metadata, elementsToClick }) {
-          return await oobeeA11y.pushScanResults(res, metadata, elementsToClick);
+          if (oobeeA11y.scanDetails.isIncludeScreenshots) {
+              const moveScreenshots = (items) => {
+                  if (!items) return;
+                  items.forEach(item => {
+                      item.nodes.forEach((node) => {
+                          if (node.screenshotFilename) {
+                              const searchDir = 'cypress/screenshots';
+                              
+                              const findFile = (dir, name) => {
+                                   if (!fs.existsSync(dir)) return null;
+                                   const files = fs.readdirSync(dir);
+                                   for (const file of files) {
+                                       const filePath = path.join(dir, file);
+                                       if (fs.statSync(filePath).isDirectory()) {
+                                           const found = findFile(filePath, name);
+                                           if (found) return found;
+                                       } else if (file === name) {
+                                           return filePath;
+                                       }
+                                   }
+                                   return null;
+                              }
+
+                              const srcPath = findFile(searchDir, node.screenshotFilename);
+                              if (srcPath) {
+                                  const destDir = `results/${oobeeA11y.randomToken}/screenshots`;
+                                  if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+                                  const destPath = path.join(destDir, node.screenshotFilename);
+                                  fs.copyFileSync(srcPath, destPath);
+                                  // Set screenshot path for Oobee report
+                                  node.screenshotPath = node.screenshotFilename; 
+                              }
+                          }
+                      })
+                  })
+              };
+              
+              moveScreenshots(res.axeScanResults.violations);
+              moveScreenshots(res.axeScanResults.incomplete);
+          }
+
+          // Pass disableScreenshots=true to avoid opening a new Playwright browser
+          return await oobeeA11y.pushScanResults(res, metadata, elementsToClick, undefined, true);
         },
         returnResultsDir() {
           return `results/${oobeeA11y.randomToken}_${oobeeA11y.scanDetails.urlsCrawled.scanned.length}pages/report.html`;
