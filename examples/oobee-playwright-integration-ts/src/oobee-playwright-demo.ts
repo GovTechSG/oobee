@@ -59,7 +59,8 @@ const oobeeA11y = await oobeeA11yInit({
       async ({ elementsToScan, gradingReadabilityFlag }) => await runA11yScan(elementsToScan, gradingReadabilityFlag),
       { elementsToScan, gradingReadabilityFlag },
     );
-    await oobeeA11y.pushScanResults(scanRes);
+    // Pass page object to allow screenshot reuse
+    await oobeeA11y.pushScanResults(scanRes, undefined, undefined, page);
     oobeeA11y.testThresholds(); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
   };
 

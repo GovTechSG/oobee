@@ -353,7 +353,7 @@ export const init = async ({
     metadata: string,
     elementsToClick: string[],
     page?: Page,
-    disableScreenshots?: boolean,
+    disableScreenshots: boolean = false, // Only for Cypress (or other library that wants to use it's own screenshotting)
   ) => {
     throwErrorIfTerminated();
     if (includeScreenshots && !disableScreenshots) {

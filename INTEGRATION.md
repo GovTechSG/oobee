@@ -113,8 +113,8 @@ Process scan results to be included in the report.
 Parameter(s):
 
 - `res`: Object consisting of the current page url, current page title and axe scan result. ` {pageUrl, pageTitle, axeScanResults}`
-- `metadata` (optional): Additional information to be displayed for each page scanned in the report
-- `elementsToClick` (optional): Elements clicked during the test to reveal hidden elements. Required to be able identify hidden elements if they were scanned for screenshot purposes. Ensure selectors resolve to a single element.
+- `metadata` (optional): Additional string information to be stored. Useful for distinguishing between different states of the same page. Note: This feature is not implemented in the report HTML currently.
+- `elementsToClick` (optional): A list of CSS selectors to click to reveal hidden elements (like modals or menus) before taking screenshots. This is only used if Oobee launches its own browser for screenshots (i.e., when `page` is not provided and `disableScreenshots` is false). Reproducing the state allows the screenshots to capture the violating elements correctly.
 - `page` (optional): Playwright Page object. If provided, reuses the existing page for taking screenshots of affected elements.
 - `disableScreenshots` (optional): Boolean to disable screenshot capturing. Useful when integrating with tools like Cypress where the browser context cannot be easily shared with Node.js.
 
@@ -146,6 +146,8 @@ With reference to an instance of Oobee as `oobeeA11y`:
    - It is possible to run the scan for specific sections or elements in the page. One way to do this is to pass an array of CSS selectors of the elements to be scanned into `runA11yScan`. For example, `runA11yScan(['#my-component', 'button'])`. Other acceptable forms of argument can be found [here](https://github.com/dequelabs/axe-core/blob/develop/doc/API.md#context-parameter).
 4. Pass the scan results back into the NodeJS environment where `oobeeA11y` is in.
 5. Push the results using `await oobeeA11y.pushScanResults(scanResults)`.
+   - For Playwright, pass the `page` object as the 4th argument: `await oobeeA11y.pushScanResults(scanResults, undefined, undefined, page)`. This optimizes performance by reusing the existing browser for screenshots.
+   - For Cypress, to avoid launching a separate browser for screenshots, you must handle screenshot capturing manually and set `disableScreenshots` to `true`. Refer to the provided Cypress examples for the implementation details.
 6. Repeat steps 2-5 as many times as desired.
 7. Terminate Oobee by using `await oobeeA11y.terminate()`. A folder containing the details and report of your scan will be created, under the directory `results` which can be found in your project's root directory.
 
