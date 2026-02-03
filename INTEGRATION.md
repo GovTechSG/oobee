@@ -106,7 +106,7 @@ Get the Oobee custom functions to run accessibility scan. Call this after `getAx
 
   - Object consisting of the current page url, current page title and axe scan result. `{ pageUrl, pageTitle, axeScanResults }`
 
-`async pushScanResults(res, metadata, elementsToClick, page)`
+`async pushScanResults(res, metadata, elementsToClick, page, disableScreenshots)`
 
 Process scan results to be included in the report.
 
@@ -116,6 +116,7 @@ Parameter(s):
 - `metadata` (optional): Additional information to be displayed for each page scanned in the report
 - `elementsToClick` (optional): Elements clicked during the test to reveal hidden elements. Required to be able identify hidden elements if they were scanned for screenshot purposes. Ensure selectors resolve to a single element.
 - `page` (optional): Playwright Page object. If provided, reuses the existing page for taking screenshots of affected elements.
+- `disableScreenshots` (optional): Boolean to disable screenshot capturing. Useful when integrating with tools like Cypress where the browser context cannot be easily shared with Node.js.
 
 Returns:
 

@@ -352,10 +352,11 @@ export const init = async ({
     res: { pageUrl: string; pageTitle: string; axeScanResults: AxeResults },
     metadata: string,
     elementsToClick: string[],
-    page: Page | undefined,
+    page?: Page | undefined,
+    disableScreenshots?: boolean,
   ) => {
     throwErrorIfTerminated();
-    if (includeScreenshots) {
+    if (includeScreenshots && !disableScreenshots) {
       let browserContext: BrowserContext | undefined;
       let browserToRun: BrowserTypes | undefined;
       let clonedBrowserDataDir: string | undefined;
