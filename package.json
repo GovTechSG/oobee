@@ -1,7 +1,7 @@
 {
   "name": "@govtechsg/oobee",
   "main": "dist/npmIndex.js",
-  "version": "0.10.76",
+  "version": "0.10.77",
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
   "bin": {
@@ -61,7 +61,7 @@
     "@types/which": "^3.0.4",
     "@types/xml2js": "^0.4.14",
     "browserify-zlib": "^0.2.0",
-    "eslint": "^8.57.0",
+    "eslint": "^9.26.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-config-prettier": "^8.6.0",
     "eslint-plugin-import": "^2.27.4",
@@ -79,7 +79,10 @@
     "micromatch": "github:micromatch/micromatch.git#4.0.8",
     "brace-expansion": "^1.1.12",
     "tmp": "0.2.4",
-    "tar": "^7.5.6"
+    "tar": "^7.5.6",
+    "eslint-config-airbnb-base": {
+      "eslint": "^9.26.0"
+    }
   },
   "optionalDependencies": {
     "@napi-rs/canvas-darwin-arm64": "^0.1.53",
