@@ -352,7 +352,7 @@ export const init = async ({
     res: { pageUrl: string; pageTitle: string; axeScanResults: AxeResults },
     metadata: string,
     elementsToClick: string[],
-    page?: Page | undefined,
+    page?: Page,
     disableScreenshots?: boolean,
   ) => {
     throwErrorIfTerminated();

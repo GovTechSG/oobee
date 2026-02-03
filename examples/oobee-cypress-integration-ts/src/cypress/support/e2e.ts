@@ -55,12 +55,42 @@ Cypress.Commands.add("runOobeeA11yScan", (items: OobeeScanOptions = {}) => {
                     elementsToScan,
                     gradingReadabilityFlag,
                 );
-                cy.task("pushOobeeA11yScanResults", {
-                    res,
-                    metadata,
-                    elementsToClick,
-                }).then((count) => {
-                     return count;
+
+                const processNodes = (nodes: any[]) => {
+                    if (!nodes) return;
+                    cy.wrap(nodes).each((node: any, index: number) => {
+                       if (node.target && node.target.length > 0) {
+                           const selector = node.target[0];
+                           // Generate a unique filename
+                           const filename = `oobee-screenshot-${Date.now()}-${Math.floor(Math.random() * 1000)}-${index}.png`;
+                           
+                           // Check existence to prevent failure, then screenshot
+                           cy.get("body").then($body => {
+                               if ($body.find(selector).length) {
+                                   // We use capture: 'viewport' to be safe and overwrite true
+                                   cy.get(selector).first().scrollIntoView().screenshot(filename.replace('.png', ''), { capture: 'viewport', overwrite: true });
+                                   node.screenshotFilename = filename;
+                               }
+                           });
+                       }
+                    });
+                };
+
+                const violations = res.axeScanResults.violations;
+                const incomplete = res.axeScanResults.incomplete;
+
+                cy.wrap(violations).each((v: any) => processNodes(v.nodes));
+                cy.wrap(incomplete).each((v: any) => processNodes(v.nodes));
+                
+                // Ensure screenshots are done before pushing results
+                cy.then(() => {
+                    cy.task("pushOobeeA11yScanResults", {
+                        res,
+                        metadata,
+                        elementsToClick,
+                    }).then((count) => {
+                        return count;
+                    });
                 });
             },
         );
