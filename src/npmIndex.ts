@@ -25,6 +25,7 @@ import { flagUnlabelledClickableElements } from './crawlers/custom/flagUnlabelle
 import xPathToCss from './crawlers/custom/xPathToCss.js';
 import { extractText } from './crawlers/custom/extractText.js';
 import { gradeReadability } from './crawlers/custom/gradeReadability.js';
+import { BrowserContext, Page } from 'playwright';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -351,49 +352,65 @@ export const init = async ({
     res: { pageUrl: string; pageTitle: string; axeScanResults: AxeResults },
     metadata: string,
     elementsToClick: string[],
+    page: Page | undefined,
   ) => {
     throwErrorIfTerminated();
     if (includeScreenshots) {
-      // use chrome by default
-      const { browserToRun, clonedBrowserDataDir } = getBrowserToRun(randomToken, BrowserTypes.CHROME, false);
-      const browserContext = await constants.launcher.launchPersistentContext(
-        clonedBrowserDataDir,
-        { viewport: viewportSettings, ...getPlaywrightLaunchOptions(browserToRun) },
-      );
-            const page = await browserContext.newPage();
-            await page.goto(res.pageUrl);
+      let browserContext: BrowserContext | undefined;
+      let browserToRun: BrowserTypes | undefined;
+      let clonedBrowserDataDir: string | undefined;
+      let pageToScan: Page;
+
+      if (page) {
+        pageToScan = page;
+      } else {
+        // use chrome by default
+        const browserData = getBrowserToRun(randomToken, BrowserTypes.CHROME, false);
+        browserToRun = browserData.browserToRun;
+        clonedBrowserDataDir = browserData.clonedBrowserDataDir;
+
+        browserContext = await constants.launcher.launchPersistentContext(clonedBrowserDataDir, {
+          viewport: viewportSettings,
+          ...getPlaywrightLaunchOptions(browserToRun),
+        });
+        const newPage = await browserContext.newPage();
+        await newPage.goto(res.pageUrl);
+        try {
+          await newPage.waitForLoadState('networkidle', { timeout: 10000 });
+        } catch (e) {
+          console.log('Network idle timeout, continuing with screenshot capture...');
+          // Fall back to domcontentloaded if networkidle times out
+          await newPage.waitForLoadState('domcontentloaded', { timeout: 5000 });
+        } // click on elements to reveal hidden elements so screenshots can be taken
+        if (elementsToClick) {
+          for (const elem of elementsToClick) {
             try {
-                await page.waitForLoadState('networkidle', { timeout: 10000 });
+              await newPage.locator(elem).click();
             } catch (e) {
-                console.log('Network idle timeout, continuing with screenshot capture...');
-                // Fall back to domcontentloaded if networkidle times out
-                await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
-            }      // click on elements to reveal hidden elements so screenshots can be taken
-      if (elementsToClick) {
-        for (const elem of elementsToClick) {
-          try {
-            await page.locator(elem).click();
-          } catch (e) {
-            // do nothing if element is not found or not clickable
+              // do nothing if element is not found or not clickable
+            }
           }
         }
+        pageToScan = newPage;
       }
 
       res.axeScanResults.violations = await takeScreenshotForHTMLElements(
         res.axeScanResults.violations,
-        page,
+        pageToScan,
         randomToken,
         3000,
       );
       res.axeScanResults.incomplete = await takeScreenshotForHTMLElements(
         res.axeScanResults.incomplete,
-        page,
+        pageToScan,
         randomToken,
         3000,
       );
 
-      await browserContext.close();
-      deleteClonedProfiles(browserToRun, randomToken);
+      if (browserContext && browserToRun) {
+        await browserContext.close();
+        deleteClonedProfiles(browserToRun, randomToken);
+      }
     }
     const pageIndex = urlsCrawled.scanned.length + 1;
     const filteredResults = filterAxeResults(res.axeScanResults, res.pageTitle, {

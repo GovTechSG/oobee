@@ -151,6 +151,7 @@ const crawlDomain = async ({
             req.skipNavigation = true;
           }
           if (isDisallowedInRobotsTxt(req.url)) return null;
+          if (isBlacklisted(req.url, blacklistedPatterns)) return null;
           if (isUrlPdf(req.url)) {
             // playwright headless mode does not support navigation to pdf document
             req.skipNavigation = true;

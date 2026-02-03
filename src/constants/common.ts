@@ -1333,14 +1333,14 @@ const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, des
   if (os.platform() === 'win32') {
     profileCookiesDir = globSync('**/Network/Cookies', {
       ...options,
-      ignore: 'oobee/**',
+      ignore: 'oobee*/**',
     });
     profileNamesRegex = /User Data\\(.*?)\\Network/;
   } else if (os.platform() === 'darwin') {
     // Ignores copying cookies from the oobee directory if it exists
     profileCookiesDir = globSync('**/Cookies', {
       ...options,
-      ignore: 'oobee/**',
+      ignore: 'oobee*/**',
     });
     profileNamesRegex = /Microsoft Edge\/(.*?)\/Cookies/;
   }

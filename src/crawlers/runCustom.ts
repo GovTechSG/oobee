@@ -84,7 +84,6 @@ const runCustom = async (
       headless: false,
       channel: 'chrome',
       // bypassCSP: true,
-      devtools: DEBUG,
     });
 
     const context = await browser.newContext({

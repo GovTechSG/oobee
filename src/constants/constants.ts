@@ -1,5 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import fs from 'fs-extra';
 import { globSync } from 'glob';
 import which from 'which';
@@ -13,6 +14,7 @@ import { PageInfo } from '../mergeAxeResults.js';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
+const require = createRequire(import.meta.url);
 
 const maxRequestsPerCrawl = 100;
 
@@ -216,7 +218,7 @@ export const getExecutablePath = function (dir: string, file: string): string {
 export const basicAuthRegex = /^.*\/\/.*:.*@.*$/i;
 
 // for crawlers
-export const axeScript = path.join(dirname, '../../node_modules/axe-core/axe.min.js');
+export const axeScript = require.resolve('axe-core/axe.min.js');
 export class UrlsCrawled {
   siteName: string;
   toScan: string[] = [];
