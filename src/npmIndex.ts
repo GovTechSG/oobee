@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import printMessage from 'print-message';
 import axe, { AxeResults, ImpactValue } from 'axe-core';
+import { JSDOM } from 'jsdom';
 import { fileURLToPath } from 'url';
 import { EnqueueStrategy } from 'crawlee';
 import constants, { BrowserTypes, RuleFlags, ScannerTypes } from './constants/constants.js';
@@ -528,3 +529,46 @@ export const init = async ({
 };
 
 export default init;
+
+// This is an experimental feature to scan static HTML code
+export const scanHTML = async (
+  htmlString: string,
+  config: {
+    pageUrl?: string;
+    pageTitle?: string;
+    metadata?: string;
+    ruleset?: RuleFlags[];
+  } = {},
+) => {
+  const {
+    pageUrl = 'raw-html',
+    pageTitle = 'Raw HTML Content',
+    metadata = '',
+    ruleset = [RuleFlags.DEFAULT],
+  } = config;
+
+  const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
+  const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+
+  if (enableWcagAaa) {
+    tags.push('wcag2aaa');
+  }
+
+  const dom = new JSDOM(htmlString);
+
+  // Configure axe for node environment
+  const axeScanResults = await axe.run(dom.window.document.documentElement as unknown as Element, {
+    runOnly: {
+      type: 'tag',
+      values: tags,
+    },
+    resultTypes: ['violations', 'passes', 'incomplete'],
+  });
+
+  const filteredResults = filterAxeResults(axeScanResults, pageTitle, {
+    pageIndex: 1,
+    metadata,
+  });
+
+  return filteredResults;
+};
