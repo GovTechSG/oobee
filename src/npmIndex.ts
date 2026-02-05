@@ -31,97 +31,12 @@ import { BrowserContext, Page } from 'playwright';
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
-export const init = async ({
-  entryUrl,
-  testLabel,
-  name,
-  email,
-  includeScreenshots = false,
-  viewportSettings = { width: 1000, height: 660 }, // cypress' default viewport settings
-  thresholds = { mustFix: undefined, goodToFix: undefined },
-  scanAboutMetadata = undefined,
-  zip = 'oobee-scan-results',
-  deviceChosen,
-  strategy = EnqueueStrategy.All,
-  ruleset = [RuleFlags.DEFAULT],
-  specifiedMaxConcurrency = 25,
-  followRobots = false,
-}: {
-  entryUrl: string;
-  testLabel: string;
-  name: string;
-  email: string;
-  includeScreenshots?: boolean;
-  viewportSettings?: { width: number; height: number };
-  thresholds?: { mustFix: number; goodToFix: number };
-  scanAboutMetadata?: {
-    browser?: string;
-    viewport?: { width: number; height: number };
-  };
-  zip?: string;
-  deviceChosen?: string;
-  strategy?: EnqueueStrategy;
-  ruleset?: RuleFlags[];
-  specifiedMaxConcurrency?: number;
-  followRobots?: boolean;
-}) => {
-  consoleLogger.info('Starting Oobee');
+const getAxeScriptContent = () => {
+  return axe.source;
+};
 
-  const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
-  const domain = new URL(entryUrl).hostname;
-  const sanitisedLabel = testLabel ? `_${testLabel.replaceAll(' ', '_')}` : '';
-  const randomToken = `${date}_${time}${sanitisedLabel}_${domain}`;
-
-  const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
-  const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
-
-  // max numbers of mustFix/goodToFix occurrences before test returns a fail
-  const { mustFix: mustFixThreshold, goodToFix: goodToFixThreshold } = thresholds;
-
-  process.env.CRAWLEE_STORAGE_DIR = randomToken;
-
-  const scanDetails = {
-    startTime: new Date(),
-    endTime: new Date(),
-    deviceChosen,
-    crawlType: ScannerTypes.CUSTOM,
-    requestUrl: entryUrl,
-    urlsCrawled: { ...constants.urlsCrawledObj },
-    isIncludeScreenshots: includeScreenshots,
-    isAllowSubdomains: strategy,
-    isEnableCustomChecks: ruleset,
-    isEnableWcagAaa: ruleset,
-    isSlowScanMode: specifiedMaxConcurrency,
-    isAdhereRobots: followRobots,
-  };
-
-  const urlsCrawled = { ...constants.urlsCrawledObj };
-
-  const { dataset } = await createCrawleeSubFolders(randomToken);
-
-  let mustFixIssues = 0;
-  let goodToFixIssues = 0;
-
-  let isInstanceTerminated = false;
-
-  const throwErrorIfTerminated = () => {
-    if (isInstanceTerminated) {
-      throw new Error('This instance of Oobee was terminated. Please start a new instance.');
-    }
-  };
-
-  const getAxeScript = () => {
-    throwErrorIfTerminated();
-    const axeScript = fs.readFileSync(
-      path.join(dirname, '../../../axe-core/axe.min.js'),
-      'utf-8',
-    );
-    return axeScript;
-  };
-
-  const getOobeeFunctions = () => {
-    throwErrorIfTerminated();
-    return `
+const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) => {
+  return `
       // Fix for missing __name function used by bundler
       if (typeof __name === 'undefined') {
         window.__name = function(fn, name) {
@@ -341,6 +256,95 @@ export const init = async ({
       window.enableWcagAaa=${enableWcagAaa};
       window.runA11yScan = runA11yScan;
     `;
+};
+
+export const init = async ({
+  entryUrl,
+  testLabel,
+  name,
+  email,
+  includeScreenshots = false,
+  viewportSettings = { width: 1000, height: 660 }, // cypress' default viewport settings
+  thresholds = { mustFix: undefined, goodToFix: undefined },
+  scanAboutMetadata = undefined,
+  zip = 'oobee-scan-results',
+  deviceChosen,
+  strategy = EnqueueStrategy.All,
+  ruleset = [RuleFlags.DEFAULT],
+  specifiedMaxConcurrency = 25,
+  followRobots = false,
+}: {
+  entryUrl: string;
+  testLabel: string;
+  name: string;
+  email: string;
+  includeScreenshots?: boolean;
+  viewportSettings?: { width: number; height: number };
+  thresholds?: { mustFix: number; goodToFix: number };
+  scanAboutMetadata?: {
+    browser?: string;
+    viewport?: { width: number; height: number };
+  };
+  zip?: string;
+  deviceChosen?: string;
+  strategy?: EnqueueStrategy;
+  ruleset?: RuleFlags[];
+  specifiedMaxConcurrency?: number;
+  followRobots?: boolean;
+}) => {
+  consoleLogger.info('Starting Oobee');
+
+  const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
+  const domain = new URL(entryUrl).hostname;
+  const sanitisedLabel = testLabel ? `_${testLabel.replaceAll(' ', '_')}` : '';
+  const randomToken = `${date}_${time}${sanitisedLabel}_${domain}`;
+
+  const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
+  const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
+
+  // max numbers of mustFix/goodToFix occurrences before test returns a fail
+  const { mustFix: mustFixThreshold, goodToFix: goodToFixThreshold } = thresholds;
+
+  process.env.CRAWLEE_STORAGE_DIR = randomToken;
+
+  const scanDetails = {
+    startTime: new Date(),
+    endTime: new Date(),
+    deviceChosen,
+    crawlType: ScannerTypes.CUSTOM,
+    requestUrl: entryUrl,
+    urlsCrawled: { ...constants.urlsCrawledObj },
+    isIncludeScreenshots: includeScreenshots,
+    isAllowSubdomains: strategy,
+    isEnableCustomChecks: ruleset,
+    isEnableWcagAaa: ruleset,
+    isSlowScanMode: specifiedMaxConcurrency,
+    isAdhereRobots: followRobots,
+  };
+
+  const urlsCrawled = { ...constants.urlsCrawledObj };
+
+  const { dataset } = await createCrawleeSubFolders(randomToken);
+
+  let mustFixIssues = 0;
+  let goodToFixIssues = 0;
+
+  let isInstanceTerminated = false;
+
+  const throwErrorIfTerminated = () => {
+    if (isInstanceTerminated) {
+      throw new Error('This instance of Oobee was terminated. Please start a new instance.');
+    }
+  };
+
+  const getAxeScript = () => {
+    throwErrorIfTerminated();
+    return getAxeScriptContent();
+  };
+
+  const getOobeeFunctions = () => {
+    throwErrorIfTerminated();
+    return getOobeeFunctionsScript(disableOobee, enableWcagAaa);
   };
 
   // Helper script for manually copy-paste testing in Chrome browser
@@ -572,3 +576,42 @@ export const scanHTML = async (
 
   return filteredResults;
 };
+
+export const scanPage = async (
+  page: Page,
+  config: {
+    pageTitle?: string;
+    metadata?: string;
+    ruleset?: RuleFlags[];
+  } = {},
+) => {
+  const {
+    pageTitle = await page.title(),
+    metadata = '',
+    ruleset = [RuleFlags.DEFAULT],
+  } = config;
+
+  const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
+  const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
+
+  const axeScript = getAxeScriptContent();
+  const oobeeFunctions = getOobeeFunctionsScript(disableOobee, enableWcagAaa);
+
+  await page.evaluate(`${axeScript}\n${oobeeFunctions}`);
+
+  // Run the scan inside the page
+  const scanResult = await page.evaluate(async () => {
+    // @ts-ignore
+    return window.runA11yScan();
+  });
+
+  const filteredResults = filterAxeResults(scanResult.axeScanResults, pageTitle, {
+    pageIndex: 1,
+    metadata,
+  });
+
+  return filteredResults;
+};
+
+export { RuleFlags };
+
