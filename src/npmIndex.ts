@@ -610,7 +610,64 @@ export const scanPage = async (
     metadata,
   });
 
-  return filteredResults;
+  // Debug: Log the structure
+  console.log('Filtered Results Structure:', JSON.stringify(filteredResults, null, 2));
+
+  // Transform to JSON array format
+  const pageUrl = await page.url();
+  const issues: any[] = [];
+  
+  // Process violations directly from axe results
+  if (scanResult.axeScanResults.violations) {
+    scanResult.axeScanResults.violations.forEach((violation: any) => {
+      const wcagTags = violation.tags?.filter((tag: string) => 
+        tag.startsWith('wcag')
+      ).join(',') || '';
+      
+      violation.nodes?.forEach((node: any) => {
+        issues.push({
+          severity: 'mustFix',
+          issueId: violation.id,
+          issueDescription: violation.description || violation.help,
+          wcagConformance: wcagTags,
+          url: pageUrl,
+          pageTitle,
+          context: node.html || '',
+          howToFix: node.failureSummary || '',
+          axeImpact: node.impact || violation.impact || '',
+          xpath: node.target?.[0] || '',
+          learnMore: violation.helpUrl || '',
+        });
+      });
+    });
+  }
+  
+  // Process incomplete as goodToFix
+  if (scanResult.axeScanResults.incomplete) {
+    scanResult.axeScanResults.incomplete.forEach((incomplete: any) => {
+      const wcagTags = incomplete.tags?.filter((tag: string) => 
+        tag.startsWith('wcag')
+      ).join(',') || '';
+      
+      incomplete.nodes?.forEach((node: any) => {
+        issues.push({
+          severity: 'goodToFix',
+          issueId: incomplete.id,
+          issueDescription: incomplete.description || incomplete.help,
+          wcagConformance: wcagTags,
+          url: pageUrl,
+          pageTitle,
+          context: node.html || '',
+          howToFix: node.failureSummary || '',
+          axeImpact: node.impact || incomplete.impact || '',
+          xpath: node.target?.[0] || '',
+          learnMore: incomplete.helpUrl || '',
+        });
+      });
+    });
+  }
+
+  return issues;
 };
 
 export { RuleFlags };

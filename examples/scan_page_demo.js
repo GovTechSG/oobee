@@ -18,6 +18,8 @@ import { scanPage } from '../dist/npmIndex.js';
     // Run scanPage using the existing Playwright page
     const results = await scanPage(page);
 
+    console.log(JSON.stringify(results, null, 2));
+
     const mustFixCount = results.mustFix ? results.mustFix.totalItems : 0;
     const goodToFixCount = results.goodToFix ? results.goodToFix.totalItems : 0;
 
