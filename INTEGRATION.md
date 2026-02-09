@@ -426,3 +426,46 @@ You will see Oobee results generated in <code>results</code> folder.
     runScript();
 
 </details>
+
+#### Integration with any NodeJS workflow (Beta)
+
+You can also use Oobee in any NodeJS script without needing a specific framework integration pattern. This is useful for custom workflows, CI/CD pipelines, or simple scripts where you manage the browser automation yourself or want to scan static HTML.
+
+Refer to the examples in `examples/oobee-scan-page-demo.js` and `examples/oobee-scan-html-demo.js`.
+
+##### `async scanPage(pages, config)`
+
+Scans one or more Playwright Page objects. This injects the Oobee engine into the page context to perform the audit.
+
+**Parameters:**
+
+- `pages`: A Playwright `Page` object or an array of `Page` objects.
+- `config`: Configuration object
+  - `name`: Name for report (required)
+  - `email`: Email for report (required)
+  - `pageTitle`: Optional override for page title (only applied if scanning a single page)
+  - `metadata`: Optional metadata string
+  - `ruleset`: Optional array of `RuleFlags` (e.g. `['enable-wcag-aaa', 'disable-oobee']`)
+
+**Returns:**
+
+- Scan results object containing categorized violations and pass counts.
+
+##### `async scanHTML(htmlContent, config)`
+
+Scans raw HTML string(s). Note that this runs in a JSDOM environment (NodeJS) using axe-core and may not catch accessibility issues that require a full browser layout or JavaScript execution to render.
+
+**Parameters:**
+
+- `htmlContent`: HTML string or array of HTML strings.
+- `config`: Configuration object
+  - `name`: Name for report (required)
+  - `email`: Email for report (required)
+  - `pageUrl`: Optional URL identifier for the report (defaults to 'raw-html')
+  - `pageTitle`: Optional title identifier (defaults to 'HTML Content')
+  - `metadata`: Optional metadata string
+  - `ruleset`: Optional array of `RuleFlags`
+
+**Returns:**
+
+- Scan results object containing categorized violations and pass counts.
