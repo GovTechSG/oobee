@@ -19,7 +19,13 @@ const htmlContent = `
   console.log("Scanning HTML string...");
   try {
     // Run scanHTML without needing full Oobee init
-    const results = await scanHTML(htmlContent);
+    const results = await scanHTML(
+      htmlContent, 
+      {
+        name: "Your Name",
+        email: "email@domain.com",
+      }
+    );
     console.log(JSON.stringify(results, null, 2));
 
     console.log(`\nScan Complete.`);

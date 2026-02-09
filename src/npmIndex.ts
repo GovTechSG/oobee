@@ -13,8 +13,8 @@ import {
   submitForm,
 } from './constants/common.js';
 import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
-import { createAndUpdateResultsFolders } from './utils.js';
-import generateArtifacts from './mergeAxeResults.js';
+import { createAndUpdateResultsFolders, getVersion } from './utils.js';
+import generateArtifacts, { createBasicFormHTMLSnippet, sendWcagBreakdownToSentry } from './mergeAxeResults.js';
 import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
@@ -535,19 +535,95 @@ export const init = async ({
 
 export default init;
 
-// This is an experimental feature to scan static HTML code
+const processAndSubmitResults = async (
+  axeScanResults: AxeResults,
+  pageUrl: string,
+  pageTitle: string,
+  name: string,
+  email: string,
+  metadata: string,
+) => {
+  const filteredResults = filterAxeResults(axeScanResults, pageTitle, {
+    pageIndex: 1,
+    metadata,
+  });
+
+  const basicFormHTMLSnippet = createBasicFormHTMLSnippet(filteredResults);
+
+  await submitForm(
+    BrowserTypes.CHROMIUM,
+    '',
+    pageUrl,
+    null,
+    ScannerTypes.CUSTOM,
+    email,
+    name,
+    JSON.stringify(basicFormHTMLSnippet),
+    1,
+    0,
+    0,
+    '{}',
+  );
+
+  // Generate WCAG breakdown for Sentry
+  const wcagOccurrencesMap = new Map<string, number>();
+  
+  // Iterate through relevant categories to collect WCAG violation occurrences
+  ['mustFix', 'goodToFix'].forEach(category => {
+    // @ts-ignore
+    const rulesObj = filteredResults[category]?.rules;
+    if (rulesObj) {
+      Object.values(rulesObj).forEach((rule: any) => {
+        const count = rule.totalItems;
+        if (rule.conformance && Array.isArray(rule.conformance)) {
+          rule.conformance
+            .filter((c: string) => /wcag[0-9]{3,4}/.test(c))
+            .forEach((c: string) => {
+              const current = wcagOccurrencesMap.get(c) || 0;
+              wcagOccurrencesMap.set(c, current + count);
+            });
+        }
+      });
+    }
+  });
+
+  const oobeeAppVersion = getVersion();
+  
+  await sendWcagBreakdownToSentry(
+    oobeeAppVersion,
+    wcagOccurrencesMap,
+    basicFormHTMLSnippet,
+    {
+      entryUrl: pageUrl,
+      scanType: ScannerTypes.CUSTOM,
+      browser: 'chromium', // Defaulting since we might scan HTML without browser or implicit browser
+      email: email,
+      name: name,
+    },
+    undefined,
+    1,
+  );
+
+  return filteredResults;
+};
+
+// This is an experimental feature to scan static HTML code without the need for Playwright browser
 export const scanHTML = async (
   htmlString: string,
   config: {
+    name: string;
+    email: string;
     pageUrl?: string;
     pageTitle?: string;
     metadata?: string;
     ruleset?: RuleFlags[];
-  } = {},
+  },
 ) => {
   const {
+    name,
+    email,
     pageUrl = 'raw-html',
-    pageTitle = 'Raw HTML Content',
+    pageTitle = 'HTML Content',
     metadata = '',
     ruleset = [RuleFlags.DEFAULT],
   } = config;
@@ -570,23 +646,22 @@ export const scanHTML = async (
     resultTypes: ['violations', 'passes', 'incomplete'],
   });
 
-  const filteredResults = filterAxeResults(axeScanResults, pageTitle, {
-    pageIndex: 1,
-    metadata,
-  });
-
-  return filteredResults;
+  return processAndSubmitResults(axeScanResults, pageUrl, pageTitle, name, email, metadata);
 };
 
 export const scanPage = async (
   page: Page,
   config: {
+    name: string;
+    email: string;
     pageTitle?: string;
     metadata?: string;
     ruleset?: RuleFlags[];
-  } = {},
+  },
 ) => {
   const {
+    name,
+    email,
     pageTitle = await page.title(),
     metadata = '',
     ruleset = [RuleFlags.DEFAULT],
@@ -606,12 +681,14 @@ export const scanPage = async (
     return window.runA11yScan();
   });
 
-  const filteredResults = filterAxeResults(scanResult.axeScanResults, pageTitle, {
-    pageIndex: 1,
+  return processAndSubmitResults(
+    scanResult.axeScanResults,
+    page.url(),
+    pageTitle,
+    name,
+    email,
     metadata,
-  });
-
-  return filteredResults;
+  );
 };
 
 export { RuleFlags };

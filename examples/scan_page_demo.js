@@ -16,9 +16,15 @@ import { scanPage } from '../dist/npmIndex.js';
   console.log("Scanning page...");
   try {
     // Run scanPage using the existing Playwright page
-    const results = await scanPage(page);
+    const results = await scanPage(
+      page, 
+      {
+        name: "Your Name",
+        email: "email@domain.com",
+      }
+    );
 
-    console.log(JSON.stringify(results, null, 2));
+   // console.log(JSON.stringify(results, null, 2));
 
     console.log(`\nScan Complete.`);
 

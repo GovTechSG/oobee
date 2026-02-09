@@ -1289,34 +1289,56 @@ function updateIssuesWithOccurrences(issuesList: any[], urlOccurrencesMap: Map<s
   });
 }
 
+const extractRuleAiData = (ruleId: string, totalItems: number, items: any[], callback?: () => void) => {
+  let snippets = [];
+
+  if (oobeeAiRules.includes(ruleId)) {
+    const snippetsSet = new Set();
+    if (items) {
+      items.forEach(item => {
+        snippetsSet.add(oobeeAiHtmlETL(item.html));
+      });
+    }
+    snippets = [...snippetsSet];
+    if (callback) callback();
+  }
+  return {
+    snippets,
+    occurrences: totalItems,
+  };
+};
+
+// This is for telemetry purposes called within mergeAxeResults.ts
+export
 const createRuleIdJson = allIssues => {
   const compiledRuleJson = {};
 
-  const ruleIterator = rule => {
-    const ruleId = rule.rule;
-    let snippets = [];
-
-    if (oobeeAiRules.includes(ruleId)) {
-      const snippetsSet = new Set();
-      rule.pagesAffected.forEach(page => {
-        page.items.forEach(htmlItem => {
-          snippetsSet.add(oobeeAiHtmlETL(htmlItem.html));
+  ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
+    allIssues.items[category].rules.forEach(rule => {
+      const allItems = rule.pagesAffected.flatMap(page => page.items || []);
+      compiledRuleJson[rule.rule] = extractRuleAiData(rule.rule, rule.totalItems, allItems, () => {
+        rule.pagesAffected.forEach(p => {
+          delete p.items;
         });
       });
-      snippets = [...snippetsSet];
-      rule.pagesAffected.forEach(p => {
-        delete p.items;
+    });
+  });
+
+  return compiledRuleJson;
+};
+
+// This is for telemetry purposes called from npmIndex (scanPage and scanHTML) where report is not generated
+export const createBasicFormHTMLSnippet = filteredResults => {
+  const compiledRuleJson = {};
+
+  ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
+    if (filteredResults[category] && filteredResults[category].rules) {
+      Object.entries(filteredResults[category].rules).forEach(([ruleId, ruleVal]: [string, any]) => {
+        compiledRuleJson[ruleId] = extractRuleAiData(ruleId, ruleVal.totalItems, ruleVal.items);
       });
     }
-    compiledRuleJson[ruleId] = {
-      snippets,
-      occurrences: rule.totalItems,
-    };
-  };
+  });
 
-  allIssues.items.mustFix.rules.forEach(ruleIterator);
-  allIssues.items.goodToFix.rules.forEach(ruleIterator);
-  allIssues.items.needsReview.rules.forEach(ruleIterator);
   return compiledRuleJson;
 };
 
@@ -1587,7 +1609,7 @@ function populateScanPagesDetail(allIssues: AllIssues): void {
 }
 
 // Send WCAG criteria breakdown to Sentry
-const sendWcagBreakdownToSentry = async (
+export const sendWcagBreakdownToSentry = async (
   appVersion: string,
   wcagBreakdown: Map<string, number>,
   ruleIdJson: any,
