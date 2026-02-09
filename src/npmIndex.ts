@@ -29,6 +29,31 @@ import { gradeReadability } from './crawlers/custom/gradeReadability.js';
 import { BrowserContext, Page } from 'playwright';
 import { filter } from 'jszip';
 
+// Define global window properties for Oobee injection functions
+declare global {
+  interface Window {
+    runA11yScan: (
+      elements?: any[],
+      gradingReadabilityFlag?: string,
+    ) => Promise<{
+      pageUrl: string;
+      pageTitle: string;
+      axeScanResults: AxeResults;
+    }>;
+    axe: any;
+    getAxeConfiguration: any;
+    flagUnlabelledClickableElements: any;
+    disableOobee: boolean;
+    enableWcagAaa: boolean;
+    xPathToCss: any;
+    evaluateAltText: any;
+    escapeCssSelector: any;
+    framesCheck: any;
+    findElementByCssSelector: any;
+    extractText: any;
+  }
+}
+
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
@@ -95,7 +120,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
                 return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
               },
             },
-            ...(enableWcagAaa
+            ...((enableWcagAaa && !disableOobee)
               ? [
                   {
                     id: 'oobee-grading-text-contents',
@@ -143,19 +168,23 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
                 helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
               },
             },
-            {
-              id: 'oobee-grading-text-contents',
-              selector: 'html',
-              enabled: true,
-              any: ['oobee-grading-text-contents'],
-              tags: ['wcag2aaa', 'wcag315'],
-              metadata: {
-                description:
-                  'Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.',
-                help: 'Text content should be clear and plain to ensure that it is easily understood.',
-                helpUrl: 'https://www.wcag.com/uncategorized/3-1-5-reading-level/',
-              },
-            },
+            ...((enableWcagAaa && !disableOobee)
+              ? [
+                  {
+                    id: 'oobee-grading-text-contents',
+                    selector: 'html',
+                    enabled: true,
+                    any: ['oobee-grading-text-contents'],
+                    tags: ['wcag2aaa', 'wcag315'],
+                    metadata: {
+                      description:
+                        'Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.',
+                      help: 'Text content should be clear and plain to ensure that it is easily understood.',
+                      helpUrl: 'https://www.wcag.com/uncategorized/3-1-5-reading-level/',
+                    },
+                  },
+                ]
+              : []),
           ]
             .filter(rule => (disableOobee ? !rule.id.startsWith('oobee') : true))
             .concat(
@@ -208,6 +237,31 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
         const axeScanResults = await (window).axe.run(elementsToScan, {
           resultTypes: ['violations', 'passes', 'incomplete'],
         });
+
+        if (axeScanResults) {
+          ['violations', 'incomplete'].forEach(type => {
+            if (axeScanResults[type]) {
+              axeScanResults[type].forEach(result => {
+                if (result.nodes) {
+                  result.nodes.forEach(node => {
+                     ['any', 'all', 'none'].forEach(key => {
+                        if (node[key]) {
+                          node[key].forEach(check => {
+                            if (check.message && check.message.indexOf("Axe encountered an error") !== -1) {
+                                if (check.data) {
+                                  // console.error(check.data);
+                                  console.error("Axe encountered an error: " + (check.data.stack || check.data.message || JSON.stringify(check.data)));
+                                }
+                            }
+                          });
+                        }
+                     });
+                  });
+                }
+              });
+            }
+          });
+        }
   
         // add custom Oobee violations
         if (!(window).disableOobee) {
@@ -536,30 +590,83 @@ export const init = async ({
 export default init;
 
 const processAndSubmitResults = async (
-  axeScanResults: AxeResults,
-  pageUrl: string,
-  pageTitle: string,
+  scanData: { axeScanResults: AxeResults; pageUrl: string; pageTitle: string } | { axeScanResults: AxeResults; pageUrl: string; pageTitle: string }[],
   name: string,
   email: string,
   metadata: string,
 ) => {
-  const filteredResults = filterAxeResults(axeScanResults, pageTitle, {
-    pageIndex: 1,
-    metadata,
+  const items = Array.isArray(scanData) ? scanData : [scanData];
+  const numberOfPagesScanned = items.length;
+  
+  const allFilteredResults = items.map((item, index) => 
+    filterAxeResults(item.axeScanResults, item.pageTitle, { pageIndex: index + 1, metadata })
+  );
+
+  type Rule = {
+    totalItems: number;
+    items: any[];
+    [key: string]: any;
+  };
+
+  type ResultCategory = {
+    totalItems: number;
+    rules: Record<string, Rule>;
+  };
+
+  type CategoryKey = 'mustFix' | 'goodToFix' | 'needsReview';
+
+  const mergedResults: Record<CategoryKey, ResultCategory> = {
+    mustFix: { totalItems: 0, rules: {} },
+    goodToFix: { totalItems: 0, rules: {} },
+    needsReview: { totalItems: 0, rules: {} },
+    // omitting passed from being processed to reduce payload size
+    // passed: { totalItems: 0, rules: {} },
+  };
+
+  allFilteredResults.forEach(result => {
+    (['mustFix', 'goodToFix', 'needsReview'] as CategoryKey[]).forEach(category => {
+      const categoryResult = (result as any)[category];
+      if (categoryResult) {
+        mergedResults[category].totalItems += categoryResult.totalItems;
+        Object.entries(categoryResult.rules).forEach(([ruleId, ruleVal]: [string, any]) => {
+          if (!mergedResults[category].rules[ruleId]) {
+            mergedResults[category].rules[ruleId] = JSON.parse(JSON.stringify(ruleVal));
+            // Add url to items
+            mergedResults[category].rules[ruleId].items.forEach((item: any) => {
+              item.url = (result as any).url;
+              if (item.displayNeedsReview) {
+                delete item.displayNeedsReview;
+              }
+            });
+          } else {
+            mergedResults[category].rules[ruleId].totalItems += ruleVal.totalItems;
+            const newItems = ruleVal.items.map((item: any) => {
+               const newItem = { ...item, url: (result as any).url };
+               if (newItem.displayNeedsReview) {
+                 delete newItem.displayNeedsReview;
+               }
+               return newItem;
+             });
+            mergedResults[category].rules[ruleId].items.push(...newItems);
+          }
+        });
+      }
+    });
   });
 
-  const basicFormHTMLSnippet = createBasicFormHTMLSnippet(filteredResults);
+  const basicFormHTMLSnippet = createBasicFormHTMLSnippet(mergedResults);
+  const entryUrl = items[0].pageUrl;
 
   await submitForm(
     BrowserTypes.CHROMIUM,
     '',
-    pageUrl,
+    entryUrl,
     null,
     ScannerTypes.CUSTOM,
     email,
     name,
     JSON.stringify(basicFormHTMLSnippet),
-    1,
+    numberOfPagesScanned,
     0,
     0,
     '{}',
@@ -569,9 +676,8 @@ const processAndSubmitResults = async (
   const wcagOccurrencesMap = new Map<string, number>();
   
   // Iterate through relevant categories to collect WCAG violation occurrences
-  ['mustFix', 'goodToFix'].forEach(category => {
-    // @ts-ignore
-    const rulesObj = filteredResults[category]?.rules;
+  (['mustFix', 'goodToFix'] as CategoryKey[]).forEach(category => {
+    const rulesObj = mergedResults[category]?.rules;
     if (rulesObj) {
       Object.values(rulesObj).forEach((rule: any) => {
         const count = rule.totalItems;
@@ -594,17 +700,40 @@ const processAndSubmitResults = async (
     wcagOccurrencesMap,
     basicFormHTMLSnippet,
     {
-      entryUrl: pageUrl,
+      entryUrl: entryUrl,
       scanType: ScannerTypes.CUSTOM,
       browser: 'chromium', // Defaulting since we might scan HTML without browser or implicit browser
       email: email,
       name: name,
     },
     undefined,
-    1,
+    numberOfPagesScanned,
   );
 
-  return filteredResults;
+  // Return original single result if only one page was scanning to maintain backward compatibility structure
+  if (numberOfPagesScanned === 1) {
+    const singleResult = allFilteredResults[0];
+    
+    // Clean up displayNeedsReview from single result
+    (['mustFix', 'goodToFix', 'needsReview'] as CategoryKey[]).forEach(category => {
+      const resultCategory = (singleResult as any)[category];
+      if (resultCategory && resultCategory.rules) {
+        Object.values(resultCategory.rules).forEach((rule: any) => {
+          if (rule.items) {
+           rule.items.forEach((item: any) => {
+             if (item.displayNeedsReview) {
+               delete item.displayNeedsReview;
+             }
+           });
+          }
+        });
+      }
+    });
+
+    return singleResult;
+  }
+
+  return mergedResults;
 };
 
 // This is an experimental feature to scan static HTML code without the need for Playwright browser
@@ -646,11 +775,11 @@ export const scanHTML = async (
     resultTypes: ['violations', 'passes', 'incomplete'],
   });
 
-  return processAndSubmitResults(axeScanResults, pageUrl, pageTitle, name, email, metadata);
+  return processAndSubmitResults({ axeScanResults, pageUrl, pageTitle }, name, email, metadata);
 };
 
 export const scanPage = async (
-  page: Page,
+  pages: Page | Page[],
   config: {
     name: string;
     email: string;
@@ -662,7 +791,7 @@ export const scanPage = async (
   const {
     name,
     email,
-    pageTitle = await page.title(),
+    pageTitle,
     metadata = '',
     ruleset = [RuleFlags.DEFAULT],
   } = config;
@@ -673,18 +802,42 @@ export const scanPage = async (
   const axeScript = getAxeScriptContent();
   const oobeeFunctions = getOobeeFunctionsScript(disableOobee, enableWcagAaa);
 
-  await page.evaluate(`${axeScript}\n${oobeeFunctions}`);
+  const pagesArray = Array.isArray(pages) ? pages : [pages];
+  const scanData = [];
 
-  // Run the scan inside the page
-  const scanResult = await page.evaluate(async () => {
-    // @ts-ignore
-    return window.runA11yScan();
-  });
+  for (const page of pagesArray) {
+    await page.evaluate(`${axeScript}\n${oobeeFunctions}`);
+
+    // Run the scan inside the page
+    const consoleListener = (msg: any) => {
+      if (msg.type() === 'error') {
+        console.error(`[Browser Console] ${msg.text()}`);
+      }
+    };
+    page.on('console', consoleListener);
+
+    try {
+      const scanResult = await page.evaluate(async () => {
+        return window.runA11yScan();
+      });
+
+      scanData.push({
+        axeScanResults: scanResult.axeScanResults,
+        pageUrl: page.url(),
+        pageTitle: await page.title(),
+      });
+    } finally {
+      page.off('console', consoleListener);
+    }
+  }
+
+  // Allow override of page title if scanning a single page
+  if (!Array.isArray(pages) && pageTitle) {
+    scanData[0].pageTitle = pageTitle;
+  }
 
   return processAndSubmitResults(
-    scanResult.axeScanResults,
-    page.url(),
-    pageTitle,
+    scanData,
     name,
     email,
     metadata,

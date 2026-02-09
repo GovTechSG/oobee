@@ -13,18 +13,22 @@ import { scanPage } from '../dist/npmIndex.js';
   // Using a sample page that likely has accessibility issues
   await page.goto('https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm');
 
+  const page2 = await browser.newPage();
+  console.log("Navigating to second test page...");
+  await page2.goto('https://a11y.tech.gov.sg');
+
   console.log("Scanning page...");
   try {
     // Run scanPage using the existing Playwright page
     const results = await scanPage(
-      page, 
+      [page, page2], 
       {
         name: "Your Name",
         email: "email@domain.com",
       }
     );
 
-   // console.log(JSON.stringify(results, null, 2));
+    console.log(JSON.stringify(results, null, 2));
 
     console.log(`\nScan Complete.`);
 

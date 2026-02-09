@@ -12,7 +12,6 @@ import { AsyncParser, ParserOptions } from '@json2csv/node';
 import zlib from 'zlib';
 import { Base64Encode } from 'base64-stream';
 import { pipeline } from 'stream/promises';
-// @ts-ignore
 import * as Sentry from '@sentry/node';
 import constants, {
   BrowserTypes,
