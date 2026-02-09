@@ -20,6 +20,6 @@ jobs:
       - run: npm run build
         continue-on-error: false
 
-      - run: npm publish --access public --tag alpha
+      - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
