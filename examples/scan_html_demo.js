@@ -20,17 +20,10 @@ const htmlContent = `
   try {
     // Run scanHTML without needing full Oobee init
     const results = await scanHTML(htmlContent);
-
-    const mustFixCount = results.mustFix ? results.mustFix.totalItems : 0;
-    const goodToFixCount = results.goodToFix ? results.goodToFix.totalItems : 0;
+    console.log(JSON.stringify(results, null, 2));
 
     console.log(`\nScan Complete.`);
-    console.log(`Must Fix Issues: ${mustFixCount}`);
-    console.log(`Good to Fix Issues: ${goodToFixCount}`);
 
-    if (mustFixCount > 0) {
-        console.log('\nViolations sample:', JSON.stringify(results.mustFix.rules, null, 2));
-    }
   } catch (error) {
     console.error("Error during scan:", error);
   }

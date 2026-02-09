@@ -20,18 +20,8 @@ import { scanPage } from '../dist/npmIndex.js';
 
     console.log(JSON.stringify(results, null, 2));
 
-    const mustFixCount = results.mustFix ? results.mustFix.totalItems : 0;
-    const goodToFixCount = results.goodToFix ? results.goodToFix.totalItems : 0;
-
     console.log(`\nScan Complete.`);
-    console.log(`Must Fix Issues: ${mustFixCount}`);
-    console.log(`Good to Fix Issues: ${goodToFixCount}`);
 
-    if (mustFixCount > 0) {
-        // results.mustFix.rules is likely an object where keys are rule IDs
-        const violations = Object.values(results.mustFix.rules);
-        console.log('\nViolations sample:', JSON.stringify(violations.slice(0, 2), null, 2));
-    }
   } catch (error) {
     console.error("Error during scan:", error);
   } finally {
