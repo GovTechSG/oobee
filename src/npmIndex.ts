@@ -598,9 +598,11 @@ const processAndSubmitResults = async (
   const items = Array.isArray(scanData) ? scanData : [scanData];
   const numberOfPagesScanned = items.length;
   
-  const allFilteredResults = items.map((item, index) => 
-    filterAxeResults(item.axeScanResults, item.pageTitle, { pageIndex: index + 1, metadata })
-  );
+  const allFilteredResults = items.map((item, index) => {
+    const filtered = filterAxeResults(item.axeScanResults, item.pageTitle, { pageIndex: index + 1, metadata });
+    (filtered as any).url = item.pageUrl;
+    return filtered;
+  });
 
   type Rule = {
     totalItems: number;
@@ -631,6 +633,12 @@ const processAndSubmitResults = async (
         Object.entries(categoryResult.rules).forEach(([ruleId, ruleVal]: [string, any]) => {
           if (!mergedResults[category].rules[ruleId]) {
             mergedResults[category].rules[ruleId] = JSON.parse(JSON.stringify(ruleVal));
+
+            // Map the description to the short description if available
+            if (constants.a11yRuleShortDescriptionMap[ruleId]) {
+              mergedResults[category].rules[ruleId].description = constants.a11yRuleShortDescriptionMap[ruleId];
+            }
+            
             // Add url to items
             mergedResults[category].rules[ruleId].items.forEach((item: any) => {
               item.url = (result as any).url;
@@ -719,8 +727,17 @@ const processAndSubmitResults = async (
       const resultCategory = (singleResult as any)[category];
       if (resultCategory && resultCategory.rules) {
         Object.values(resultCategory.rules).forEach((rule: any) => {
+
+          // Map the description to the short description if available
+          if (constants.a11yRuleShortDescriptionMap[rule.rule]) {
+            rule.description = constants.a11yRuleShortDescriptionMap[rule.rule];
+          }
+
           if (rule.items) {
            rule.items.forEach((item: any) => {
+             // Ensure item URL matches the result URL
+             item.url = (singleResult as any).url;
+
              if (item.displayNeedsReview) {
                delete item.displayNeedsReview;
              }
@@ -738,12 +755,12 @@ const processAndSubmitResults = async (
 
 // This is an experimental feature to scan static HTML code without the need for Playwright browser
 export const scanHTML = async (
-  htmlString: string,
+  htmlContent: string | string[],
   config: {
     name: string;
     email: string;
-    pageUrl?: string;
-    pageTitle?: string;
+    pageUrl?: string; // If array, we will append index
+    pageTitle?: string; // If array, we will append index
     metadata?: string;
     ruleset?: RuleFlags[];
   },
@@ -764,18 +781,34 @@ export const scanHTML = async (
     tags.push('wcag2aaa');
   }
 
-  const dom = new JSDOM(htmlString);
+  const htmlItems = Array.isArray(htmlContent) ? htmlContent : [htmlContent];
+  const scanData = [];
 
-  // Configure axe for node environment
-  const axeScanResults = await axe.run(dom.window.document.documentElement as unknown as Element, {
-    runOnly: {
-      type: 'tag',
-      values: tags,
-    },
-    resultTypes: ['violations', 'passes', 'incomplete'],
-  });
+  for (let i = 0; i < htmlItems.length; i++) {
+    const htmlString = htmlItems[i];
+    const dom = new JSDOM(htmlString);
 
-  return processAndSubmitResults({ axeScanResults, pageUrl, pageTitle }, name, email, metadata);
+    // Configure axe for node environment
+    // eslint-disable-next-line no-await-in-loop
+    const axeScanResults = await axe.run(
+      dom.window.document.documentElement as unknown as Element,
+      {
+        runOnly: {
+          type: 'tag',
+          values: tags,
+        },
+        resultTypes: ['violations', 'passes', 'incomplete'],
+      },
+    );
+    
+    scanData.push({
+      axeScanResults,
+      pageUrl: htmlItems.length > 1 ? `${pageUrl}-${i + 1}` : pageUrl,
+      pageTitle: htmlItems.length > 1 ? `${pageTitle} ${i + 1}` : pageTitle,
+    });
+  }
+
+  return processAndSubmitResults(scanData, name, email, metadata);
 };
 
 export const scanPage = async (

@@ -15,12 +15,27 @@ const htmlContent = `
 </html>
 `;
 
+const htmlContent2 = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Test Page 2</title>
+</head>
+<body>
+    <h1>Accessibility Test 2</h1>
+    <a href="#">Click me</a>       <!-- Violation: link-name (if vague) or empty href issues -->
+    <input type="text" />          <!-- Violation: label -->
+</body>
+</html>
+`;
+
 (async () => {
   console.log("Scanning HTML string...");
   try {
     // Run scanHTML without needing full Oobee init
+    // Pass an array of HTML strings to demonstrate batch scanning
     const results = await scanHTML(
-      htmlContent, 
+      [htmlContent, htmlContent2], 
       {
         name: "Your Name",
         email: "email@domain.com",
