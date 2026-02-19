@@ -29,7 +29,7 @@
     "lodash": "^4.17.21",
     "mime": "^4.0.7",
     "mime-types": "^2.1.35",
-    "minimatch": "^9.0.3",
+    "minimatch": "^10.2.1",
     "pdfjs-dist": "github:veraPDF/pdfjs-dist#v4.4.168-taggedPdf-0.1.20",
     "playwright": "^1.55.0",
     "prettier": "^3.1.0",
