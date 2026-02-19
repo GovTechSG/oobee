@@ -1,4 +1,55 @@
 <script>
+  /**
+   * Resolves item references (strings) to full item data using htmlGroups.
+   * This is needed because items are now stored as references (html keys) to reduce JSON size.
+   * @param {Array} items - Array of item references (strings) or full item objects
+   * @param {Object} ruleInCategory - Rule object containing htmlGroups
+   * @param {Object} page - Page object containing url and pageTitle
+   * @returns {Array} - Array of resolved full item objects
+   */
+  function resolveItemReferences(items, ruleInCategory, page) {
+    if (!items || items.length === 0) return [];
+    
+    // Check if items are references (strings) or full objects
+    const isReference = typeof items[0] === 'string';
+    
+    if (!isReference) {
+      // Items are already full objects - just add page info
+      return items.map(item => ({
+        ...item,
+        pageUrl: page.url,
+        pageTitle: page.pageTitle || page.metadata
+      }));
+    }
+    
+    // Items are references (strings) - resolve using htmlGroups
+    const htmlGroups = ruleInCategory.htmlGroups || {};
+    
+    return items.map(htmlKey => {
+      const groupData = htmlGroups[htmlKey];
+      if (groupData) {
+        return {
+          html: groupData.html,
+          xpath: groupData.xpath,
+          message: groupData.message,
+          screenshotPath: groupData.screenshotPath,
+          displayNeedsReview: groupData.displayNeedsReview,
+          pageUrl: page.url,
+          pageTitle: page.pageTitle || page.metadata
+        };
+      }
+      // Fallback for unknown references
+      return {
+        html: htmlKey,
+        xpath: '',
+        message: '',
+        screenshotPath: '',
+        pageUrl: page.url,
+        pageTitle: page.pageTitle || page.metadata
+      };
+    });
+  }
+
   function buildExpandedRuleCategoryContent(category, ruleInCategory) {
     const contentContainer = document.getElementById('expandedRuleCategoryContent');
     const isCustomFlow = <%- isCustomFlow -%>;

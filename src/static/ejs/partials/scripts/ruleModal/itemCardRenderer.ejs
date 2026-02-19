@@ -1,4 +1,43 @@
 <script>
+  /**
+   * Resolves item references (strings) to full item data using htmlGroups.
+   * This is needed because items are now stored as references (html keys) to reduce JSON size.
+   */
+  function resolveItemReferencesForPage(page, ruleInCategory) {
+    if (!page.items || page.items.length === 0) return [];
+
+    // Check if items are references (strings) or full objects
+    const isReference = typeof page.items[0] === 'string';
+
+    if (!isReference) {
+      // Items are already full objects
+      return page.items;
+    }
+
+    // Items are references (strings) - resolve using htmlGroups
+    const htmlGroups = ruleInCategory.htmlGroups || {};
+
+    return page.items.map(htmlKey => {
+      const groupData = htmlGroups[htmlKey];
+      if (groupData) {
+        return {
+          html: groupData.html,
+          xpath: groupData.xpath,
+          message: groupData.message,
+          screenshotPath: groupData.screenshotPath,
+          displayNeedsReview: groupData.displayNeedsReview
+        };
+      }
+      // Fallback for unknown references
+      return {
+        html: htmlKey,
+        xpath: '',
+        message: '',
+        screenshotPath: ''
+      };
+    });
+  }
+
   function buildItemCardsWithPagination(accordionId, category, ruleInCategory, page, index) {
     const accordionAIId = `${ruleInCategory.rule}-${category}-accordion-AI-${index}`;
     const buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-${index}`;
@@ -10,7 +49,10 @@
       .parentElement;
 
     const accordionBody = accordion.getElementsByClassName('accordion-body')[0];
-    const totalItems = page.items.length;
+
+    // Resolve item references if needed
+    const resolvedItems = resolveItemReferencesForPage(page, ruleInCategory);
+    const totalItems = resolvedItems.length;
     let currentItemIndex = 0;
 
     // Create pagination controls
@@ -21,7 +63,7 @@
 
     // Function to render a specific item
     async function renderItem(itemIndex) {
-      const item = page.items[itemIndex];
+      const item = resolvedItems[itemIndex];
       const accordionDivToAppendAI = `${accordionAIId}-${itemIndex}`;
       const buttonDivForAiFeedback = `${buttonAIId}-${itemIndex}`;
       const aiErrorDiv = `${errorAIId}-${itemIndex}`;
