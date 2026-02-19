@@ -28,7 +28,10 @@
         if (dropdownTitle) {
           const selectedCategory = itemsToUse[category]?.rules?.find(r => r.rule === ruleInCategory.rule);
           if (selectedCategory) {
-            const count = selectedCategory.pagesAffected.length;
+            // Use pre-computed htmlGroups for count if available, otherwise use pages
+            const count = isHtmlGrouping && selectedCategory.htmlGroups
+              ? Object.keys(selectedCategory.htmlGroups).length
+              : selectedCategory.pagesAffected.length;
             if (isHtmlGrouping) {
               dropdownTitle.innerText = `HTML elements affected by this issue (${count})`;
             } else {
@@ -49,18 +52,7 @@
     newGroupByHtmlElement.addEventListener('change', async () => {
       if (newGroupByHtmlElement.checked) {
         updateDropdownTitle(true);
-        const contentContainer = document.getElementById('expandedRuleCategoryContent');
-        contentContainer.innerHTML = `
-          <div class="p-4 text-center">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2">Loading all items for grouping...</p>
-          </div>
-        `;
-
-        await loadAllPageItems(ruleInCategory);
-
+        // htmlGroups are pre-computed, no loading needed
         renderGroupedByHtmlElement(category, ruleInCategory, isCustomFlow);
       }
     });
@@ -92,25 +84,41 @@
   function renderGroupedByHtmlElement(category, ruleInCategory, isCustomFlow) {
     const contentContainer = document.getElementById('expandedRuleCategoryContent');
 
-    // Group items by HTML element
-    const groupedByHtml = {};
-    ruleInCategory.pagesAffected.forEach((page) => {
-      if (!page.items || page.items.length === 0) {
-        return;
-      }
+    // Use pre-computed htmlGroups if available, otherwise compute in real-time (backwards compatibility)
+    let groupedByHtml = {};
 
-      page.items.forEach((item) => {
-        const htmlKey = item.html || 'No HTML element';
-        if (!groupedByHtml[htmlKey]) {
-          groupedByHtml[htmlKey] = [];
+    if (ruleInCategory.htmlGroups) {
+      // Use pre-computed groups from JSON
+      Object.entries(ruleInCategory.htmlGroups).forEach(([htmlKey, groupData]) => {
+        groupedByHtml[htmlKey] = groupData.pageUrls.map(pageUrl => ({
+          html: groupData.html,
+          xpath: groupData.xpath,
+          message: groupData.message,
+          screenshotPath: groupData.screenshotPath,
+          displayNeedsReview: groupData.displayNeedsReview,
+          pageUrl: pageUrl,
+        }));
+      });
+    } else {
+      // Fallback: compute in real-time (for backwards compatibility)
+      ruleInCategory.pagesAffected.forEach((page) => {
+        if (!page.items || page.items.length === 0) {
+          return;
         }
-        groupedByHtml[htmlKey].push({
-          ...item,
-          pageUrl: page.url,
-          pageTitle: page.pageTitle || page.metadata,
+
+        page.items.forEach((item) => {
+          const htmlKey = item.html || 'No HTML element';
+          if (!groupedByHtml[htmlKey]) {
+            groupedByHtml[htmlKey] = [];
+          }
+          groupedByHtml[htmlKey].push({
+            ...item,
+            pageUrl: page.url,
+            pageTitle: page.pageTitle || page.metadata,
+          });
         });
       });
-    });
+    }
 
     if (Object.keys(groupedByHtml).length === 0) {
       contentContainer.innerHTML = `

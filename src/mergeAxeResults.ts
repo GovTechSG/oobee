@@ -63,6 +63,19 @@ export type PageInfo = {
   httpStatusCode?: number;
 };
 
+export type HtmlGroupItem = {
+  html: string;
+  xpath: string;
+  message: string;
+  screenshotPath: string;
+  displayNeedsReview?: boolean;
+  pageUrls: string[];
+};
+
+export type HtmlGroups = {
+  [htmlKey: string]: HtmlGroupItem;
+};
+
 export type RuleInfo = {
   totalItems: number;
   pagesAffected: PageInfo[];
@@ -72,6 +85,7 @@ export type RuleInfo = {
   axeImpact: string;
   conformance: string[];
   helpUrl: string;
+  htmlGroups?: HtmlGroups;
 };
 
 type Category = {
@@ -1158,6 +1172,8 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
           items: [],
         };
         currRuleFromAllIssues.pagesAffected[pageIndex].items.push(...items);
+        // Build htmlGroups for pre-computed Group by HTML Element
+        buildHtmlGroups(currRuleFromAllIssues, items, url);
       } else {
         if (!(url in currRuleFromAllIssues.pagesAffected)) {
           currRuleFromAllIssues.pagesAffected[url] = {
@@ -1181,7 +1197,48 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
         // currRuleFromAllIssues.numberOfPagesAffectedAfterRedirects +=
         //   currRuleFromAllIssues.pagesAffected.length;
       }
+
+      // Build htmlGroups for pre-computed Group by HTML Element
+      buildHtmlGroups(currRuleFromAllIssues, items, url);
     });
+  });
+};
+
+/**
+ * Builds pre-computed HTML groups to optimize Group by HTML Element functionality.
+ * This prevents large JSON payloads by storing unique HTML elements once and referencing
+ * them via page URLs instead of duplicating the full HTML for each occurrence.
+ */
+const buildHtmlGroups = (
+  rule: RuleInfo,
+  items: ItemsInfo[],
+  pageUrl: string
+) => {
+  // Initialize htmlGroups if it doesn't exist
+  if (!rule.htmlGroups) {
+    rule.htmlGroups = {};
+  }
+
+  items.forEach(item => {
+    // Use the HTML as the key (or 'No HTML element' if undefined)
+    const htmlKey = item.html || 'No HTML element';
+
+    if (rule.htmlGroups![htmlKey]) {
+      // Add page URL to existing group if not already present
+      if (!rule.htmlGroups![htmlKey].pageUrls.includes(pageUrl)) {
+        rule.htmlGroups![htmlKey].pageUrls.push(pageUrl);
+      }
+    } else {
+      // Create new group with the first occurrence
+      rule.htmlGroups![htmlKey] = {
+        html: item.html || '',
+        xpath: item.xpath || '',
+        message: item.message || '',
+        screenshotPath: item.screenshotPath || '',
+        displayNeedsReview: item.displayNeedsReview,
+        pageUrls: [pageUrl],
+      };
+    }
   });
 };
 
