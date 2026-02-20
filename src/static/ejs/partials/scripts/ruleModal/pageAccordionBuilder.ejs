@@ -401,8 +401,12 @@
 
   function createPageAccordion(page, index, category, ruleInCategory, isCustomFlow) {
     const accordionId = `${ruleInCategory.rule}-${category}-page-${index}`;
-    const pageItemsCount = page.items.length || page.itemsCount || 0;
-    const normalMode = page.itemsCount === undefined;
+
+    // We want the accordion behavior since lighter scanItems can fit in the report.html buffer of ~500MB.
+    const normalMode = true; 
+
+    // Calculation for items count: use items.length if array, else itemsCount property
+    const pageItemsCount = (page.items && page.items.length) || page.itemsCount || 0;
 
     const accordion = createElementFromString(`
       <li class="${normalMode ? '' : 'no-chevron'}">
@@ -491,31 +495,33 @@
   function setupPageAccordionHandlers(accordion, accordionId, category, ruleInCategory, page, index) {
     const button = accordion.querySelector('button');
 
-    button.addEventListener('click', function loadContent(event) {
+    // Handler for the first click to load content and init collapse
+    const initAndLoad = function(event) {
       const accordionBody = accordion.querySelector(".accordion-body");
 
+      // Build content if missing
       if (!accordionBody.querySelector(".item-pagination-controls") &&
           !accordionBody.querySelector(".unbulleted-list")) {
         buildItemCardsWithPagination(accordionId, category, ruleInCategory, page, index);
-        this.setAttribute('data-bs-target', '#' + accordionId + "-content");
-        this.removeEventListener('click', loadContent);
-        this.click();
       }
-    });
 
-    button.addEventListener('click', function initCollapse(event) {
+      // Initialize Bootstrap Collapse
+      // This sets up the data attributes and creates the instance
       this.setAttribute('data-bs-toggle', 'collapse');
       this.setAttribute('data-bs-target', '#' + accordionId + "-content");
-      this.setAttribute('aria-expanded', 'false');
+      this.setAttribute('aria-expanded', 'true'); 
       this.setAttribute('aria-controls', accordionId + "-content");
 
-      new bootstrap.Collapse(this, { toggle: false });
+      // Create and toggle the collapse instance manually for this first interaction
+      const collapseElement = document.getElementById(accordionId + "-content");
+      const bsCollapse = new bootstrap.Collapse(collapseElement, { toggle: false });
+      bsCollapse.toggle();
 
-      this.removeEventListener('click', initCollapse);
-      setTimeout(() => {
-        this.click();
-      }, 0);
-    });
+      // Remove this listener so subsequent clicks are handled by Bootstrap's data-api
+      button.removeEventListener('click', initAndLoad);
+    };
+
+    button.addEventListener('click', initAndLoad);
   }
 
   function setupCustomFlowScreenshot(accordion, page) {

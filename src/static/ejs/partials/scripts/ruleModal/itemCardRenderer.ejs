@@ -4,20 +4,21 @@
    * This is needed because items are now stored as references (html keys) to reduce JSON size.
    */
   function resolveItemReferencesForPage(page, ruleInCategory) {
-    if (!page.items || page.items.length === 0) return [];
+    const items = page.items || [];
+    if (items.length === 0) return [];
 
     // Check if items are references (strings) or full objects
-    const isReference = typeof page.items[0] === 'string';
+    const isReference = typeof items[0] === 'string';
 
     if (!isReference) {
       // Items are already full objects
-      return page.items;
+      return items;
     }
 
     // Items are references (strings) - resolve using htmlGroups
     const htmlGroups = ruleInCategory.htmlGroups || {};
 
-    return page.items.map(htmlKey => {
+    return items.map(htmlKey => {
       const groupData = htmlGroups[htmlKey];
       if (groupData) {
         return {
@@ -25,7 +26,9 @@
           xpath: groupData.xpath,
           message: groupData.message,
           screenshotPath: groupData.screenshotPath,
-          displayNeedsReview: groupData.displayNeedsReview
+          displayNeedsReview: groupData.displayNeedsReview,
+          pageUrl: page.url,
+          pageTitle: page.pageTitle || page.metadata
         };
       }
       // Fallback for unknown references
@@ -33,7 +36,9 @@
         html: htmlKey,
         xpath: '',
         message: '',
-        screenshotPath: ''
+        screenshotPath: '',
+        pageUrl: page.url,
+        pageTitle: page.pageTitle || page.metadata
       };
     });
   }
