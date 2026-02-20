@@ -366,7 +366,7 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
   }
 };
 
-const writeHTML = async (
+  const writeHTML = async (
   allIssues: AllIssues,
   storagePath: string,
   htmlFilename = 'report',

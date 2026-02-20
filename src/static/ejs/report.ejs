@@ -204,16 +204,14 @@
       };
 
       document.addEventListener('DOMContentLoaded', () => {
-        scanDataPromise.then(() => {
-          scanItemsPromise.then(() => {
+        Promise.all([scanDataPromise, scanItemsPromise])
+          .then(() => {
             initTooltips();
             scanDataCategorySelector();
-          }).error(e => {
-            console.error("Failed to load scanItems: ", e);
+          })
+          .catch(e => {
+            console.error("Failed to load scan data or scan items: ", e);
           });
-        }).error(e => {
-          console.error("Failed to load scanData: ", e);
-        });
       });
 
     </script>
