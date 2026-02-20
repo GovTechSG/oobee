@@ -1266,7 +1266,7 @@ const buildHtmlGroups = (
  * Converts items in pagesAffected to references (html keys) for embedding in HTML report.
  * This reduces the HTML file size while maintaining functionality via htmlGroups.
  */
-const convertItemsToReferences = (allIssues: AllIssues): AllIssues => {
+export const convertItemsToReferences = (allIssues: AllIssues): AllIssues => {
   const cloned = JSON.parse(JSON.stringify(allIssues));
 
   ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
