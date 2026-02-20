@@ -383,14 +383,18 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
 
   // Create lighter version with item references for embedding in HTML
   const lighterScanItems = convertItemsToReferences(allIssues);
-  const lighterScanItemsFilePath = path.join(storagePath, 'scanItems-light.json');
-  await fs.writeFile(lighterScanItemsFilePath, JSON.stringify(lighterScanItems.items));
+  const { base64FilePath: lighterScanItemsBase64FilePath } =
+    await writeJsonFileAndCompressedJsonFile(
+      lighterScanItems.items,
+      storagePath,
+      'scanItems-light',
+    );
 
   const scanDetailsReadStream = fs.createReadStream(scanDetailsFilePath, {
     encoding: 'utf8',
     highWaterMark: BUFFER_LIMIT,
   });
-  const scanItemsReadStream = fs.createReadStream(lighterScanItemsFilePath, {
+  const scanItemsReadStream = fs.createReadStream(lighterScanItemsBase64FilePath, {
     encoding: 'utf8',
     highWaterMark: BUFFER_LIMIT,
   });
@@ -403,7 +407,7 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
       await Promise.all([
         fs.promises.unlink(topFilePath),
         fs.promises.unlink(bottomFilePath),
-        fs.promises.unlink(lighterScanItemsFilePath),
+        fs.promises.unlink(lighterScanItemsBase64FilePath),
       ]);
     } catch (err) {
       console.error('Error cleaning up temporary files:', err);
