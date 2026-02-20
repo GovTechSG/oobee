@@ -84,123 +84,125 @@
 
         const scategoryList = document.getElementById('categorySelector');
 
-        Object.keys(scanItems).forEach(category => {
-          if (["mustFix", "goodToFix", "needsReview"].includes(category)) { // skip other keys like pagesScanned, etc
-            const categoryData = scanItems[category];
-            const listItem = document.createElement('div');
-            listItem.className = 'col-md-4 px-2';
+        if (scategoryList) {
+          Object.keys(scanItems).forEach(category => {
+            if (["mustFix", "goodToFix", "needsReview"].includes(category)) { // skip other keys like pagesScanned, etc
+              const categoryData = scanItems[category];
+              const listItem = document.createElement('div');
+              listItem.className = 'col-md-4 px-2';
 
-            const button = document.createElement('button');
-            button.setAttribute('aria-labelledby', `${category}Title ${category}ItemsInformation`);
-            button.setAttribute('aria-describedby', `${category}AriaDescription`);
-            button.id = `${category}Selector`;
-            button.className = `h-100 category-selector ${category}`;
-            button.addEventListener('click', event => changeSelectedCategory(event, category));
-            button.addEventListener('focus', () =>
-              document
-                .getElementById(`${category}Description`)
-                .dispatchEvent(new MouseEvent('mouseover')),
-            );
-            button.addEventListener('blur', () =>
-              document
-                .getElementById(`${category}Description`)
-                .dispatchEvent(new MouseEvent('mouseout')),
-            );
-            button.addEventListener('mousedown', event => event.preventDefault());
+              const button = document.createElement('button');
+              button.setAttribute('aria-labelledby', `${category}Title ${category}ItemsInformation`);
+              button.setAttribute('aria-describedby', `${category}AriaDescription`);
+              button.id = `${category}Selector`;
+              button.className = `h-100 category-selector ${category}`;
+              button.addEventListener('click', event => changeSelectedCategory(event, category));
+              button.addEventListener('focus', () => {
+                const el = document.getElementById(`${category}Description`);
+                if (el) el.dispatchEvent(new MouseEvent('mouseover'));
+              });
+              button.addEventListener('blur', () => {
+                const el = document.getElementById(`${category}Description`);
+                if (el) el.dispatchEvent(new MouseEvent('mouseout'));
+              });
+              button.addEventListener('mousedown', event => event.preventDefault());
 
-            const divFlex = document.createElement('div');
-            divFlex.className = 'd-flex align-items-center mb-3';
+              const divFlex = document.createElement('div');
+              divFlex.className = 'd-flex align-items-center mb-3';
 
-            const spanTitle = document.createElement('span');
-            spanTitle.id = `${category}Title`;
-            spanTitle.className = 'd-flex align-items-center category-name fw-bold d-inline mb-0';
-            spanTitle.textContent = formattedCategoryTitles[category];
+              const spanTitle = document.createElement('span');
+              spanTitle.id = `${category}Title`;
+              spanTitle.className = 'd-flex align-items-center category-name fw-bold d-inline mb-0';
+              spanTitle.textContent = formattedCategoryTitles[category];
 
-            const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svgIcon.setAttribute('tabindex', '-1');
-            svgIcon.id = `${category}Description`;
-            svgIcon.setAttribute('class', 'ms-2');
-            svgIcon.setAttribute('data-bs-toggle', 'tooltip');
-            svgIcon.setAttribute('data-bs-placement', 'top');
-            svgIcon.setAttribute('title', categoryData.description);
-            svgIcon.setAttribute('width', '14');
-            svgIcon.setAttribute('height', '14');
-            svgIcon.setAttribute('viewBox', '0 0 14 14');
-            svgIcon.setAttribute('fill', 'none');
+              const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+              svgIcon.setAttribute('tabindex', '-1');
+              svgIcon.id = `${category}Description`;
+              svgIcon.setAttribute('class', 'ms-2');
+              svgIcon.setAttribute('data-bs-toggle', 'tooltip');
+              svgIcon.setAttribute('data-bs-placement', 'top');
+              svgIcon.setAttribute('title', categoryData.description);
+              svgIcon.setAttribute('width', '14');
+              svgIcon.setAttribute('height', '14');
+              svgIcon.setAttribute('viewBox', '0 0 14 14');
+              svgIcon.setAttribute('fill', 'none');
 
-            const clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-            clipPath.className = 'clip0_1630_1670';
+              const clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+              clipPath.className = 'clip0_1630_1670';
 
-            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            rect.setAttribute('width', '14');
-            rect.setAttribute('height', '14');
-            rect.setAttribute('fill', 'white');
+              const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              rect.setAttribute('width', '14');
+              rect.setAttribute('height', '14');
+              rect.setAttribute('fill', 'white');
 
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute(
-              'd',
-              'M11.9528 2.05329C9.22079 -0.68205 4.78867 -0.68477 2.0533 2.04718C-0.682042 4.7792 -0.684795 9.21135 2.04722 11.9467C4.77917 14.6821 9.21135 14.6848 11.9467 11.9528C14.682 9.22085 14.6848 4.78863 11.9528 2.05329ZM7.00216 11.2406C6.6319 11.2406 6.33174 10.9405 6.33174 10.5702C6.33174 10.1999 6.63187 9.89976 7.00216 9.89976C7.37243 9.89976 7.67259 10.1999 7.67259 10.5702C7.67255 10.9405 7.37243 11.2406 7.00216 11.2406ZM8.09214 7.20401C7.70918 7.42788 7.67645 7.7033 7.6748 8.49691C7.6747 8.54938 7.67453 8.60233 7.67423 8.65558C7.67185 9.03068 7.36712 9.33312 6.99253 9.33312C6.99105 9.33312 6.98957 9.33312 6.98813 9.33312C6.61159 9.33074 6.3083 9.02356 6.31066 8.64699C6.31099 8.59568 6.31109 8.54468 6.31119 8.49415C6.31287 7.67852 6.31492 6.66352 7.40395 6.02694C8.27777 5.51613 8.3879 5.18059 8.28543 4.74029C8.16503 4.2231 7.69273 4.08907 7.32418 4.1312C7.20042 4.14541 6.58322 4.24724 6.58322 4.85783C6.58322 5.23431 6.27795 5.5396 5.90141 5.5396C5.52487 5.5396 5.21964 5.23431 5.21964 4.85783C5.21964 3.76416 6.02107 2.90831 7.16859 2.77656C8.35043 2.64099 9.35515 3.32135 9.61338 4.4312C9.99939 6.08915 8.61379 6.89911 8.09214 7.20401Z',
-            );
-            path.setAttribute('fill', '#c9c8c6');
+              const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              path.setAttribute(
+                'd',
+                'M11.9528 2.05329C9.22079 -0.68205 4.78867 -0.68477 2.0533 2.04718C-0.682042 4.7792 -0.684795 9.21135 2.04722 11.9467C4.77917 14.6821 9.21135 14.6848 11.9467 11.9528C14.682 9.22085 14.6848 4.78863 11.9528 2.05329ZM7.00216 11.2406C6.6319 11.2406 6.33174 10.9405 6.33174 10.5702C6.33174 10.1999 6.63187 9.89976 7.00216 9.89976C7.37243 9.89976 7.67259 10.1999 7.67259 10.5702C7.67255 10.9405 7.37243 11.2406 7.00216 11.2406ZM8.09214 7.20401C7.70918 7.42788 7.67645 7.7033 7.6748 8.49691C7.6747 8.54938 7.67453 8.60233 7.67423 8.65558C7.67185 9.03068 7.36712 9.33312 6.99253 9.33312C6.99105 9.33312 6.98957 9.33312 6.98813 9.33312C6.61159 9.33074 6.3083 9.02356 6.31066 8.64699C6.31099 8.59568 6.31109 8.54468 6.31119 8.49415C6.31287 7.67852 6.31492 6.66352 7.40395 6.02694C8.27777 5.51613 8.3879 5.18059 8.28543 4.74029C8.16503 4.2231 7.69273 4.08907 7.32418 4.1312C7.20042 4.14541 6.58322 4.24724 6.58322 4.85783C6.58322 5.23431 6.27795 5.5396 5.90141 5.5396C5.52487 5.5396 5.21964 5.23431 5.21964 4.85783C5.21964 3.76416 6.02107 2.90831 7.16859 2.77656C8.35043 2.64099 9.35515 3.32135 9.61338 4.4312C9.99939 6.08915 8.61379 6.89911 8.09214 7.20401Z',
+              );
+              path.setAttribute('fill', '#c9c8c6');
 
-            clipPath.appendChild(rect);
-            svgIcon.appendChild(clipPath);
-            svgIcon.appendChild(path);
+              clipPath.appendChild(rect);
+              svgIcon.appendChild(clipPath);
+              svgIcon.appendChild(path);
 
-            divFlex.appendChild(spanTitle);
-            divFlex.appendChild(svgIcon);
+              divFlex.appendChild(spanTitle);
+              divFlex.appendChild(svgIcon);
 
-            const spanInfo = document.createElement('span');
-            spanInfo.id = `${category}ItemsInformation`;
-            spanInfo.className = 'category-information';
+              const spanInfo = document.createElement('span');
+              spanInfo.id = `${category}ItemsInformation`;
+              spanInfo.className = 'category-information';
 
-            if (categoryData.totalItems !== 0) {
-              spanInfo.textContent = `${categoryData.rules.length} ${categoryData.rules.length === 1 ? 'issue' : 'issues'} / ${categoryData.totalItems} ${categoryData.totalItems === 1 ? 'occurrence' : 'occurrences'}`;
-            } else if (categoryData.totalItems === 0) {
-              spanInfo.textContent = `0 issues`;
+              if (categoryData.totalItems !== 0) {
+                spanInfo.textContent = `${categoryData.rules.length} ${categoryData.rules.length === 1 ? 'issue' : 'issues'} / ${categoryData.totalItems} ${categoryData.totalItems === 1 ? 'occurrence' : 'occurrences'}`;
+              } else if (categoryData.totalItems === 0) {
+                spanInfo.textContent = `0 issues`;
+              }
+
+              button.appendChild(divFlex);
+              button.appendChild(spanInfo);
+              listItem.appendChild(button);
+              scategoryList.appendChild(listItem);
             }
-
-            button.appendChild(divFlex);
-            button.appendChild(spanInfo);
-            listItem.appendChild(button);
-            scategoryList.appendChild(listItem);
-          }
-        });
+          });
+        }
 
         const categoryList = document.getElementById('issueTypeListbox');
 
-        Object.keys(scanItems).forEach(category => {
-          if (["mustFix", "goodToFix", "needsReview"].includes(category)) { // skip other keys like pagesScanned, etc
+        if (categoryList) {
+          Object.keys(scanItems).forEach(category => {
+            if (["mustFix", "goodToFix", "needsReview"].includes(category)) { // skip other keys like pagesScanned, etc
 
-            const categoryData = scanItems[category];
-            const rulesLength = categoryData.rules ? categoryData.rules.length : 0;
+              const categoryData = scanItems[category];
+              const rulesLength = categoryData.rules ? categoryData.rules.length : 0;
 
-            const listItem = document.createElement('li');
-            listItem.tabIndex = -1;
-            listItem.id = `${category}DropdownSelector`;
-            listItem.className = `${category} category-selector d-flex flex-row align-items-center gap-2 position-relative`;
-            listItem.role = 'option';
+              const listItem = document.createElement('li');
+              listItem.tabIndex = -1;
+              listItem.id = `${category}DropdownSelector`;
+              listItem.className = `${category} category-selector d-flex flex-row align-items-center gap-2 position-relative`;
+              listItem.role = 'option';
 
-            const spanTitle = document.createElement('span');
-            spanTitle.id = `${category}Title`;
-            spanTitle.className = 'd-flex align-items-center category-name fw-bold d-inline mb-0';
-            spanTitle.textContent = formattedCategoryTitles[category];
+              const spanTitle = document.createElement('span');
+              spanTitle.id = `${category}Title`;
+              spanTitle.className = 'd-flex align-items-center category-name fw-bold d-inline mb-0';
+              spanTitle.textContent = formattedCategoryTitles[category];
 
-            const spanInfo = document.createElement('span');
-            spanInfo.id = `${category}ItemsInformation`;
-            spanInfo.className = 'category-information';
+              const spanInfo = document.createElement('span');
+              spanInfo.id = `${category}ItemsInformation`;
+              spanInfo.className = 'category-information';
 
-            if (categoryData.totalItems !== 0) {
-              spanInfo.textContent = `(${categoryData.rules.length} ${categoryData.rules.length === 1 ? 'issue' : 'issues'})`;
-            } else if (categoryData.totalItems === 0) {
-              spanInfo.textContent = `(0 issues)`;
+              if (categoryData.totalItems !== 0) {
+                spanInfo.textContent = `(${categoryData.rules.length} ${categoryData.rules.length === 1 ? 'issue' : 'issues'})`;
+              } else if (categoryData.totalItems === 0) {
+                spanInfo.textContent = `(0 issues)`;
+              }
+
+              listItem.appendChild(spanTitle);
+              listItem.appendChild(spanInfo);
+              categoryList.appendChild(listItem);
             }
-
-            listItem.appendChild(spanTitle);
-            listItem.appendChild(spanInfo);
-            categoryList.appendChild(listItem);
-          }
-        });
+          });
+        }
       };
 
       document.addEventListener('DOMContentLoaded', () => {

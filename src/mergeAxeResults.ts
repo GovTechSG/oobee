@@ -383,6 +383,8 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
 
   // Create lighter version with item references for embedding in HTML
   const lighterScanItems = convertItemsToReferences(allIssues);
+  
+  // Write the lighter items to a file and get the base64 path
   const { base64FilePath: lighterScanItemsBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(
       lighterScanItems.items,
@@ -394,6 +396,8 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
     encoding: 'utf8',
     highWaterMark: BUFFER_LIMIT,
   });
+  
+  // Use the lighter, base64-encoded file for the HTML report to optimize size and prevent syntax errors
   const scanItemsReadStream = fs.createReadStream(lighterScanItemsBase64FilePath, {
     encoding: 'utf8',
     highWaterMark: BUFFER_LIMIT,

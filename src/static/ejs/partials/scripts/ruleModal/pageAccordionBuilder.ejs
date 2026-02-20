@@ -11,6 +11,7 @@
     if (!items || items.length === 0) return [];
     
     // Check if items are references (strings) or full objects
+    // With lighter scanItems, items are strings (HTML keys)
     const isReference = typeof items[0] === 'string';
     
     if (!isReference) {
@@ -110,9 +111,13 @@
   }
 
   async function loadAllPageItems(ruleInCategory) {
+    // If using lighter scanItems, items might be references (strings).
+    // We don't necessarily need to "load" them from backend if they are already in the rule's htmlGroups.
+    // However, if pagination logic existed here for fetching items, it would need adjustment.
+    // Assuming current structure has all references loaded in the JSON.
     const loadPromises = ruleInCategory.pagesAffected.map(async (page) => {
       if (!page.items && page.itemsCount > 0) {
-        page.items = [];
+        page.items = []; // Should ideally be populated or fetched if not present
       }
     });
 
@@ -151,13 +156,15 @@
         }));
       });
     } else {
-      // Fallback: compute in real-time (for backwards compatibility)
+      // Fallback: compute in real-time (for backwards compatibility or full objects)
       ruleInCategory.pagesAffected.forEach((page) => {
         if (!page.items || page.items.length === 0) {
           return;
         }
 
-        page.items.forEach((item) => {
+        const itemsToProcess = resolveItemReferences(page.items, ruleInCategory, page);
+
+        itemsToProcess.forEach((item) => {
           const htmlKey = item.html || 'No HTML element';
           if (!groupedByHtml[htmlKey]) {
             groupedByHtml[htmlKey] = [];
@@ -236,7 +243,7 @@
                     fill="#5735DF"
                   />
                 </svg>
-                <div class="me-3 html-element-preview flex-1">${escapedPreview}</div>
+                <div class="me-3 flex-1">${escapedPreview}</div>
                 <div class="ms-auto rule-occurrence-count counter">${itemsCount} occ.</div>
               </button>
             </div>
