@@ -420,19 +420,17 @@ const writeHTML = async (
   }
   \n`)
   
-  // outputStream.write("scanData = decompressJsonObject('");
   outputStream.write(
-    "let scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse('",
+    "</script>\n<script type=\"text/plain\" id=\"scanDataRaw\">"
   );
   scanDetailsReadStream.pipe(outputStream, { end: false });
 
   scanDetailsReadStream.on('end', () => {
-    // outputStream.write("')\n\n");
-    outputStream.write("'); })();\n\n");
-    // outputStream.write("(scanItems = decompressJsonObject('");
+    outputStream.write("</script>\n<script>\n");
     outputStream.write(
-      "let scanItemsPromise = (async () => { console.log('Loading scanItems...'); scanItems = await decodeUnzipParse('",
+      "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n"
     );
+    outputStream.write("</script>\n<script type=\"text/plain\" id=\"scanItemsRaw\">");
     scanItemsReadStream.pipe(outputStream, { end: false });
   });
 
@@ -442,8 +440,10 @@ const writeHTML = async (
   });
 
   scanItemsReadStream.on('end', () => {
-    // outputStream.write("')\n\n");
-    outputStream.write("'); })();\n\n");
+    outputStream.write("</script>\n<script>\n");
+    outputStream.write(
+      "var scanItemsPromise = (async () => { console.log('Loading scanItems...'); scanItems = await decodeUnzipParse(document.getElementById('scanItemsRaw').textContent); })();\n"
+    );
     outputStream.write(suffixData);
     outputStream.end();
   });
