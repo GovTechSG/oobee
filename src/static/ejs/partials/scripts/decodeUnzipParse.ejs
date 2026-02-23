@@ -1,6 +1,3 @@
-<!-- Load pako (gzip decompression) from CDN -->
-<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
-
 <script>
 /**
  * Decodes a Base64-encoded, GZIP-compressed JSON string.
@@ -27,3 +24,4 @@ async function decodeUnzipParse(base64String) {
     throw new Error(`Failed to decode/unzip/parse: ${err.message}`);
   }
 }
+</script>
