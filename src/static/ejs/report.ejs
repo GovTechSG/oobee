@@ -78,7 +78,8 @@
         };
 
         const scategoryList = document.getElementById('categorySelector');
-
+        if (!scategoryList) return;
+        
         Object.keys(scanItems).forEach(category => {
           if (["mustFix", "goodToFix", "needsReview"].includes(category)) { // skip other keys like pagesScanned, etc
             const categoryData = scanItems[category];
