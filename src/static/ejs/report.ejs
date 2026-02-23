@@ -168,6 +168,7 @@
         });
 
         const categoryList = document.getElementById('issueTypeListbox');
+        if (!categoryList) return;
 
         Object.keys(scanItems).forEach(category => {
           if (["mustFix", "goodToFix", "needsReview"].includes(category)) { // skip other keys like pagesScanned, etc
@@ -208,10 +209,10 @@
           scanItemsPromise.then(() => {
             initTooltips();
             scanDataCategorySelector();
-          }).error(e => {
+          }).catch(e => {
             console.error("Failed to load scanItems: ", e);
           });
-        }).error(e => {
+        }).catch(e => {
           console.error("Failed to load scanData: ", e);
         });
       });
