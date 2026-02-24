@@ -41,6 +41,8 @@
   }
 
   function generateItemMessageElement(displayNeedsReview, rawMessage) {
+    if (!rawMessage) return '';
+
     if (rawMessage.includes('\n\nFix')) {
       rawMessage = rawMessage.replace('\n\nFix', '\n  Fix');
     }

@@ -63,6 +63,19 @@ export type PageInfo = {
   httpStatusCode?: number;
 };
 
+export type HtmlGroupItem = {
+  html: string;
+  xpath: string;
+  message: string;
+  screenshotPath: string;
+  displayNeedsReview?: boolean;
+  pageUrls: string[];
+};
+
+export type HtmlGroups = {
+  [htmlKey: string]: HtmlGroupItem;
+};
+
 export type RuleInfo = {
   totalItems: number;
   pagesAffected: PageInfo[];
@@ -72,6 +85,7 @@ export type RuleInfo = {
   axeImpact: string;
   conformance: string[];
   helpUrl: string;
+  htmlGroups?: HtmlGroups;
 };
 
 type Category = {
@@ -352,7 +366,7 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
   }
 };
 
-const writeHTML = async (
+  const writeHTML = async (
   allIssues: AllIssues,
   storagePath: string,
   htmlFilename = 'report',
@@ -367,11 +381,24 @@ const writeHTML = async (
     'utf-8',
   );
 
+  // Create lighter version with item references for embedding in HTML
+  const lighterScanItems = convertItemsToReferences(allIssues);
+  
+  // Write the lighter items to a file and get the base64 path
+  const { base64FilePath: lighterScanItemsBase64FilePath } =
+    await writeJsonFileAndCompressedJsonFile(
+      lighterScanItems.items,
+      storagePath,
+      'scanItems-light',
+    );
+
   const scanDetailsReadStream = fs.createReadStream(scanDetailsFilePath, {
     encoding: 'utf8',
     highWaterMark: BUFFER_LIMIT,
   });
-  const scanItemsReadStream = fs.createReadStream(scanItemsFilePath, {
+  
+  // Use the lighter, base64-encoded file for the HTML report to optimize size and prevent syntax errors
+  const scanItemsReadStream = fs.createReadStream(lighterScanItemsBase64FilePath, {
     encoding: 'utf8',
     highWaterMark: BUFFER_LIMIT,
   });
@@ -381,7 +408,11 @@ const writeHTML = async (
 
   const cleanupFiles = async () => {
     try {
-      await Promise.all([fs.promises.unlink(topFilePath), fs.promises.unlink(bottomFilePath)]);
+      await Promise.all([
+        fs.promises.unlink(topFilePath),
+        fs.promises.unlink(bottomFilePath),
+        fs.promises.unlink(lighterScanItemsBase64FilePath),
+      ]);
     } catch (err) {
       console.error('Error cleaning up temporary files:', err);
     }
@@ -453,8 +484,11 @@ const writeHTML = async (
     outputStream.end();
   });
 
-  consoleLogger.info('Content appended successfully.');
-  await cleanupFiles();
+  // Wait for output stream to finish before cleanup
+  outputStream.on('finish', async () => {
+    consoleLogger.info('Content appended successfully.');
+    await cleanupFiles();
+  });
 
   outputStream.on('error', err => {
     consoleLogger.error('Error writing to output file:', err);
@@ -1147,7 +1181,10 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
       const currRuleFromAllIssues = currCategoryFromAllIssues.rules[rule];
 
       currRuleFromAllIssues.totalItems += count;
-
+      
+      // Build htmlGroups for pre-computed Group by HTML Element
+      buildHtmlGroups(currRuleFromAllIssues, items, url);
+        
       if (isCustomFlow) {
         const { pageIndex, pageImagePath, metadata } = pageResults;
         currRuleFromAllIssues.pagesAffected[pageIndex] = {
@@ -1155,34 +1192,83 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
           pageTitle,
           pageImagePath,
           metadata,
-          items: [],
+          items: [...items],
         };
-        currRuleFromAllIssues.pagesAffected[pageIndex].items.push(...items);
       } else {
         if (!(url in currRuleFromAllIssues.pagesAffected)) {
           currRuleFromAllIssues.pagesAffected[url] = {
             pageTitle,
-            items: [],
+            items: [...items],
             ...(filePath && { filePath }),
           };
-          /* if (actualUrl) {
-            currRuleFromAllIssues.pagesAffected[url].actualUrl = actualUrl;
-            // Deduct duplication count from totalItems
-            currRuleFromAllIssues.totalItems -= 1;
-            // Previously using pagesAffected.length to display no. of pages affected
-            // However, since pagesAffected array contains duplicates, we need to deduct the duplicates
-            // Hence, start with negative offset, will add pagesAffected.length later
-            currRuleFromAllIssues.numberOfPagesAffectedAfterRedirects -= 1;
-            currCategoryFromAllIssues.totalItems -= 1;
-          } */
         }
 
-        currRuleFromAllIssues.pagesAffected[url].items.push(...items);
-        // currRuleFromAllIssues.numberOfPagesAffectedAfterRedirects +=
-        //   currRuleFromAllIssues.pagesAffected.length;
       }
     });
   });
+};
+
+/**
+ * Builds pre-computed HTML groups to optimize Group by HTML Element functionality.
+ * Keys are composite "html\x00xpath" strings to ensure unique matching per element instance.
+ */
+const buildHtmlGroups = (
+  rule: RuleInfo,
+  items: ItemsInfo[],
+  pageUrl: string
+) => {
+  if (!rule.htmlGroups) {
+    rule.htmlGroups = {};
+  }
+
+  items.forEach(item => {
+    // Use composite key of html + xpath for precise matching
+    const htmlKey = `${item.html || 'No HTML element'}\x00${item.xpath || ''}`;
+
+    if (!rule.htmlGroups![htmlKey]) {
+      // Create new group with the first occurrence
+      rule.htmlGroups![htmlKey] = {
+        html: item.html || '',
+        xpath: item.xpath || '',
+        message: item.message || '',
+        screenshotPath: item.screenshotPath || '',
+        displayNeedsReview: item.displayNeedsReview,
+        pageUrls: [],
+      };
+    }
+
+    if (!rule.htmlGroups![htmlKey].pageUrls.includes(pageUrl)) {
+      rule.htmlGroups![htmlKey].pageUrls.push(pageUrl);
+    }
+  });
+};
+
+/**
+ * Converts items in pagesAffected to references (html\x00xpath composite keys) for embedding in HTML report.
+ */
+export const convertItemsToReferences = (allIssues: AllIssues): AllIssues => {
+  const cloned = JSON.parse(JSON.stringify(allIssues));
+
+  ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
+    if (!cloned.items[category]?.rules) return;
+
+    cloned.items[category].rules.forEach((rule: any) => {
+      if (!rule.pagesAffected || !rule.htmlGroups) return;
+
+      rule.pagesAffected.forEach((page: any) => {
+        if (!page.items) return;
+
+        page.items = page.items.map((item: any) => {
+          if (typeof item === 'string') return item; // Already a reference
+          // Use composite key matching buildHtmlGroups
+          const htmlKey = `${item.html || 'No HTML element'}\x00${item.xpath || ''}`;
+          return htmlKey;
+        });
+      });
+    });
+  });
+
+  return cloned;
 };
 
 const getTopTenIssues = allIssues => {
@@ -2042,8 +2128,7 @@ const generateArtifacts = async (
     scanDataJsonFileSize,
     scanItemsJsonFileSize,
   } = await writeJsonAndBase64Files(allIssues, storagePath);
-  const BIG_RESULTS_THRESHOLD = 500 * 1024 * 1024; // 500 MB
-  const resultsTooBig = scanDataJsonFileSize + scanItemsJsonFileSize > BIG_RESULTS_THRESHOLD;
+  // Removed BIG_RESULTS_THRESHOLD check - always use full scanItems
 
   await writeScanDetailsCsv(
     scanDataBase64FilePath,
@@ -2058,7 +2143,7 @@ const generateArtifacts = async (
     storagePath,
     'report',
     scanDataBase64FilePath,
-    resultsTooBig ? scanItemsMiniReportBase64FilePath : scanItemsBase64FilePath,
+    scanItemsBase64FilePath,
   );
 
   if (!generateJsonFiles) {

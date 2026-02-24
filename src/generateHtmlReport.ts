@@ -13,6 +13,7 @@ import {
   oobeeAiHtmlETL,
   oobeeAiRules,
   formatAboutStartTime,
+  convertItemsToReferences,
 } from './mergeAxeResults.js';
 
 import constants, {
@@ -116,13 +117,18 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
     const scanData = JSON.parse(await fs.readFile(scanDataJsonPath, 'utf8'));
     const scanItemsAll = JSON.parse(await fs.readFile(scanItemsJsonPath, 'utf8'));
 
+    // Use convertItemsToReferences to normalize items structure to match lighterScanItems format
+    const lighterScanItems = convertItemsToReferences({
+      items: scanItemsAll,
+      ...scanData
+    });
+
     const {
-      oobeeAppVersion: itemsAppVersion,
       mustFix = {},
       goodToFix = {},
       needsReview = {},
       passed = {},
-    } = scanItemsAll;
+    } = lighterScanItems;
 
     const items = {
       mustFix: ensureCategory(mustFix, 'mustFix'),
@@ -169,7 +175,7 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       topTenIssues: Array.isArray(scanData.topTenIssues) ? scanData.topTenIssues : [],
       wcagViolations: Array.isArray(scanData.wcagViolations) ? scanData.wcagViolations : [],
       customFlowLabel: scanData.customFlowLabel || '',
-      oobeeAppVersion: itemsAppVersion || scanData.oobeeAppVersion || 'dev',
+      oobeeAppVersion: scanData.oobeeAppVersion || 'dev',
       items,
       cypressScanAboutMetadata: scanData.cypressScanAboutMetadata || {},
       wcagLinks: scanData.wcagLinks || constants.wcagLinks,
