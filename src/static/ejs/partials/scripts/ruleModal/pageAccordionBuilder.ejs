@@ -1,6 +1,6 @@
 <script>
   /**
-   * Resolves item references (strings) to full item data using htmlGroups.
+   * Resolves item references (composite "html\x00xpath" strings) to full item data using htmlGroups.
    * This is needed because items are now stored as references (html keys) to reduce JSON size.
    * @param {Array} items - Array of item references (strings) or full item objects
    * @param {Object} ruleInCategory - Rule object containing htmlGroups
@@ -26,8 +26,8 @@
     // Items are references (strings) - resolve using htmlGroups
     const htmlGroups = ruleInCategory.htmlGroups || {};
     
-    return items.map(htmlKey => {
-      const groupData = htmlGroups[htmlKey];
+    return items.map(compositeKey => {
+      const groupData = htmlGroups[compositeKey];
       if (groupData) {
         return {
           html: groupData.html,
@@ -39,10 +39,13 @@
           pageTitle: page.pageTitle || page.metadata
         };
       }
-      // Fallback for unknown references
+      // Fallback: try to parse composite key
+      const nullByteIndex = compositeKey.indexOf('\x00');
+      const html = nullByteIndex !== -1 ? compositeKey.slice(0, nullByteIndex) : compositeKey;
+      const xpath = nullByteIndex !== -1 ? compositeKey.slice(nullByteIndex + 1) : '';
       return {
-        html: htmlKey,
-        xpath: '',
+        html,
+        xpath,
         message: '',
         screenshotPath: '',
         pageUrl: page.url,
@@ -141,12 +144,15 @@
     const contentContainer = document.getElementById('expandedRuleCategoryContent');
 
     // Use pre-computed htmlGroups if available, otherwise compute in real-time (backwards compatibility)
+    // htmlGroups keys are composite "html\x00xpath" strings for precise matching
     let groupedByHtml = {};
 
     if (ruleInCategory.htmlGroups) {
       // Use pre-computed groups from JSON
-      Object.entries(ruleInCategory.htmlGroups).forEach(([htmlKey, groupData]) => {
-        groupedByHtml[htmlKey] = groupData.pageUrls.map(pageUrl => ({
+      // Each entry has a unique html+xpath combination; group by html for display
+      Object.entries(ruleInCategory.htmlGroups).forEach(([compositeKey, groupData]) => {
+        // Use compositeKey as the grouping key to preserve xpath uniqueness
+        groupedByHtml[compositeKey] = groupData.pageUrls.map(pageUrl => ({
           html: groupData.html,
           xpath: groupData.xpath,
           message: groupData.message,
@@ -158,18 +164,17 @@
     } else {
       // Fallback: compute in real-time (for backwards compatibility or full objects)
       ruleInCategory.pagesAffected.forEach((page) => {
-        if (!page.items || page.items.length === 0) {
-          return;
-        }
+        if (!page.items || page.items.length === 0) return;
 
         const itemsToProcess = resolveItemReferences(page.items, ruleInCategory, page);
 
         itemsToProcess.forEach((item) => {
-          const htmlKey = item.html || 'No HTML element';
-          if (!groupedByHtml[htmlKey]) {
-            groupedByHtml[htmlKey] = [];
+          // Use composite key for grouping
+          const compositeKey = `${item.html || 'No HTML element'}\x00${item.xpath || ''}`;
+          if (!groupedByHtml[compositeKey]) {
+            groupedByHtml[compositeKey] = [];
           }
-          groupedByHtml[htmlKey].push({
+          groupedByHtml[compositeKey].push({
             ...item,
             pageUrl: page.url,
             pageTitle: page.pageTitle || page.metadata,
@@ -195,7 +200,11 @@
       return itemsB.length - itemsA.length; // DESC
     });
 
-    sortedGroups.forEach(([htmlElement, items]) => {
+    sortedGroups.forEach(([compositeKey, items]) => {
+      // Extract html portion for display (strip the xpath part after \x00)
+      const nullByteIndex = compositeKey.indexOf('\x00');
+      const htmlElement = nullByteIndex !== -1 ? compositeKey.slice(0, nullByteIndex) : compositeKey;
+
       const accordion = createHtmlElementAccordion(
         htmlElement,
         items,

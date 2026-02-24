@@ -1,25 +1,21 @@
 <script>
   /**
-   * Resolves item references (strings) to full item data using htmlGroups.
-   * This is needed because items are now stored as references (html keys) to reduce JSON size.
+   * Resolves item references (composite "html\x00xpath" strings) to full item data using htmlGroups.
    */
   function resolveItemReferencesForPage(page, ruleInCategory) {
     const items = page.items || [];
     if (items.length === 0) return [];
 
-    // Check if items are references (strings) or full objects
     const isReference = typeof items[0] === 'string';
 
     if (!isReference) {
-      // Items are already full objects
       return items;
     }
 
-    // Items are references (strings) - resolve using htmlGroups
     const htmlGroups = ruleInCategory.htmlGroups || {};
 
-    return items.map(htmlKey => {
-      const groupData = htmlGroups[htmlKey];
+    return items.map(compositeKey => {
+      const groupData = htmlGroups[compositeKey];
       if (groupData) {
         return {
           html: groupData.html,
@@ -31,10 +27,13 @@
           pageTitle: page.pageTitle || page.metadata
         };
       }
-      // Fallback for unknown references
+      // Fallback: parse composite key
+      const nullByteIndex = compositeKey.indexOf('\x00');
+      const html = nullByteIndex !== -1 ? compositeKey.slice(0, nullByteIndex) : compositeKey;
+      const xpath = nullByteIndex !== -1 ? compositeKey.slice(nullByteIndex + 1) : '';
       return {
-        html: htmlKey,
-        xpath: '',
+        html,
+        xpath,
         message: '',
         screenshotPath: '',
         pageUrl: page.url,

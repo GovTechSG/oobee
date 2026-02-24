@@ -1210,22 +1210,20 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
 
 /**
  * Builds pre-computed HTML groups to optimize Group by HTML Element functionality.
- * This prevents large JSON payloads by storing unique HTML elements once and referencing
- * them via page URLs instead of duplicating the full HTML for each occurrence.
+ * Keys are composite "html\x00xpath" strings to ensure unique matching per element instance.
  */
 const buildHtmlGroups = (
   rule: RuleInfo,
   items: ItemsInfo[],
   pageUrl: string
 ) => {
-  // Initialize htmlGroups if it doesn't exist
   if (!rule.htmlGroups) {
     rule.htmlGroups = {};
   }
 
   items.forEach(item => {
-    // Use the HTML as the key (or 'No HTML element' if undefined)
-    const htmlKey = item.html || 'No HTML element';
+    // Use composite key of html + xpath for precise matching
+    const htmlKey = `${item.html || 'No HTML element'}\x00${item.xpath || ''}`;
 
     if (!rule.htmlGroups![htmlKey]) {
       // Create new group with the first occurrence
@@ -1239,7 +1237,6 @@ const buildHtmlGroups = (
       };
     }
 
-    // Add page URL to group if not already present
     if (!rule.htmlGroups![htmlKey].pageUrls.includes(pageUrl)) {
       rule.htmlGroups![htmlKey].pageUrls.push(pageUrl);
     }
@@ -1247,8 +1244,7 @@ const buildHtmlGroups = (
 };
 
 /**
- * Converts items in pagesAffected to references (html keys) for embedding in HTML report.
- * This reduces the HTML file size while maintaining functionality via htmlGroups.
+ * Converts items in pagesAffected to references (html\x00xpath composite keys) for embedding in HTML report.
  */
 export const convertItemsToReferences = (allIssues: AllIssues): AllIssues => {
   const cloned = JSON.parse(JSON.stringify(allIssues));
@@ -1262,10 +1258,10 @@ export const convertItemsToReferences = (allIssues: AllIssues): AllIssues => {
       rule.pagesAffected.forEach((page: any) => {
         if (!page.items) return;
 
-        // Convert full items to reference strings
         page.items = page.items.map((item: any) => {
           if (typeof item === 'string') return item; // Already a reference
-          const htmlKey = item.html || 'No HTML element';
+          // Use composite key matching buildHtmlGroups
+          const htmlKey = `${item.html || 'No HTML element'}\x00${item.xpath || ''}`;
           return htmlKey;
         });
       });
