@@ -1927,6 +1927,9 @@ const generateArtifacts = async (
   zip: string = undefined, // optional
   generateJsonFiles = false,
 ) => {
+
+  console.log('Generating report artifacts...');
+  
   const storagePath = getStoragePath(randomToken);
   const intermediateDatasetsPath = `${storagePath}/crawlee`;
   const oobeeAppVersion = getVersion();
@@ -2196,13 +2199,13 @@ const generateArtifacts = async (
   );
 
   try {
-    fs.rmSync(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
+    await fs.promises.rm(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
   } catch (error) {
     consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
   }
 
   try {
-    fs.rmSync(path.join(storagePath, 'pdfs'), { recursive: true, force: true });
+    await fs.promises.rm(path.join(storagePath, 'pdfs'), { recursive: true, force: true });
   } catch (error) {
     consoleLogger.warn(`Unable to force remove pdfs folder: ${error.message}`);
   }
