@@ -379,11 +379,14 @@
     width: 48px;
     height: 24px;
     text-align: center;
+    vertical-align: middle;
     border: 1px solid var(--chinese-silver);
     border-radius: 5px;
     font-size: 0.875rem;
     padding: 3px 4px;
     color: var(--ocean-blue);
+    line-height: 24px; /* Safari: To match the height of the input for better vertical centering */
+    vertical-align: middle; /* Safari: More robust for aligning inputs with other inline content */
   }
 
   .pagination-page-input:focus {
