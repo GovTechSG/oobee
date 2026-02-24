@@ -366,7 +366,7 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
   }
 };
 
-const CHUNK_SIZE = 10 * 1024 * 1024; // 2MB per chunk
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB per chunk
 
 const writeHTML = async (
   allIssues: AllIssues,
@@ -1929,7 +1929,7 @@ const generateArtifacts = async (
 ) => {
 
   console.log('Generating report artifacts...');
-  
+
   const storagePath = getStoragePath(randomToken);
   const intermediateDatasetsPath = `${storagePath}/crawlee`;
   const oobeeAppVersion = getVersion();
