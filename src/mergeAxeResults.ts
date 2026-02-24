@@ -398,12 +398,6 @@ const writeHTML = async (
     encoding: 'utf8',
     highWaterMark: BUFFER_LIMIT,
   });
-  
-  // Use the lighter, base64-encoded file for the HTML report to optimize size and prevent syntax errors
-  const scanItemsReadStream = fs.createReadStream(lighterScanItemsBase64FilePath, {
-    encoding: 'utf8',
-    highWaterMark: BUFFER_LIMIT,
-  });
 
   const outputFilePath = `${storagePath}/${htmlFilename}.html`;
   const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a' });
@@ -465,15 +459,17 @@ const writeHTML = async (
     );
     outputStream.write("</script>\n");
 
-    // Write scanItems in 10MB chunks
+    // Write scanItems in 10MB chunks using a stream to avoid loading entire file into memory
     try {
-      const scanItemsContent = await fs.readFile(lighterScanItemsBase64FilePath, { encoding: 'utf8' });
-      const totalChunks = Math.ceil(scanItemsContent.length / CHUNK_SIZE);
+      let chunkIndex = 1;
+      const scanItemsStream = fs.createReadStream(lighterScanItemsBase64FilePath, {
+        encoding: 'utf8',
+        highWaterMark: CHUNK_SIZE,
+      });
 
-      for (let i = 0; i < totalChunks; i++) {
-        const chunkId = `scanItemsRaw${i + 1}`;
-        const chunk = scanItemsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-        outputStream.write(`<script type="text/plain" id="${chunkId}">${chunk}</script>\n`);
+      for await (const chunk of scanItemsStream) {
+        outputStream.write(`<script type="text/plain" id="scanItemsRaw${chunkIndex}">${chunk}</script>\n`);
+        chunkIndex++;
       }
 
       outputStream.write("<script>\n");
