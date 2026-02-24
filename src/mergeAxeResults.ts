@@ -366,7 +366,7 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
   }
 };
 
-const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB per chunk
+const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB per chunk
 
 const writeHTML = async (
   allIssues: AllIssues,
@@ -459,7 +459,7 @@ const writeHTML = async (
     );
     outputStream.write("</script>\n");
 
-    // Write scanItems in 10MB chunks using a stream to avoid loading entire file into memory
+    // Write scanItems in 2MB chunks using a stream to avoid loading entire file into memory
     try {
       let chunkIndex = 1;
       const scanItemsStream = fs.createReadStream(lighterScanItemsBase64FilePath, {
