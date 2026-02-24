@@ -28,8 +28,6 @@
       }
     });
 
-    console.log('wcagViolations 111', wcagViolations)
-
     failedCriteria.sort((a, b) => {
       const aNum = a.id.replace('WCAG ', '').split('.').map(Number);
       const bNum = b.id.replace('WCAG ', '').split('.').map(Number);
