@@ -1181,12 +1181,12 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
       const currRuleFromAllIssues = currCategoryFromAllIssues.rules[rule];
 
       currRuleFromAllIssues.totalItems += count;
-
+      
+      // Build htmlGroups for pre-computed Group by HTML Element
+      buildHtmlGroups(currRuleFromAllIssues, items, url);
+        
       if (isCustomFlow) {
         const { pageIndex, pageImagePath, metadata } = pageResults;
-        // Build htmlGroups for pre-computed Group by HTML Element
-        buildHtmlGroups(currRuleFromAllIssues, items, url);
-        // Keep full items in pagesAffected for backwards compatibility
         currRuleFromAllIssues.pagesAffected[pageIndex] = {
           url,
           pageTitle,
@@ -1198,27 +1198,11 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
         if (!(url in currRuleFromAllIssues.pagesAffected)) {
           currRuleFromAllIssues.pagesAffected[url] = {
             pageTitle,
-            items: [],
+            items: [...items],
             ...(filePath && { filePath }),
           };
-          /* if (actualUrl) {
-            currRuleFromAllIssues.pagesAffected[url].actualUrl = actualUrl;
-            // Deduct duplication count from totalItems
-            currRuleFromAllIssues.totalItems -= 1;
-            // Previously using pagesAffected.length to display no. of pages affected
-            // However, since pagesAffected array contains duplicates, we need to deduct the duplicates
-            // Hence, start with negative offset, will add pagesAffected.length later
-            currRuleFromAllIssues.numberOfPagesAffectedAfterRedirects -= 1;
-            currCategoryFromAllIssues.totalItems -= 1;
-          } */
         }
 
-        // Build htmlGroups for pre-computed Group by HTML Element
-        buildHtmlGroups(currRuleFromAllIssues, items, url);
-        // Keep full items in pagesAffected for backwards compatibility
-        currRuleFromAllIssues.pagesAffected[url].items.push(...items);
-        // currRuleFromAllIssues.numberOfPagesAffectedAfterRedirects +=
-        //   currRuleFromAllIssues.pagesAffected.length;
       }
     });
   });
