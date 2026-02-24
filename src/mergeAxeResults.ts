@@ -366,7 +366,7 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
   }
 };
 
-const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB per chunk
+const CHUNK_SIZE = 10 * 1024 * 1024; // 2MB per chunk
 
 const writeHTML = async (
   allIssues: AllIssues,
