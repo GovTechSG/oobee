@@ -13,8 +13,8 @@ async function decodeUnzipParse(base64String) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // Step 2: Decompress with pako (GZIP)
-    const decompressed = pako.ungzip(bytes, { to: 'string' });
+    // Step 2: Decompress with fflate (GZIP)
+    const decompressed = new TextDecoder().decode(fflate.gunzipSync(bytes));
 
     // Step 3: Parse JSON
     const json = JSON.parse(decompressed);
