@@ -4,19 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Accessibility Site Report</title>
-    <!-- [TESTCODE] Font Awesome CDN -->
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
-      integrity="sha512-..."
-      crossorigin="anonymous"
-    />
     <link
       rel="icon"
       type="image/svg+xml"
       href="data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M23.5 6C11.7707 6 10 11.1369 10 19.23V28.77C10 36.8631 11.7707 42 23.5 42C35.2293 42 37 36.8631 37 28.77V19.23C37 11.1369 35.2293 6 23.5 6ZM25.4903 14.5985V35.0562H21.5097V12.9438H27.8925L25.4903 14.5985Z' fill='%239021A6'/%3E%3C/svg%3E
       "
     />
+    <%- include('partials/styles/fontAwesomeCssAll') %>
+    <%- include('partials/scripts/pako') %>
     <%- include('partials/scripts/decodeUnzipParse') %>
     <%- include('partials/styles/bootstrap') %>
     <%- include('partials/styles/highlightjs') %>
@@ -168,6 +163,7 @@
         }
 
         const categoryList = document.getElementById('issueTypeListbox');
+        if (!categoryList) return;
 
         if (categoryList) {
           Object.keys(scanItems).forEach(category => {
@@ -210,10 +206,12 @@
           .then(() => {
             initTooltips();
             scanDataCategorySelector();
-          })
-          .catch(e => {
-            console.error("Failed to load scan data or scan items: ", e);
+          }).catch(e => {
+            console.error("Failed to load scanItems: ", e);
           });
+        }).catch(e => {
+          console.error("Failed to load scanData: ", e);
+        });
       });
 
     </script>

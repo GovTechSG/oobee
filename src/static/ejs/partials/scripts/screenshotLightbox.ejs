@@ -31,12 +31,17 @@
   });
 
   const offcanvasElem = document.getElementsByClassName('offcanvas')[0];
-  const offcanvasItem = new bootstrap.Offcanvas(offcanvasElem);
-  offcanvasItem._config.keyboard = false; // Disable default keyboard handling
+  if (offcanvasElem) {
+    const offcanvasItem = new bootstrap.Offcanvas(offcanvasElem);
+    offcanvasItem._config.keyboard = false; // Disable default keyboard handling
+  }
 
   const pagesScannedModalElem = document.getElementById('pagesScannedModal');
-  const pagesScannedModalItem = new bootstrap.Modal(pagesScannedModalElem);
-  pagesScannedModalItem._config.keyboard = false;
+  let pagesScannedModalItem = null;
+  if (pagesScannedModalElem) {
+    pagesScannedModalItem = new bootstrap.Modal(pagesScannedModalElem);
+    pagesScannedModalItem._config.keyboard = false;
+  }
 
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
