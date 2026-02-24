@@ -366,7 +366,9 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
   }
 };
 
-  const writeHTML = async (
+const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB per chunk
+
+const writeHTML = async (
   allIssues: AllIssues,
   storagePath: string,
   htmlFilename = 'report',
@@ -456,30 +458,47 @@ const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
   );
   scanDetailsReadStream.pipe(outputStream, { end: false });
 
-  scanDetailsReadStream.on('end', () => {
+  scanDetailsReadStream.on('end', async () => {
     outputStream.write("</script>\n<script>\n");
     outputStream.write(
       "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n"
     );
-    outputStream.write("</script>\n<script type=\"text/plain\" id=\"scanItemsRaw\">");
-    scanItemsReadStream.pipe(outputStream, { end: false });
+    outputStream.write("</script>\n");
+
+    // Write scanItems in 10MB chunks
+    try {
+      const scanItemsContent = await fs.readFile(lighterScanItemsBase64FilePath, { encoding: 'utf8' });
+      const totalChunks = Math.ceil(scanItemsContent.length / CHUNK_SIZE);
+
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkId = `scanItemsRaw${i + 1}`;
+        const chunk = scanItemsContent.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        outputStream.write(`<script type="text/plain" id="${chunkId}">${chunk}</script>\n`);
+      }
+
+      outputStream.write("<script>\n");
+      outputStream.write(`
+var scanItemsPromise = (async () => {
+  console.log('Loading scanItems...');
+  const chunks = [];
+  let i = 1;
+  while (true) {
+    const el = document.getElementById('scanItemsRaw' + i);
+    if (!el) break;
+    chunks.push(el.textContent);
+    i++;
+  }
+  scanItems = await decodeUnzipParse(chunks);
+})();\n`);
+      outputStream.write(suffixData);
+      outputStream.end();
+    } catch (err) {
+      console.error('Error writing chunked scanItems:', err);
+      outputStream.end();
+    }
   });
 
   scanDetailsReadStream.on('error', err => {
-    console.error('Read stream error:', err);
-    outputStream.end();
-  });
-
-  scanItemsReadStream.on('end', () => {
-    outputStream.write("</script>\n<script>\n");
-    outputStream.write(
-      "var scanItemsPromise = (async () => { console.log('Loading scanItems...'); scanItems = await decodeUnzipParse(document.getElementById('scanItemsRaw').textContent); })();\n"
-    );
-    outputStream.write(suffixData);
-    outputStream.end();
-  });
-
-  scanItemsReadStream.on('error', err => {
     console.error('Read stream error:', err);
     outputStream.end();
   });
