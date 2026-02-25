@@ -1928,7 +1928,7 @@ const generateArtifacts = async (
   generateJsonFiles = false,
 ) => {
 
-  console.log('Generating report artifacts...');
+  consoleLogger.info('Generating report artifacts');
 
   const storagePath = getStoragePath(randomToken);
   const intermediateDatasetsPath = `${storagePath}/crawlee`;
