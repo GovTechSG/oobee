@@ -1260,6 +1260,8 @@ const buildHtmlGroups = (
 
 /**
  * Converts items in pagesAffected to references (html\x00xpath composite keys) for embedding in HTML report.
+ * Additionally, it deep-clones allIssues, replaces page.items objects with composite reference keys.
+ * Those refs are specifically for htmlGroups lookup (html + xpath).
  */
 export const convertItemsToReferences = (allIssues: AllIssues): AllIssues => {
   const cloned = JSON.parse(JSON.stringify(allIssues));
