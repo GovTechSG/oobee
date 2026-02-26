@@ -883,8 +883,6 @@ const writeJsonAndBase64Files = async (
   scanItemsBase64FilePath: string;
   scanItemsSummaryJsonFilePath: string;
   scanItemsSummaryBase64FilePath: string;
-  scanItemsMiniReportJsonFilePath: string;
-  scanItemsMiniReportBase64FilePath: string;
   scanIssuesSummaryJsonFilePath: string;
   scanIssuesSummaryBase64FilePath: string;
   scanPagesDetailJsonFilePath: string;
@@ -904,7 +902,7 @@ const writeJsonAndBase64Files = async (
       'scanItems',
     );
 
-  // Add pagesAffectedCount to each rule in scanItemsMiniReport (items) and sort them in descending order of pagesAffectedCount
+  // Add pagesAffectedCount to each rule in items and sort them in descending order of pagesAffectedCount
   ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
     if (items[category].rules && Array.isArray(items[category].rules)) {
       items[category].rules.forEach(rule => {
@@ -918,7 +916,7 @@ const writeJsonAndBase64Files = async (
     }
   });
 
-  // Refactor scanIssuesSummary to reuse the scanItemsMiniReport structure by stripping out pagesAffected
+  // Refactor scanIssuesSummary to reuse the structure by stripping out pagesAffected
   const scanIssuesSummary = {
 
     // Replace rule descriptions with short descriptions from the map
@@ -991,29 +989,6 @@ const writeJsonAndBase64Files = async (
     topTenIssues,
   } = rest;
 
-  const summaryItemsMini = {
-    ...items,
-    pagesScanned,
-    topTenPagesWithMostIssues,
-    pagesNotScanned,
-    wcagLinks,
-    wcagPassPercentage,
-    progressPercentage,
-    issuesPercentage,
-    totalPagesScanned,
-    totalPagesNotScanned,
-    topTenIssues,
-  };
-
-  const {
-    jsonFilePath: scanItemsMiniReportJsonFilePath,
-    base64FilePath: scanItemsMiniReportBase64FilePath,
-  } = await writeJsonFileAndCompressedJsonFile(
-    { oobeeAppVersion: allIssues.oobeeAppVersion, ...summaryItemsMini },
-    storagePath,
-    'scanItemsSummaryMiniReport',
-  );
-
   const summaryItems = {
     mustFix: {
       totalItems: items.mustFix?.totalItems || 0,
@@ -1071,8 +1046,6 @@ const writeJsonAndBase64Files = async (
     scanItemsBase64FilePath,
     scanItemsSummaryJsonFilePath,
     scanItemsSummaryBase64FilePath,
-    scanItemsMiniReportJsonFilePath,
-    scanItemsMiniReportBase64FilePath,
     scanIssuesSummaryJsonFilePath,
     scanIssuesSummaryBase64FilePath,
     scanPagesDetailJsonFilePath,
@@ -2176,8 +2149,6 @@ const generateArtifacts = async (
     scanItemsBase64FilePath,
     scanItemsSummaryJsonFilePath,
     scanItemsSummaryBase64FilePath,
-    scanItemsMiniReportJsonFilePath,
-    scanItemsMiniReportBase64FilePath,
     scanIssuesSummaryJsonFilePath,
     scanIssuesSummaryBase64FilePath,
     scanPagesDetailJsonFilePath,
@@ -2205,24 +2176,22 @@ const generateArtifacts = async (
     scanItemsBase64FilePath,
   );
 
-  if (!generateJsonFiles) {
-    await cleanUpJsonFiles([
-      scanDataJsonFilePath,
-      scanDataBase64FilePath,
-      scanItemsJsonFilePath,
-      scanItemsBase64FilePath,
-      scanItemsSummaryJsonFilePath,
-      scanItemsSummaryBase64FilePath,
-      scanItemsMiniReportJsonFilePath,
-      scanItemsMiniReportBase64FilePath,
-      scanIssuesSummaryJsonFilePath,
-      scanIssuesSummaryBase64FilePath,
-      scanPagesDetailJsonFilePath,
-      scanPagesDetailBase64FilePath,
-      scanPagesSummaryJsonFilePath,
-      scanPagesSummaryBase64FilePath,
-    ]);
-  }
+if (!generateJsonFiles) {
+  await cleanUpJsonFiles([
+    scanDataJsonFilePath,
+    scanDataBase64FilePath,
+    scanItemsJsonFilePath,
+    scanItemsBase64FilePath,
+    scanItemsSummaryJsonFilePath,
+    scanItemsSummaryBase64FilePath,
+    scanIssuesSummaryJsonFilePath,
+    scanIssuesSummaryBase64FilePath,
+    scanPagesDetailJsonFilePath,
+    scanPagesDetailBase64FilePath,
+    scanPagesSummaryJsonFilePath,
+    scanPagesSummaryBase64FilePath,
+  ]);
+}
 
   const browserChannel = getBrowserToRun(randomToken, BrowserTypes.CHROME, false).browserToRun;
 
