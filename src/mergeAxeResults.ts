@@ -158,13 +158,42 @@ const extractFileNames = async (directory: string): Promise<string[]> => {
       throw readdirError;
     });
 };
-const parseContentToJson = async rPath =>
-  fs
-    .readFile(rPath, 'utf8')
-    .then(content => JSON.parse(content))
-    .catch(parseError => {
-      consoleLogger.info('An error has occurred when parsing the content, please try again.');
-    });
+const parseContentToJson = async (rPath: string) => {
+  try {
+    const content = await fs.readFile(rPath, 'utf8');
+    return JSON.parse(content);
+  } catch (parseError: any) {
+    // Try to extract JSON.parse byte position from error message: "Unexpected token ... in JSON at position 123"
+    let position: number | null = null;
+    const msg = String(parseError?.message || '');
+    const match = msg.match(/position\s+(\d+)/i);
+    if (match) position = Number(match[1]);
+
+    let contextSnippet = '';
+    if (position !== null) {
+      try {
+        const raw = await fs.readFile(rPath, 'utf8');
+        const start = Math.max(0, position - 80);
+        const end = Math.min(raw.length, position + 80);
+        contextSnippet = raw.slice(start, end).replace(/\n/g, '\\n');
+      } catch {
+        // ignore secondary read failures
+      }
+    }
+
+    consoleLogger.error(`[parseContentToJson] Failed to parse file: ${rPath}`);
+    consoleLogger.error(`[parseContentToJson] ${parseError?.name || 'Error'}: ${parseError?.message || parseError}`);
+    if (position !== null) {
+      consoleLogger.error(`[parseContentToJson] JSON parse position: ${position}`);
+    }
+    if (contextSnippet) {
+      consoleLogger.error(`[parseContentToJson] Context around error: ${contextSnippet}`);
+    }
+
+    // Keep current flow: return undefined so pipeline can continue.
+    return undefined;
+  }
+};
 
 const writeCsv = async (allIssues, storagePath) => {
   const csvOutput = createWriteStream(`${storagePath}/report.csv`, { encoding: 'utf8' });
@@ -374,7 +403,7 @@ const writeHTML = async (
   htmlFilename = 'report',
   scanDetailsFilePath: string,
   scanItemsFilePath: string,
-) => {
+): Promise<void> => {
   const htmlFilePath = await compileHtmlWithEJS(allIssues, storagePath, htmlFilename);
   const { topFilePath, bottomFilePath } = await splitHtmlAndCreateFiles(htmlFilePath, storagePath);
   const prefixData = fs.readFileSync(path.join(storagePath, 'report-partial-top.htm.txt'), 'utf-8');
@@ -385,42 +414,44 @@ const writeHTML = async (
 
   // Create lighter version with item references for embedding in HTML
   const scanItemsWithHtmlGroupRefs = convertItemsToReferences(allIssues);
-  
+
   // Write the lighter items to a file and get the base64 path
-  const { base64FilePath: scanItemsWithHtmlGroupRefsBase64FilePath } =
+  const {  jsonFilePath: scanItemsWithHtmlGroupRefsJsonFilePath, base64FilePath: scanItemsWithHtmlGroupRefsBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(
       scanItemsWithHtmlGroupRefs.items,
       storagePath,
       'scanItems-light',
     );
 
-  const scanDetailsReadStream = fs.createReadStream(scanDetailsFilePath, {
-    encoding: 'utf8',
-    highWaterMark: BUFFER_LIMIT,
-  });
+  return new Promise<void>((resolve, reject) => {
+    const scanDetailsReadStream = fs.createReadStream(scanDetailsFilePath, {
+      encoding: 'utf8',
+      highWaterMark: BUFFER_LIMIT,
+    });
 
-  const outputFilePath = `${storagePath}/${htmlFilename}.html`;
-  const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a' });
+    const outputFilePath = `${storagePath}/${htmlFilename}.html`;
+    const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a' });
 
-  const cleanupFiles = async () => {
-    try {
-      await Promise.all([
-        fs.promises.unlink(topFilePath),
-        fs.promises.unlink(bottomFilePath),
-        fs.promises.unlink(scanItemsWithHtmlGroupRefsBase64FilePath),
-      ]);
-    } catch (err) {
-      console.error('Error cleaning up temporary files:', err);
-    }
-  };
+    const cleanupFiles = async () => {
+      try {
+        await Promise.all([
+          fs.promises.unlink(topFilePath),
+          fs.promises.unlink(bottomFilePath),
+          fs.promises.unlink(scanItemsWithHtmlGroupRefsBase64FilePath),
+          fs.promises.unlink(scanItemsWithHtmlGroupRefsJsonFilePath),
+        ]);
+      } catch (err) {
+        console.error('Error cleaning up temporary files:', err);
+      }
+    };
 
-  outputStream.write(prefixData);
+    outputStream.write(prefixData);
 
-  // For Proxied AI environments only
-  outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ""}"\n`);
+    // For Proxied AI environments only
+    outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ""}"\n`);
 
-  // Initialize GenAI feature flag
-  outputStream.write(`
+    // Initialize GenAI feature flag
+    outputStream.write(`
   // Fetch GenAI feature flag from backend
   window.oobeeGenAiFeatureEnabled = false;
   if (proxyUrl !== "" && proxyUrl !== undefined && proxyUrl !== null) {
@@ -445,35 +476,35 @@ const writeHTML = async (
   } else {
     console.warn('Skipping fetch GenAI feature as it is local report');
   }
-  \n`)
-  
-  outputStream.write(
-    "</script>\n<script type=\"text/plain\" id=\"scanDataRaw\">"
-  );
-  scanDetailsReadStream.pipe(outputStream, { end: false });
+  \n`);
 
-  scanDetailsReadStream.on('end', async () => {
-    outputStream.write("</script>\n<script>\n");
     outputStream.write(
-      "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n"
+      "</script>\n<script type=\"text/plain\" id=\"scanDataRaw\">"
     );
-    outputStream.write("</script>\n");
+    scanDetailsReadStream.pipe(outputStream, { end: false });
 
-    // Write scanItems in 2MB chunks using a stream to avoid loading entire file into memory
-    try {
-      let chunkIndex = 1;
-      const scanItemsStream = fs.createReadStream(scanItemsWithHtmlGroupRefsBase64FilePath, {
-        encoding: 'utf8',
-        highWaterMark: CHUNK_SIZE,
-      });
+    scanDetailsReadStream.on('end', async () => {
+      outputStream.write("</script>\n<script>\n");
+      outputStream.write(
+        "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n"
+      );
+      outputStream.write("</script>\n");
 
-      for await (const chunk of scanItemsStream) {
-        outputStream.write(`<script type="text/plain" id="scanItemsRaw${chunkIndex}">${chunk}</script>\n`);
-        chunkIndex++;
-      }
+      // Write scanItems in 2MB chunks using a stream to avoid loading entire file into memory
+      try {
+        let chunkIndex = 1;
+        const scanItemsStream = fs.createReadStream(scanItemsWithHtmlGroupRefsBase64FilePath, {
+          encoding: 'utf8',
+          highWaterMark: CHUNK_SIZE,
+        });
 
-      outputStream.write("<script>\n");
-      outputStream.write(`
+        for await (const chunk of scanItemsStream) {
+          outputStream.write(`<script type="text/plain" id="scanItemsRaw${chunkIndex}">${chunk}</script>\n`);
+          chunkIndex++;
+        }
+
+        outputStream.write("<script>\n");
+        outputStream.write(`
 var scanItemsPromise = (async () => {
   console.log('Loading scanItems...');
   const chunks = [];
@@ -486,27 +517,33 @@ var scanItemsPromise = (async () => {
   }
   scanItems = await decodeUnzipParse(chunks);
 })();\n`);
-      outputStream.write(suffixData);
-      outputStream.end();
-    } catch (err) {
-      console.error('Error writing chunked scanItems:', err);
-      outputStream.end();
-    }
-  });
+        outputStream.write(suffixData);
+        outputStream.end();
+      } catch (err) {
+        console.error('Error writing chunked scanItems:', err);
+        outputStream.destroy(err as Error);
+        reject(err);
+      }
+    });
 
-  scanDetailsReadStream.on('error', err => {
-    console.error('Read stream error:', err);
-    outputStream.end();
-  });
+    scanDetailsReadStream.on('error', err => {
+      console.error('Read stream error:', err);
+      outputStream.destroy(err);
+      reject(err);
+    });
 
-  // Wait for output stream to finish before cleanup
-  outputStream.on('finish', async () => {
-    consoleLogger.info('Content appended successfully.');
-    await cleanupFiles();
-  });
+    // Resolve only when output stream fully finishes — this is what makes
+    // `await writeHTML(...)` in generateArtifacts wait before cleanUpJsonFiles runs
+    outputStream.on('finish', async () => {
+      consoleLogger.info('Content appended successfully.');
+      await cleanupFiles();
+      resolve();
+    });
 
-  outputStream.on('error', err => {
-    consoleLogger.error('Error writing to output file:', err);
+    outputStream.on('error', err => {
+      consoleLogger.error('Error writing to output file:', err);
+      reject(err);
+    });
   });
 };
 
@@ -2027,7 +2064,9 @@ const generateArtifacts = async (
       await pushResults(pageResults, allIssues, isCustomFlow);
     }),
   ).catch(flattenIssuesError => {
-    consoleLogger.info('An error has occurred when flattening the issues, please try again.');
+        consoleLogger.error(
+      `[generateArtifacts] Error flattening issues: ${flattenIssuesError?.stack || flattenIssuesError}`,
+    );
   });
 
   flattenAndSortResults(allIssues, isCustomFlow);
