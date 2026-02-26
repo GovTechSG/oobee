@@ -117,8 +117,8 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
     const scanData = JSON.parse(await fs.readFile(scanDataJsonPath, 'utf8'));
     const scanItemsAll = JSON.parse(await fs.readFile(scanItemsJsonPath, 'utf8'));
 
-    // Use convertItemsToReferences to normalize items structure to match lighterScanItems format
-    const lighterScanItems = convertItemsToReferences({
+    // Use convertItemsToReferences to normalize items structure to match scanItemsWithHtmlGroupRefs format
+    const scanItemsWithHtmlGroupRefs = convertItemsToReferences({
       items: scanItemsAll,
       ...scanData
     });
@@ -128,7 +128,7 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       goodToFix = {},
       needsReview = {},
       passed = {},
-    } = lighterScanItems;
+    } = scanItemsWithHtmlGroupRefs;
 
     const items = {
       mustFix: ensureCategory(mustFix, 'mustFix'),

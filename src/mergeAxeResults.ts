@@ -384,12 +384,12 @@ const writeHTML = async (
   );
 
   // Create lighter version with item references for embedding in HTML
-  const lighterScanItems = convertItemsToReferences(allIssues);
+  const scanItemsWithHtmlGroupRefs = convertItemsToReferences(allIssues);
   
   // Write the lighter items to a file and get the base64 path
-  const { base64FilePath: lighterScanItemsBase64FilePath } =
+  const { base64FilePath: scanItemsWithHtmlGroupRefsBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(
-      lighterScanItems.items,
+      scanItemsWithHtmlGroupRefs.items,
       storagePath,
       'scanItems-light',
     );
@@ -407,7 +407,7 @@ const writeHTML = async (
       await Promise.all([
         fs.promises.unlink(topFilePath),
         fs.promises.unlink(bottomFilePath),
-        fs.promises.unlink(lighterScanItemsBase64FilePath),
+        fs.promises.unlink(scanItemsWithHtmlGroupRefsBase64FilePath),
       ]);
     } catch (err) {
       console.error('Error cleaning up temporary files:', err);
@@ -462,7 +462,7 @@ const writeHTML = async (
     // Write scanItems in 2MB chunks using a stream to avoid loading entire file into memory
     try {
       let chunkIndex = 1;
-      const scanItemsStream = fs.createReadStream(lighterScanItemsBase64FilePath, {
+      const scanItemsStream = fs.createReadStream(scanItemsWithHtmlGroupRefsBase64FilePath, {
         encoding: 'utf8',
         highWaterMark: CHUNK_SIZE,
       });
