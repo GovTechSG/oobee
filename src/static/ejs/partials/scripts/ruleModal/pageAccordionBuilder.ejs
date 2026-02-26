@@ -411,8 +411,8 @@
   function createPageAccordion(page, index, category, ruleInCategory, isCustomFlow) {
     const accordionId = `${ruleInCategory.rule}-${category}-page-${index}`;
 
-    // We want the accordion behavior since lighter scanItems can fit in the report.html buffer of ~500MB.
-    const normalMode = true; 
+    // When htmlGroups is present, the accordian is expandable
+    const normalMode = ruleInCategory.htmlGroups;
 
     // Calculation for items count: use items.length if array, else itemsCount property
     const pageItemsCount = (page.items && page.items.length) || page.itemsCount || 0;
