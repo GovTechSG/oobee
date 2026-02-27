@@ -1,6 +1,6 @@
 /* eslint-disable consistent-return */
 /* eslint-disable no-console */
-/* eslint-disable camelcase */
+
 /* eslint-disable no-use-before-define */
 import validator from 'validator';
 import axios from 'axios';
@@ -315,7 +315,7 @@ const checkUrlConnectivityWithBrowser = async (
 
   // STEP 1: For local file scans
   let contentType = '';
-  const protocol = new URL(url).protocol;
+  const { protocol } = new URL(url);
 
   if (protocol !== 'http:' && protocol !== 'https:') {
     try {
@@ -386,10 +386,10 @@ const checkUrlConnectivityWithBrowser = async (
 
     // OPTIMIZATION: Block heavy visual resources (Images/Fonts/CSS)
     // This allows the "Connectivity Check" to pass as soon as HTML is ready
-    await page.route('**/*', (route) => {
+    await page.route('**/*', route => {
       const type = route.request().resourceType();
       if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
-        return route.abort(); 
+        return route.abort();
       }
       return route.continue();
     });
@@ -399,7 +399,7 @@ const checkUrlConnectivityWithBrowser = async (
       res.status = constants.urlCheckStatuses.notASupportedDocument.code;
       return res;
     });
-    
+
     // OPTIMIZATION: Wait for 'domcontentloaded' only
     const response = await page.goto(url, {
       timeout: 15000,
@@ -1496,6 +1496,25 @@ export const cloneChromiumProfiles = (randomToken: string): string => {
     fs.mkdirSync(destDir, { recursive: true });
   }
 
+  // Remove Chrome profile lock artifacts (can cause immediate exit on launchPersistentContext)
+  const lockFiles = [
+    'SingletonLock',
+    'SingletonCookie',
+    'SingletonSocket',
+    path.join('Default', 'SingletonLock'),
+    path.join('Default', 'SingletonCookie'),
+    path.join('Default', 'SingletonSocket'),
+  ];
+
+  lockFiles.forEach(rel => {
+    const target = path.join(destDir, rel);
+    try {
+      if (fs.existsSync(target)) fs.rmSync(target, { force: true });
+    } catch {
+      // ignore
+    }
+  });
+
   return destDir;
 };
 
@@ -1845,16 +1864,24 @@ const cacheProxyInfo = getProxyInfo();
  */
 export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   const channel = browser || undefined;
+  const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
 
   const resolution = proxyInfoToResolution(cacheProxyInfo);
 
-  // Start with your base args
-  const finalArgs = [...constants.launchOptionsArgs];
+  const finalArgs = [
+    ...new Set(
+      (constants.launchOptionsArgs || []).filter(arg => {
+        const normalized = arg.toLowerCase();
+        if (normalized.startsWith('--headless')) return false;
+        if (normalized.startsWith('--user-agent=')) return false;
+        if (channel === BrowserTypes.CHROME && normalized.startsWith('--edge-')) return false;
+        return true;
+      }),
+    ),
+  ];
 
-  // Headless flags (unchanged)
-  if (process.env.CRAWLEE_HEADLESS === '1') {
-    if (!finalArgs.includes('--headless=new')) finalArgs.push('--headless=new');
-    if (!finalArgs.includes('--mute-audio')) finalArgs.push('--mute-audio');
+  if (isHeadless && !finalArgs.includes('--mute-audio')) {
+    finalArgs.push('--mute-audio');
   }
 
   // Map resolution to Playwright options
@@ -1864,30 +1891,34 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
       proxyOpt = resolution.settings;
       break;
     case 'pac': {
-      finalArgs.push(`--proxy-pac-url=${resolution.pacUrl}`);
-      if (resolution.bypass) finalArgs.push(`--proxy-bypass-list=${resolution.bypass}`);
+      const pacArg = `--proxy-pac-url=${resolution.pacUrl}`;
+      if (!finalArgs.includes(pacArg)) finalArgs.push(pacArg);
+
+      if (resolution.bypass) {
+        const bypassArg = `--proxy-bypass-list=${resolution.bypass}`;
+        if (!finalArgs.includes(bypassArg)) finalArgs.push(bypassArg);
+      }
       break;
     }
     case 'none':
-      // nothing
       break;
   }
 
   const options: LaunchOptions = {
-    ignoreDefaultArgs: ['--use-mock-keychain', '--headless'],
+    // keep existing behavior for mac keychain prompt suppression
+    ignoreDefaultArgs: ['--use-mock-keychain'],
     args: finalArgs,
-    headless: false,
+    headless: isHeadless,
     ...(channel && { channel }),
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
 
-  // SlowMo (unchanged)
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
   }
 
-  // Edge on Windows should not be headless (unchanged)
+  // Edge on Windows should not be headless
   if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
     options.headless = false;
   }
