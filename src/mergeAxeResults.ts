@@ -182,7 +182,9 @@ const parseContentToJson = async (rPath: string) => {
     }
 
     consoleLogger.error(`[parseContentToJson] Failed to parse file: ${rPath}`);
-    consoleLogger.error(`[parseContentToJson] ${parseError?.name || 'Error'}: ${parseError?.message || parseError}`);
+    consoleLogger.error(
+      `[parseContentToJson] ${parseError?.name || 'Error'}: ${parseError?.message || parseError}`,
+    );
     if (position !== null) {
       consoleLogger.error(`[parseContentToJson] JSON parse position: ${position}`);
     }
@@ -416,12 +418,14 @@ const writeHTML = async (
   const scanItemsWithHtmlGroupRefs = convertItemsToReferences(allIssues);
 
   // Write the lighter items to a file and get the base64 path
-  const {  jsonFilePath: scanItemsWithHtmlGroupRefsJsonFilePath, base64FilePath: scanItemsWithHtmlGroupRefsBase64FilePath } =
-    await writeJsonFileAndCompressedJsonFile(
-      scanItemsWithHtmlGroupRefs.items,
-      storagePath,
-      'scanItems-light',
-    );
+  const {
+    jsonFilePath: scanItemsWithHtmlGroupRefsJsonFilePath,
+    base64FilePath: scanItemsWithHtmlGroupRefsBase64FilePath,
+  } = await writeJsonFileAndCompressedJsonFile(
+    scanItemsWithHtmlGroupRefs.items,
+    storagePath,
+    'scanItems-light',
+  );
 
   return new Promise<void>((resolve, reject) => {
     const scanDetailsReadStream = fs.createReadStream(scanDetailsFilePath, {
@@ -448,7 +452,7 @@ const writeHTML = async (
     outputStream.write(prefixData);
 
     // For Proxied AI environments only
-    outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ""}"\n`);
+    outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ''}"\n`);
 
     // Initialize GenAI feature flag
     outputStream.write(`
@@ -478,17 +482,15 @@ const writeHTML = async (
   }
   \n`);
 
-    outputStream.write(
-      "</script>\n<script type=\"text/plain\" id=\"scanDataRaw\">"
-    );
+    outputStream.write('</script>\n<script type="text/plain" id="scanDataRaw">');
     scanDetailsReadStream.pipe(outputStream, { end: false });
 
     scanDetailsReadStream.on('end', async () => {
-      outputStream.write("</script>\n<script>\n");
+      outputStream.write('</script>\n<script>\n');
       outputStream.write(
-        "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n"
+        "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n",
       );
-      outputStream.write("</script>\n");
+      outputStream.write('</script>\n');
 
       // Write scanItems in 2MB chunks using a stream to avoid loading entire file into memory
       try {
@@ -499,11 +501,13 @@ const writeHTML = async (
         });
 
         for await (const chunk of scanItemsStream) {
-          outputStream.write(`<script type="text/plain" id="scanItemsRaw${chunkIndex}">${chunk}</script>\n`);
+          outputStream.write(
+            `<script type="text/plain" id="scanItemsRaw${chunkIndex}">${chunk}</script>\n`,
+          );
           chunkIndex++;
         }
 
-        outputStream.write("<script>\n");
+        outputStream.write('<script>\n');
         outputStream.write(`
 var scanItemsPromise = (async () => {
   console.log('Loading scanItems...');
@@ -918,7 +922,6 @@ const writeJsonAndBase64Files = async (
 
   // Refactor scanIssuesSummary to reuse the structure by stripping out pagesAffected
   const scanIssuesSummary = {
-
     // Replace rule descriptions with short descriptions from the map
     mustFix: items.mustFix.rules.map(({ pagesAffected, ...ruleInfo }) => ({
       ...ruleInfo,
@@ -1092,10 +1095,23 @@ const writeSummaryPdf = async (
   const htmlFilePath = `${storagePath}/${filename}.html`;
   const fileDestinationPath = `${storagePath}/${filename}.pdf`;
 
+  // Defensive: always use a clean user data dir for headless Chrome PDF
   const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
+
+  // Defensive: normalize launch options as in getPlaywrightLaunchOptions
+  const baseOptions = getPlaywrightLaunchOptions(browser);
+  const args = [...(baseOptions.args || [])].filter(arg => {
+    const normalized = arg.toLowerCase();
+    if (normalized.startsWith('--headless')) return false;
+    if (normalized.startsWith('--user-agent=')) return false;
+    if (browser === 'chrome' && normalized.startsWith('--edge-')) return false;
+    return true;
+  });
+
   const context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
+    ...baseOptions,
     headless: true,
-    ...getPlaywrightLaunchOptions(browser),
+    args,
   });
 
   register(context);
@@ -1103,7 +1119,7 @@ const writeSummaryPdf = async (
   const page = await context.newPage();
 
   const data = fs.readFileSync(htmlFilePath, { encoding: 'utf-8' });
-  await page.setContent(data);
+  await page.setContent(data, { waitUntil: 'load' });
 
   await page.waitForLoadState('networkidle', { timeout: 30000 });
 
@@ -1206,10 +1222,10 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
       const currRuleFromAllIssues = currCategoryFromAllIssues.rules[rule];
 
       currRuleFromAllIssues.totalItems += count;
-      
+
       // Build htmlGroups for pre-computed Group by HTML Element
       buildHtmlGroups(currRuleFromAllIssues, items, url);
-        
+
       if (isCustomFlow) {
         const { pageIndex, pageImagePath, metadata } = pageResults;
         currRuleFromAllIssues.pagesAffected[pageIndex] = {
@@ -1219,15 +1235,12 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
           metadata,
           items: [...items],
         };
-      } else {
-        if (!(url in currRuleFromAllIssues.pagesAffected)) {
-          currRuleFromAllIssues.pagesAffected[url] = {
-            pageTitle,
-            items: [...items],
-            ...(filePath && { filePath }),
-          };
-        }
-
+      } else if (!(url in currRuleFromAllIssues.pagesAffected)) {
+        currRuleFromAllIssues.pagesAffected[url] = {
+          pageTitle,
+          items: [...items],
+          ...(filePath && { filePath }),
+        };
       }
     });
   });
@@ -1237,11 +1250,7 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
  * Builds pre-computed HTML groups to optimize Group by HTML Element functionality.
  * Keys are composite "html\x00xpath" strings to ensure unique matching per element instance.
  */
-const buildHtmlGroups = (
-  rule: RuleInfo,
-  items: ItemsInfo[],
-  pageUrl: string
-) => {
+const buildHtmlGroups = (rule: RuleInfo, items: ItemsInfo[], pageUrl: string) => {
   if (!rule.htmlGroups) {
     rule.htmlGroups = {};
   }
@@ -1401,7 +1410,12 @@ function updateIssuesWithOccurrences(issuesList: any[], urlOccurrencesMap: Map<s
   });
 }
 
-const extractRuleAiData = (ruleId: string, totalItems: number, items: any[], callback?: () => void) => {
+const extractRuleAiData = (
+  ruleId: string,
+  totalItems: number,
+  items: any[],
+  callback?: () => void,
+) => {
   let snippets = [];
 
   if (oobeeAiRules.includes(ruleId)) {
@@ -1421,8 +1435,7 @@ const extractRuleAiData = (ruleId: string, totalItems: number, items: any[], cal
 };
 
 // This is for telemetry purposes called within mergeAxeResults.ts
-export
-const createRuleIdJson = allIssues => {
+export const createRuleIdJson = allIssues => {
   const compiledRuleJson = {};
 
   ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
@@ -1445,9 +1458,11 @@ export const createBasicFormHTMLSnippet = filteredResults => {
 
   ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
     if (filteredResults[category] && filteredResults[category].rules) {
-      Object.entries(filteredResults[category].rules).forEach(([ruleId, ruleVal]: [string, any]) => {
-        compiledRuleJson[ruleId] = extractRuleAiData(ruleId, ruleVal.totalItems, ruleVal.items);
-      });
+      Object.entries(filteredResults[category].rules).forEach(
+        ([ruleId, ruleVal]: [string, any]) => {
+          compiledRuleJson[ruleId] = extractRuleAiData(ruleId, ruleVal.totalItems, ruleVal.items);
+        },
+      );
     }
   });
 
@@ -1939,7 +1954,6 @@ const generateArtifacts = async (
   zip: string = undefined, // optional
   generateJsonFiles = false,
 ) => {
-
   consoleLogger.info('Generating report artifacts');
 
   const storagePath = getStoragePath(randomToken);
@@ -2037,7 +2051,7 @@ const generateArtifacts = async (
       await pushResults(pageResults, allIssues, isCustomFlow);
     }),
   ).catch(flattenIssuesError => {
-        consoleLogger.error(
+    consoleLogger.error(
       `[generateArtifacts] Error flattening issues: ${flattenIssuesError?.stack || flattenIssuesError}`,
     );
   });
@@ -2176,22 +2190,22 @@ const generateArtifacts = async (
     scanItemsBase64FilePath,
   );
 
-if (!generateJsonFiles) {
-  await cleanUpJsonFiles([
-    scanDataJsonFilePath,
-    scanDataBase64FilePath,
-    scanItemsJsonFilePath,
-    scanItemsBase64FilePath,
-    scanItemsSummaryJsonFilePath,
-    scanItemsSummaryBase64FilePath,
-    scanIssuesSummaryJsonFilePath,
-    scanIssuesSummaryBase64FilePath,
-    scanPagesDetailJsonFilePath,
-    scanPagesDetailBase64FilePath,
-    scanPagesSummaryJsonFilePath,
-    scanPagesSummaryBase64FilePath,
-  ]);
-}
+  if (!generateJsonFiles) {
+    await cleanUpJsonFiles([
+      scanDataJsonFilePath,
+      scanDataBase64FilePath,
+      scanItemsJsonFilePath,
+      scanItemsBase64FilePath,
+      scanItemsSummaryJsonFilePath,
+      scanItemsSummaryBase64FilePath,
+      scanIssuesSummaryJsonFilePath,
+      scanIssuesSummaryBase64FilePath,
+      scanPagesDetailJsonFilePath,
+      scanPagesDetailBase64FilePath,
+      scanPagesSummaryJsonFilePath,
+      scanPagesSummaryBase64FilePath,
+    ]);
+  }
 
   const browserChannel = getBrowserToRun(randomToken, BrowserTypes.CHROME, false).browserToRun;
 

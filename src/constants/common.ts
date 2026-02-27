@@ -1868,12 +1868,16 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const resolution = proxyInfoToResolution(cacheProxyInfo);
 
+  // Defensive: filter out unsafe/incompatible args for Chrome/Edge/Chromium
   const finalArgs = [
     ...new Set(
       (constants.launchOptionsArgs || []).filter(arg => {
         const normalized = arg.toLowerCase();
+        // Remove all --headless* flags (Playwright controls headless)
         if (normalized.startsWith('--headless')) return false;
+        // Remove any --user-agent=... (should be set via Playwright API)
         if (normalized.startsWith('--user-agent=')) return false;
+        // Remove --edge-* flags when launching Chrome
         if (channel === BrowserTypes.CHROME && normalized.startsWith('--edge-')) return false;
         return true;
       }),
