@@ -8,7 +8,7 @@
     "oobee": "./dist/cli.js"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.948.0",
+    "@aws-sdk/client-s3": "^3.893.0",
     "@json2csv/node": "^7.0.3",
     "@napi-rs/canvas": "^0.1.53",
     "@sentry/node": "^9.13.0",
@@ -31,7 +31,7 @@
     "mime-types": "^2.1.35",
     "minimatch": "^9.0.3",
     "pdfjs-dist": "github:veraPDF/pdfjs-dist#v4.4.168-taggedPdf-0.1.20",
-    "playwright": "^1.55.0",
+    "playwright": "^1.58.2",
     "prettier": "^3.1.0",
     "print-message": "^3.0.1",
     "safe-regex": "^2.1.1",
@@ -77,12 +77,12 @@
     "ansi-regex": "^5.0.1",
     "tough-cookie": "^5.0.0-rc.2",
     "micromatch": "github:micromatch/micromatch.git#4.0.8",
-    "brace-expansion": "^1.1.12",
     "tmp": "0.2.4",
     "tar": "^7.5.6",
     "eslint-config-airbnb-base": {
       "eslint": "^9.26.0"
-    }
+    },
+    "fast-xml-parser": ">=5.3.8"
   },
   "optionalDependencies": {
     "@napi-rs/canvas-darwin-arm64": "^0.1.53",
