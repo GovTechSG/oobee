@@ -24,7 +24,7 @@ export function gradeReadability(sentences: string[]): string {
 
     return result;
   } catch (error) {
-    console.error('Error extracting and grading text:', error);
+    console.warn('Error extracting and grading text:', error);
     return ''; // Return an empty string in case of an error
   }
 }

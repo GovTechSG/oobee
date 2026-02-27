@@ -1,4 +1,59 @@
 <script>
+  /**
+   * Resolves item references (composite "html\x00xpath" strings) to full item data using htmlGroups.
+   * This is needed because items are now stored as references (html keys) to reduce JSON size.
+   * @param {Array} items - Array of item references (strings) or full item objects
+   * @param {Object} ruleInCategory - Rule object containing htmlGroups
+   * @param {Object} page - Page object containing url and pageTitle
+   * @returns {Array} - Array of resolved full item objects
+   */
+  function resolveItemReferences(items, ruleInCategory, page) {
+    if (!items || items.length === 0) return [];
+    
+    // Check if items are references (strings) or full objects
+    // With lighter scanItems, items are strings (HTML keys)
+    const isReference = typeof items[0] === 'string';
+    
+    if (!isReference) {
+      // Items are already full objects - just add page info
+      return items.map(item => ({
+        ...item,
+        pageUrl: page.url,
+        pageTitle: page.pageTitle || page.metadata
+      }));
+    }
+    
+    // Items are references (strings) - resolve using htmlGroups
+    const htmlGroups = ruleInCategory.htmlGroups || {};
+    
+    return items.map(compositeKey => {
+      const groupData = htmlGroups[compositeKey];
+      if (groupData) {
+        return {
+          html: groupData.html,
+          xpath: groupData.xpath,
+          message: groupData.message,
+          screenshotPath: groupData.screenshotPath,
+          displayNeedsReview: groupData.displayNeedsReview,
+          pageUrl: page.url,
+          pageTitle: page.pageTitle || page.metadata
+        };
+      }
+      // Fallback: try to parse composite key
+      const nullByteIndex = compositeKey.indexOf('\x00');
+      const html = nullByteIndex !== -1 ? compositeKey.slice(0, nullByteIndex) : compositeKey;
+      const xpath = nullByteIndex !== -1 ? compositeKey.slice(nullByteIndex + 1) : '';
+      return {
+        html,
+        xpath,
+        message: '',
+        screenshotPath: '',
+        pageUrl: page.url,
+        pageTitle: page.pageTitle || page.metadata
+      };
+    });
+  }
+
   function buildExpandedRuleCategoryContent(category, ruleInCategory) {
     const contentContainer = document.getElementById('expandedRuleCategoryContent');
     const isCustomFlow = <%- isCustomFlow -%>;
@@ -28,7 +83,10 @@
         if (dropdownTitle) {
           const selectedCategory = itemsToUse[category]?.rules?.find(r => r.rule === ruleInCategory.rule);
           if (selectedCategory) {
-            const count = selectedCategory.pagesAffected.length;
+            // Use pre-computed htmlGroups for count if available, otherwise use pages
+            const count = isHtmlGrouping && selectedCategory.htmlGroups
+              ? Object.keys(selectedCategory.htmlGroups).length
+              : selectedCategory.pagesAffected.length;
             if (isHtmlGrouping) {
               dropdownTitle.innerText = `HTML elements affected by this issue (${count})`;
             } else {
@@ -49,27 +107,20 @@
     newGroupByHtmlElement.addEventListener('change', async () => {
       if (newGroupByHtmlElement.checked) {
         updateDropdownTitle(true);
-        const contentContainer = document.getElementById('expandedRuleCategoryContent');
-        contentContainer.innerHTML = `
-          <div class="p-4 text-center">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2">Loading all items for grouping...</p>
-          </div>
-        `;
-
-        await loadAllPageItems(ruleInCategory);
-
+        // htmlGroups are pre-computed, no loading needed
         renderGroupedByHtmlElement(category, ruleInCategory, isCustomFlow);
       }
     });
   }
 
   async function loadAllPageItems(ruleInCategory) {
+    // If using lighter scanItems, items might be references (strings).
+    // We don't necessarily need to "load" them from backend if they are already in the rule's htmlGroups.
+    // However, if pagination logic existed here for fetching items, it would need adjustment.
+    // Assuming current structure has all references loaded in the JSON.
     const loadPromises = ruleInCategory.pagesAffected.map(async (page) => {
       if (!page.items && page.itemsCount > 0) {
-        page.items = [];
+        page.items = []; // Should ideally be populated or fetched if not present
       }
     });
 
@@ -92,25 +143,45 @@
   function renderGroupedByHtmlElement(category, ruleInCategory, isCustomFlow) {
     const contentContainer = document.getElementById('expandedRuleCategoryContent');
 
-    // Group items by HTML element
-    const groupedByHtml = {};
-    ruleInCategory.pagesAffected.forEach((page) => {
-      if (!page.items || page.items.length === 0) {
-        return;
-      }
+    // Use pre-computed htmlGroups if available, otherwise compute in real-time (backwards compatibility)
+    // htmlGroups keys are composite "html\x00xpath" strings for precise matching
+    let groupedByHtml = {};
 
-      page.items.forEach((item) => {
-        const htmlKey = item.html || 'No HTML element';
-        if (!groupedByHtml[htmlKey]) {
-          groupedByHtml[htmlKey] = [];
-        }
-        groupedByHtml[htmlKey].push({
-          ...item,
-          pageUrl: page.url,
-          pageTitle: page.pageTitle || page.metadata,
+    if (ruleInCategory.htmlGroups) {
+      // Use pre-computed groups from JSON
+      // Each entry has a unique html+xpath combination; group by html for display
+      Object.entries(ruleInCategory.htmlGroups).forEach(([compositeKey, groupData]) => {
+        // Use compositeKey as the grouping key to preserve xpath uniqueness
+        groupedByHtml[compositeKey] = groupData.pageUrls.map(pageUrl => ({
+          html: groupData.html,
+          xpath: groupData.xpath,
+          message: groupData.message,
+          screenshotPath: groupData.screenshotPath,
+          displayNeedsReview: groupData.displayNeedsReview,
+          pageUrl: pageUrl,
+        }));
+      });
+    } else {
+      // Fallback: compute in real-time (for backwards compatibility or full objects)
+      ruleInCategory.pagesAffected.forEach((page) => {
+        if (!page.items || page.items.length === 0) return;
+
+        const itemsToProcess = resolveItemReferences(page.items, ruleInCategory, page);
+
+        itemsToProcess.forEach((item) => {
+          // Use composite key for grouping
+          const compositeKey = `${item.html || 'No HTML element'}\x00${item.xpath || ''}`;
+          if (!groupedByHtml[compositeKey]) {
+            groupedByHtml[compositeKey] = [];
+          }
+          groupedByHtml[compositeKey].push({
+            ...item,
+            pageUrl: page.url,
+            pageTitle: page.pageTitle || page.metadata,
+          });
         });
       });
-    });
+    }
 
     if (Object.keys(groupedByHtml).length === 0) {
       contentContainer.innerHTML = `
@@ -129,7 +200,11 @@
       return itemsB.length - itemsA.length; // DESC
     });
 
-    sortedGroups.forEach(([htmlElement, items]) => {
+    sortedGroups.forEach(([compositeKey, items]) => {
+      // Extract html portion for display (strip the xpath part after \x00)
+      const nullByteIndex = compositeKey.indexOf('\x00');
+      const htmlElement = nullByteIndex !== -1 ? compositeKey.slice(0, nullByteIndex) : compositeKey;
+
       const accordion = createHtmlElementAccordion(
         htmlElement,
         items,
@@ -177,7 +252,7 @@
                     fill="#5735DF"
                   />
                 </svg>
-                <div class="me-3 html-element-preview flex-1">${escapedPreview}</div>
+                <div class="me-3 flex-1">${escapedPreview}</div>
                 <div class="ms-auto rule-occurrence-count counter">${itemsCount} occ.</div>
               </button>
             </div>
@@ -335,8 +410,12 @@
 
   function createPageAccordion(page, index, category, ruleInCategory, isCustomFlow) {
     const accordionId = `${ruleInCategory.rule}-${category}-page-${index}`;
-    const pageItemsCount = page.items.length || page.itemsCount || 0;
-    const normalMode = page.itemsCount === undefined;
+
+    // When htmlGroups is present, the accordian is expandable
+    const normalMode = ruleInCategory.htmlGroups;
+
+    // Calculation for items count: use items.length if array, else itemsCount property
+    const pageItemsCount = (page.items && page.items.length) || page.itemsCount || 0;
 
     const accordion = createElementFromString(`
       <li class="${normalMode ? '' : 'no-chevron'}">
@@ -425,31 +504,33 @@
   function setupPageAccordionHandlers(accordion, accordionId, category, ruleInCategory, page, index) {
     const button = accordion.querySelector('button');
 
-    button.addEventListener('click', function loadContent(event) {
+    // Handler for the first click to load content and init collapse
+    const initAndLoad = function(event) {
       const accordionBody = accordion.querySelector(".accordion-body");
 
+      // Build content if missing
       if (!accordionBody.querySelector(".item-pagination-controls") &&
           !accordionBody.querySelector(".unbulleted-list")) {
         buildItemCardsWithPagination(accordionId, category, ruleInCategory, page, index);
-        this.setAttribute('data-bs-target', '#' + accordionId + "-content");
-        this.removeEventListener('click', loadContent);
-        this.click();
       }
-    });
 
-    button.addEventListener('click', function initCollapse(event) {
+      // Initialize Bootstrap Collapse
+      // This sets up the data attributes and creates the instance
       this.setAttribute('data-bs-toggle', 'collapse');
       this.setAttribute('data-bs-target', '#' + accordionId + "-content");
-      this.setAttribute('aria-expanded', 'false');
+      this.setAttribute('aria-expanded', 'true'); 
       this.setAttribute('aria-controls', accordionId + "-content");
 
-      new bootstrap.Collapse(this, { toggle: false });
+      // Create and toggle the collapse instance manually for this first interaction
+      const collapseElement = document.getElementById(accordionId + "-content");
+      const bsCollapse = new bootstrap.Collapse(collapseElement, { toggle: false });
+      bsCollapse.toggle();
 
-      this.removeEventListener('click', initCollapse);
-      setTimeout(() => {
-        this.click();
-      }, 0);
-    });
+      // Remove this listener so subsequent clicks are handled by Bootstrap's data-api
+      button.removeEventListener('click', initAndLoad);
+    };
+
+    button.addEventListener('click', initAndLoad);
   }
 
   function setupCustomFlowScreenshot(accordion, page) {

@@ -1,4 +1,47 @@
 <script>
+  /**
+   * Resolves item references (composite "html\x00xpath" strings) to full item data using htmlGroups.
+   */
+  function resolveItemReferencesForPage(page, ruleInCategory) {
+    const items = page.items || [];
+    if (items.length === 0) return [];
+
+    const isReference = typeof items[0] === 'string';
+
+    if (!isReference) {
+      return items;
+    }
+
+    const htmlGroups = ruleInCategory.htmlGroups || {};
+
+    return items.map(compositeKey => {
+      const groupData = htmlGroups[compositeKey];
+      if (groupData) {
+        return {
+          html: groupData.html,
+          xpath: groupData.xpath,
+          message: groupData.message,
+          screenshotPath: groupData.screenshotPath,
+          displayNeedsReview: groupData.displayNeedsReview,
+          pageUrl: page.url,
+          pageTitle: page.pageTitle || page.metadata
+        };
+      }
+      // Fallback: parse composite key
+      const nullByteIndex = compositeKey.indexOf('\x00');
+      const html = nullByteIndex !== -1 ? compositeKey.slice(0, nullByteIndex) : compositeKey;
+      const xpath = nullByteIndex !== -1 ? compositeKey.slice(nullByteIndex + 1) : '';
+      return {
+        html,
+        xpath,
+        message: '',
+        screenshotPath: '',
+        pageUrl: page.url,
+        pageTitle: page.pageTitle || page.metadata
+      };
+    });
+  }
+
   function buildItemCardsWithPagination(accordionId, category, ruleInCategory, page, index) {
     const accordionAIId = `${ruleInCategory.rule}-${category}-accordion-AI-${index}`;
     const buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-${index}`;
@@ -10,7 +53,10 @@
       .parentElement;
 
     const accordionBody = accordion.getElementsByClassName('accordion-body')[0];
-    const totalItems = page.items.length;
+
+    // Resolve item references if needed
+    const resolvedItems = resolveItemReferencesForPage(page, ruleInCategory);
+    const totalItems = resolvedItems.length;
     let currentItemIndex = 0;
 
     // Create pagination controls
@@ -21,7 +67,7 @@
 
     // Function to render a specific item
     async function renderItem(itemIndex) {
-      const item = page.items[itemIndex];
+      const item = resolvedItems[itemIndex];
       const accordionDivToAppendAI = `${accordionAIId}-${itemIndex}`;
       const buttonDivForAiFeedback = `${buttonAIId}-${itemIndex}`;
       const aiErrorDiv = `${errorAIId}-${itemIndex}`;

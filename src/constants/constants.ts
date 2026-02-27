@@ -902,6 +902,7 @@ export const disabilityBadgesMap = {
   'skip-link': ['Motor', 'Learning', 'Visual'],
   tabindex: ['Motor'],
   'meta-viewport': ['Visual'],
+  'summary-name': ['Visual'],
 };
 
 export default {
