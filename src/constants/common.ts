@@ -1817,7 +1817,6 @@ export async function initModifiedUserAgent(
   // Build the launch options using your production settings.
   // headless is forced to false as in your persistent context, and we merge in getPlaywrightLaunchOptions and device details.
   const launchOptions = {
-    headless: false,
     ...getPlaywrightLaunchOptions(browser),
     ...playwrightDeviceDetailsObject,
   };
@@ -1865,7 +1864,6 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   // Headless flags (unchanged)
   if (process.env.CRAWLEE_HEADLESS === '1') {
-    if (!finalArgs.includes('--headless=new')) finalArgs.push('--headless=new');
     if (!finalArgs.includes('--mute-audio')) finalArgs.push('--mute-audio');
   }
 
@@ -1886,9 +1884,9 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   }
 
   const options: LaunchOptions = {
-    ignoreDefaultArgs: ['--use-mock-keychain', '--headless'],
+    ignoreDefaultArgs: ['--use-mock-keychain'],
     args: finalArgs,
-    headless: false,
+    headless: process.env.CRAWLEE_HEADLESS === '1',
     ...(channel && { channel }),
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
