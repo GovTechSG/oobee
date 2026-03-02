@@ -356,17 +356,40 @@ const checkUrlConnectivityWithBrowser = async (
   await initModifiedUserAgent(browserToRun, playwrightDeviceDetailsObject, clonedDataDir);
 
   let browserContext;
-  try {
-    browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
-      ...(extraHTTPHeaders && { extraHTTPHeaders }),
-      ignoreHTTPSErrors: true,
-      headless: true,
-      ...getPlaywrightLaunchOptions(browserToRun),
-      ...playwrightDeviceDetailsObject,
-      ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
-    });
+  let browserInstance;
 
-    register(browserContext);
+  const rawDevice = (playwrightDeviceDetailsObject || {}) as Record<string, unknown>;
+  const {
+    viewport,
+    isMobile,
+    hasTouch,
+    userAgent: deviceUserAgent,
+    ...restDevice
+  } = rawDevice;
+
+  const launchOptions = getPlaywrightLaunchOptions(browserToRun);
+  const contextOptions: Record<string, unknown> = {
+    ...restDevice,
+    ...(extraHTTPHeaders && { extraHTTPHeaders }),
+    ignoreHTTPSErrors: true,
+    ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
+  };
+
+  // Keep UA emulation explicitly.
+  contextOptions.userAgent = process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined);
+
+  try {
+    if (process.env.CRAWLEE_HEADLESS === '1') {
+      browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
+        ...launchOptions,
+        ...contextOptions,
+      });
+      register(browserContext);
+    } else {
+      browserInstance = await constants.launcher.launch(launchOptions);
+      register(browserInstance as unknown as { close: () => Promise<void> });
+      browserContext = await browserInstance.newContext(contextOptions);
+    }
   } catch (err) {
     printMessage([`Unable to launch browser\n${err}`], messageOptions);
     res.status = constants.urlCheckStatuses.browserError.code;
@@ -464,7 +487,10 @@ const checkUrlConnectivityWithBrowser = async (
       res.status = constants.urlCheckStatuses.systemError.code;
     }
   } finally {
-    await browserContext.close();
+    await browserContext?.close();
+    if (browserInstance) {
+      await browserInstance.close();
+    }
   }
 
   return res;
@@ -791,28 +817,47 @@ const getRobotsTxtViaPlaywright = async (
   userDataDirectory: string,
   extraHTTPHeaders: Record<string, string>,
 ): Promise<string> => {
-  const robotsDataDir = '';
+  let robotsDataDir = '';
+  let browserContext;
+  let browserInstance;
+
   // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
   if (process.env.CRAWLEE_HEADLESS === '1') {
     // Create robots own user data directory else SingletonLock: File exists (17) with crawlDomain or crawlSitemap's own browser
-    const robotsDataDir = path.join(userDataDirectory, 'robots');
+    robotsDataDir = path.join(userDataDirectory, 'robots');
     if (!fs.existsSync(robotsDataDir)) {
       fs.mkdirSync(robotsDataDir, { recursive: true });
     }
   }
 
-  const browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
-    ...getPlaywrightLaunchOptions(browser),
-    ...(extraHTTPHeaders && { extraHTTPHeaders }),
-  });
+  try {
+    if (process.env.CRAWLEE_HEADLESS === '1') {
+      browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
+        ...getPlaywrightLaunchOptions(browser),
+        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+      });
+      register(browserContext);
+    } else {
+      browserInstance = await constants.launcher.launch(getPlaywrightLaunchOptions(browser));
+      register(browserInstance as unknown as { close: () => Promise<void> });
+      browserContext = await browserInstance.newContext({
+        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+      });
+    }
 
-  register(browserContext);
-
-  const page = await browserContext.newPage();
-
-  await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
-  const robotsTxt: string | null = await page.evaluate(() => document.body.textContent);
-  return robotsTxt;
+    const page = await browserContext.newPage();
+    await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    const robotsTxt: string | null = await page.evaluate(() => document.body.textContent);
+    return robotsTxt;
+  } catch (e) {
+    consoleLogger.error(`Error fetching robots.txt: ${(e as Error).message}`);
+    throw e;
+  } finally {
+    await browserContext?.close();
+    if (browserInstance) {
+      await browserInstance.close();
+    }
+  }
 };
 
 export const isDisallowedInRobotsTxt = (url: string): boolean => {
@@ -1792,49 +1837,30 @@ export const submitForm = async (
 
 export async function initModifiedUserAgent(
   browser?: string,
-  playwrightDeviceDetailsObject?: object,
-  userDataDirectory?: string,
+  _playwrightDeviceDetailsObject?: object,
+  _userDataDirectory?: string,
 ) {
-  const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
+  // UA bootstrap must not use persistent context / user-data-dir.
+  const launchOptions = getPlaywrightLaunchOptions(browser);
 
-  // If headless mode is enabled, ensure the headless flag is set.
-  if (isHeadless && !constants.launchOptionsArgs.includes('--headless=new')) {
-    constants.launchOptionsArgs.push('--headless=new');
+  const browserInstance = await constants.launcher.launch(launchOptions);
+  register(browserInstance as unknown as { close: () => Promise<void> });
+
+  try {
+    const context = await browserInstance.newContext();
+    const page = await context.newPage();
+    const defaultUA = await page.evaluate(() => navigator.userAgent);
+    await context.close();
+
+    const modifiedUA = defaultUA.includes('HeadlessChrome')
+      ? defaultUA.replace('HeadlessChrome', 'Chrome')
+      : defaultUA;
+
+    // Do not mutate global CLI args with --user-agent=
+    process.env.OOBEE_USER_AGENT = modifiedUA;
+  } finally {
+    await browserInstance.close();
   }
-
-  // Build the launch options using your production settings.
-  // headless is forced to false as in your persistent context, and we merge in getPlaywrightLaunchOptions and device details.
-  const launchOptions = {
-    headless: false,
-    ...getPlaywrightLaunchOptions(browser),
-    ...playwrightDeviceDetailsObject,
-  };
-
-  // Launch a temporary persistent context with an empty userDataDir to mimic your production browser setup.
-  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
-
-  const browserContext = await constants.launcher.launchPersistentContext(
-    effectiveUserDataDirectory,
-    launchOptions,
-  );
-  register(browserContext);
-
-  const page = await browserContext.newPage();
-
-  // Retrieve the default user agent.
-  const defaultUA = await page.evaluate(() => navigator.userAgent);
-  await browserContext.close();
-
-  // Modify the UA:
-  // Replace "HeadlessChrome" with "Chrome" if present.
-  const modifiedUA = defaultUA.includes('HeadlessChrome')
-    ? defaultUA.replace('HeadlessChrome', 'Chrome')
-    : defaultUA;
-
-  // Push the modified UA flag into your global launch options.
-  constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
-  // Optionally log the modified UA.
-  // console.log('Modified User Agent:', modifiedUA);
 }
 
 const cacheProxyInfo = getProxyInfo();
@@ -1848,12 +1874,17 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const resolution = proxyInfoToResolution(cacheProxyInfo);
 
-  // Start with your base args
-  const finalArgs = [...constants.launchOptionsArgs];
+  // Start with your base args and sanitise
+  const finalArgs = [...constants.launchOptionsArgs].filter(
+  arg =>
+    !arg.startsWith('--headless') &&
+    !arg.startsWith('--user-agent=') &&
+    arg !== '--mute-audio' &&
+    !(browser === BrowserTypes.CHROME && arg === '--edge-skip-compat-layer-relaunch'),
+  );
 
   // Headless flags (unchanged)
   if (process.env.CRAWLEE_HEADLESS === '1') {
-    if (!finalArgs.includes('--headless=new')) finalArgs.push('--headless=new');
     if (!finalArgs.includes('--mute-audio')) finalArgs.push('--mute-audio');
   }
 
@@ -1874,22 +1905,17 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   }
 
   const options: LaunchOptions = {
-    ignoreDefaultArgs: ['--use-mock-keychain', '--headless'],
+    ignoreDefaultArgs: ['--use-mock-keychain'],
     args: finalArgs,
-    headless: false,
+    headless: process.env.CRAWLEE_HEADLESS === '1',
     ...(channel && { channel }),
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
 
-  // SlowMo (unchanged)
+  // SlowMo for debugging, can be set via env variable OOBEE_SLOWMO to avoid adding it as a CLI argument and causing confusion for users who don't need it
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
-  }
-
-  // Edge on Windows should not be headless (unchanged)
-  if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
-    options.headless = false;
   }
 
   return options;

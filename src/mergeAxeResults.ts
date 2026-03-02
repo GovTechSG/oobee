@@ -1087,25 +1087,25 @@ const writeSummaryPdf = async (
   pagesScanned: number,
   filename = 'summary',
   browser: string,
-  userDataDirectory: string,
+  _userDataDirectory: string,
 ) => {
   const htmlFilePath = `${storagePath}/${filename}.html`;
   const fileDestinationPath = `${storagePath}/${filename}.pdf`;
 
-  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
-  const context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
-    headless: true,
-    ...getPlaywrightLaunchOptions(browser),
+  const launchOptions = getPlaywrightLaunchOptions(browser);
+
+  const browserInstance = await constants.launcher.launch({
+    ...launchOptions,
+    headless: true, // force headless for PDF
   });
 
-  register(context);
+  register(browserInstance as unknown as { close: () => Promise<void> });
 
+  const context = await browserInstance.newContext();
   const page = await context.newPage();
 
   const data = fs.readFileSync(htmlFilePath, { encoding: 'utf-8' });
-  await page.setContent(data);
-
-  await page.waitForLoadState('networkidle', { timeout: 30000 });
+  await page.setContent(data, { waitUntil: 'domcontentloaded' });
 
   await page.emulateMedia({ media: 'print' });
 
@@ -1122,8 +1122,8 @@ const writeSummaryPdf = async (
   });
 
   await page.close();
-
   await context.close().catch(() => {});
+  await browserInstance.close().catch(() => {});
 
   if (pagesScanned < 2000) {
     fs.unlinkSync(htmlFilePath);
