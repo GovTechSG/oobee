@@ -344,7 +344,7 @@ const checkUrlConnectivityWithBrowser = async (
         return res;
       }
     } catch (e) {
-      consoleLogger.info(`Local file check failed: ${(e as Error).message}`);
+      consoleLogger.info(`Local file check failed: ${e.message}`);
       res.status = constants.urlCheckStatuses.systemError.code;
       return res;
     }
@@ -355,45 +355,16 @@ const checkUrlConnectivityWithBrowser = async (
 
   await initModifiedUserAgent(browserToRun, playwrightDeviceDetailsObject, clonedDataDir);
 
-  const isMacChromeHeadless =
-    os.platform() === 'darwin' &&
-    browserToRun === BrowserTypes.CHROME &&
-    process.env.CRAWLEE_HEADLESS === '1';
-
-  const rawDevice = (playwrightDeviceDetailsObject || {}) as Record<string, unknown>;
-  const {
-    viewport,
-    isMobile,
-    hasTouch,
-    userAgent: deviceUserAgent,
-    ...restDevice
-  } = rawDevice;
-
-  const contextOptions: Record<string, unknown> = {
-    ...getPlaywrightLaunchOptions(browserToRun),
-    ...restDevice,
-    ...(extraHTTPHeaders && { extraHTTPHeaders }),
-    ignoreHTTPSErrors: true,
-    ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
-  };
-
-  // Keep UA emulation explicitly.
-  contextOptions.userAgent =
-    (deviceUserAgent as string | undefined);
-
-  // Avoid Chrome 145 macOS headless persistent-context crash path.
-  if (!isMacChromeHeadless) {
-    contextOptions.viewport = viewport;
-    contextOptions.isMobile = isMobile;
-    contextOptions.hasTouch = hasTouch;
-  }
-
   let browserContext;
   try {
-    browserContext = await constants.launcher.launchPersistentContext(
-      clonedDataDir,
-      contextOptions,
-    );
+    browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
+      ...(extraHTTPHeaders && { extraHTTPHeaders }),
+      ignoreHTTPSErrors: true,
+      headless: true,
+      ...getPlaywrightLaunchOptions(browserToRun),
+      ...playwrightDeviceDetailsObject,
+      ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
+    });
 
     register(browserContext);
   } catch (err) {
@@ -414,10 +385,11 @@ const checkUrlConnectivityWithBrowser = async (
     }
 
     // OPTIMIZATION: Block heavy visual resources (Images/Fonts/CSS)
-    await page.route('**/*', route => {
+    // This allows the "Connectivity Check" to pass as soon as HTML is ready
+    await page.route('**/*', (route) => {
       const type = route.request().resourceType();
       if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
-        return route.abort();
+        return route.abort(); 
       }
       return route.continue();
     });
@@ -427,14 +399,16 @@ const checkUrlConnectivityWithBrowser = async (
       res.status = constants.urlCheckStatuses.notASupportedDocument.code;
       return res;
     });
-
+    
+    // OPTIMIZATION: Wait for 'domcontentloaded' only
     const response = await page.goto(url, {
       timeout: 15000,
-      waitUntil: 'domcontentloaded',
+      waitUntil: 'domcontentloaded', // enough to get status + allow potential client redirects to kick in
     });
 
     if (!response) throw new Error('No response from navigation');
 
+    // We use the response headers from the navigation we just performed.
     const finalUrl = page.url();
     const finalStatus = response.status();
     const headers = response.headers();
@@ -453,6 +427,8 @@ const checkUrlConnectivityWithBrowser = async (
     } else if (finalStatus >= 200 && finalStatus < 400) {
       res.status = constants.urlCheckStatuses.success.code;
     } else if (finalStatus === 405 || finalStatus === 501) {
+      // Some origins 405/501 but the browser-rendered page is still reachable after client redirects.
+      // As a last resort, consider DOM presence as success if we actually have a document.
       const hasDOM = await page.evaluate(() => !!document && !!document.documentElement);
       res.status = hasDOM
         ? constants.urlCheckStatuses.success.code
@@ -461,25 +437,27 @@ const checkUrlConnectivityWithBrowser = async (
       res.status = constants.urlCheckStatuses.systemError.code;
     }
 
+    // Content handling
     if (contentType.includes('pdf') || contentType.includes('octet-stream')) {
-      res.content = '%PDF-';
+      res.content = '%PDF-'; // avoid binary in memory / download
     } else {
       try {
+        // Try to get a stable DOM; don't fail the check if it times out
+        // Note: Since we used 'domcontentloaded' in goto, this is fast, but kept for safety/stability
         await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
       } catch {}
       res.content = await page.content();
     }
   } catch (error) {
-    const msg = (error as Error).message || '';
-    if (msg.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
+    if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
       res.status = constants.urlCheckStatuses.unauthorised.code;
-    } else if (msg.includes('net::ERR_NAME_NOT_RESOLVED')) {
+    } else if (error.message.includes('net::ERR_NAME_NOT_RESOLVED')) {
       res.status = constants.urlCheckStatuses.cannotBeResolved.code;
-    } else if (msg.includes('net::ERR_CONNECTION_REFUSED')) {
+    } else if (error.message.includes('net::ERR_CONNECTION_REFUSED')) {
       res.status = constants.urlCheckStatuses.connectionRefused.code;
-    } else if (msg.includes('net::ERR_TIMED_OUT')) {
+    } else if (error.message.includes('net::ERR_TIMED_OUT')) {
       res.status = constants.urlCheckStatuses.timedOut.code;
-    } else if (msg.includes('net::ERR_SSL_PROTOCOL_ERROR')) {
+    } else if (error.message.includes('net::ERR_SSL_PROTOCOL_ERROR')) {
       res.status = constants.urlCheckStatuses.sslProtocolError.code;
     } else {
       consoleLogger.error(error);
@@ -1454,35 +1432,6 @@ const cloneLocalStateFile = (options: GlobOptionsWithFileTypesFalse, destDir: st
   return false;
 };
 
-const cleanupClonedChromeArtifacts = (clonedDir: string): void => {
-  const rootArtifacts = [
-    'SingletonLock',
-    'SingletonCookie',
-    'SingletonSocket',
-    'DevToolsActivePort',
-  ];
-
-  for (const name of rootArtifacts) {
-    const p = path.join(clonedDir, name);
-    if (fs.existsSync(p)) fs.rmSync(p, { force: true, recursive: true });
-  }
-
-  const profileDirs = ['Default', 'System Profile'];
-  for (const entry of fs.readdirSync(clonedDir, { withFileTypes: true })) {
-    if (entry.isDirectory() && /^Profile \d+$/.test(entry.name)) profileDirs.push(entry.name);
-  }
-
-  for (const dirName of profileDirs) {
-    const profilePath = path.join(clonedDir, dirName);
-    if (!fs.existsSync(profilePath)) continue;
-
-    for (const f of ['LOCK', 'Cookies-journal', 'History-journal', 'Web Data-journal']) {
-      const p = path.join(profilePath, f);
-      if (fs.existsSync(p)) fs.rmSync(p, { force: true, recursive: true });
-    }
-  }
-};
-
 /**
  * Checks if the Chrome data directory exists and creates a clone
  * of all profile within the oobee directory located in the
@@ -1524,9 +1473,6 @@ export const cloneChromeProfiles = (randomToken: string): string => {
 
     consoleLogger.error('Failed to clone Chrome profiles. You may be logged out of your accounts.');
   }
-
-  cleanupClonedChromeArtifacts(destDir);
-
   // For future reference, return a null instead to halt the scan
   return destDir;
 };
@@ -1849,6 +1795,12 @@ export async function initModifiedUserAgent(
   playwrightDeviceDetailsObject?: object,
   userDataDirectory?: string,
 ) {
+  const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
+
+  // If headless mode is enabled, ensure the headless flag is set.
+  if (isHeadless && !constants.launchOptionsArgs.includes('--headless=new')) {
+    constants.launchOptionsArgs.push('--headless=new');
+  }
 
   // Build the launch options using your production settings.
   // headless is forced to false as in your persistent context, and we merge in getPlaywrightLaunchOptions and device details.
