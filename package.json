@@ -95,6 +95,12 @@
     "crawlee": {
       "brace-expansion": "^2.0.2"
     },
+    "@crawlee/core": {
+      "brace-expansion": "^2.0.2"
+    },
+    "filelist": {
+      "brace-expansion": "^1.1.12"
+    },
     "glob": {
       "minimatch": {
         "brace-expansion": "^5.0.4"
