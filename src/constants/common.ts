@@ -817,28 +817,44 @@ const getRobotsTxtViaPlaywright = async (
   userDataDirectory: string,
   extraHTTPHeaders: Record<string, string>,
 ): Promise<string> => {
-  const robotsDataDir = '';
+  let robotsDataDir = '';
+  let browserContext;
+  let browserInstance;
+
   // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
   if (process.env.CRAWLEE_HEADLESS === '1') {
     // Create robots own user data directory else SingletonLock: File exists (17) with crawlDomain or crawlSitemap's own browser
-    const robotsDataDir = path.join(userDataDirectory, 'robots');
+    robotsDataDir = path.join(userDataDirectory, 'robots');
     if (!fs.existsSync(robotsDataDir)) {
       fs.mkdirSync(robotsDataDir, { recursive: true });
     }
   }
 
-  const browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
-    ...getPlaywrightLaunchOptions(browser),
-    ...(extraHTTPHeaders && { extraHTTPHeaders }),
-  });
+  try {
+    if (process.env.CRAWLEE_HEADLESS === '1') {
+      browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
+        ...getPlaywrightLaunchOptions(browser),
+        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+      });
+      register(browserContext);
+    } else {
+      browserInstance = await constants.launcher.launch(getPlaywrightLaunchOptions(browser));
+      register(browserInstance as unknown as { close: () => Promise<void> });
+      browserContext = await browserInstance.newContext({
+        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+      });
+    }
 
-  register(browserContext);
-
-  const page = await browserContext.newPage();
-
-  await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
-  const robotsTxt: string | null = await page.evaluate(() => document.body.textContent);
-  return robotsTxt;
+    const page = await browserContext.newPage();
+    await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    const robotsTxt: string | null = await page.evaluate(() => document.body.textContent);
+    return robotsTxt;
+  } finally {
+    await browserContext?.close();
+    if (browserInstance) {
+      await browserInstance.close();
+    }
+  }
 };
 
 export const isDisallowedInRobotsTxt = (url: string): boolean => {
@@ -1893,13 +1909,13 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
 
-  // SlowMo (unchanged)
+  // SlowMo for debugging, can be set via env variable OOBEE_SLOWMO to avoid adding it as a CLI argument and causing confusion for users who don't need it
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
   }
 
-  // Edge on Windows should not be headless (unchanged)
+  // Edge on Windows should not be headless
   if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
     options.headless = false;
   }
