@@ -97,6 +97,9 @@
     },
     "glob": {
       "brace-expansion": "^4.0.1"
+    },
+    "minimatch": {
+      "brace-expansion": "^4.0.1"
     }
   },
   "optionalDependencies": {
