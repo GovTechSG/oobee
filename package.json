@@ -1,7 +1,7 @@
 {
   "name": "@govtechsg/oobee",
   "main": "dist/npmIndex.js",
-  "version": "0.10.79",
+  "version": "0.10.80",
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
   "bin": {
@@ -29,7 +29,7 @@
     "lodash": "^4.17.21",
     "mime": "^4.0.7",
     "mime-types": "^2.1.35",
-    "minimatch": "^9.0.3",
+    "minimatch": "^10.2.4",
     "pdfjs-dist": "github:veraPDF/pdfjs-dist#v4.4.168-taggedPdf-0.1.20",
     "playwright": "^1.58.2",
     "prettier": "^3.1.0",
@@ -96,10 +96,14 @@
       "brace-expansion": "^2.0.2"
     },
     "glob": {
-      "brace-expansion": "^4.0.1"
+      "minimatch": {
+        "brace-expansion": "^5.0.4"
+      }
     },
-    "minimatch": {
-      "brace-expansion": "^4.0.1"
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": {
+        "brace-expansion": "^5.0.0"
+      }
     }
   },
   "optionalDependencies": {
