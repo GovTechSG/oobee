@@ -375,8 +375,7 @@ const checkUrlConnectivityWithBrowser = async (
   };
 
   // Keep UA emulation explicitly.
-  contextOptions.userAgent =
-    (deviceUserAgent as string | undefined);
+  contextOptions.userAgent = process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined);
 
   try {
     browserContext = await constants.launcher.launchPersistentContext(
@@ -1810,42 +1809,30 @@ export const submitForm = async (
 
 export async function initModifiedUserAgent(
   browser?: string,
-  playwrightDeviceDetailsObject?: object,
-  userDataDirectory?: string,
+  _playwrightDeviceDetailsObject?: object,
+  _userDataDirectory?: string,
 ) {
+  // UA bootstrap must not use persistent context / user-data-dir.
+  const launchOptions = getPlaywrightLaunchOptions(browser);
 
-  // Build the launch options using your production settings.
-  // headless is forced to false as in your persistent context, and we merge in getPlaywrightLaunchOptions and device details.
-  const launchOptions = {
-    ...getPlaywrightLaunchOptions(browser),
-    ...playwrightDeviceDetailsObject,
-  };
+  const browserInstance = await constants.launcher.launch(launchOptions);
+  register(browserInstance as unknown as { close: () => Promise<void> });
 
-  // Launch a temporary persistent context with an empty userDataDir to mimic your production browser setup.
-  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
+  try {
+    const context = await browserInstance.newContext();
+    const page = await context.newPage();
+    const defaultUA = await page.evaluate(() => navigator.userAgent);
+    await context.close();
 
-  const browserContext = await constants.launcher.launchPersistentContext(
-    effectiveUserDataDirectory,
-    launchOptions,
-  );
-  register(browserContext);
+    const modifiedUA = defaultUA.includes('HeadlessChrome')
+      ? defaultUA.replace('HeadlessChrome', 'Chrome')
+      : defaultUA;
 
-  const page = await browserContext.newPage();
-
-  // Retrieve the default user agent.
-  const defaultUA = await page.evaluate(() => navigator.userAgent);
-  await browserContext.close();
-
-  // Modify the UA:
-  // Replace "HeadlessChrome" with "Chrome" if present.
-  const modifiedUA = defaultUA.includes('HeadlessChrome')
-    ? defaultUA.replace('HeadlessChrome', 'Chrome')
-    : defaultUA;
-
-  // Push the modified UA flag into your global launch options.
-  constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
-  // Optionally log the modified UA.
-  // console.log('Modified User Agent:', modifiedUA);
+    // Do not mutate global CLI args with --user-agent=
+    process.env.OOBEE_USER_AGENT = modifiedUA;
+  } finally {
+    await browserInstance.close();
+  }
 }
 
 const cacheProxyInfo = getProxyInfo();
@@ -1859,8 +1846,14 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const resolution = proxyInfoToResolution(cacheProxyInfo);
 
-  // Start with your base args
-  const finalArgs = [...constants.launchOptionsArgs];
+  // Start with your base args and sanitise
+  const finalArgs = [...constants.launchOptionsArgs].filter(
+  arg =>
+    !arg.startsWith('--headless') &&
+    !arg.startsWith('--user-agent=') &&
+    arg !== '--mute-audio' &&
+    !(browser === BrowserTypes.CHROME && arg === '--edge-skip-compat-layer-relaunch'),
+  );
 
   // Headless flags (unchanged)
   if (process.env.CRAWLEE_HEADLESS === '1') {
