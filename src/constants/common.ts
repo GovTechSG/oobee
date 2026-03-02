@@ -356,6 +356,7 @@ const checkUrlConnectivityWithBrowser = async (
   await initModifiedUserAgent(browserToRun, playwrightDeviceDetailsObject, clonedDataDir);
 
   let browserContext;
+  let browserInstance;
 
   const rawDevice = (playwrightDeviceDetailsObject || {}) as Record<string, unknown>;
   const {
@@ -366,8 +367,8 @@ const checkUrlConnectivityWithBrowser = async (
     ...restDevice
   } = rawDevice;
 
+  const launchOptions = getPlaywrightLaunchOptions(browserToRun);
   const contextOptions: Record<string, unknown> = {
-    ...getPlaywrightLaunchOptions(browserToRun),
     ...restDevice,
     ...(extraHTTPHeaders && { extraHTTPHeaders }),
     ignoreHTTPSErrors: true,
@@ -378,12 +379,17 @@ const checkUrlConnectivityWithBrowser = async (
   contextOptions.userAgent = process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined);
 
   try {
-    browserContext = await constants.launcher.launchPersistentContext(
-      clonedDataDir,
-      contextOptions,
-    );
-
-    register(browserContext);
+    if (process.env.CRAWLEE_HEADLESS === '1') {
+      browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
+        ...launchOptions,
+        ...contextOptions,
+      });
+      register(browserContext);
+    } else {
+      browserInstance = await constants.launcher.launch(launchOptions);
+      register(browserInstance as unknown as { close: () => Promise<void> });
+      browserContext = await browserInstance.newContext(contextOptions);
+    }
   } catch (err) {
     printMessage([`Unable to launch browser\n${err}`], messageOptions);
     res.status = constants.urlCheckStatuses.browserError.code;
@@ -481,7 +487,10 @@ const checkUrlConnectivityWithBrowser = async (
       res.status = constants.urlCheckStatuses.systemError.code;
     }
   } finally {
-    await browserContext.close();
+    await browserContext?.close();
+    if (browserInstance) {
+      await browserInstance.close();
+    }
   }
 
   return res;
