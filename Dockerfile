@@ -23,7 +23,8 @@ ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
 
 # Install oobee dependencies
-RUN npm ci --omit=dev
+# TODO: Move back to npm ci --omit=dev once module package-lock issue vs MacOS is resolved
+RUN npm install --omit=dev
 
 # Compile TypeScript for oobee
 RUN npm run build || true # true exits with code 0 - workaround for TS errors
