@@ -1827,16 +1827,13 @@ export async function initModifiedUserAgent(
   _playwrightDeviceDetailsObject?: object,
   _userDataDirectory?: string,
 ) {
-  // UA bootstrap should not use persistent context / user-data-dir.
   const launchOptions = getPlaywrightLaunchOptions(browser);
+  const safeArgs = (launchOptions.args || []).filter(arg => !arg.startsWith('--user-agent='));
 
-  // Remove context-only fields if present.
-  const { ...safeLaunchOptions } = launchOptions as Record<string, unknown>;
-  delete (safeLaunchOptions as Record<string, unknown>).viewport;
-  delete (safeLaunchOptions as Record<string, unknown>).isMobile;
-  delete (safeLaunchOptions as Record<string, unknown>).hasTouch;
-
-  const browserInstance = await constants.launcher.launch(safeLaunchOptions as LaunchOptions);
+  const browserInstance = await constants.launcher.launch({
+    ...launchOptions,
+    args: safeArgs,
+  });
   register(browserInstance as unknown as { close: () => Promise<void> });
 
   try {
@@ -1849,11 +1846,8 @@ export async function initModifiedUserAgent(
       ? defaultUA.replace('HeadlessChrome', 'Chrome')
       : defaultUA;
 
-    // dedupe previous UA args
-    constants.launchOptionsArgs = constants.launchOptionsArgs.filter(
-      arg => !arg.startsWith('--user-agent='),
-    );
-    constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
+    // Do not mutate global launch args.
+    process.env.OOBEE_USER_AGENT = modifiedUA;
   } finally {
     await browserInstance.close();
   }
@@ -1878,7 +1872,8 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
       arg !== '--headless' &&
       arg !== '--headless=new' &&
       !arg.startsWith('--headless=') &&
-      arg !== '--mute-audio', // avoid duplicate
+      !arg.startsWith('--user-agent=') &&
+      arg !== '--mute-audio',
   );
 
   if (isHeadless) finalArgs.push('--mute-audio');
@@ -1898,27 +1893,11 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const options: LaunchOptions = {
     ignoreDefaultArgs: ['--use-mock-keychain'],
-    args: finalArgs,
+    args: [...new Set(finalArgs)],
     headless: isHeadless,
     ...(channel && { channel }),
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
-
-  // macOS + Chrome 145 headless: prevent injected emulation flags that trigger getWindowForTarget.
-  if (isHeadless && os.platform() === 'darwin' && browser === BrowserTypes.CHROME) {
-    const ignored = Array.isArray(options.ignoreDefaultArgs) ? options.ignoreDefaultArgs : [];
-    options.ignoreDefaultArgs = [
-      ...ignored,
-      '--hide-scrollbars',
-      '--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4',
-    ];
-
-    Object.assign(options as Record<string, unknown>, {
-      viewport: null,
-      isMobile: false,
-      hasTouch: false,
-    });
-  }
 
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
