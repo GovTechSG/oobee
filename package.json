@@ -87,7 +87,8 @@
       "brace-expansion": "^1.1.12"
     },
     "jest": {
-      "brace-expansion": "^2.0.2"
+      "brace-expansion": "^2.0.2",
+      "js-yaml": "^4.1.1"
     },
     "@sentry/node": {
       "brace-expansion": "^2.0.2"
