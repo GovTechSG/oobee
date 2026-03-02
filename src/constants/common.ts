@@ -849,6 +849,9 @@ const getRobotsTxtViaPlaywright = async (
     await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
     const robotsTxt: string | null = await page.evaluate(() => document.body.textContent);
     return robotsTxt;
+  } catch (e) {
+    consoleLogger.error(`Error fetching robots.txt: ${(e as Error).message}`);
+    throw e;
   } finally {
     await browserContext?.close();
     if (browserInstance) {
