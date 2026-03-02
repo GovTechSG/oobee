@@ -1918,11 +1918,6 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
   }
 
-  // Edge on Windows should not be headless
-  if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
-    options.headless = false;
-  }
-
   return options;
 };
 

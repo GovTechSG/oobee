@@ -990,8 +990,7 @@ export const formatDateTimeForMassScanner = (date: Date): string => {
 };
 
 export const setHeadlessMode = (browser: string, isHeadless: boolean): void => {
-  const isWindowsOSAndEdgeBrowser = browser === BrowserTypes.EDGE && os.platform() === 'win32';
-  if (isHeadless || isWindowsOSAndEdgeBrowser) {
+  if (isHeadless) {
     process.env.CRAWLEE_HEADLESS = '1';
   } else {
     process.env.CRAWLEE_HEADLESS = '0';
