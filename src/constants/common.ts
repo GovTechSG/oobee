@@ -1432,6 +1432,36 @@ const cloneLocalStateFile = (options: GlobOptionsWithFileTypesFalse, destDir: st
   return false;
 };
 
+const cleanupClonedChromeUserDataDir = (clonedDir: string) => {
+  const rootArtifacts = [
+    'SingletonLock',
+    'SingletonCookie',
+    'SingletonSocket',
+    'DevToolsActivePort',
+    'Last Browser',
+    'Last Version',
+  ];
+
+  for (const name of rootArtifacts) {
+    const p = path.join(clonedDir, name);
+    if (fs.existsSync(p)) fs.rmSync(p, { force: true, recursive: true });
+  }
+
+  for (const entry of fs.readdirSync(clonedDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    if (!/^Profile \d+$/.test(entry.name) && entry.name !== 'Default' && entry.name !== 'System Profile') {
+      continue;
+    }
+
+    const profileDir = path.join(clonedDir, entry.name);
+    const profileArtifacts = ['LOCK', 'Cookies-journal', 'History-journal', 'Web Data-journal'];
+    for (const name of profileArtifacts) {
+      const p = path.join(profileDir, name);
+      if (fs.existsSync(p)) fs.rmSync(p, { force: true, recursive: true });
+    }
+  }
+};
+
 /**
  * Checks if the Chrome data directory exists and creates a clone
  * of all profile within the oobee directory located in the
@@ -1473,6 +1503,8 @@ export const cloneChromeProfiles = (randomToken: string): string => {
 
     consoleLogger.error('Failed to clone Chrome profiles. You may be logged out of your accounts.');
   }
+  cleanupClonedChromeUserDataDir(destDir);
+ 
   // For future reference, return a null instead to halt the scan
   return destDir;
 };
@@ -1792,49 +1824,39 @@ export const submitForm = async (
 
 export async function initModifiedUserAgent(
   browser?: string,
-  playwrightDeviceDetailsObject?: object,
-  userDataDirectory?: string,
+  _playwrightDeviceDetailsObject?: object,
+  _userDataDirectory?: string,
 ) {
-  const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
+  // UA bootstrap should not use persistent context / user-data-dir.
+  const launchOptions = getPlaywrightLaunchOptions(browser);
 
-  // If headless mode is enabled, ensure the headless flag is set.
-  if (isHeadless && !constants.launchOptionsArgs.includes('--headless=new')) {
-    constants.launchOptionsArgs.push('--headless=new');
+  // Remove context-only fields if present.
+  const { ...safeLaunchOptions } = launchOptions as Record<string, unknown>;
+  delete (safeLaunchOptions as Record<string, unknown>).viewport;
+  delete (safeLaunchOptions as Record<string, unknown>).isMobile;
+  delete (safeLaunchOptions as Record<string, unknown>).hasTouch;
+
+  const browserInstance = await constants.launcher.launch(safeLaunchOptions as LaunchOptions);
+  register(browserInstance as unknown as { close: () => Promise<void> });
+
+  try {
+    const context = await browserInstance.newContext();
+    const page = await context.newPage();
+    const defaultUA = await page.evaluate(() => navigator.userAgent);
+    await context.close();
+
+    const modifiedUA = defaultUA.includes('HeadlessChrome')
+      ? defaultUA.replace('HeadlessChrome', 'Chrome')
+      : defaultUA;
+
+    // dedupe previous UA args
+    constants.launchOptionsArgs = constants.launchOptionsArgs.filter(
+      arg => !arg.startsWith('--user-agent='),
+    );
+    constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
+  } finally {
+    await browserInstance.close();
   }
-
-  // Build the launch options using your production settings.
-  // headless is forced to false as in your persistent context, and we merge in getPlaywrightLaunchOptions and device details.
-  const launchOptions = {
-    headless: false,
-    ...getPlaywrightLaunchOptions(browser),
-    ...playwrightDeviceDetailsObject,
-  };
-
-  // Launch a temporary persistent context with an empty userDataDir to mimic your production browser setup.
-  const effectiveUserDataDirectory = process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
-
-  const browserContext = await constants.launcher.launchPersistentContext(
-    effectiveUserDataDirectory,
-    launchOptions,
-  );
-  register(browserContext);
-
-  const page = await browserContext.newPage();
-
-  // Retrieve the default user agent.
-  const defaultUA = await page.evaluate(() => navigator.userAgent);
-  await browserContext.close();
-
-  // Modify the UA:
-  // Replace "HeadlessChrome" with "Chrome" if present.
-  const modifiedUA = defaultUA.includes('HeadlessChrome')
-    ? defaultUA.replace('HeadlessChrome', 'Chrome')
-    : defaultUA;
-
-  // Push the modified UA flag into your global launch options.
-  constants.launchOptionsArgs.push(`--user-agent=${modifiedUA}`);
-  // Optionally log the modified UA.
-  // console.log('Modified User Agent:', modifiedUA);
 }
 
 const cacheProxyInfo = getProxyInfo();
@@ -1844,50 +1866,65 @@ const cacheProxyInfo = getProxyInfo();
  * @returns playwright launch options object. For more details: https://playwright.dev/docs/api/class-browsertype#browser-type-launch
  */
 export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
-  const channel = browser || undefined;
+  const isHeadless = process.env.CRAWLEE_HEADLESS === '1';
+
+  const channel =
+    browser === BrowserTypes.CHROME || browser === BrowserTypes.EDGE ? browser : undefined;
 
   const resolution = proxyInfoToResolution(cacheProxyInfo);
 
-  // Start with your base args
-  const finalArgs = [...constants.launchOptionsArgs];
+  const finalArgs = [...constants.launchOptionsArgs].filter(
+    arg =>
+      arg !== '--headless' &&
+      arg !== '--headless=new' &&
+      !arg.startsWith('--headless=') &&
+      arg !== '--mute-audio', // avoid duplicate
+  );
 
-  // Headless flags (unchanged)
-  if (process.env.CRAWLEE_HEADLESS === '1') {
-    if (!finalArgs.includes('--headless=new')) finalArgs.push('--headless=new');
-    if (!finalArgs.includes('--mute-audio')) finalArgs.push('--mute-audio');
-  }
+  if (isHeadless) finalArgs.push('--mute-audio');
 
-  // Map resolution to Playwright options
   let proxyOpt: ProxySettings | undefined;
   switch (resolution.kind) {
     case 'manual':
       proxyOpt = resolution.settings;
       break;
-    case 'pac': {
+    case 'pac':
       finalArgs.push(`--proxy-pac-url=${resolution.pacUrl}`);
       if (resolution.bypass) finalArgs.push(`--proxy-bypass-list=${resolution.bypass}`);
       break;
-    }
     case 'none':
-      // nothing
       break;
   }
 
   const options: LaunchOptions = {
-    ignoreDefaultArgs: ['--use-mock-keychain', '--headless'],
+    ignoreDefaultArgs: ['--use-mock-keychain'],
     args: finalArgs,
-    headless: false,
+    headless: isHeadless,
     ...(channel && { channel }),
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
 
-  // SlowMo (unchanged)
+  // macOS + Chrome 145 headless: prevent injected emulation flags that trigger getWindowForTarget.
+  if (isHeadless && os.platform() === 'darwin' && browser === BrowserTypes.CHROME) {
+    const ignored = Array.isArray(options.ignoreDefaultArgs) ? options.ignoreDefaultArgs : [];
+    options.ignoreDefaultArgs = [
+      ...ignored,
+      '--hide-scrollbars',
+      '--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4',
+    ];
+
+    Object.assign(options as Record<string, unknown>, {
+      viewport: null,
+      isMobile: false,
+      hasTouch: false,
+    });
+  }
+
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
   }
 
-  // Edge on Windows should not be headless (unchanged)
   if (browser === BrowserTypes.EDGE && os.platform() === 'win32') {
     options.headless = false;
   }
