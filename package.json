@@ -82,7 +82,19 @@
     "eslint-config-airbnb-base": {
       "eslint": "^9.26.0"
     },
-    "fast-xml-parser": ">=5.3.8"
+    "fast-xml-parser": ">=5.3.8",
+    "ejs": {
+      "brace-expansion": "^1.1.12"
+    },
+    "jest": {
+      "brace-expansion": "^2.0.2"
+    },
+    "@sentry/node": {
+      "brace-expansion": "^2.0.2"
+    },
+    "crawlee": {
+      "brace-expansion": "^2.0.2"
+    }
   },
   "optionalDependencies": {
     "@napi-rs/canvas-darwin-arm64": "^0.1.53",
