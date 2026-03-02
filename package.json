@@ -94,6 +94,9 @@
     },
     "crawlee": {
       "brace-expansion": "^2.0.2"
+    },
+    "glob": {
+      "brace-expansion": "^4.0.1"
     }
   },
   "optionalDependencies": {
