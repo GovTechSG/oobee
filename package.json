@@ -67,7 +67,7 @@
     "eslint-plugin-import": "^2.27.4",
     "eslint-plugin-prettier": "^5.0.0",
     "globals": "^15.2.0",
-    "jest": "^30.0.4",
+    "jest": "^30.0.5",
     "readable-stream": "^4.7.0",
     "typescript-eslint": "^8.36.0"
   },
@@ -85,7 +85,11 @@
   "fast-xml-parser": ">=5.3.8",
   "js-yaml": "^4.1.1",
   "minimatch": "^10.2.4",
-  "brace-expansion": "^5.0.4"
+  "brace-expansion": "^5.0.4",
+  "jest": {
+    "minimatch": "^10.2.4",
+    "brace-expansion": "^5.0.4"
+  }
 },
 "optionalDependencies": {
   "@napi-rs/canvas-darwin-arm64": "^0.1.53",
