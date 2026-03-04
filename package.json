@@ -121,11 +121,6 @@
         "brace-expansion": "^2.0.2"
       }
     },
-    "glob": {
-      "minimatch": {
-        "brace-expansion": "^5.0.4"
-      }
-    },
     "@typescript-eslint/typescript-estree": {
       "minimatch": {
         "brace-expansion": "^5.0.4"
