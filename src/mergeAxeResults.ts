@@ -38,6 +38,7 @@ import {
 import writeCsv from './mergeAxeResults/writeCsv.js';
 import writeScanDetailsCsv from './mergeAxeResults/writeScanDetailsCsv.js';
 import writeSitemap from './mergeAxeResults/writeSitemap.js';
+import writeSummaryHTML from './mergeAxeResults/writeSummaryHTML.js';
 import populateScanPagesDetail from './mergeAxeResults/scanPages.js';
 import sendWcagBreakdownToSentry from './mergeAxeResults/sentryTelemetry.js';
 import type { AllIssues, PageInfo, RuleInfo } from './mergeAxeResults/types.js';
@@ -319,19 +320,6 @@ var scanItemsPromise = (async () => {
       reject(err);
     });
   });
-};
-
-const writeSummaryHTML = async (
-  allIssues: AllIssues,
-  storagePath: string,
-  htmlFilename = 'summary',
-) => {
-  const ejsString = fs.readFileSync(path.join(dirname, './static/ejs/summary.ejs'), 'utf-8');
-  const template = ejs.compile(ejsString, {
-    filename: path.join(dirname, './static/ejs/summary.ejs'),
-  });
-  const html = template(allIssues);
-  fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
 };
 
 const cleanUpJsonFiles = async (filesToDelete: string[]) => {
