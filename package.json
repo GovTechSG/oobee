@@ -1,7 +1,7 @@
 {
   "name": "@govtechsg/oobee",
   "main": "dist/npmIndex.js",
-  "version": "0.10.82",
+  "version": "0.10.83",
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
   "bin": {
@@ -71,52 +71,52 @@
     "readable-stream": "^4.7.0",
     "typescript-eslint": "^8.36.0"
   },
-"overrides": {
-  "node-fetch": "^2.3.0",
-  "json5": "^2.2.3",
-  "ansi-regex": "^5.0.1",
-  "tough-cookie": "^5.0.0-rc.2",
-  "micromatch": "github:micromatch/micromatch.git#4.0.8",
-  "tmp": "0.2.4",
-  "tar": "^7.5.6",
-  "eslint-config-airbnb-base": {
-    "eslint": "^9.26.0"
+  "overrides": {
+    "node-fetch": "^2.3.0",
+    "json5": "^2.2.3",
+    "ansi-regex": "^5.0.1",
+    "tough-cookie": "^5.0.0-rc.2",
+    "micromatch": "github:micromatch/micromatch.git#4.0.8",
+    "tmp": "0.2.4",
+    "tar": "^7.5.6",
+    "eslint-config-airbnb-base": {
+      "eslint": "^9.26.0"
+    },
+    "fast-xml-parser": ">=5.3.8",
+    "js-yaml": "^4.1.1",
+    "minimatch": "^10.2.4",
+    "brace-expansion": "^5.0.4",
+    "jest": {
+      "glob": "^11.1.0"
+    }
   },
-  "fast-xml-parser": ">=5.3.8",
-  "js-yaml": "^4.1.1",
-  "minimatch": "^10.2.4",
-  "brace-expansion": "^5.0.4",
-  "jest": {
-    "glob": "^11.1.0"
-  }
-},
-"optionalDependencies": {
-  "@napi-rs/canvas-darwin-arm64": "^0.1.53",
-  "@napi-rs/canvas-darwin-x64": "^0.1.53",
-  "@napi-rs/canvas-linux-arm64-gnu": "0.1.53",
-  "@napi-rs/canvas-linux-arm64-musl": "0.1.53",
-  "@napi-rs/canvas-linux-x64-gnu": "0.1.53",
-  "@napi-rs/canvas-linux-x64-musl": "0.1.53",
-  "@napi-rs/canvas-win32-x64-msvc": "0.1.53"
-},
-"scripts": {
-  "build": "npm run copyfiles && tsc",
-  "build:watch": "npm run build -- --watch",
-  "copyfiles": "node ./scripts/copyFiles.js src/static/ejs dist/static && node ./scripts/copyFiles.js src/constants/errorMeta.json dist/constants && node ./scripts/copyFiles.js exclusions.txt dist",
-  "start": "node --max-old-space-size=10000 dist/index.js",
-  "cli": "node --max-old-space-size=10000 dist/cli.js",
-  "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
-  "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
-  "lint:fix": "eslint . --fix --report-unused-disable-directives --max-warnings 0"
-},
-"license": "MIT",
-"description": "Oobee is a customisable, automated accessibility testing tool that allows software development teams to assess whether their products are user-friendly to persons with disabilities (PWDs).",
-"repository": {
-  "type": "git",
-  "url": "git+https://github.com/GovTechSG/oobee.git"
-},
-"bugs": {
-  "url": "https://github.com/GovTechSG/oobee/issues"
-},
-"homepage": "https://github.com/GovTechSG/oobee#readme"
+  "optionalDependencies": {
+    "@napi-rs/canvas-darwin-arm64": "^0.1.53",
+    "@napi-rs/canvas-darwin-x64": "^0.1.53",
+    "@napi-rs/canvas-linux-arm64-gnu": "0.1.53",
+    "@napi-rs/canvas-linux-arm64-musl": "0.1.53",
+    "@napi-rs/canvas-linux-x64-gnu": "0.1.53",
+    "@napi-rs/canvas-linux-x64-musl": "0.1.53",
+    "@napi-rs/canvas-win32-x64-msvc": "0.1.53"
+  },
+  "scripts": {
+    "build": "npm run copyfiles && tsc",
+    "build:watch": "npm run build -- --watch",
+    "copyfiles": "node ./scripts/copyFiles.js src/static/ejs dist/static && node ./scripts/copyFiles.js src/constants/errorMeta.json dist/constants && node ./scripts/copyFiles.js exclusions.txt dist",
+    "start": "node --max-old-space-size=10000 dist/index.js",
+    "cli": "node --max-old-space-size=10000 dist/cli.js",
+    "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
+    "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --fix --report-unused-disable-directives --max-warnings 0"
+  },
+  "license": "MIT",
+  "description": "Oobee is a customisable, automated accessibility testing tool that allows software development teams to assess whether their products are user-friendly to persons with disabilities (PWDs).",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GovTechSG/oobee.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GovTechSG/oobee/issues"
+  },
+  "homepage": "https://github.com/GovTechSG/oobee#readme"
 }
