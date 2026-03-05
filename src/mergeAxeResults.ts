@@ -11,7 +11,7 @@ import constants, {
   disabilityBadgesMap,
   a11yRuleLongDescriptionMap,
 } from './constants/constants.js';
-import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.js';
+import { getBrowserToRun } from './constants/common.js';
 
 import {
   createScreenshotsFolder,
@@ -22,7 +22,6 @@ import {
   retryFunction,
   zipResults,
   getIssuesPercentage,
-  register,
 } from './utils.js';
 import { consoleLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
@@ -37,6 +36,7 @@ import writeHTML from './mergeAxeResults/writeHTML.js';
 import writeScanDetailsCsv from './mergeAxeResults/writeScanDetailsCsv.js';
 import writeSitemap from './mergeAxeResults/writeSitemap.js';
 import writeSummaryHTML from './mergeAxeResults/writeSummaryHTML.js';
+import writeSummaryPdf from './mergeAxeResults/writeSummaryPdf.js';
 import populateScanPagesDetail from './mergeAxeResults/scanPages.js';
 import sendWcagBreakdownToSentry from './mergeAxeResults/sentryTelemetry.js';
 import type { AllIssues, PageInfo, RuleInfo } from './mergeAxeResults/types.js';
@@ -107,54 +107,6 @@ const cleanUpJsonFiles = async (filesToDelete: string[]) => {
     fs.unlinkSync(file);
     consoleLogger.info(`Deleted ${file}`);
   });
-};
-
-const writeSummaryPdf = async (
-  storagePath: string,
-  pagesScanned: number,
-  filename = 'summary',
-  browser: string,
-  _userDataDirectory: string,
-) => {
-  const htmlFilePath = `${storagePath}/${filename}.html`;
-  const fileDestinationPath = `${storagePath}/${filename}.pdf`;
-
-  const launchOptions = getPlaywrightLaunchOptions(browser);
-
-  const browserInstance = await constants.launcher.launch({
-    ...launchOptions,
-    headless: true, // force headless for PDF
-  });
-
-  register(browserInstance as unknown as { close: () => Promise<void> });
-
-  const context = await browserInstance.newContext();
-  const page = await context.newPage();
-
-  const data = fs.readFileSync(htmlFilePath, { encoding: 'utf-8' });
-  await page.setContent(data, { waitUntil: 'domcontentloaded' });
-
-  await page.emulateMedia({ media: 'print' });
-
-  await page.pdf({
-    margin: { bottom: '32px' },
-    path: fileDestinationPath,
-    format: 'A4',
-    displayHeaderFooter: true,
-    footerTemplate: `
-    <div style="margin-top:50px;color:#26241b;font-family:Open Sans;text-align: center;width: 100%;font-weight:400">
-      <span style="color:#26241b;font-size: 14px;font-weight:400">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
-    </div>
-  `,
-  });
-
-  await page.close();
-  await context.close().catch(() => {});
-  await browserInstance.close().catch(() => {});
-
-  if (pagesScanned < 2000) {
-    fs.unlinkSync(htmlFilePath);
-  }
 };
 
 // Tracking WCAG occurrences
