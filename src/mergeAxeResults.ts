@@ -34,6 +34,7 @@ import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 import { buildHtmlGroups, convertItemsToReferences } from './mergeAxeResults/itemReferences.js';
 import writeCsv from './mergeAxeResults/writeCsv.js';
+import writeSitemap from './mergeAxeResults/writeSitemap.js';
 import populateScanPagesDetail from './mergeAxeResults/scanPages.js';
 import sendWcagBreakdownToSentry from './mergeAxeResults/sentryTelemetry.js';
 import type { AllIssues, PageInfo, RuleInfo } from './mergeAxeResults/types.js';
@@ -328,13 +329,6 @@ const writeSummaryHTML = async (
   });
   const html = template(allIssues);
   fs.writeFileSync(`${storagePath}/${htmlFilename}.html`, html);
-};
-
-const writeSitemap = async (pagesScanned: PageInfo[], storagePath: string) => {
-  const sitemapPath = path.join(storagePath, 'sitemap.txt');
-  const content = pagesScanned.map(p => p.url).join('\n');
-  await fs.writeFile(sitemapPath, content, { encoding: 'utf-8' });
-  consoleLogger.info(`Sitemap written to ${sitemapPath}`);
 };
 
 const cleanUpJsonFiles = async (filesToDelete: string[]) => {
