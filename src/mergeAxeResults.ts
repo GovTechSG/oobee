@@ -1,23 +1,18 @@
 /* eslint-disable consistent-return */
 /* eslint-disable no-console */
-import os from 'os';
 import fs, { ensureDirSync } from 'fs-extra';
 import printMessage from 'print-message';
 import path from 'path';
 import ejs from 'ejs';
 import { fileURLToPath } from 'url';
-import { chromium } from 'playwright';
 import { createWriteStream } from 'fs';
 import { AsyncParser, ParserOptions } from '@json2csv/node';
 import zlib from 'zlib';
 import { Base64Encode } from 'base64-stream';
 import { pipeline } from 'stream/promises';
-import * as Sentry from '@sentry/node';
 import constants, {
   BrowserTypes,
   ScannerTypes,
-  sentryConfig,
-  setSentryUser,
   WCAGclauses,
   a11yRuleShortDescriptionMap,
   disabilityBadgesMap,
@@ -34,114 +29,24 @@ import {
   retryFunction,
   zipResults,
   getIssuesPercentage,
-  getWcagCriteriaMap,
-  categorizeWcagCriteria,
-  getUserDataTxt,
   register,
 } from './utils.js';
-import { consoleLogger, silentLogger } from './logs.js';
+import { consoleLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
+import { buildHtmlGroups, convertItemsToReferences } from './mergeAxeResults/itemReferences.js';
+import populateScanPagesDetail from './mergeAxeResults/scanPages.js';
+import sendWcagBreakdownToSentry from './mergeAxeResults/sentryTelemetry.js';
+import type { AllIssues, PageInfo, RuleInfo } from './mergeAxeResults/types.js';
 
-export type ItemsInfo = {
-  html: string;
-  message: string;
-  screenshotPath: string;
-  xpath: string;
-  displayNeedsReview?: boolean;
-};
-
-export type PageInfo = {
-  items?: ItemsInfo[];
-  itemsCount?: number;
-  pageTitle: string;
-  url: string;
-  actualUrl: string;
-  pageImagePath?: string;
-  pageIndex?: number;
-  metadata?: string;
-  httpStatusCode?: number;
-};
-
-export type HtmlGroupItem = {
-  html: string;
-  xpath: string;
-  message: string;
-  screenshotPath: string;
-  displayNeedsReview?: boolean;
-  pageUrls: string[];
-};
-
-export type HtmlGroups = {
-  [htmlKey: string]: HtmlGroupItem;
-};
-
-export type RuleInfo = {
-  totalItems: number;
-  pagesAffected: PageInfo[];
-  pagesAffectedCount: number;
-  rule: string;
-  description: string;
-  axeImpact: string;
-  conformance: string[];
-  helpUrl: string;
-  htmlGroups?: HtmlGroups;
-};
-
-type Category = {
-  description: string;
-  totalItems: number;
-  totalRuleIssues: number;
-  rules: RuleInfo[];
-};
-
-type AllIssues = {
-  storagePath: string;
-  oobeeAi: {
-    htmlETL: any;
-    rules: string[];
-  };
-  siteName: string;
-  startTime: Date;
-  endTime: Date;
-  urlScanned: string;
-  scanType: string;
-  deviceChosen: string;
-  formatAboutStartTime: (dateString: any) => string;
-  isCustomFlow: boolean;
-  pagesScanned: PageInfo[];
-  pagesNotScanned: PageInfo[];
-  totalPagesScanned: number;
-  totalPagesNotScanned: number;
-  totalItems: number;
-  topFiveMostIssues: Array<any>;
-  topTenPagesWithMostIssues: Array<any>;
-  topTenIssues: Array<any>;
-  wcagViolations: string[];
-  customFlowLabel: string;
-  oobeeAppVersion: string;
-  items: {
-    mustFix: Category;
-    goodToFix: Category;
-    needsReview: Category;
-    passed: Category;
-  };
-  cypressScanAboutMetadata: {
-    browser?: string;
-    viewport?: { width: number; height: number };
-  };
-  wcagLinks: { [key: string]: string };
-  wcagClauses: { [key: string]: string };
-  [key: string]: any;
-  advancedScanOptionsSummaryItems: { [key: string]: boolean };
-  scanPagesDetail: {
-    pagesAffected: any[];
-    pagesNotAffected: any[];
-    scannedPagesCount: number;
-    pagesNotScanned: any[];
-    pagesNotScannedCount: number;
-  };
-};
+export type {
+  AllIssues,
+  HtmlGroupItem,
+  HtmlGroups,
+  ItemsInfo,
+  PageInfo,
+  RuleInfo,
+} from './mergeAxeResults/types.js';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -182,7 +87,9 @@ const parseContentToJson = async (rPath: string) => {
     }
 
     consoleLogger.error(`[parseContentToJson] Failed to parse file: ${rPath}`);
-    consoleLogger.error(`[parseContentToJson] ${parseError?.name || 'Error'}: ${parseError?.message || parseError}`);
+    consoleLogger.error(
+      `[parseContentToJson] ${parseError?.name || 'Error'}: ${parseError?.message || parseError}`,
+    );
     if (position !== null) {
       consoleLogger.error(`[parseContentToJson] JSON parse position: ${position}`);
     }
@@ -416,12 +323,14 @@ const writeHTML = async (
   const scanItemsWithHtmlGroupRefs = convertItemsToReferences(allIssues);
 
   // Write the lighter items to a file and get the base64 path
-  const {  jsonFilePath: scanItemsWithHtmlGroupRefsJsonFilePath, base64FilePath: scanItemsWithHtmlGroupRefsBase64FilePath } =
-    await writeJsonFileAndCompressedJsonFile(
-      scanItemsWithHtmlGroupRefs.items,
-      storagePath,
-      'scanItems-light',
-    );
+  const {
+    jsonFilePath: scanItemsWithHtmlGroupRefsJsonFilePath,
+    base64FilePath: scanItemsWithHtmlGroupRefsBase64FilePath,
+  } = await writeJsonFileAndCompressedJsonFile(
+    scanItemsWithHtmlGroupRefs.items,
+    storagePath,
+    'scanItems-light',
+  );
 
   return new Promise<void>((resolve, reject) => {
     const scanDetailsReadStream = fs.createReadStream(scanDetailsFilePath, {
@@ -448,7 +357,7 @@ const writeHTML = async (
     outputStream.write(prefixData);
 
     // For Proxied AI environments only
-    outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ""}"\n`);
+    outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ''}"\n`);
 
     // Initialize GenAI feature flag
     outputStream.write(`
@@ -478,17 +387,15 @@ const writeHTML = async (
   }
   \n`);
 
-    outputStream.write(
-      "</script>\n<script type=\"text/plain\" id=\"scanDataRaw\">"
-    );
+    outputStream.write('</script>\n<script type="text/plain" id="scanDataRaw">');
     scanDetailsReadStream.pipe(outputStream, { end: false });
 
     scanDetailsReadStream.on('end', async () => {
-      outputStream.write("</script>\n<script>\n");
+      outputStream.write('</script>\n<script>\n');
       outputStream.write(
-        "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n"
+        "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n",
       );
-      outputStream.write("</script>\n");
+      outputStream.write('</script>\n');
 
       // Write scanItems in 2MB chunks using a stream to avoid loading entire file into memory
       try {
@@ -499,11 +406,13 @@ const writeHTML = async (
         });
 
         for await (const chunk of scanItemsStream) {
-          outputStream.write(`<script type="text/plain" id="scanItemsRaw${chunkIndex}">${chunk}</script>\n`);
+          outputStream.write(
+            `<script type="text/plain" id="scanItemsRaw${chunkIndex}">${chunk}</script>\n`,
+          );
           chunkIndex++;
         }
 
-        outputStream.write("<script>\n");
+        outputStream.write('<script>\n');
         outputStream.write(`
 var scanItemsPromise = (async () => {
   console.log('Loading scanItems...');
@@ -918,7 +827,6 @@ const writeJsonAndBase64Files = async (
 
   // Refactor scanIssuesSummary to reuse the structure by stripping out pagesAffected
   const scanIssuesSummary = {
-
     // Replace rule descriptions with short descriptions from the map
     mustFix: items.mustFix.rules.map(({ pagesAffected, ...ruleInfo }) => ({
       ...ruleInfo,
@@ -1133,17 +1041,6 @@ const writeSummaryPdf = async (
 // Tracking WCAG occurrences
 const wcagOccurrencesMap = new Map<string, number>();
 
-// Format WCAG tag in requested format: wcag111a_Occurrences
-const formatWcagTag = async (wcagId: string): Promise<string | null> => {
-  // Get dynamic WCAG criteria map
-  const wcagCriteriaMap = await getWcagCriteriaMap();
-
-  if (wcagCriteriaMap[wcagId]) {
-    const { level } = wcagCriteriaMap[wcagId];
-    return `${wcagId}${level}_Occurrences`;
-  }
-  return null;
-};
 
 const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   const { url, pageTitle, filePath } = pageResults;
@@ -1206,10 +1103,10 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
       const currRuleFromAllIssues = currCategoryFromAllIssues.rules[rule];
 
       currRuleFromAllIssues.totalItems += count;
-      
+
       // Build htmlGroups for pre-computed Group by HTML Element
       buildHtmlGroups(currRuleFromAllIssues, items, url);
-        
+
       if (isCustomFlow) {
         const { pageIndex, pageImagePath, metadata } = pageResults;
         currRuleFromAllIssues.pagesAffected[pageIndex] = {
@@ -1219,84 +1116,17 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
           metadata,
           items: [...items],
         };
-      } else {
-        if (!(url in currRuleFromAllIssues.pagesAffected)) {
-          currRuleFromAllIssues.pagesAffected[url] = {
-            pageTitle,
-            items: [...items],
-            ...(filePath && { filePath }),
-          };
-        }
-
+      } else if (!(url in currRuleFromAllIssues.pagesAffected)) {
+        currRuleFromAllIssues.pagesAffected[url] = {
+          pageTitle,
+          items: [...items],
+          ...(filePath && { filePath }),
+        };
       }
     });
   });
 };
 
-/**
- * Builds pre-computed HTML groups to optimize Group by HTML Element functionality.
- * Keys are composite "html\x00xpath" strings to ensure unique matching per element instance.
- */
-const buildHtmlGroups = (
-  rule: RuleInfo,
-  items: ItemsInfo[],
-  pageUrl: string
-) => {
-  if (!rule.htmlGroups) {
-    rule.htmlGroups = {};
-  }
-
-  items.forEach(item => {
-    // Use composite key of html + xpath for precise matching
-    const htmlKey = `${item.html || 'No HTML element'}\x00${item.xpath || ''}`;
-
-    if (!rule.htmlGroups![htmlKey]) {
-      // Create new group with the first occurrence
-      rule.htmlGroups![htmlKey] = {
-        html: item.html || '',
-        xpath: item.xpath || '',
-        message: item.message || '',
-        screenshotPath: item.screenshotPath || '',
-        displayNeedsReview: item.displayNeedsReview,
-        pageUrls: [],
-      };
-    }
-
-    if (!rule.htmlGroups![htmlKey].pageUrls.includes(pageUrl)) {
-      rule.htmlGroups![htmlKey].pageUrls.push(pageUrl);
-    }
-  });
-};
-
-/**
- * Converts items in pagesAffected to references (html\x00xpath composite keys) for embedding in HTML report.
- * Additionally, it deep-clones allIssues, replaces page.items objects with composite reference keys.
- * Those refs are specifically for htmlGroups lookup (html + xpath).
- */
-export const convertItemsToReferences = (allIssues: AllIssues): AllIssues => {
-  const cloned = JSON.parse(JSON.stringify(allIssues));
-
-  ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
-    if (!cloned.items[category]?.rules) return;
-
-    cloned.items[category].rules.forEach((rule: any) => {
-      if (!rule.pagesAffected || !rule.htmlGroups) return;
-
-      rule.pagesAffected.forEach((page: any) => {
-        if (!page.items) return;
-
-        page.items = page.items.map((item: any) => {
-          if (typeof item === 'string') return item; // Already a reference
-          // Use composite key matching buildHtmlGroups
-          const htmlKey = `${item.html || 'No HTML element'}\x00${item.xpath || ''}`;
-          return htmlKey;
-        });
-      });
-    });
-  });
-
-  return cloned;
-};
 
 const getTopTenIssues = allIssues => {
   const categories = ['mustFix', 'goodToFix'];
@@ -1401,7 +1231,12 @@ function updateIssuesWithOccurrences(issuesList: any[], urlOccurrencesMap: Map<s
   });
 }
 
-const extractRuleAiData = (ruleId: string, totalItems: number, items: any[], callback?: () => void) => {
+const extractRuleAiData = (
+  ruleId: string,
+  totalItems: number,
+  items: any[],
+  callback?: () => void,
+) => {
   let snippets = [];
 
   if (oobeeAiRules.includes(ruleId)) {
@@ -1421,8 +1256,7 @@ const extractRuleAiData = (ruleId: string, totalItems: number, items: any[], cal
 };
 
 // This is for telemetry purposes called within mergeAxeResults.ts
-export
-const createRuleIdJson = allIssues => {
+export const createRuleIdJson = allIssues => {
   const compiledRuleJson = {};
 
   ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
@@ -1445,9 +1279,11 @@ export const createBasicFormHTMLSnippet = filteredResults => {
 
   ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
     if (filteredResults[category] && filteredResults[category].rules) {
-      Object.entries(filteredResults[category].rules).forEach(([ruleId, ruleVal]: [string, any]) => {
-        compiledRuleJson[ruleId] = extractRuleAiData(ruleId, ruleVal.totalItems, ruleVal.items);
-      });
+      Object.entries(filteredResults[category].rules).forEach(
+        ([ruleId, ruleVal]: [string, any]) => {
+          compiledRuleJson[ruleId] = extractRuleAiData(ruleId, ruleVal.totalItems, ruleVal.items);
+        },
+      );
     }
   });
 
@@ -1462,428 +1298,6 @@ const moveElemScreenshots = (randomToken: string, storagePath: string) => {
   }
 };
 
-/**
- * Build allIssues.scanPagesDetail and allIssues.scanPagesSummary
- * by analyzing pagesScanned (including mustFix/goodToFix/etc.).
- */
-function populateScanPagesDetail(allIssues: AllIssues): void {
-  // --------------------------------------------
-  // 1) Gather your "scanned" pages from allIssues
-  // --------------------------------------------
-  const allScannedPages = Array.isArray(allIssues.pagesScanned) ? allIssues.pagesScanned : [];
-
-  // --------------------------------------------
-  // 2) Define category constants (optional, just for clarity)
-  // --------------------------------------------
-  const mustFixCategory = 'mustFix';
-  const goodToFixCategory = 'goodToFix';
-  const needsReviewCategory = 'needsReview';
-  const passedCategory = 'passed';
-
-  // --------------------------------------------
-  // 3) Set up type declarations (if you want them local to this function)
-  // --------------------------------------------
-  type RuleData = {
-    ruleId: string;
-    wcagConformance: string[];
-    occurrencesMustFix: number;
-    occurrencesGoodToFix: number;
-    occurrencesNeedsReview: number;
-    occurrencesPassed: number;
-  };
-
-  type PageData = {
-    pageTitle: string;
-    url: string;
-    // Summaries
-    totalOccurrencesFailedIncludingNeedsReview: number; // mustFix + goodToFix + needsReview
-    totalOccurrencesFailedExcludingNeedsReview: number; // mustFix + goodToFix
-    totalOccurrencesNeedsReview: number; // needsReview
-    totalOccurrencesPassed: number; // passed only
-    typesOfIssues: Record<string, RuleData>;
-  };
-
-  // --------------------------------------------
-  // 4) We'll accumulate pages in a map keyed by URL
-  // --------------------------------------------
-  const pagesMap: Record<string, PageData> = {};
-
-  // --------------------------------------------
-  // 5) Build pagesMap by iterating over each category in allIssues.items
-  // --------------------------------------------
-  Object.entries(allIssues.items).forEach(([categoryName, categoryData]) => {
-    if (!categoryData?.rules) return; // no rules in this category? skip
-
-    categoryData.rules.forEach(rule => {
-      const { rule: ruleId, conformance = [] } = rule;
-
-      rule.pagesAffected.forEach(p => {
-        const { url, pageTitle, items = [] } = p;
-        const itemsCount = items.length;
-
-        // Ensure the page is in pagesMap
-        if (!pagesMap[url]) {
-          pagesMap[url] = {
-            pageTitle,
-            url,
-            totalOccurrencesFailedIncludingNeedsReview: 0,
-            totalOccurrencesFailedExcludingNeedsReview: 0,
-            totalOccurrencesNeedsReview: 0,
-            totalOccurrencesPassed: 0,
-            typesOfIssues: {},
-          };
-        }
-
-        // Ensure the rule is present for this page
-        if (!pagesMap[url].typesOfIssues[ruleId]) {
-          pagesMap[url].typesOfIssues[ruleId] = {
-            ruleId,
-            wcagConformance: conformance,
-            occurrencesMustFix: 0,
-            occurrencesGoodToFix: 0,
-            occurrencesNeedsReview: 0,
-            occurrencesPassed: 0,
-          };
-        }
-
-        // Depending on the category, increment the relevant occurrence counts
-        if (categoryName === mustFixCategory) {
-          pagesMap[url].typesOfIssues[ruleId].occurrencesMustFix += itemsCount;
-          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
-          pagesMap[url].totalOccurrencesFailedExcludingNeedsReview += itemsCount;
-        } else if (categoryName === goodToFixCategory) {
-          pagesMap[url].typesOfIssues[ruleId].occurrencesGoodToFix += itemsCount;
-          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
-          pagesMap[url].totalOccurrencesFailedExcludingNeedsReview += itemsCount;
-        } else if (categoryName === needsReviewCategory) {
-          pagesMap[url].typesOfIssues[ruleId].occurrencesNeedsReview += itemsCount;
-          pagesMap[url].totalOccurrencesFailedIncludingNeedsReview += itemsCount;
-          pagesMap[url].totalOccurrencesNeedsReview += itemsCount;
-        } else if (categoryName === passedCategory) {
-          pagesMap[url].typesOfIssues[ruleId].occurrencesPassed += itemsCount;
-          pagesMap[url].totalOccurrencesPassed += itemsCount;
-        }
-      });
-    });
-  });
-
-  // --------------------------------------------
-  // 6) Separate scanned pages into “affected” vs. “notAffected”
-  // --------------------------------------------
-  const pagesInMap = Object.values(pagesMap); // All pages that have some record in pagesMap
-  const pagesInMapUrls = new Set(Object.keys(pagesMap));
-
-  // (a) Pages with only passed (no mustFix/goodToFix/needsReview)
-  const pagesAllPassed = pagesInMap.filter(p => p.totalOccurrencesFailedIncludingNeedsReview === 0);
-
-  // (b) Pages that do NOT appear in pagesMap at all => scanned but no items found
-  const pagesNoEntries = allScannedPages
-    .filter(sp => !pagesInMapUrls.has(sp.url))
-    .map(sp => ({
-      pageTitle: sp.pageTitle,
-      url: sp.url,
-      totalOccurrencesFailedIncludingNeedsReview: 0,
-      totalOccurrencesFailedExcludingNeedsReview: 0,
-      totalOccurrencesNeedsReview: 0,
-      totalOccurrencesPassed: 0,
-      typesOfIssues: {},
-    }));
-
-  // Combine these into "notAffected"
-  const pagesNotAffectedRaw = [...pagesAllPassed, ...pagesNoEntries];
-
-  // "affected" pages => have at least 1 mustFix/goodToFix/needsReview
-  const pagesAffectedRaw = pagesInMap.filter(p => p.totalOccurrencesFailedIncludingNeedsReview > 0);
-
-  // --------------------------------------------
-  // 7) Transform both arrays to the final shape
-  // --------------------------------------------
-  function transformPageData(page: PageData) {
-    const typesOfIssuesArray = Object.values(page.typesOfIssues);
-
-    // Compute sums for each failing category
-    const mustFixSum = typesOfIssuesArray.reduce((acc, r) => acc + r.occurrencesMustFix, 0);
-    const goodToFixSum = typesOfIssuesArray.reduce((acc, r) => acc + r.occurrencesGoodToFix, 0);
-    const needsReviewSum = typesOfIssuesArray.reduce((acc, r) => acc + r.occurrencesNeedsReview, 0);
-
-    // Build categoriesPresent based on nonzero failing counts
-    const categoriesPresent: string[] = [];
-    if (mustFixSum > 0) categoriesPresent.push('mustFix');
-    if (goodToFixSum > 0) categoriesPresent.push('goodToFix');
-    if (needsReviewSum > 0) categoriesPresent.push('needsReview');
-
-    // Count how many rules have failing issues
-    const failedRuleIds = new Set<string>();
-    typesOfIssuesArray.forEach(r => {
-      if (
-        (r.occurrencesMustFix || 0) > 0 ||
-        (r.occurrencesGoodToFix || 0) > 0 ||
-        (r.occurrencesNeedsReview || 0) > 0
-      ) {
-        failedRuleIds.add(r.ruleId); // Ensure ruleId is unique
-      }
-    });
-    const failedRuleCount = failedRuleIds.size;
-
-    // Possibly these two for future convenience
-    const typesOfIssuesExcludingNeedsReviewCount = typesOfIssuesArray.filter(
-      r => (r.occurrencesMustFix || 0) + (r.occurrencesGoodToFix || 0) > 0,
-    ).length;
-
-    const typesOfIssuesExclusiveToNeedsReviewCount = typesOfIssuesArray.filter(
-      r =>
-        (r.occurrencesNeedsReview || 0) > 0 &&
-        (r.occurrencesMustFix || 0) === 0 &&
-        (r.occurrencesGoodToFix || 0) === 0,
-    ).length;
-
-    // Aggregate wcagConformance for rules that actually fail
-    const allConformance = typesOfIssuesArray.reduce((acc, curr) => {
-      const nonPassedCount =
-        (curr.occurrencesMustFix || 0) +
-        (curr.occurrencesGoodToFix || 0) +
-        (curr.occurrencesNeedsReview || 0);
-
-      if (nonPassedCount > 0) {
-        return acc.concat(curr.wcagConformance || []);
-      }
-      return acc;
-    }, [] as string[]);
-    // Remove duplicates
-    const conformance = Array.from(new Set(allConformance));
-
-    return {
-      pageTitle: page.pageTitle,
-      url: page.url,
-      totalOccurrencesFailedIncludingNeedsReview: page.totalOccurrencesFailedIncludingNeedsReview,
-      totalOccurrencesFailedExcludingNeedsReview: page.totalOccurrencesFailedExcludingNeedsReview,
-      totalOccurrencesMustFix: mustFixSum,
-      totalOccurrencesGoodToFix: goodToFixSum,
-      totalOccurrencesNeedsReview: needsReviewSum,
-      totalOccurrencesPassed: page.totalOccurrencesPassed,
-      typesOfIssuesExclusiveToNeedsReviewCount,
-      typesOfIssuesCount: failedRuleCount,
-      typesOfIssuesExcludingNeedsReviewCount,
-      categoriesPresent,
-      conformance,
-      // Keep full detail for "scanPagesDetail"
-      typesOfIssues: typesOfIssuesArray,
-    };
-  }
-
-  // Transform raw pages
-  const pagesAffected = pagesAffectedRaw.map(transformPageData);
-  const pagesNotAffected = pagesNotAffectedRaw.map(transformPageData);
-
-  // --------------------------------------------
-  // 8) Sort pages by typesOfIssuesCount (descending) for both arrays
-  // --------------------------------------------
-  pagesAffected.sort((a, b) => b.typesOfIssuesCount - a.typesOfIssuesCount);
-  pagesNotAffected.sort((a, b) => b.typesOfIssuesCount - a.typesOfIssuesCount);
-
-  // --------------------------------------------
-  // 9) Compute scanned/ skipped counts
-  // --------------------------------------------
-  const scannedPagesCount = pagesAffected.length + pagesNotAffected.length;
-  const pagesNotScannedCount = Array.isArray(allIssues.pagesNotScanned)
-    ? allIssues.pagesNotScanned.length
-    : 0;
-
-  // --------------------------------------------
-  // 10) Build scanPagesDetail (with full "typesOfIssues")
-  // --------------------------------------------
-  allIssues.scanPagesDetail = {
-    pagesAffected,
-    pagesNotAffected,
-    scannedPagesCount,
-    pagesNotScanned: Array.isArray(allIssues.pagesNotScanned) ? allIssues.pagesNotScanned : [],
-    pagesNotScannedCount,
-  };
-
-  // --------------------------------------------
-  // 11) Build scanPagesSummary (strip out "typesOfIssues")
-  // --------------------------------------------
-  function stripTypesOfIssues(page: ReturnType<typeof transformPageData>) {
-    const { typesOfIssues, ...rest } = page;
-    return rest;
-  }
-
-  const summaryPagesAffected = pagesAffected.map(stripTypesOfIssues);
-  const summaryPagesNotAffected = pagesNotAffected.map(stripTypesOfIssues);
-
-  allIssues.scanPagesSummary = {
-    pagesAffected: summaryPagesAffected,
-    pagesNotAffected: summaryPagesNotAffected,
-    scannedPagesCount,
-    pagesNotScanned: Array.isArray(allIssues.pagesNotScanned) ? allIssues.pagesNotScanned : [],
-    pagesNotScannedCount,
-  };
-}
-
-// Send WCAG criteria breakdown to Sentry
-export const sendWcagBreakdownToSentry = async (
-  appVersion: string,
-  wcagBreakdown: Map<string, number>,
-  ruleIdJson: any,
-  scanInfo: {
-    entryUrl: string;
-    scanType: string;
-    browser: string;
-    email?: string;
-    name?: string;
-  },
-  allIssues?: AllIssues,
-  pagesScannedCount: number = 0,
-) => {
-  try {
-    // Initialize Sentry
-    Sentry.init(sentryConfig);
-    // Set user ID for Sentry tracking
-    const userData = getUserDataTxt();
-    if (userData && userData.userId) {
-      setSentryUser(userData.userId);
-    }
-
-    // Prepare tags for the event
-    const tags: Record<string, string> = {};
-    const wcagCriteriaBreakdown: Record<string, any> = {};
-
-    // Tag app version
-    tags.version = appVersion;
-
-    // Get dynamic WCAG criteria map once
-    const wcagCriteriaMap = await getWcagCriteriaMap();
-
-    // Categorize all WCAG criteria for reporting
-    const wcagIds = Array.from(
-      new Set([...Object.keys(wcagCriteriaMap), ...Array.from(wcagBreakdown.keys())]),
-    );
-    const categorizedWcag = await categorizeWcagCriteria(wcagIds);
-
-    // First ensure all WCAG criteria are included in the tags with a value of 0
-    // This ensures criteria with no violations are still reported
-    for (const [wcagId, info] of Object.entries(wcagCriteriaMap)) {
-      const formattedTag = await formatWcagTag(wcagId);
-      if (formattedTag) {
-        // Initialize with zero
-        tags[formattedTag] = '0';
-
-        // Store in breakdown object with category information
-        wcagCriteriaBreakdown[formattedTag] = {
-          count: 0,
-          category: categorizedWcag[wcagId] || 'mustFix', // Default to mustFix if not found
-        };
-      }
-    }
-
-    // Now override with actual counts from the scan
-    for (const [wcagId, count] of wcagBreakdown.entries()) {
-      const formattedTag = await formatWcagTag(wcagId);
-      if (formattedTag) {
-        // Add as a tag with the count as value
-        tags[formattedTag] = String(count);
-
-        // Update count in breakdown object
-        if (wcagCriteriaBreakdown[formattedTag]) {
-          wcagCriteriaBreakdown[formattedTag].count = count;
-        } else {
-          // If somehow this wasn't in our initial map
-          wcagCriteriaBreakdown[formattedTag] = {
-            count,
-            category: categorizedWcag[wcagId] || 'mustFix',
-          };
-        }
-      }
-    }
-
-    // Calculate category counts based on actual issue counts from the report
-    // rather than occurrence counts from wcagBreakdown
-    const categoryCounts = {
-      mustFix: 0,
-      goodToFix: 0,
-      needsReview: 0,
-    };
-
-    if (allIssues) {
-      // Use the actual report data for the counts
-      categoryCounts.mustFix = allIssues.items.mustFix.rules.length;
-      categoryCounts.goodToFix = allIssues.items.goodToFix.rules.length;
-      categoryCounts.needsReview = allIssues.items.needsReview.rules.length;
-    } else {
-      // Fallback to the old way if allIssues not provided
-      Object.values(wcagCriteriaBreakdown).forEach(item => {
-        if (item.count > 0 && categoryCounts[item.category] !== undefined) {
-          categoryCounts[item.category] += 1; // Count rules, not occurrences
-        }
-      });
-    }
-
-    // Add category counts as tags
-    tags['WCAG-MustFix-Count'] = String(categoryCounts.mustFix);
-    tags['WCAG-GoodToFix-Count'] = String(categoryCounts.goodToFix);
-    tags['WCAG-NeedsReview-Count'] = String(categoryCounts.needsReview);
-
-    // Also add occurrence counts for reference
-    if (allIssues) {
-      tags['WCAG-MustFix-Occurrences'] = String(allIssues.items.mustFix.totalItems);
-      tags['WCAG-GoodToFix-Occurrences'] = String(allIssues.items.goodToFix.totalItems);
-      tags['WCAG-NeedsReview-Occurrences'] = String(allIssues.items.needsReview.totalItems);
-
-      // Add number of pages scanned tag
-      tags['Pages-Scanned-Count'] = String(allIssues.totalPagesScanned);
-    } else if (pagesScannedCount > 0) {
-      // Still add the pages scanned count even if we don't have allIssues
-      tags['Pages-Scanned-Count'] = String(pagesScannedCount);
-    }
-
-    // Send the event to Sentry
-    await Sentry.captureEvent({
-      message: 'Accessibility Scan Completed',
-      level: 'info',
-      tags: {
-        ...tags,
-        event_type: 'accessibility_scan',
-        scanType: scanInfo.scanType,
-        browser: scanInfo.browser,
-        entryUrl: scanInfo.entryUrl,
-      },
-      user: {
-        ...(scanInfo.email && scanInfo.name
-          ? {
-              email: scanInfo.email,
-              username: scanInfo.name,
-            }
-          : {}),
-        ...(userData && userData.userId ? { id: userData.userId } : {}),
-      },
-      extra: {
-        additionalScanMetadata: ruleIdJson != null ? JSON.stringify(ruleIdJson) : '{}',
-        wcagBreakdown: wcagCriteriaBreakdown,
-        reportCounts: allIssues
-          ? {
-              mustFix: {
-                issues: allIssues.items.mustFix.rules?.length ?? 0,
-                occurrences: allIssues.items.mustFix.totalItems ?? 0,
-              },
-              goodToFix: {
-                issues: allIssues.items.goodToFix.rules?.length ?? 0,
-                occurrences: allIssues.items.goodToFix.totalItems ?? 0,
-              },
-              needsReview: {
-                issues: allIssues.items.needsReview.rules?.length ?? 0,
-                occurrences: allIssues.items.needsReview.totalItems ?? 0,
-              },
-            }
-          : undefined,
-      },
-    });
-
-    // Wait for events to be sent
-    await Sentry.flush(2000);
-  } catch (error) {
-    console.error('Error sending WCAG breakdown to Sentry:', error);
-  }
-};
 
 const formatAboutStartTime = (dateString: string) => {
   const utcStartTimeDate = new Date(dateString);
@@ -1939,7 +1353,6 @@ const generateArtifacts = async (
   zip: string = undefined, // optional
   generateJsonFiles = false,
 ) => {
-
   consoleLogger.info('Generating report artifacts');
 
   const storagePath = getStoragePath(randomToken);
@@ -2037,7 +1450,7 @@ const generateArtifacts = async (
       await pushResults(pageResults, allIssues, isCustomFlow);
     }),
   ).catch(flattenIssuesError => {
-        consoleLogger.error(
+    consoleLogger.error(
       `[generateArtifacts] Error flattening issues: ${flattenIssuesError?.stack || flattenIssuesError}`,
     );
   });
@@ -2176,22 +1589,22 @@ const generateArtifacts = async (
     scanItemsBase64FilePath,
   );
 
-if (!generateJsonFiles) {
-  await cleanUpJsonFiles([
-    scanDataJsonFilePath,
-    scanDataBase64FilePath,
-    scanItemsJsonFilePath,
-    scanItemsBase64FilePath,
-    scanItemsSummaryJsonFilePath,
-    scanItemsSummaryBase64FilePath,
-    scanIssuesSummaryJsonFilePath,
-    scanIssuesSummaryBase64FilePath,
-    scanPagesDetailJsonFilePath,
-    scanPagesDetailBase64FilePath,
-    scanPagesSummaryJsonFilePath,
-    scanPagesSummaryBase64FilePath,
-  ]);
-}
+  if (!generateJsonFiles) {
+    await cleanUpJsonFiles([
+      scanDataJsonFilePath,
+      scanDataBase64FilePath,
+      scanItemsJsonFilePath,
+      scanItemsBase64FilePath,
+      scanItemsSummaryJsonFilePath,
+      scanItemsSummaryBase64FilePath,
+      scanIssuesSummaryJsonFilePath,
+      scanIssuesSummaryBase64FilePath,
+      scanPagesDetailJsonFilePath,
+      scanPagesDetailBase64FilePath,
+      scanPagesSummaryJsonFilePath,
+      scanPagesSummaryBase64FilePath,
+    ]);
+  }
 
   const browserChannel = getBrowserToRun(randomToken, BrowserTypes.CHROME, false).browserToRun;
 
@@ -2300,8 +1713,10 @@ if (!generateJsonFiles) {
 export {
   writeHTML,
   compressJsonFileStreaming,
+  convertItemsToReferences,
   flattenAndSortResults,
   populateScanPagesDetail,
+  sendWcagBreakdownToSentry,
   getWcagPassPercentage,
   getProgressPercentage,
   getIssuesPercentage,
