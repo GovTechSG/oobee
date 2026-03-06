@@ -11,10 +11,10 @@ import {
   itemTypeDescription,
   oobeeAiHtmlETL,
   oobeeAiRules,
-  formatAboutStartTime,
   convertItemsToReferences,
 } from './mergeAxeResults.js';
 import flattenAndSortResults from './mergeAxeResults/flattenAndSortResults.js';
+import formatAboutStartTime from './mergeAxeResults/formatAboutStartTime.js';
 
 import constants, {
   ScannerTypes,
