@@ -37,7 +37,7 @@ import writeSitemap from './mergeAxeResults/writeSitemap.js';
 import writeSummaryHTML from './mergeAxeResults/writeSummaryHTML.js';
 import writeSummaryPdf from './mergeAxeResults/writeSummaryPdf.js';
 import populateScanPagesDetail from './mergeAxeResults/scanPages.js';
-import sendWcagBreakdownToSentry from './mergeAxeResults/sentryTelemetry.js';
+import sendWcagBreakdownToSentry from './services/wcagSentryReporter.js';
 import type { AllIssues, PageInfo } from './mergeAxeResults/types.js';
 
 export type {
