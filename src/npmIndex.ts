@@ -15,7 +15,7 @@ import {
 import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
 import { createAndUpdateResultsFolders, getVersion } from './utils.js';
 import generateArtifacts, { createBasicFormHTMLSnippet } from './mergeAxeResults.js';
-import sendWcagBreakdownToSentry from './mergeAxeResults/sentryTelemetry.js';
+import sendWcagBreakdownToSentry from './services/wcagSentryReporter.js';
 import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
