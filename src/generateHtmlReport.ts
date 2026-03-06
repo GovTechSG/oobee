@@ -4,7 +4,6 @@ import path from 'path';
 import {
   compressJsonFileStreaming,
   writeHTML,
-  flattenAndSortResults,
   populateScanPagesDetail,
   getWcagPassPercentage,
   getProgressPercentage,
@@ -15,6 +14,7 @@ import {
   formatAboutStartTime,
   convertItemsToReferences,
 } from './mergeAxeResults.js';
+import flattenAndSortResults from './mergeAxeResults/flattenAndSortResults.js';
 
 import constants, {
   ScannerTypes,
