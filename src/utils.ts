@@ -3,76 +3,10 @@ import fs from 'fs-extra';
 import axe, { Rule } from 'axe-core';
 import JSZip from 'jszip';
 import { createReadStream, createWriteStream } from 'fs';
-import constants, {
-  destinationPath,
-  getIntermediateScreenshotsPath,
-} from './constants/constants.js';
+import constants from './constants/constants.js';
 import { consoleLogger, errorsTxtPath } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 import { getStoragePath } from './utils/index.js';
-
-export const createAndUpdateResultsFolders = async (randomToken: string): Promise<void> => {
-  const storagePath = getStoragePath(randomToken);
-  await fs.ensureDir(`${storagePath}`);
-
-  const intermediatePdfResultsPath = `${randomToken}/${constants.pdfScanResultFileName}`;
-
-  const transferResults = async (intermPath: string, resultFile: string): Promise<void> => {
-    try {
-      if (fs.existsSync(intermPath)) {
-        await fs.copy(intermPath, `${storagePath}/${resultFile}`);
-      }
-    } catch (error) {
-      if (error.code === 'EBUSY') {
-        consoleLogger.error(
-          `Unable to copy the file from ${intermPath} to ${storagePath}/${resultFile} because it is currently in use.`,
-        );
-        consoleLogger.error(
-          'Please close any applications that might be using this file and try again.',
-        );
-      } else {
-        consoleLogger.error(
-          `An unexpected error occurred while copying the file from ${intermPath} to ${storagePath}/${resultFile}: ${error.message}`,
-        );
-      }
-    }
-  };
-
-  await Promise.all([transferResults(intermediatePdfResultsPath, constants.pdfScanResultFileName)]);
-};
-
-export const createScreenshotsFolder = (randomToken: string): void => {
-  const storagePath = getStoragePath(randomToken);
-  const intermediateScreenshotsPath = getIntermediateScreenshotsPath(randomToken);
-  if (fs.existsSync(intermediateScreenshotsPath)) {
-    fs.readdir(intermediateScreenshotsPath, (err, files) => {
-      if (err) {
-        consoleLogger.error(`Screenshots were not moved successfully: ${err.message}`);
-      }
-
-      if (!fs.existsSync(destinationPath(storagePath))) {
-        try {
-          fs.mkdirSync(destinationPath(storagePath), { recursive: true });
-        } catch (error) {
-          consoleLogger.error('Screenshots folder was not created successfully:', error);
-        }
-      }
-
-      files.forEach(file => {
-        fs.renameSync(
-          `${intermediateScreenshotsPath}/${file}`,
-          `${destinationPath(storagePath)}/${file}`,
-        );
-      });
-
-      fs.rmdir(intermediateScreenshotsPath, rmdirErr => {
-        if (rmdirErr) {
-          consoleLogger.error(rmdirErr);
-        }
-      });
-    });
-  }
-};
 let __shuttingDown = false;
 let __stopAllLock: Promise<void> | null = null;
 let __softCloseHandler: (() => Promise<void>) | null = null;

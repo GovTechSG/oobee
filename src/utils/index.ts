@@ -5,3 +5,4 @@ export { default as getStoragePath } from './getStoragePath.js';
 export { default as getPdfStoragePath } from './getPdfStoragePath.js';
 export { default as isWhitelistedContentType } from './isWhitelistedContentType.js';
 export { getUserDataFilePath, getUserDataTxt, writeToUserDataTxt } from './userData.js';
+export { createAndUpdateResultsFolders, createScreenshotsFolder } from './resultsFolders.js';
