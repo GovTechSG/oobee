@@ -1,18 +1,16 @@
-import { execSync, spawnSync } from 'child_process';
 import path from 'path';
 import os from 'os';
 import fs from 'fs-extra';
 import axe, { Rule } from 'axe-core';
 import { v4 as uuidv4 } from 'uuid';
+import JSZip from 'jszip';
+import { createReadStream, createWriteStream } from 'fs';
 import constants, {
-  BrowserTypes,
   destinationPath,
   getIntermediateScreenshotsPath,
 } from './constants/constants.js';
-import { consoleLogger, errorsTxtPath, silentLogger } from './logs.js';
+import { consoleLogger, errorsTxtPath } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
-import JSZip from 'jszip';
-import { createReadStream, createWriteStream } from 'fs';
 
 export const getVersion = () => {
   const loadJSON = (filePath: string): { version: string } =>
@@ -68,7 +66,10 @@ export const getStoragePath = (randomToken: string): string => {
   if (!isWritable) {
     if (os.platform() === 'win32') {
       // Use Documents folder on Windows
-      const documentsPath = path.join(process.env.USERPROFILE || process.env.HOMEPATH || '', 'Documents');
+      const documentsPath = path.join(
+        process.env.USERPROFILE || process.env.HOMEPATH || '',
+        'Documents',
+      );
       storagePath = path.join(documentsPath, 'Oobee', randomToken);
     } else if (os.platform() === 'darwin') {
       // Use Documents folder on Mac
@@ -80,7 +81,6 @@ export const getStoragePath = (randomToken: string): string => {
       storagePath = path.join(homePath, 'Oobee', randomToken);
     }
     consoleLogger.warn(`Warning: Cannot write to cwd, writing to ${storagePath}`);
-
   }
 
   if (!fs.existsSync(storagePath)) {
@@ -89,7 +89,6 @@ export const getStoragePath = (randomToken: string): string => {
 
   constants.exportDirectory = storagePath;
   return storagePath;
-
 };
 
 export const getUserDataFilePath = () => {
@@ -204,8 +203,6 @@ export const createScreenshotsFolder = (randomToken: string): void => {
     });
   }
 };
-
-
 let __shuttingDown = false;
 let __stopAllLock: Promise<void> | null = null;
 let __softCloseHandler: (() => Promise<void>) | null = null;
@@ -216,7 +213,9 @@ export function registerSoftClose(handler: () => Promise<void>) {
 
 export async function softCloseBrowserAndContext() {
   if (!__softCloseHandler) {
-    consoleLogger.info('softCloseBrowserAndContext: no handler registered (probably not a custom-flow scan)');
+    consoleLogger.info(
+      'softCloseBrowserAndContext: no handler registered (probably not a custom-flow scan)',
+    );
     return;
   }
 
@@ -273,10 +272,8 @@ export async function stopAll({ mode = 'graceful', timeoutMs = 10_000 } = {}) {
           }
         } else if (mode === 'abort') {
           pool?.abort?.();
-        } else {
-          if (typeof c.teardown === 'function') {
-            await Promise.race([c.teardown(), timeout(timeoutMs)]);
-          }
+        } else if (typeof c.teardown === 'function') {
+          await Promise.race([c.teardown(), timeout(timeoutMs)]);
         }
         consoleLogger.info(`Crawler closed (${mode})`);
       } catch (err) {
@@ -301,7 +298,9 @@ export async function stopAll({ mode = 'graceful', timeoutMs = 10_000 } = {}) {
 
         // ➜ Graceful: don't kill contexts that are still doing work
         if (mode === 'graceful' && hasOpenPages) {
-          consoleLogger.info(`Skipping BrowserContext in graceful (has ${pagesArr.length} open page(s))`);
+          consoleLogger.info(
+            `Skipping BrowserContext in graceful (has ${pagesArr.length} open page(s))`,
+          );
           continue; // leave it for the teardown pass
         }
 
@@ -309,7 +308,9 @@ export async function stopAll({ mode = 'graceful', timeoutMs = 10_000 } = {}) {
         if (hasOpenPages) {
           consoleLogger.info(`Closing ${pagesArr.length} page(s) before context close...`);
           for (const p of pagesArr) {
-            try { await Promise.race([p.close(), timeout(1500)]); } catch {}
+            try {
+              await Promise.race([p.close(), timeout(1500)]);
+            } catch {}
           }
         }
 
@@ -369,21 +370,21 @@ export async function stopAll({ mode = 'graceful', timeoutMs = 10_000 } = {}) {
 }
 
 export const cleanUp = async (randomToken?: string, isError: boolean = false): Promise<void> => {
-
   if (isError) {
     await stopAll({ mode: 'graceful', timeoutMs: 8000 });
     await stopAll({ mode: 'teardown', timeoutMs: 4000 });
   }
-  
+
   if (randomToken === undefined && constants.randomToken) {
     randomToken = constants.randomToken;
   }
 
-  if (constants.userDataDirectory) try {
-    fs.rmSync(constants.userDataDirectory, { recursive: true, force: true });
-  } catch (error) {
-    consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
-  }
+  if (constants.userDataDirectory)
+    try {
+      fs.rmSync(constants.userDataDirectory, { recursive: true, force: true });
+    } catch (error) {
+      consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
+    }
 
   if (randomToken !== undefined) {
     const storagePath = getStoragePath(randomToken);
@@ -399,7 +400,7 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
     } catch (error) {
       consoleLogger.warn(`Unable to force remove pdfs folder: ${error.message}`);
     }
-    
+
     let deleteErrorLogFile = true;
 
     if (isError) {
@@ -414,13 +415,12 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
           const logFilePath = path.join(logsPath, `logs-${randomToken}.txt`);
           fs.copyFileSync(errorsTxtPath, logFilePath);
           console.log(`An error occured. Log file is located at: ${logFilePath}`);
-
         } catch (copyError) {
           consoleLogger.error(`Error copying errors file during cleanup: ${copyError.message}`);
           console.log(`An error occured. Log file is located at: ${errorsTxtPath}`);
           deleteErrorLogFile = false; // Do not delete the log file if copy failed
         }
-    
+
         if (deleteErrorLogFile && fs.existsSync(errorsTxtPath)) {
           try {
             fs.unlinkSync(errorsTxtPath);
@@ -428,24 +428,20 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
             consoleLogger.warn(`Unable to delete log file ${errorsTxtPath}: ${error.message}`);
           }
         }
-
       }
+    }
 
-    } 
-    
     if (fs.existsSync(storagePath) && fs.readdirSync(storagePath).length === 0) {
       try {
         fs.rmdirSync(storagePath);
         consoleLogger.info(`Deleted empty storage path: ${storagePath}`);
-    
       } catch (error) {
         consoleLogger.warn(`Error deleting empty storage path ${storagePath}: ${error.message}`);
       }
     }
 
     consoleLogger.info(`Clean up completed for: ${randomToken}`);
-  } 
-
+  }
 };
 
 export const cleanUpAndExit = async (
@@ -460,7 +456,7 @@ export const cleanUpAndExit = async (
   __shuttingDown = true;
 
   try {
-    await cleanUp(randomToken, isError);   // runs stopAll inside cleanUp
+    await cleanUp(randomToken, isError); // runs stopAll inside cleanUp
   } catch (e: any) {
     consoleLogger.warn(`Cleanup error: ${e?.message || e}`);
   }
@@ -475,13 +471,15 @@ export const listenForCleanUp = (randomToken: string): void => {
   consoleLogger.info(`PID: ${process.pid}`);
 
   // SIGINT signal happens when the user presses Ctrl+C in the terminal
-  process.on('SIGINT', async () => {   // ← keep handler installed
+  process.on('SIGINT', async () => {
+    // ← keep handler installed
     consoleLogger.info('SIGINT received. Cleaning up and exiting.');
     await cleanUpAndExit(130, randomToken, true);
   });
 
   // SIGTERM signal happens when the process is terminated (by another process or system shutdown)
-  process.on('SIGTERM', async () => {  // ← keep handler installed
+  process.on('SIGTERM', async () => {
+    // ← keep handler installed
     consoleLogger.info('SIGTERM received. Cleaning up and exiting.');
     await cleanUpAndExit(143, randomToken, true);
   });
@@ -506,7 +504,14 @@ export const getWcagPassPercentage = (
   totalWcagViolationsAAandAAA: number;
 } => {
   // These AAA rules should not be counted as WCAG Pass Percentage only contains A and AA
-  const wcagAAALinks = ['WCAG 1.4.6', 'WCAG 2.2.4', 'WCAG 2.4.9', 'WCAG 3.1.5', 'WCAG 3.2.5', 'WCAG 2.1.3'];
+  const wcagAAALinks = [
+    'WCAG 1.4.6',
+    'WCAG 2.2.4',
+    'WCAG 2.4.9',
+    'WCAG 3.1.5',
+    'WCAG 3.2.5',
+    'WCAG 2.1.3',
+  ];
   const wcagAAA = ['wcag146', 'wcag224', 'wcag249', 'wcag315', 'wcag325', 'wcag213'];
 
   const wcagLinksAAandAAA = constants.wcagLinks;
@@ -734,7 +739,7 @@ export const getTotalRulesCount = async (
  */
 export const getWcagCriteriaMap = async (
   enableWcagAaa: boolean = true,
-  disableOobee: boolean = false
+  disableOobee: boolean = false,
 ): Promise<Record<string, { name: string; level: string }>> => {
   // Reuse the configuration setup from getTotalRulesCount
   const axeConfig = getAxeConfiguration({
@@ -785,42 +790,43 @@ export const getWcagCriteriaMap = async (
 
   // Build WCAG criteria map
   const wcagCriteriaMap: Record<string, { name: string; level: string }> = {};
-  
+
   // Process rules to extract WCAG information
   mergedRules.forEach(rule => {
     if (!rule.enabled) return;
     if (rule.id === 'frame-tested') return;
-    
+
     const tags = rule.tags || [];
     if (tags.includes('experimental') || tags.includes('deprecated')) return;
-    
+
     // Look for WCAG criteria tags (format: wcag111, wcag143, etc.)
     tags.forEach(tag => {
       const wcagMatch = tag.match(/^wcag(\d+)$/);
       if (wcagMatch) {
         const wcagId = tag;
-        
+
         // Default values
         let level = 'a';
         let name = '';
-        
+
         // Try to extract better info from metadata if available
         const metadata = rule.metadata as any;
         if (metadata && metadata.wcag) {
           const wcagInfo = metadata.wcag as any;
-          
+
           // Find matching criterion in metadata
           for (const key in wcagInfo) {
             const criterion = wcagInfo[key];
-            if (criterion && 
-                criterion.num && 
-                `wcag${criterion.num.replace(/\./g, '')}` === wcagId) {
-              
+            if (
+              criterion &&
+              criterion.num &&
+              `wcag${criterion.num.replace(/\./g, '')}` === wcagId
+            ) {
               // Extract level
               if (criterion.level) {
                 level = String(criterion.level).toLowerCase();
               }
-              
+
               // Extract name
               if (criterion.handle) {
                 name = String(criterion.handle);
@@ -829,28 +835,28 @@ export const getWcagCriteriaMap = async (
               } else if (criterion.num) {
                 name = `wcag-${String(criterion.num).replace(/\./g, '-')}`;
               }
-              
+
               break;
             }
           }
         }
-        
+
         // Generate fallback name if none found
         if (!name) {
           const numStr = wcagMatch[1];
           const formattedNum = numStr.replace(/(\d)(\d)(\d+)?/, '$1.$2.$3');
           name = `wcag-${formattedNum.replace(/\./g, '-')}`;
         }
-        
+
         // Store in map
-        wcagCriteriaMap[wcagId] = { 
+        wcagCriteriaMap[wcagId] = {
           name: name.toLowerCase().replace(/_/g, '-'),
-          level
+          level,
         };
       }
     });
   });
-  
+
   return wcagCriteriaMap;
 };
 
@@ -1009,7 +1015,11 @@ export const zipResults = async (zipName: string, resultsPath: string): Promise<
   fs.mkdirSync(path.dirname(zipFilePath), { recursive: true });
 
   // Remove any prior file atomically
-  try { fs.unlinkSync(zipFilePath); } catch { /* ignore if not exists */ }
+  try {
+    fs.unlinkSync(zipFilePath);
+  } catch {
+    /* ignore if not exists */
+  }
 
   // CWD must exist and be a directory
   const stats = fs.statSync(resultsPath);
@@ -1042,7 +1052,8 @@ export const zipResults = async (zipName: string, resultsPath: string): Promise<
 
   await new Promise((resolve, reject) => {
     const outStream = createWriteStream(zipFilePath);
-    zipStream.pipe(outStream)
+    zipStream
+      .pipe(outStream)
       .on('finish', () => resolve(undefined))
       .on('error', reject);
   });
@@ -1097,7 +1108,7 @@ export const retryFunction = async <T>(func: () => Promise<T>, maxAttempt: numbe
       const result = await func();
       return result;
     } catch (error) {
-      // do nothing, just retry  
+      // do nothing, just retry
     }
   }
   throw new Error('Maximum number of attempts reached');
@@ -1106,17 +1117,17 @@ export const retryFunction = async <T>(func: () => Promise<T>, maxAttempt: numbe
 /**
  * Determines which WCAG criteria might appear in the "needsReview" category
  * based on axe-core's rule configuration.
- * 
+ *
  * This dynamically analyzes the rules that might produce "incomplete" results which
  * get categorized as "needsReview" during scans.
- * 
+ *
  * @param enableWcagAaa Whether to include WCAG AAA criteria
  * @param disableOobee Whether to disable custom Oobee rules
  * @returns A map of WCAG criteria IDs to whether they may produce needsReview results
  */
 export const getPotentialNeedsReviewWcagCriteria = async (
   enableWcagAaa: boolean = true,
-  disableOobee: boolean = false
+  disableOobee: boolean = false,
 ): Promise<Record<string, boolean>> => {
   // Reuse configuration setup from other functions
   const axeConfig = getAxeConfiguration({
@@ -1127,68 +1138,66 @@ export const getPotentialNeedsReviewWcagCriteria = async (
 
   // Configure axe-core with our settings
   axe.configure(axeConfig);
-  
+
   // Get all rules from axe-core
   const allRules = axe.getRules();
-  
+
   // Set to store rule IDs that might produce incomplete results
   const rulesLikelyToProduceIncomplete = new Set<string>();
-  
+
   // Dynamically analyze each rule and its checks to determine if it might produce incomplete results
   for (const rule of allRules) {
     try {
       // Skip disabled rules
       const customRule = axeConfig.rules.find(r => r.id === rule.ruleId);
       if (customRule && customRule.enabled === false) continue;
-      
+
       // Skip frame-tested rule as it's handled specially
       if (rule.ruleId === 'frame-tested') continue;
-      
+
       // Get the rule object from axe-core's internal data
       const ruleObj = (axe as any)._audit?.rules?.find(r => r.id === rule.ruleId);
       if (!ruleObj) continue;
-      
+
       // For each check in the rule, determine if it might produce an "incomplete" result
-      const checks = [
-        ...(ruleObj.any || []),
-        ...(ruleObj.all || []),
-        ...(ruleObj.none || [])
-      ];
-      
+      const checks = [...(ruleObj.any || []), ...(ruleObj.all || []), ...(ruleObj.none || [])];
+
       // Get check details from axe-core's internal data
       for (const checkId of checks) {
         const check = (axe as any)._audit?.checks?.[checkId];
         if (!check) continue;
-        
+
         // A check can produce incomplete results if:
         // 1. It has an "incomplete" message
         // 2. Its evaluate function explicitly returns undefined
         // 3. It is known to need human verification (accessibility issues that are context-dependent)
         const hasIncompleteMessage = check.messages && 'incomplete' in check.messages;
-        
+
         // Many checks are implemented as strings that are later evaluated to functions
         const evaluateCode = check.evaluate ? check.evaluate.toString() : '';
-        const explicitlyReturnsUndefined = evaluateCode.includes('return undefined') || 
-                                          evaluateCode.includes('return;');
-        
+        const explicitlyReturnsUndefined =
+          evaluateCode.includes('return undefined') || evaluateCode.includes('return;');
+
         // Some checks use specific patterns that indicate potential for incomplete results
-        const indicatesManualVerification = 
+        const indicatesManualVerification =
           evaluateCode.includes('return undefined') ||
           evaluateCode.includes('this.data(') ||
           evaluateCode.includes('options.reviewOnFail') ||
           evaluateCode.includes('incomplete') ||
           (check.metadata && check.metadata.incomplete === true);
-        
+
         if (hasIncompleteMessage || explicitlyReturnsUndefined || indicatesManualVerification) {
           rulesLikelyToProduceIncomplete.add(rule.ruleId);
           break; // One check is enough to mark the rule
         }
       }
-      
+
       // Also check rule-level metadata for indicators of potential incomplete results
       if (ruleObj.metadata) {
-        if (ruleObj.metadata.incomplete === true ||
-            (ruleObj.metadata.messages && 'incomplete' in ruleObj.metadata.messages)) {
+        if (
+          ruleObj.metadata.incomplete === true ||
+          (ruleObj.metadata.messages && 'incomplete' in ruleObj.metadata.messages)
+        ) {
           rulesLikelyToProduceIncomplete.add(rule.ruleId);
         }
       }
@@ -1197,20 +1206,20 @@ export const getPotentialNeedsReviewWcagCriteria = async (
       // This is a safeguard against unexpected changes in axe-core's internal structure
     }
   }
-  
+
   // Also check custom Oobee rules if they're enabled
   if (!disableOobee) {
     for (const rule of axeConfig.rules || []) {
       if (!rule.enabled) continue;
-      
+
       // Check if the rule's metadata indicates it might produce incomplete results
       try {
-        const hasIncompleteMessage = 
-          ((rule as any)?.metadata?.messages?.incomplete !== undefined) ||
-          (axeConfig.checks || []).some(check => 
-            check.id === rule.id && 
-            (check.metadata?.messages?.incomplete !== undefined));
-        
+        const hasIncompleteMessage =
+          (rule as any)?.metadata?.messages?.incomplete !== undefined ||
+          (axeConfig.checks || []).some(
+            check => check.id === rule.id && check.metadata?.messages?.incomplete !== undefined,
+          );
+
         if (hasIncompleteMessage) {
           rulesLikelyToProduceIncomplete.add(rule.id);
         }
@@ -1219,22 +1228,22 @@ export const getPotentialNeedsReviewWcagCriteria = async (
       }
     }
   }
-  
+
   // Map from WCAG criteria IDs to whether they might produce needsReview results
   const potentialNeedsReviewCriteria: Record<string, boolean> = {};
-  
+
   // Process each rule to map to WCAG criteria
   for (const rule of allRules) {
     if (rule.ruleId === 'frame-tested') continue;
-    
+
     const tags = rule.tags || [];
     if (tags.includes('experimental') || tags.includes('deprecated')) continue;
-    
+
     // Map rule to WCAG criteria
     for (const tag of tags) {
       if (/^wcag\d+$/.test(tag)) {
         const mightNeedReview = rulesLikelyToProduceIncomplete.has(rule.ruleId);
-        
+
         // If we haven't seen this criterion before or we're updating it to true
         if (mightNeedReview || !potentialNeedsReviewCriteria[tag]) {
           potentialNeedsReviewCriteria[tag] = mightNeedReview;
@@ -1242,14 +1251,14 @@ export const getPotentialNeedsReviewWcagCriteria = async (
       }
     }
   }
-  
+
   return potentialNeedsReviewCriteria;
 };
 
 /**
  * Categorizes a WCAG criterion into one of: "mustFix", "goodToFix", or "needsReview"
  * for use in Sentry reporting
- * 
+ *
  * @param wcagId The WCAG criterion ID (e.g., "wcag144")
  * @param enableWcagAaa Whether WCAG AAA criteria are enabled
  * @param disableOobee Whether Oobee custom rules are disabled
@@ -1258,34 +1267,33 @@ export const getPotentialNeedsReviewWcagCriteria = async (
 export const categorizeWcagCriterion = async (
   wcagId: string,
   enableWcagAaa: boolean = true,
-  disableOobee: boolean = false
+  disableOobee: boolean = false,
 ): Promise<'mustFix' | 'goodToFix' | 'needsReview'> => {
   // First check if this criterion might produce "needsReview" results
   const needsReviewMap = await getPotentialNeedsReviewWcagCriteria(enableWcagAaa, disableOobee);
   if (needsReviewMap[wcagId]) {
     return 'needsReview';
   }
-  
+
   // Get the WCAG criteria map to check the level
   const wcagCriteriaMap = await getWcagCriteriaMap(enableWcagAaa, disableOobee);
   const criterionInfo = wcagCriteriaMap[wcagId];
-  
+
   if (!criterionInfo) {
     // If we can't find info, default to mustFix for safety
     return 'mustFix';
   }
-  
+
   // Check if it's a level A or AA criterion (mustFix) or AAA (goodToFix)
   if (criterionInfo.level === 'a' || criterionInfo.level === 'aa') {
     return 'mustFix';
-  } else {
-    return 'goodToFix';
   }
+  return 'goodToFix';
 };
 
 /**
  * Batch categorizes multiple WCAG criteria for Sentry reporting
- * 
+ *
  * @param wcagIds Array of WCAG criterion IDs (e.g., ["wcag144", "wcag143"])
  * @param enableWcagAaa Whether WCAG AAA criteria are enabled
  * @param disableOobee Whether Oobee custom rules are disabled
@@ -1294,32 +1302,32 @@ export const categorizeWcagCriterion = async (
 export const categorizeWcagCriteria = async (
   wcagIds: string[],
   enableWcagAaa: boolean = true,
-  disableOobee: boolean = false
+  disableOobee: boolean = false,
 ): Promise<Record<string, 'mustFix' | 'goodToFix' | 'needsReview'>> => {
   // Get both maps once to avoid repeated expensive calls
   const [needsReviewMap, wcagCriteriaMap] = await Promise.all([
     getPotentialNeedsReviewWcagCriteria(enableWcagAaa, disableOobee),
-    getWcagCriteriaMap(enableWcagAaa, disableOobee)
+    getWcagCriteriaMap(enableWcagAaa, disableOobee),
   ]);
-  
+
   const result: Record<string, 'mustFix' | 'goodToFix' | 'needsReview'> = {};
-  
+
   wcagIds.forEach(wcagId => {
     // First check if this criterion might produce "needsReview" results
     if (needsReviewMap[wcagId]) {
       result[wcagId] = 'needsReview';
       return;
     }
-    
+
     // Get criterion info
     const criterionInfo = wcagCriteriaMap[wcagId];
-    
+
     if (!criterionInfo) {
       // If we can't find info, default to mustFix for safety
       result[wcagId] = 'mustFix';
       return;
     }
-    
+
     // Check if it's a level A or AA criterion (mustFix) or AAA (goodToFix)
     if (criterionInfo.level === 'a' || criterionInfo.level === 'aa') {
       result[wcagId] = 'mustFix';
@@ -1327,6 +1335,6 @@ export const categorizeWcagCriteria = async (
       result[wcagId] = 'goodToFix';
     }
   });
-  
+
   return result;
 };
