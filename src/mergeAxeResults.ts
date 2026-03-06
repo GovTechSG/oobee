@@ -27,7 +27,6 @@ import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.
 
 import {
   createScreenshotsFolder,
-  getStoragePath,
   getWcagPassPercentage,
   getProgressPercentage,
   retryFunction,
@@ -38,7 +37,7 @@ import {
   getUserDataTxt,
   register,
 } from './utils.js';
-import { getVersion } from './utils/index.js';
+import { getStoragePath, getVersion } from './utils/index.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';

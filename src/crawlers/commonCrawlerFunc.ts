@@ -22,7 +22,7 @@ import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickabl
 import xPathToCss from './custom/xPathToCss.js';
 import type { Response as PlaywrightResponse } from 'playwright';
 import fs from 'fs';
-import { getStoragePath } from '../utils.js';
+import { getStoragePath } from '../utils/index.js';
 import path from 'path';
 
 // types
