@@ -12,11 +12,6 @@ import constants, {
 import { consoleLogger, errorsTxtPath } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 
-export const isWhitelistedContentType = (contentType: string): boolean => {
-  const whitelist = ['text/html'];
-  return whitelist.filter(type => contentType.trim().startsWith(type)).length === 1;
-};
-
 export const getPdfStoragePath = (randomToken: string): string => {
   const storagePath = getStoragePath(randomToken);
   const pdfStoragePath = path.join(storagePath, 'pdfs');
