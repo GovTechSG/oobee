@@ -3,6 +3,15 @@ export { default as getHost } from './getHost.js';
 export { default as getCurrentDate } from './getCurrentDate.js';
 export { getFormattedTime, formatDateTimeForMassScanner } from './dateTimeFormatting.js';
 export {
+  registerSoftClose,
+  softCloseBrowserAndContext,
+  register,
+  stopAll,
+  cleanUp,
+  cleanUpAndExit,
+  listenForCleanUp,
+} from './lifecycle.js';
+export {
   getWcagPassPercentage,
   getProgressPercentage,
   type IssueCategory,

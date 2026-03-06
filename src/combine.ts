@@ -5,8 +5,12 @@ import crawlDomain from './crawlers/crawlDomain.js';
 import crawlLocalFile from './crawlers/crawlLocalFile.js';
 import crawlIntelligentSitemap from './crawlers/crawlIntelligentSitemap.js';
 import generateArtifacts from './mergeAxeResults.js';
-import { cleanUpAndExit } from './utils.js';
-import { createAndUpdateResultsFolders, getHost, getStoragePath } from './utils/index.js';
+import {
+  cleanUpAndExit,
+  createAndUpdateResultsFolders,
+  getHost,
+  getStoragePath,
+} from './utils/index.js';
 import { ScannerTypes, UrlsCrawled } from './constants/constants.js';
 import { getBlackListedPatterns, submitForm } from './constants/common.js';
 import { consoleLogger, silentLogger } from './logs.js';

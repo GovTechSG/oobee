@@ -1,8 +1,9 @@
 import path from 'path';
 import fs from 'fs-extra';
-import constants from './constants/constants.js';
-import { consoleLogger, errorsTxtPath } from './logs.js';
-import { getStoragePath } from './utils/index.js';
+import constants from '../constants/constants.js';
+import { consoleLogger, errorsTxtPath } from '../logs.js';
+import getStoragePath from './getStoragePath.js';
+
 let __shuttingDown = false;
 let __stopAllLock: Promise<void> | null = null;
 let __softCloseHandler: (() => Promise<void>) | null = null;
