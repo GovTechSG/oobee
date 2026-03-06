@@ -23,8 +23,8 @@ import {
   waitForPageLoaded,
   isFilePath,
 } from '../constants/common.js';
-import { areLinksEqual, register } from '../utils.js';
-import { isWhitelistedContentType } from '../utils/index.js';
+import { register } from '../utils.js';
+import { areLinksEqual, isWhitelistedContentType } from '../utils/index.js';
 import {
   handlePdfDownload,
   runPdfScan,
