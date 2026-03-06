@@ -12,16 +12,6 @@ import constants, {
 import { consoleLogger, errorsTxtPath } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 
-export const getVersion = () => {
-  const loadJSON = (filePath: string): { version: string } =>
-    JSON.parse(fs.readFileSync(new URL(filePath, import.meta.url)).toString());
-  const versionNum = loadJSON('../package.json').version;
-
-  return versionNum;
-};
-
-export const getHost = (url: string): string => new URL(url).host;
-
 export const getCurrentDate = () => {
   const date = new Date();
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;

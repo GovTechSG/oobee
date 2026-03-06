@@ -5,7 +5,8 @@ import printMessage from 'print-message';
 import { devices } from 'playwright';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { setHeadlessMode, getVersion, getStoragePath, listenForCleanUp, cleanUpAndExit } from './utils.js';
+import { setHeadlessMode, getStoragePath, listenForCleanUp, cleanUpAndExit } from './utils.js';
+import { getVersion } from './utils/index.js';
 import {
   checkUrl,
   prepareData,

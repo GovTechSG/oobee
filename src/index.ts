@@ -3,12 +3,12 @@ import printMessage from 'print-message';
 import inquirer from 'inquirer';
 import { EnqueueStrategy } from 'crawlee';
 import {
-  getVersion,
   getUserDataTxt,
   writeToUserDataTxt,
   listenForCleanUp,
   cleanUpAndExit,
 } from './utils.js';
+import { getVersion } from './utils/index.js';
 import {
   prepareData,
   messageOptions,
