@@ -7,5 +7,6 @@ export { default as isWhitelistedContentType } from './isWhitelistedContentType.
 export { default as retryFunction } from './retryFunction.js';
 export { default as randomThreeDigitNumberString } from './randomThreeDigitNumberString.js';
 export { areLinksEqual, isFollowStrategy } from './linkStrategy.js';
+export { setHeadlessMode, setThresholdLimits } from './runtimeFlags.js';
 export { getUserDataFilePath, getUserDataTxt, writeToUserDataTxt } from './userData.js';
 export { createAndUpdateResultsFolders, createScreenshotsFolder } from './resultsFolders.js';

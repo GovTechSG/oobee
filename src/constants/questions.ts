@@ -1,7 +1,6 @@
 import { Question } from 'inquirer';
 import { Answers } from '../index.js';
-import { setHeadlessMode } from '../utils.js';
-import { getUserDataTxt, randomThreeDigitNumberString } from '../utils/index.js';
+import { getUserDataTxt, randomThreeDigitNumberString, setHeadlessMode } from '../utils/index.js';
 import {
   checkUrl,
   getBrowserToRun,

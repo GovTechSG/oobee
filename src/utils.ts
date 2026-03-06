@@ -799,18 +799,6 @@ export const formatDateTimeForMassScanner = (date: Date): string => {
   return formattedDateTime;
 };
 
-export const setHeadlessMode = (browser: string, isHeadless: boolean): void => {
-  if (isHeadless) {
-    process.env.CRAWLEE_HEADLESS = '1';
-  } else {
-    process.env.CRAWLEE_HEADLESS = '0';
-  }
-};
-
-export const setThresholdLimits = (setWarnLevel: string): void => {
-  process.env.WARN_LEVEL = setWarnLevel;
-};
-
 export const zipResults = async (zipName: string, resultsPath: string): Promise<void> => {
   // Resolve and validate the output path
   const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(resultsPath, zipName);
