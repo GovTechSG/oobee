@@ -26,15 +26,15 @@ import constants, {
 import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.js';
 
 import {
-  getWcagCriteriaMap,
-  categorizeWcagCriteria,
   register,
 } from './utils.js';
 import {
+  categorizeWcagCriteria,
   createScreenshotsFolder,
   getStoragePath,
   getUserDataTxt,
   getVersion,
+  getWcagCriteriaMap,
   getWcagPassPercentage,
   getProgressPercentage,
   getIssuesPercentage,
