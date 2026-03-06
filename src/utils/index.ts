@@ -6,6 +6,7 @@ export { default as getStoragePath } from './getStoragePath.js';
 export { default as getPdfStoragePath } from './getPdfStoragePath.js';
 export { default as isWhitelistedContentType } from './isWhitelistedContentType.js';
 export { default as retryFunction } from './retryFunction.js';
+export { default as zipResults } from './zipResults.js';
 export { default as randomThreeDigitNumberString } from './randomThreeDigitNumberString.js';
 export { areLinksEqual, isFollowStrategy } from './linkStrategy.js';
 export { setHeadlessMode, setThresholdLimits } from './runtimeFlags.js';

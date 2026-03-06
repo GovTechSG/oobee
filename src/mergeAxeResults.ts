@@ -28,7 +28,6 @@ import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.
 import {
   getWcagPassPercentage,
   getProgressPercentage,
-  zipResults,
   getIssuesPercentage,
   getWcagCriteriaMap,
   categorizeWcagCriteria,
@@ -40,6 +39,7 @@ import {
   getUserDataTxt,
   getVersion,
   retryFunction,
+  zipResults,
 } from './utils/index.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
