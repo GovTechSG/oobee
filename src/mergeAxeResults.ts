@@ -34,10 +34,9 @@ import {
   getIssuesPercentage,
   getWcagCriteriaMap,
   categorizeWcagCriteria,
-  getUserDataTxt,
   register,
 } from './utils.js';
-import { getStoragePath, getVersion } from './utils/index.js';
+import { getStoragePath, getUserDataTxt, getVersion } from './utils/index.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
