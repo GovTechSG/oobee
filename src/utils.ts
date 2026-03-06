@@ -12,11 +12,6 @@ import constants, {
 import { consoleLogger, errorsTxtPath } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
 
-export const getCurrentDate = () => {
-  const date = new Date();
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-};
-
 export const isWhitelistedContentType = (contentType: string): boolean => {
   const whitelist = ['text/html'];
   return whitelist.filter(type => contentType.trim().startsWith(type)).length === 1;
