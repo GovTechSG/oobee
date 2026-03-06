@@ -27,12 +27,9 @@ import { consoleLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 import formatAboutStartTime from './mergeAxeResults/formatAboutStartTime.js';
-import { buildHtmlGroups, convertItemsToReferences } from './mergeAxeResults/itemReferences.js';
+import { buildHtmlGroups } from './mergeAxeResults/itemReferences.js';
 import flattenAndSortResults from './mergeAxeResults/flattenAndSortResults.js';
-import {
-  compressJsonFileStreaming,
-  writeJsonAndBase64Files,
-} from './mergeAxeResults/jsonArtifacts.js';
+import { writeJsonAndBase64Files } from './mergeAxeResults/jsonArtifacts.js';
 import writeCsv from './mergeAxeResults/writeCsv.js';
 import writeHTML from './mergeAxeResults/writeHTML.js';
 import writeScanDetailsCsv from './mergeAxeResults/writeScanDetailsCsv.js';
@@ -648,22 +645,6 @@ const generateArtifacts = async (
     console.log('Report generated successfully');
 
   return ruleIdJson;
-};
-
-export {
-  writeHTML,
-  compressJsonFileStreaming,
-  convertItemsToReferences,
-  flattenAndSortResults,
-  populateScanPagesDetail,
-  sendWcagBreakdownToSentry,
-  getWcagPassPercentage,
-  getProgressPercentage,
-  getIssuesPercentage,
-  itemTypeDescription,
-  oobeeAiHtmlETL,
-  oobeeAiRules,
-  formatAboutStartTime,
 };
 
 export default generateArtifacts;
