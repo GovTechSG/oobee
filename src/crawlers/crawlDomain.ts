@@ -119,12 +119,39 @@ const crawlDomain = async ({
 
   const pdfDownloads: Promise<void>[] = [];
   const uuidToPdfMapping: Record<string, string> = {};
+  const queuedUrlSet = new Set<string>();
   const isScanHtml = [FileTypes.All, FileTypes.HtmlOnly].includes(fileTypes as FileTypes);
   const isScanPdfs = [FileTypes.All, FileTypes.PdfOnly].includes(fileTypes as FileTypes);
   const { maxConcurrency } = constants;
   const { playwrightDeviceDetailsObject } = viewportSettings;
 
-  await requestQueue.addRequest({
+  const enqueueUniqueRequest = async ({
+    url,
+    skipNavigation,
+    label,
+  }: {
+    url: string;
+    skipNavigation?: boolean;
+    label?: string;
+  }) => {
+    if (queuedUrlSet.has(url)) {
+      return;
+    }
+    queuedUrlSet.add(url);
+
+    try {
+      await requestQueue.addRequest({
+        url,
+        skipNavigation,
+        label,
+      });
+    } catch (error) {
+      queuedUrlSet.delete(url);
+      throw error;
+    }
+  };
+
+  await enqueueUniqueRequest({
     url,
     skipNavigation: isUrlPdf(url),
     label: url,
@@ -198,7 +225,7 @@ const crawlDomain = async ({
         try {
           if (newPage.url() != initialPageUrl && !isExcluded(newPage.url())) {
             const newPageUrl: string = newPage.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
-            await requestQueue.addRequest({
+            await enqueueUniqueRequest({
               url: newPageUrl,
               skipNavigation: isUrlPdf(newPage.url()),
               label: newPageUrl,
@@ -226,7 +253,7 @@ const crawlDomain = async ({
             !(newFrame.url() == 'about:blank')
           ) {
             const newFrameUrl: string = newFrame.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
-            await requestQueue.addRequest({
+            await enqueueUniqueRequest({
               url: newFrameUrl,
               skipNavigation: isUrlPdf(newFrame.url()),
               label: newFrameUrl,
@@ -307,7 +334,7 @@ const crawlDomain = async ({
               '',
             );
 
-            await requestQueue.addRequest({
+            await enqueueUniqueRequest({
               url: newUrlFoundInElementUrl,
               skipNavigation: isUrlPdf(newUrlFoundInElement),
               label: newUrlFoundInElementUrl,
@@ -437,7 +464,7 @@ const crawlDomain = async ({
 
           const isRedirected = !areLinksEqual(finalUrl, requestLabelUrl);
           if (isRedirected) {
-            await requestQueue.addRequest({ url: finalUrl, label: finalUrl });
+            await enqueueUniqueRequest({ url: finalUrl, label: finalUrl });
           } else {
             request.skipNavigation = false;
           }
@@ -684,7 +711,7 @@ const crawlDomain = async ({
                   const interceptedRequestUrl = interceptedRequest
                     .url()
                     .replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
-                  await requestQueue.addRequest({
+                  await enqueueUniqueRequest({
                     url: interceptedRequestUrl,
                     skipNavigation: isUrlPdf(interceptedRequest.url()),
                     label: interceptedRequestUrl,
