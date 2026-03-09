@@ -102,7 +102,8 @@ const crawlDomain = async ({
   const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
   let urlsCrawled: UrlsCrawled;
-  let requestQueue: crawlee.RequestQueue;
+  const { requestQueue }: { requestQueue: crawlee.RequestQueue } =
+    await createCrawleeSubFolders(randomToken);
   let durationExceeded = false;
 
   if (fromCrawlIntelligentSitemap) {
@@ -112,8 +113,6 @@ const crawlDomain = async ({
     ({ dataset } = await createCrawleeSubFolders(randomToken));
     urlsCrawled = { ...constants.urlsCrawledObj };
   }
-
-  ({ requestQueue } = await createCrawleeSubFolders(randomToken));
 
   const pdfDownloads: Promise<void>[] = [];
   const uuidToPdfMapping: Record<string, string> = {};
@@ -165,7 +164,7 @@ const crawlDomain = async ({
         // Try catch is necessary as clicking links is best effort, it may result in new pages that cause browser load or navigation errors that PlaywrightCrawler does not handle
         try {
           await customEnqueueLinksByClickingElements(page, browserContext);
-        } catch (e) {
+        } catch {
           // do nothing;
         }
       }
@@ -194,7 +193,7 @@ const crawlDomain = async ({
       // event listener to handle new page popups upon button click
       page.on('popup', async (newPage: Page) => {
         try {
-          if (newPage.url() != initialPageUrl && !isExcluded(newPage.url())) {
+          if (newPage.url() !== initialPageUrl && !isExcluded(newPage.url())) {
             const newPageUrl: string = newPage.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
             await requestQueue.addRequest({
               url: newPageUrl,
@@ -221,7 +220,7 @@ const crawlDomain = async ({
           if (
             newFrame.url() !== initialPageUrl &&
             !isExcluded(newFrame.url()) &&
-            !(newFrame.url() == 'about:blank')
+            !(newFrame.url() === 'about:blank')
           ) {
             const newFrameUrl: string = newFrame.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
             await requestQueue.addRequest({
@@ -239,10 +238,15 @@ const crawlDomain = async ({
     setPageListeners(page);
     let currentElementIndex: number = 0;
     let isAllElementsHandled: boolean = false;
+    // This loop is intentionally sequential because each step depends on the latest page state
+    // (navigation, popup/frame events, and potential page recreation).
+    // Running iterations in parallel (for example with Promise.all) would race on shared `page`
+    // state, causing stale element handles and nondeterministic enqueue/navigation behavior.
+    /* eslint-disable no-await-in-loop */
     while (!isAllElementsHandled) {
       try {
         // navigate back to initial page if clicking on a element previously caused it to navigate to a new url
-        if (page.url() != initialPageUrl) {
+        if (page.url() !== initialPageUrl) {
           try {
             await page.close();
           } catch {
@@ -271,34 +275,32 @@ const crawlDomain = async ({
         currentElementIndex += 1;
         let newUrlFoundInElement: string = null;
         if (await element.isVisible()) {
+          const currentPageUrl = page.url();
           // Find url in html elements without clicking them
-          await page
-            .evaluate(element => {
-              // find href attribute
-              const hrefUrl: string = element.getAttribute('href');
+          const result = await page.evaluate(element => {
+            // find href attribute
+            const hrefUrl: string = element.getAttribute('href');
 
-              // find url in datapath
-              const dataPathUrl: string = element.getAttribute('data-path');
+            // find url in datapath
+            const dataPathUrl: string = element.getAttribute('data-path');
 
-              return hrefUrl || dataPathUrl;
-            }, element)
-            .then(result => {
-              if (result) {
-                newUrlFoundInElement = result;
-                const pageUrl: URL = new URL(page.url());
-                const baseUrl: string = `${pageUrl.protocol}//${pageUrl.host}`;
-                let absoluteUrl: URL;
-                // Construct absolute URL using base URL
-                try {
-                  // Check if newUrlFoundInElement is a valid absolute URL
-                  absoluteUrl = new URL(newUrlFoundInElement);
-                } catch (e) {
-                  // If it's not a valid URL, treat it as a relative URL
-                  absoluteUrl = new URL(newUrlFoundInElement, baseUrl);
-                }
-                newUrlFoundInElement = absoluteUrl.href;
-              }
-            });
+            return hrefUrl || dataPathUrl;
+          }, element);
+          if (result) {
+            newUrlFoundInElement = result;
+            const pageUrl: URL = new URL(currentPageUrl);
+            const baseUrl: string = `${pageUrl.protocol}//${pageUrl.host}`;
+            let absoluteUrl: URL;
+            // Construct absolute URL using base URL
+            try {
+              // Check if newUrlFoundInElement is a valid absolute URL
+              absoluteUrl = new URL(newUrlFoundInElement);
+            } catch {
+              // If it's not a valid URL, treat it as a relative URL
+              absoluteUrl = new URL(newUrlFoundInElement, baseUrl);
+            }
+            newUrlFoundInElement = absoluteUrl.href;
+          }
           if (newUrlFoundInElement && !isExcluded(newUrlFoundInElement)) {
             const newUrlFoundInElementUrl: string = newUrlFoundInElement.replace(
               /(?<=&|\?)utm_.*?(&|$)/gim,
@@ -319,12 +321,11 @@ const crawlDomain = async ({
                   'Skipping a click due to disallowed href nearby. Element HTML:',
                   elementHtml,
                 );
-                continue;
+              } else {
+                // Find url in html elements by manually clicking them. New page navigation/popups will be handled by event listeners above
+                await element.click({ force: true });
+                await page.waitForTimeout(1000); // Add a delay of 1 second between each Element click
               }
-
-              // Find url in html elements by manually clicking them. New page navigation/popups will be handled by event listeners above
-              await element.click({ force: true });
-              await page.waitForTimeout(1000); // Add a delay of 1 second between each Element click
             } catch {
               // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
               // Handles browser page object been closed.
@@ -336,6 +337,7 @@ const crawlDomain = async ({
         // Handles browser page object been closed.
       }
     }
+    /* eslint-enable no-await-in-loop */
   };
 
   let isAbortingScanNow = false;
@@ -397,7 +399,7 @@ const crawlDomain = async ({
               const observer = new MutationObserver(() => {
                 clearTimeout(timeout);
 
-                mutationCount++;
+                mutationCount += 1;
                 if (mutationCount > MAX_MUTATIONS) {
                   observer.disconnect();
                   resolve('Too many mutations, exiting.');
@@ -629,20 +631,18 @@ const crawlDomain = async ({
                 results.actualUrl = actualUrl;
                 await dataset.pushData(results);
               }
-            } else {
+            } else if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
               // One more check if scanned pages have reached limit due to multi-instances of handler running
-              if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
-                guiInfoLog(guiInfoStatusTypes.SCANNED, {
-                  numScanned: urlsCrawled.scanned.length,
-                  urlScanned: request.url,
-                });
-                urlsCrawled.scanned.push({
-                  url: request.url,
-                  actualUrl: request.url,
-                  pageTitle: results.pageTitle,
-                });
-                await dataset.pushData(results);
-              }
+              guiInfoLog(guiInfoStatusTypes.SCANNED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              urlsCrawled.scanned.push({
+                url: request.url,
+                actualUrl: request.url,
+                pageTitle: results.pageTitle,
+              });
+              await dataset.pushData(results);
             }
           } else {
             // Don't inform the user it is skipped since web crawler is best-effort.
@@ -759,9 +759,7 @@ const crawlDomain = async ({
 
     // get screenshots from pdf docs
     if (includeScreenshots) {
-      await Promise.all(
-        pdfResults.map(async result => await doPdfScreenshots(randomToken, result)),
-      );
+      await Promise.all(pdfResults.map(result => doPdfScreenshots(randomToken, result)));
     }
 
     // push results for each pdf document to key value store
