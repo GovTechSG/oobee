@@ -182,6 +182,7 @@ const crawlDomain = async ({
     browserContext: BrowserContext,
   ): Promise<void> => {
     const initialPageUrl: string = page.url().toString();
+    const selectedElementsString = cssQuerySelectors.join(', ');
 
     const isExcluded = (newPageUrl: string): boolean => {
       const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
@@ -257,7 +258,6 @@ const crawlDomain = async ({
           });
           setPageListeners(page);
         }
-        const selectedElementsString = cssQuerySelectors.join(', ');
         const selectedElements: ElementHandle<SVGElement | HTMLElement>[] =
           await page.$$(selectedElementsString);
         // edge case where there might be elements on page that appears intermittently
