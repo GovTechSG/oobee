@@ -127,53 +127,6 @@ const crawlDomain = async ({
     label: url,
   });
 
-  const enqueueProcess = async (
-    page: Page,
-    enqueueLinks: (options: EnqueueLinksOptions) => Promise<BatchAddRequestsResult>,
-    browserContext: BrowserContext,
-  ) => {
-    try {
-      await enqueueLinks({
-        // set selector matches anchor elements with href but not contains # or starting with mailto:
-        selector: `a:not(${disallowedSelectorPatterns})`,
-        strategy,
-        requestQueue,
-        transformRequestFunction: (req: RequestOptions): RequestOptions | null => {
-          try {
-            req.url = req.url.replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
-          } catch (e) {
-            consoleLogger.error(e);
-          }
-          if (urlsCrawled.scanned.some(item => item.url === req.url)) {
-            req.skipNavigation = true;
-          }
-          if (isDisallowedInRobotsTxt(req.url)) return null;
-          if (isBlacklisted(req.url, blacklistedPatterns)) return null;
-          if (isUrlPdf(req.url)) {
-            // playwright headless mode does not support navigation to pdf document
-            req.skipNavigation = true;
-          }
-          req.label = req.url;
-
-          return req;
-        },
-      });
-
-      // If safeMode flag is enabled, skip enqueueLinksByClickingElements
-      if (!safeMode) {
-        // Try catch is necessary as clicking links is best effort, it may result in new pages that cause browser load or navigation errors that PlaywrightCrawler does not handle
-        try {
-          await customEnqueueLinksByClickingElements(page, browserContext);
-        } catch {
-          // do nothing;
-        }
-      }
-    } catch {
-      // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-      // Handles browser page object been closed.
-    }
-  };
-
   const customEnqueueLinksByClickingElements = async (
     page: Page,
     browserContext: BrowserContext,
@@ -338,6 +291,53 @@ const crawlDomain = async ({
       }
     }
     /* eslint-enable no-await-in-loop */
+  };
+
+  const enqueueProcess = async (
+    page: Page,
+    enqueueLinks: (options: EnqueueLinksOptions) => Promise<BatchAddRequestsResult>,
+    browserContext: BrowserContext,
+  ) => {
+    try {
+      await enqueueLinks({
+        // set selector matches anchor elements with href but not contains # or starting with mailto:
+        selector: `a:not(${disallowedSelectorPatterns})`,
+        strategy,
+        requestQueue,
+        transformRequestFunction: (req: RequestOptions): RequestOptions | null => {
+          try {
+            req.url = req.url.replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
+          } catch (e) {
+            consoleLogger.error(e);
+          }
+          if (urlsCrawled.scanned.some(item => item.url === req.url)) {
+            req.skipNavigation = true;
+          }
+          if (isDisallowedInRobotsTxt(req.url)) return null;
+          if (isBlacklisted(req.url, blacklistedPatterns)) return null;
+          if (isUrlPdf(req.url)) {
+            // playwright headless mode does not support navigation to pdf document
+            req.skipNavigation = true;
+          }
+          req.label = req.url;
+
+          return req;
+        },
+      });
+
+      // If safeMode flag is enabled, skip enqueueLinksByClickingElements
+      if (!safeMode) {
+        // Try catch is necessary as clicking links is best effort, it may result in new pages that cause browser load or navigation errors that PlaywrightCrawler does not handle
+        try {
+          await customEnqueueLinksByClickingElements(page, browserContext);
+        } catch {
+          // do nothing;
+        }
+      }
+    } catch {
+      // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
+      // Handles browser page object been closed.
+    }
   };
 
   let isAbortingScanNow = false;
