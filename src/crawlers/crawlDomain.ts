@@ -1,7 +1,6 @@
 import crawlee, { EnqueueStrategy } from 'crawlee';
 import type { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
-import type { EnqueueLinksOptions, RequestOptions } from 'crawlee';
-import type { BatchAddRequestsResult } from '@crawlee/types';
+import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
 import * as path from 'path';
 import fsp from 'fs/promises';
 import {
@@ -128,10 +127,11 @@ const crawlDomain = async ({
   });
 
   const customEnqueueLinksByClickingElements = async (
-    page: Page,
+    currentPage: Page,
     browserContext: BrowserContext,
   ): Promise<void> => {
-    const initialPageUrl: string = page.url().toString();
+    let workingPage = currentPage;
+    const initialPageUrl: string = workingPage.url().toString();
 
     const isExcluded = (newPageUrl: string): boolean => {
       const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
@@ -142,9 +142,9 @@ const crawlDomain = async ({
       );
       return isNotSupportedDocument || isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
     };
-    const setPageListeners = (page: Page): void => {
+    const setPageListeners = (pageListener: Page): void => {
       // event listener to handle new page popups upon button click
-      page.on('popup', async (newPage: Page) => {
+      pageListener.on('popup', async (newPage: Page) => {
         try {
           if (newPage.url() !== initialPageUrl && !isExcluded(newPage.url())) {
             const newPageUrl: string = newPage.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
@@ -168,7 +168,7 @@ const crawlDomain = async ({
       });
 
       // event listener to handle navigation to new url within same page upon element click
-      page.on('framenavigated', async (newFrame: Frame) => {
+      pageListener.on('framenavigated', async (newFrame: Frame) => {
         try {
           if (
             newFrame.url() !== initialPageUrl &&
@@ -188,7 +188,7 @@ const crawlDomain = async ({
         }
       });
     };
-    setPageListeners(page);
+    setPageListeners(workingPage);
     let currentElementIndex: number = 0;
     let isAllElementsHandled: boolean = false;
     // This loop is intentionally sequential because each step depends on the latest page state
@@ -199,22 +199,22 @@ const crawlDomain = async ({
     while (!isAllElementsHandled) {
       try {
         // navigate back to initial page if clicking on a element previously caused it to navigate to a new url
-        if (page.url() !== initialPageUrl) {
+        if (workingPage.url() !== initialPageUrl) {
           try {
-            await page.close();
+            await workingPage.close();
           } catch {
             // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
             // Handles browser page object been closed.
           }
-          page = await browserContext.newPage();
-          await page.goto(initialPageUrl, {
+          workingPage = await browserContext.newPage();
+          await workingPage.goto(initialPageUrl, {
             waitUntil: 'domcontentloaded',
           });
-          setPageListeners(page);
+          setPageListeners(workingPage);
         }
         const selectedElementsString = cssQuerySelectors.join(', ');
         const selectedElements: ElementHandle<SVGElement | HTMLElement>[] =
-          await page.$$(selectedElementsString);
+          await workingPage.$$(selectedElementsString);
         // edge case where there might be elements on page that appears intermittently
         if (currentElementIndex + 1 > selectedElements.length || !selectedElements) {
           break;
@@ -228,14 +228,14 @@ const crawlDomain = async ({
         currentElementIndex += 1;
         let newUrlFoundInElement: string = null;
         if (await element.isVisible()) {
-          const currentPageUrl = page.url();
+          const currentPageUrl = workingPage.url();
           // Find url in html elements without clicking them
-          const result = await page.evaluate(element => {
+          const result = await workingPage.evaluate(pageElement => {
             // find href attribute
-            const hrefUrl: string = element.getAttribute('href');
+            const hrefUrl: string = pageElement.getAttribute('href');
 
             // find url in datapath
-            const dataPathUrl: string = element.getAttribute('data-path');
+            const dataPathUrl: string = pageElement.getAttribute('data-path');
 
             return hrefUrl || dataPathUrl;
           }, element);
@@ -267,9 +267,9 @@ const crawlDomain = async ({
             });
           } else if (!newUrlFoundInElement) {
             try {
-              const shouldSkip = await shouldSkipClickDueToDisallowedHref(page, element);
+              const shouldSkip = await shouldSkipClickDueToDisallowedHref(workingPage, element);
               if (shouldSkip) {
-                const elementHtml = await page.evaluate(el => el.outerHTML, element);
+                const elementHtml = await workingPage.evaluate(el => el.outerHTML, element);
                 consoleLogger.info(
                   'Skipping a click due to disallowed href nearby. Element HTML:',
                   elementHtml,
@@ -277,7 +277,7 @@ const crawlDomain = async ({
               } else {
                 // Find url in html elements by manually clicking them. New page navigation/popups will be handled by event listeners above
                 await element.click({ force: true });
-                await page.waitForTimeout(1000); // Add a delay of 1 second between each Element click
+                await workingPage.waitForTimeout(1000); // Add a delay of 1 second between each Element click
               }
             } catch {
               // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
@@ -295,7 +295,7 @@ const crawlDomain = async ({
 
   const enqueueProcess = async (
     page: Page,
-    enqueueLinks: (options: EnqueueLinksOptions) => Promise<BatchAddRequestsResult>,
+    enqueueLinks: PlaywrightCrawlingContext['enqueueLinks'],
     browserContext: BrowserContext,
   ) => {
     try {
@@ -368,9 +368,12 @@ const crawlDomain = async ({
             await fsp.mkdir(subProfileDir, { recursive: true });
 
             // Assign to Crawlee's launcher
+            // Crawlee preLaunchHooks expects launchContext to be mutated in-place.
+            // eslint-disable-next-line no-param-reassign
             launchContext.userDataDir = subProfileDir;
 
             // Safely extend launchOptions
+            // eslint-disable-next-line no-param-reassign
             launchContext.launchOptions = {
               ...launchContext.launchOptions,
               ignoreHTTPSErrors: true,
@@ -444,7 +447,14 @@ const crawlDomain = async ({
         },
       ],
       requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
-      requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
+      requestHandler: async ({
+        page,
+        request,
+        response,
+        crawler: activeCrawler,
+        sendRequest,
+        enqueueLinks,
+      }) => {
         const browserContext: BrowserContext = page.context();
         try {
           await waitForPageLoaded(page, 10000);
@@ -474,7 +484,7 @@ const crawlDomain = async ({
               durationExceeded = true;
             }
             isAbortingScanNow = true;
-            crawler.autoscaledPool.abort();
+            activeCrawler.autoscaledPool.abort();
             return;
           }
 
@@ -512,7 +522,7 @@ const crawlDomain = async ({
 
               return;
             }
-            const { pdfFileName, url } = handlePdfDownload(
+            const { pdfFileName, url: downloadedPdfUrl } = handlePdfDownload(
               randomToken,
               pdfDownloads,
               request,
@@ -520,7 +530,7 @@ const crawlDomain = async ({
               urlsCrawled,
             );
 
-            uuidToPdfMapping[pdfFileName] = url;
+            uuidToPdfMapping[pdfFileName] = downloadedPdfUrl;
             return;
           }
 
@@ -673,10 +683,10 @@ const crawlDomain = async ({
                 urlScanned: request.url,
               });
 
-              page = await browserContext.newPage();
-              await page.goto(request.url);
+              const recoveryPage = await browserContext.newPage();
+              await recoveryPage.goto(request.url);
 
-              await page.route('**/*', async route => {
+              await recoveryPage.route('**/*', async route => {
                 const interceptedRequest = route.request();
                 if (interceptedRequest.resourceType() === 'document') {
                   const interceptedRequestUrl = interceptedRequest
