@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/node';
 import { sentryConfig, setSentryUser } from '../constants/constants.js';
 import { categorizeWcagCriteria, getUserDataTxt, getWcagCriteriaMap } from '../utils.js';
-import type { AllIssues } from './types.js';
+import type { AllIssues } from '../mergeAxeResults/types.js';
 
 // Format WCAG tag in requested format: wcag111a_Occurrences
 const formatWcagTag = async (wcagId: string): Promise<string | null> => {
@@ -57,7 +57,7 @@ const sendWcagBreakdownToSentry = async (
 
     // First ensure all WCAG criteria are included in the tags with a value of 0
     // This ensures criteria with no violations are still reported
-    for (const [wcagId, info] of Object.entries(wcagCriteriaMap)) {
+    for (const [wcagId] of Object.entries(wcagCriteriaMap)) {
       const formattedTag = await formatWcagTag(wcagId);
       if (formattedTag) {
         // Initialize with zero
@@ -176,6 +176,7 @@ const sendWcagBreakdownToSentry = async (
     // Wait for events to be sent
     await Sentry.flush(2000);
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error sending WCAG breakdown to Sentry:', error);
   }
 };
