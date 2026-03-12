@@ -7,7 +7,7 @@ import {
   validateUrl,
   getStoragePath,
   setHeadlessMode,
-} from '../utils.js';
+} from '../src/utils/index.js';
 
 describe('test setting of threshold warn level', () => {
   const OLD_ENV = process.env;
