@@ -1,6 +1,6 @@
 import crawlee, { EnqueueStrategy } from 'crawlee';
 import type { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
-import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
+import type { PlaywrightCrawlingContext, Request as CrawleeRequest, RequestOptions } from 'crawlee';
 import * as path from 'path';
 import fsp from 'fs/promises';
 import {
@@ -342,6 +342,230 @@ const crawlDomain = async ({
 
   let isAbortingScanNow = false;
 
+  const shouldAbortByLimits = (activeCrawler: {
+    autoscaledPool?: { abort: () => void };
+  }): boolean => {
+    const durationExceededNow =
+      scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
+
+    if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || durationExceededNow) {
+      if (durationExceededNow) {
+        console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting website crawl.`);
+        durationExceeded = true;
+      }
+      isAbortingScanNow = true;
+      activeCrawler.autoscaledPool?.abort();
+      return true;
+    }
+    return false;
+  };
+
+  const isRequestAlreadyScanned = (requestUrl: string): boolean => {
+    // if URL has already been scanned
+    return urlsCrawled.scanned.some(item => item.url === requestUrl);
+  };
+
+  const handlePdf = ({
+    actualUrl,
+    request,
+    response,
+    sendRequest,
+  }: {
+    actualUrl: string;
+    request: CrawleeRequest;
+    response: Parameters<typeof shouldSkipDueToUnsupportedContent>[0];
+    sendRequest: unknown;
+  }): boolean => {
+    // handle pdfs
+    if (
+      shouldSkipDueToUnsupportedContent(response, request.url) ||
+      (request.skipNavigation && actualUrl === 'about:blank')
+    ) {
+      if (!isScanPdfs) {
+        // Don't inform the user it is skipped since web crawler is best-effort.
+        /*
+      guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+        numScanned: urlsCrawled.scanned.length,
+        urlScanned: request.url,
+      });
+      urlsCrawled.userExcluded.push({
+        url: request.url,
+        pageTitle: request.url,
+        actualUrl: request.url, // because about:blank is not useful
+        metadata: STATUS_CODE_METADATA[1],
+        httpStatusCode: 0,
+      });
+      */
+        return true;
+      }
+      const { pdfFileName, url: downloadedPdfUrl } = handlePdfDownload(
+        randomToken,
+        pdfDownloads,
+        request,
+        sendRequest,
+        urlsCrawled,
+      );
+
+      uuidToPdfMapping[pdfFileName] = downloadedPdfUrl;
+      return true;
+    }
+    return false;
+  };
+
+  const shouldSkipByExtension = (actualUrl: string): boolean => {
+    if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
+      // Don't inform the user it is skipped since web crawler is best-effort.
+      /*
+    guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+      numScanned: urlsCrawled.scanned.length,
+      urlScanned: request.url,
+    });
+    urlsCrawled.userExcluded.push({
+      url: request.url,
+      pageTitle: request.url,
+      actualUrl, // because about:blank is not useful
+      metadata: STATUS_CODE_METADATA[1],
+      httpStatusCode: 0,
+    });
+    */
+      return true;
+    }
+    return false;
+  };
+
+  const handleBlacklistedUrl = async ({
+    actualUrl,
+    request,
+    page,
+    enqueueLinks,
+    browserContext,
+  }: {
+    actualUrl: string;
+    request: CrawleeRequest;
+    page: Page;
+    enqueueLinks: PlaywrightCrawlingContext['enqueueLinks'];
+    browserContext: BrowserContext;
+  }): Promise<boolean> => {
+    if (
+      !isFollowStrategy(url, actualUrl, strategy) &&
+      blacklistedPatterns &&
+      isSkippedUrl(actualUrl, blacklistedPatterns)
+    ) {
+      urlsCrawled.userExcluded.push({
+        url: request.url,
+        pageTitle: request.url,
+        actualUrl,
+        metadata: STATUS_CODE_METADATA[0],
+        httpStatusCode: 0,
+      });
+
+      guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+        numScanned: urlsCrawled.scanned.length,
+        urlScanned: request.url,
+      });
+
+      await enqueueProcess(page, enqueueLinks, browserContext);
+      return true;
+    }
+    return false;
+  };
+
+  const handleScanHtml = async ({
+    actualUrl,
+    request,
+    response,
+    page,
+  }: {
+    actualUrl: string;
+    request: CrawleeRequest;
+    response: Parameters<typeof shouldSkipDueToUnsupportedContent>[0];
+    page: Page;
+  }): Promise<boolean> => {
+    // For deduplication, if the URL is redirected, we want to store the original URL and the redirected URL (actualUrl)
+    const isRedirected = !areLinksEqual(actualUrl, request.url);
+
+    // check if redirected link is following strategy (same-domain/same-hostname)
+    const isLoadedUrlFollowStrategy = isFollowStrategy(actualUrl, request.url, strategy);
+    if (isRedirected && !isLoadedUrlFollowStrategy) {
+      urlsCrawled.notScannedRedirects.push({
+        fromUrl: request.url,
+        toUrl: actualUrl, // i.e. actualUrl
+      });
+      return true;
+    }
+
+    const responseStatus = response?.status();
+    if (responseStatus && responseStatus >= 300) {
+      guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+        numScanned: urlsCrawled.scanned.length,
+        urlScanned: request.url,
+      });
+      urlsCrawled.userExcluded.push({
+        url: request.url,
+        pageTitle: request.url,
+        actualUrl,
+        metadata: STATUS_CODE_METADATA[responseStatus] || STATUS_CODE_METADATA[599],
+        httpStatusCode: responseStatus,
+      });
+      return true;
+    }
+
+    const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
+
+    if (isRedirected) {
+      const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
+        item => (item.actualUrl || item.url) === actualUrl,
+      );
+
+      if (isLoadedUrlInCrawledUrls) {
+        urlsCrawled.notScannedRedirects.push({
+          fromUrl: request.url,
+          toUrl: actualUrl, // i.e. actualUrl
+        });
+        return true;
+      }
+
+      // One more check if scanned pages have reached limit due to multi-instances of handler running
+      if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
+        guiInfoLog(guiInfoStatusTypes.SCANNED, {
+          numScanned: urlsCrawled.scanned.length,
+          urlScanned: request.url,
+        });
+
+        urlsCrawled.scanned.push({
+          url: request.url,
+          pageTitle: results.pageTitle,
+          actualUrl, // i.e. actualUrl
+        });
+
+        urlsCrawled.scannedRedirects.push({
+          fromUrl: request.url,
+          toUrl: actualUrl, // i.e. actualUrl
+        });
+
+        results.url = request.url;
+        results.actualUrl = actualUrl;
+        await dataset.pushData(results);
+      }
+      return false;
+    }
+
+    // One more check if scanned pages have reached limit due to multi-instances of handler running
+    if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
+      guiInfoLog(guiInfoStatusTypes.SCANNED, {
+        numScanned: urlsCrawled.scanned.length,
+        urlScanned: request.url,
+      });
+      urlsCrawled.scanned.push({
+        url: request.url,
+        actualUrl: request.url,
+        pageTitle: results.pageTitle,
+      });
+      await dataset.pushData(results);
+    }
+    return false;
+  };
+
   const crawler = register(
     new crawlee.PlaywrightCrawler({
       launchContext: {
@@ -474,186 +698,24 @@ const crawlDomain = async ({
             });
             return;
           }
-
-          const hasExceededDuration =
-            scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
-
-          if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
-            if (hasExceededDuration) {
-              console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting website crawl.`);
-              durationExceeded = true;
-            }
-            isAbortingScanNow = true;
-            activeCrawler.autoscaledPool.abort();
-            return;
-          }
-
-          // if URL has already been scanned
-          if (urlsCrawled.scanned.some(item => item.url === request.url)) {
-            // await enqueueProcess(page, enqueueLinks, browserContext);
-            return;
-          }
+          if (shouldAbortByLimits(activeCrawler)) return;
+          if (isRequestAlreadyScanned(request.url)) return;
 
           if (isDisallowedInRobotsTxt(request.url)) {
             await enqueueProcess(page, enqueueLinks, browserContext);
             return;
           }
 
-          // handle pdfs
+          if (handlePdf({ actualUrl, request, response, sendRequest })) return;
+          if (shouldSkipByExtension(actualUrl)) return;
           if (
-            shouldSkipDueToUnsupportedContent(response, request.url) ||
-            (request.skipNavigation && actualUrl === 'about:blank')
+            await handleBlacklistedUrl({ actualUrl, request, page, enqueueLinks, browserContext })
           ) {
-            if (!isScanPdfs) {
-              // Don't inform the user it is skipped since web crawler is best-effort.
-              /*
-            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
-            urlsCrawled.userExcluded.push({
-              url: request.url,
-              pageTitle: request.url,
-              actualUrl: request.url, // because about:blank is not useful
-              metadata: STATUS_CODE_METADATA[1],
-              httpStatusCode: 0,
-            });
-            */
-
-              return;
-            }
-            const { pdfFileName, url: downloadedPdfUrl } = handlePdfDownload(
-              randomToken,
-              pdfDownloads,
-              request,
-              sendRequest,
-              urlsCrawled,
-            );
-
-            uuidToPdfMapping[pdfFileName] = downloadedPdfUrl;
-            return;
-          }
-
-          if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
-            // Don't inform the user it is skipped since web crawler is best-effort.
-            /*
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.userExcluded.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl, // because about:blank is not useful
-            metadata: STATUS_CODE_METADATA[1],
-            httpStatusCode: 0,
-          });
-          */
-            return;
-          }
-
-          if (
-            !isFollowStrategy(url, actualUrl, strategy) &&
-            blacklistedPatterns &&
-            isSkippedUrl(actualUrl, blacklistedPatterns)
-          ) {
-            urlsCrawled.userExcluded.push({
-              url: request.url,
-              pageTitle: request.url,
-              actualUrl,
-              metadata: STATUS_CODE_METADATA[0],
-              httpStatusCode: 0,
-            });
-
-            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
-
-            await enqueueProcess(page, enqueueLinks, browserContext);
             return;
           }
 
           if (isScanHtml) {
-            // For deduplication, if the URL is redirected, we want to store the original URL and the redirected URL (actualUrl)
-            const isRedirected = !areLinksEqual(actualUrl, request.url);
-
-            // check if redirected link is following strategy (same-domain/same-hostname)
-            const isLoadedUrlFollowStrategy = isFollowStrategy(actualUrl, request.url, strategy);
-            if (isRedirected && !isLoadedUrlFollowStrategy) {
-              urlsCrawled.notScannedRedirects.push({
-                fromUrl: request.url,
-                toUrl: actualUrl, // i.e. actualUrl
-              });
-              return;
-            }
-
-            const responseStatus = response?.status();
-            if (responseStatus && responseStatus >= 300) {
-              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-                numScanned: urlsCrawled.scanned.length,
-                urlScanned: request.url,
-              });
-              urlsCrawled.userExcluded.push({
-                url: request.url,
-                pageTitle: request.url,
-                actualUrl,
-                metadata: STATUS_CODE_METADATA[responseStatus] || STATUS_CODE_METADATA[599],
-                httpStatusCode: responseStatus,
-              });
-              return;
-            }
-
-            const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
-
-            if (isRedirected) {
-              const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-                item => (item.actualUrl || item.url) === actualUrl,
-              );
-
-              if (isLoadedUrlInCrawledUrls) {
-                urlsCrawled.notScannedRedirects.push({
-                  fromUrl: request.url,
-                  toUrl: actualUrl, // i.e. actualUrl
-                });
-                return;
-              }
-
-              // One more check if scanned pages have reached limit due to multi-instances of handler running
-              if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
-                guiInfoLog(guiInfoStatusTypes.SCANNED, {
-                  numScanned: urlsCrawled.scanned.length,
-                  urlScanned: request.url,
-                });
-
-                urlsCrawled.scanned.push({
-                  url: request.url,
-                  pageTitle: results.pageTitle,
-                  actualUrl, // i.e. actualUrl
-                });
-
-                urlsCrawled.scannedRedirects.push({
-                  fromUrl: request.url,
-                  toUrl: actualUrl, // i.e. actualUrl
-                });
-
-                results.url = request.url;
-                results.actualUrl = actualUrl;
-                await dataset.pushData(results);
-              }
-            } else if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
-              // One more check if scanned pages have reached limit due to multi-instances of handler running
-              guiInfoLog(guiInfoStatusTypes.SCANNED, {
-                numScanned: urlsCrawled.scanned.length,
-                urlScanned: request.url,
-              });
-              urlsCrawled.scanned.push({
-                url: request.url,
-                actualUrl: request.url,
-                pageTitle: results.pageTitle,
-              });
-              await dataset.pushData(results);
-            }
+            if (await handleScanHtml({ actualUrl, request, response, page })) return;
           } else {
             // Don't inform the user it is skipped since web crawler is best-effort.
             /*
