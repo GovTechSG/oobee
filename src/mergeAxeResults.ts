@@ -3,8 +3,6 @@
 import fs, { ensureDirSync } from 'fs-extra';
 import printMessage from 'print-message';
 import path from 'path';
-import ejs from 'ejs';
-import { fileURLToPath } from 'url';
 import constants, {
   BrowserTypes,
   ScannerTypes,
@@ -13,7 +11,7 @@ import constants, {
   disabilityBadgesMap,
   a11yRuleLongDescriptionMap,
 } from './constants/constants.js';
-import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.js';
+import { getBrowserToRun } from './constants/common.js';
 
 import {
   createScreenshotsFolder,
@@ -24,24 +22,23 @@ import {
   retryFunction,
   zipResults,
   getIssuesPercentage,
-  register,
 } from './utils.js';
 import { consoleLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
-import { buildHtmlGroups, convertItemsToReferences } from './mergeAxeResults/itemReferences.js';
-import {
-  compressJsonFileStreaming,
-  writeJsonAndBase64Files,
-  writeJsonFileAndCompressedJsonFile,
-} from './mergeAxeResults/jsonArtifacts.js';
+import formatAboutStartTime from './mergeAxeResults/formatAboutStartTime.js';
+import { buildHtmlGroups } from './mergeAxeResults/itemReferences.js';
+import flattenAndSortResults from './mergeAxeResults/flattenAndSortResults.js';
+import { writeJsonAndBase64Files } from './mergeAxeResults/jsonArtifacts.js';
 import writeCsv from './mergeAxeResults/writeCsv.js';
+import writeHTML from './mergeAxeResults/writeHTML.js';
 import writeScanDetailsCsv from './mergeAxeResults/writeScanDetailsCsv.js';
 import writeSitemap from './mergeAxeResults/writeSitemap.js';
 import writeSummaryHTML from './mergeAxeResults/writeSummaryHTML.js';
+import writeSummaryPdf from './mergeAxeResults/writeSummaryPdf.js';
 import populateScanPagesDetail from './mergeAxeResults/scanPages.js';
-import sendWcagBreakdownToSentry from './mergeAxeResults/sentryTelemetry.js';
-import type { AllIssues, PageInfo, RuleInfo } from './mergeAxeResults/types.js';
+import sendWcagBreakdownToSentry from './services/wcagSentryReporter.js';
+import type { AllIssues, PageInfo } from './mergeAxeResults/types.js';
 
 export type {
   AllIssues,
@@ -51,10 +48,6 @@ export type {
   PageInfo,
   RuleInfo,
 } from './mergeAxeResults/types.js';
-
-const filename = fileURLToPath(import.meta.url);
-const dirname = path.dirname(filename);
-const BUFFER_LIMIT = 100 * 1024 * 1024; // 100MB size
 
 const extractFileNames = async (directory: string): Promise<string[]> => {
   ensureDirSync(directory);
@@ -106,221 +99,6 @@ const parseContentToJson = async (rPath: string) => {
   }
 };
 
-const compileHtmlWithEJS = async (
-  allIssues: AllIssues,
-  storagePath: string,
-  htmlFilename = 'report',
-) => {
-  const htmlFilePath = `${path.join(storagePath, htmlFilename)}.html`;
-  const ejsString = fs.readFileSync(path.join(dirname, './static/ejs/report.ejs'), 'utf-8');
-  const template = ejs.compile(ejsString, {
-    filename: path.join(dirname, './static/ejs/report.ejs'),
-  });
-
-  const html = template({ ...allIssues, storagePath: JSON.stringify(storagePath) });
-  await fs.writeFile(htmlFilePath, html);
-
-  let htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
-
-  const headIndex = htmlContent.indexOf('</head>');
-  const injectScript = `
-  <script>
-    // IMPORTANT! DO NOT REMOVE ME: Decode the encoded data
-
-  </script>
-  `;
-
-  if (headIndex !== -1) {
-    htmlContent = htmlContent.slice(0, headIndex) + injectScript + htmlContent.slice(headIndex);
-  } else {
-    htmlContent += injectScript;
-  }
-
-  await fs.writeFile(htmlFilePath, htmlContent);
-
-  return htmlFilePath;
-};
-
-const splitHtmlAndCreateFiles = async (htmlFilePath, storagePath) => {
-  try {
-    const htmlContent = await fs.readFile(htmlFilePath, { encoding: 'utf8' });
-    const splitMarker = '// IMPORTANT! DO NOT REMOVE ME: Decode the encoded data';
-    const splitIndex = htmlContent.indexOf(splitMarker);
-
-    if (splitIndex === -1) {
-      throw new Error('Marker comment not found in the HTML file.');
-    }
-
-    const topContent = `${htmlContent.slice(0, splitIndex + splitMarker.length)}\n\n`;
-    const bottomContent = htmlContent.slice(splitIndex + splitMarker.length);
-
-    const topFilePath = path.join(storagePath, 'report-partial-top.htm.txt');
-    const bottomFilePath = path.join(storagePath, 'report-partial-bottom.htm.txt');
-
-    await fs.writeFile(topFilePath, topContent, { encoding: 'utf8' });
-    await fs.writeFile(bottomFilePath, bottomContent, { encoding: 'utf8' });
-
-    await fs.unlink(htmlFilePath);
-
-    return { topFilePath, bottomFilePath };
-  } catch (error) {
-    console.error('Error splitting HTML and creating files:', error);
-  }
-};
-
-const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB per chunk
-
-const writeHTML = async (
-  allIssues: AllIssues,
-  storagePath: string,
-  htmlFilename = 'report',
-  scanDetailsFilePath: string,
-  scanItemsFilePath: string,
-): Promise<void> => {
-  const htmlFilePath = await compileHtmlWithEJS(allIssues, storagePath, htmlFilename);
-  const { topFilePath, bottomFilePath } = await splitHtmlAndCreateFiles(htmlFilePath, storagePath);
-  const prefixData = fs.readFileSync(path.join(storagePath, 'report-partial-top.htm.txt'), 'utf-8');
-  const suffixData = fs.readFileSync(
-    path.join(storagePath, 'report-partial-bottom.htm.txt'),
-    'utf-8',
-  );
-
-  // Create lighter version with item references for embedding in HTML
-  const scanItemsWithHtmlGroupRefs = convertItemsToReferences(allIssues);
-
-  // Write the lighter items to a file and get the base64 path
-  const {
-    jsonFilePath: scanItemsWithHtmlGroupRefsJsonFilePath,
-    base64FilePath: scanItemsWithHtmlGroupRefsBase64FilePath,
-  } = await writeJsonFileAndCompressedJsonFile(
-    scanItemsWithHtmlGroupRefs.items,
-    storagePath,
-    'scanItems-light',
-  );
-
-  return new Promise<void>((resolve, reject) => {
-    const scanDetailsReadStream = fs.createReadStream(scanDetailsFilePath, {
-      encoding: 'utf8',
-      highWaterMark: BUFFER_LIMIT,
-    });
-
-    const outputFilePath = `${storagePath}/${htmlFilename}.html`;
-    const outputStream = fs.createWriteStream(outputFilePath, { flags: 'a' });
-
-    const cleanupFiles = async () => {
-      try {
-        await Promise.all([
-          fs.promises.unlink(topFilePath),
-          fs.promises.unlink(bottomFilePath),
-          fs.promises.unlink(scanItemsWithHtmlGroupRefsBase64FilePath),
-          fs.promises.unlink(scanItemsWithHtmlGroupRefsJsonFilePath),
-        ]);
-      } catch (err) {
-        console.error('Error cleaning up temporary files:', err);
-      }
-    };
-
-    outputStream.write(prefixData);
-
-    // For Proxied AI environments only
-    outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ''}"\n`);
-
-    // Initialize GenAI feature flag
-    outputStream.write(`
-  // Fetch GenAI feature flag from backend
-  window.oobeeGenAiFeatureEnabled = false;
-  if (proxyUrl !== "" && proxyUrl !== undefined && proxyUrl !== null) {
-    (async () => {
-      try {
-        const featuresUrl = proxyUrl + '/api/ai/features';
-        const response = await fetch(featuresUrl, {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' }
-        });
-        if (response.ok) {
-          const features = await response.json();
-          window.oobeeGenAiFeatureEnabled = features.genai_ui_enabled || false;
-          console.log('GenAI UI feature flag:', window.oobeeGenAiFeatureEnabled);
-        } else {
-          console.warn('Failed to fetch GenAI feature flag:', response.status);
-        }
-      } catch (error) {
-        console.warn('Error fetching GenAI feature flag:', error);
-      }
-    })();
-  } else {
-    console.warn('Skipping fetch GenAI feature as it is local report');
-  }
-  \n`);
-
-    outputStream.write('</script>\n<script type="text/plain" id="scanDataRaw">');
-    scanDetailsReadStream.pipe(outputStream, { end: false });
-
-    scanDetailsReadStream.on('end', async () => {
-      outputStream.write('</script>\n<script>\n');
-      outputStream.write(
-        "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n",
-      );
-      outputStream.write('</script>\n');
-
-      // Write scanItems in 2MB chunks using a stream to avoid loading entire file into memory
-      try {
-        let chunkIndex = 1;
-        const scanItemsStream = fs.createReadStream(scanItemsWithHtmlGroupRefsBase64FilePath, {
-          encoding: 'utf8',
-          highWaterMark: CHUNK_SIZE,
-        });
-
-        for await (const chunk of scanItemsStream) {
-          outputStream.write(
-            `<script type="text/plain" id="scanItemsRaw${chunkIndex}">${chunk}</script>\n`,
-          );
-          chunkIndex++;
-        }
-
-        outputStream.write('<script>\n');
-        outputStream.write(`
-var scanItemsPromise = (async () => {
-  console.log('Loading scanItems...');
-  const chunks = [];
-  let i = 1;
-  while (true) {
-    const el = document.getElementById('scanItemsRaw' + i);
-    if (!el) break;
-    chunks.push(el.textContent);
-    i++;
-  }
-  scanItems = await decodeUnzipParse(chunks);
-})();\n`);
-        outputStream.write(suffixData);
-        outputStream.end();
-      } catch (err) {
-        console.error('Error writing chunked scanItems:', err);
-        outputStream.destroy(err as Error);
-        reject(err);
-      }
-    });
-
-    scanDetailsReadStream.on('error', err => {
-      console.error('Read stream error:', err);
-      outputStream.destroy(err);
-      reject(err);
-    });
-
-    // Resolve only when output stream fully finishes — this is what makes
-    // `await writeHTML(...)` in generateArtifacts wait before cleanUpJsonFiles runs
-    outputStream.on('finish', async () => {
-      consoleLogger.info('Content appended successfully.');
-      await cleanupFiles();
-      resolve();
-    });
-
-    outputStream.on('error', err => {
-      consoleLogger.error('Error writing to output file:', err);
-      reject(err);
-    });
-  });
-};
 
 const cleanUpJsonFiles = async (filesToDelete: string[]) => {
   consoleLogger.info('Cleaning up JSON files...');
@@ -328,54 +106,6 @@ const cleanUpJsonFiles = async (filesToDelete: string[]) => {
     fs.unlinkSync(file);
     consoleLogger.info(`Deleted ${file}`);
   });
-};
-
-const writeSummaryPdf = async (
-  storagePath: string,
-  pagesScanned: number,
-  filename = 'summary',
-  browser: string,
-  _userDataDirectory: string,
-) => {
-  const htmlFilePath = `${storagePath}/${filename}.html`;
-  const fileDestinationPath = `${storagePath}/${filename}.pdf`;
-
-  const launchOptions = getPlaywrightLaunchOptions(browser);
-
-  const browserInstance = await constants.launcher.launch({
-    ...launchOptions,
-    headless: true, // force headless for PDF
-  });
-
-  register(browserInstance as unknown as { close: () => Promise<void> });
-
-  const context = await browserInstance.newContext();
-  const page = await context.newPage();
-
-  const data = fs.readFileSync(htmlFilePath, { encoding: 'utf-8' });
-  await page.setContent(data, { waitUntil: 'domcontentloaded' });
-
-  await page.emulateMedia({ media: 'print' });
-
-  await page.pdf({
-    margin: { bottom: '32px' },
-    path: fileDestinationPath,
-    format: 'A4',
-    displayHeaderFooter: true,
-    footerTemplate: `
-    <div style="margin-top:50px;color:#26241b;font-family:Open Sans;text-align: center;width: 100%;font-weight:400">
-      <span style="color:#26241b;font-size: 14px;font-weight:400">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
-    </div>
-  `,
-  });
-
-  await page.close();
-  await context.close().catch(() => {});
-  await browserInstance.close().catch(() => {});
-
-  if (pagesScanned < 2000) {
-    fs.unlinkSync(htmlFilePath);
-  }
 };
 
 // Tracking WCAG occurrences
@@ -466,109 +196,6 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   });
 };
 
-const getTopTenIssues = allIssues => {
-  const categories = ['mustFix', 'goodToFix'];
-  const rulesWithCounts = [];
-
-  // This is no longer required and shall not be maintained in future
-  /*
-  const conformanceLevels = {
-    wcag2a: 'A',
-    wcag2aa: 'AA',
-    wcag21aa: 'AA',
-    wcag22aa: 'AA',
-    wcag2aaa: 'AAA',
-  };
-  */
-
-  categories.forEach(category => {
-    const rules = allIssues.items[category]?.rules || [];
-
-    rules.forEach(rule => {
-      // This is not needed anymore since we want to have the clause number too
-      /*
-      const wcagLevel = rule.conformance[0];
-      const aLevel = conformanceLevels[wcagLevel] || wcagLevel;
-      */
-
-      rulesWithCounts.push({
-        category,
-        ruleId: rule.rule,
-        // Replace description with new Oobee short description if available
-        description: a11yRuleShortDescriptionMap[rule.rule] || rule.description,
-        axeImpact: rule.axeImpact,
-        conformance: rule.conformance,
-        totalItems: rule.totalItems,
-      });
-    });
-  });
-
-  rulesWithCounts.sort((a, b) => b.totalItems - a.totalItems);
-
-  return rulesWithCounts.slice(0, 10);
-};
-
-const flattenAndSortResults = (allIssues: AllIssues, isCustomFlow: boolean) => {
-  // Create a map that will sum items only from mustFix, goodToFix, and needsReview.
-  const urlOccurrencesMap = new Map<string, number>();
-
-  // Iterate over all categories; update the map only if the category is not "passed"
-  ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
-    // Accumulate totalItems regardless of category.
-    allIssues.totalItems += allIssues.items[category].totalItems;
-
-    allIssues.items[category].rules = Object.entries(allIssues.items[category].rules)
-      .map(ruleEntry => {
-        const [rule, ruleInfo] = ruleEntry as [string, RuleInfo];
-        ruleInfo.pagesAffected = Object.entries(ruleInfo.pagesAffected)
-          .map(pageEntry => {
-            if (isCustomFlow) {
-              const [pageIndex, pageInfo] = pageEntry as unknown as [number, PageInfo];
-              // Only update the occurrences map if not passed.
-              if (category !== 'passed') {
-                urlOccurrencesMap.set(
-                  pageInfo.url!,
-                  (urlOccurrencesMap.get(pageInfo.url!) || 0) + pageInfo.items.length,
-                );
-              }
-              return { pageIndex, ...pageInfo };
-            }
-            const [url, pageInfo] = pageEntry as unknown as [string, PageInfo];
-            if (category !== 'passed') {
-              urlOccurrencesMap.set(url, (urlOccurrencesMap.get(url) || 0) + pageInfo.items.length);
-            }
-            return { url, ...pageInfo };
-          })
-          // Sort pages so that those with the most items come first
-          .sort((page1, page2) => page2.items.length - page1.items.length);
-        return { rule, ...ruleInfo };
-      })
-      // Sort the rules by totalItems (descending)
-      .sort((rule1, rule2) => rule2.totalItems - rule1.totalItems);
-  });
-
-  // Sort top pages (assumes topFiveMostIssues is already populated)
-  allIssues.topFiveMostIssues.sort((p1, p2) => p2.totalIssues - p1.totalIssues);
-  allIssues.topTenPagesWithMostIssues = allIssues.topFiveMostIssues.slice(0, 10);
-  allIssues.topFiveMostIssues = allIssues.topFiveMostIssues.slice(0, 5);
-
-  // Update each issue in topTenPagesWithMostIssues with the computed occurrences,
-  // excluding passed items.
-  updateIssuesWithOccurrences(allIssues.topTenPagesWithMostIssues, urlOccurrencesMap);
-
-  // Get and assign the topTenIssues (using your existing helper)
-  const topTenIssues = getTopTenIssues(allIssues);
-  allIssues.topTenIssues = topTenIssues;
-};
-
-// Helper: Update totalOccurrences for each issue using our urlOccurrencesMap.
-// For pages that have only passed items, the map will return undefined, so default to 0.
-function updateIssuesWithOccurrences(issuesList: any[], urlOccurrencesMap: Map<string, number>) {
-  issuesList.forEach(issue => {
-    issue.totalOccurrences = urlOccurrencesMap.get(issue.url) || 0;
-  });
-}
-
 const extractRuleAiData = (
   ruleId: string,
   totalItems: number,
@@ -634,33 +261,6 @@ const moveElemScreenshots = (randomToken: string, storagePath: string) => {
   if (fs.existsSync(currentScreenshotsPath)) {
     fs.moveSync(currentScreenshotsPath, resultsScreenshotsPath);
   }
-};
-
-const formatAboutStartTime = (dateString: string) => {
-  const utcStartTimeDate = new Date(dateString);
-  const formattedStartTime = utcStartTimeDate.toLocaleTimeString('en-GB', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour12: false,
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZoneName: 'shortGeneric',
-  });
-
-  const timezoneAbbreviation = new Intl.DateTimeFormat('en', {
-    timeZoneName: 'shortOffset',
-  })
-    .formatToParts(utcStartTimeDate)
-    .find(part => part.type === 'timeZoneName').value;
-
-  // adding a breakline between the time and timezone so it looks neater on report
-  const timeColonIndex = formattedStartTime.lastIndexOf(':');
-  const timePart = formattedStartTime.slice(0, timeColonIndex + 3);
-  const timeZonePart = formattedStartTime.slice(timeColonIndex + 4);
-  const htmlFormattedStartTime = `${timePart}<br>${timeZonePart} ${timezoneAbbreviation}`;
-
-  return htmlFormattedStartTime;
 };
 
 const generateArtifacts = async (
@@ -1045,22 +645,6 @@ const generateArtifacts = async (
     console.log('Report generated successfully');
 
   return ruleIdJson;
-};
-
-export {
-  writeHTML,
-  compressJsonFileStreaming,
-  convertItemsToReferences,
-  flattenAndSortResults,
-  populateScanPagesDetail,
-  sendWcagBreakdownToSentry,
-  getWcagPassPercentage,
-  getProgressPercentage,
-  getIssuesPercentage,
-  itemTypeDescription,
-  oobeeAiHtmlETL,
-  oobeeAiRules,
-  formatAboutStartTime,
 };
 
 export default generateArtifacts;

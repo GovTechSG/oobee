@@ -14,7 +14,8 @@ import {
 } from './constants/common.js';
 import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
 import { createAndUpdateResultsFolders, getVersion } from './utils.js';
-import generateArtifacts, { createBasicFormHTMLSnippet, sendWcagBreakdownToSentry } from './mergeAxeResults.js';
+import generateArtifacts, { createBasicFormHTMLSnippet } from './mergeAxeResults.js';
+import sendWcagBreakdownToSentry from './services/wcagSentryReporter.js';
 import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
@@ -878,4 +879,3 @@ export const scanPage = async (
 };
 
 export { RuleFlags };
-
