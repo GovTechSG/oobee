@@ -3,6 +3,15 @@ export { default as getHost } from './getHost.js';
 export { default as getCurrentDate } from './getCurrentDate.js';
 export { getFormattedTime, formatDateTimeForMassScanner } from './dateTimeFormatting.js';
 export {
+  registerSoftClose,
+  softCloseBrowserAndContext,
+  register,
+  stopAll,
+  cleanUp,
+  cleanUpAndExit,
+  listenForCleanUp,
+} from './lifecycle.js';
+export {
   getWcagPassPercentage,
   getProgressPercentage,
   type IssueCategory,
@@ -11,6 +20,12 @@ export {
   type ScanPagesDetail,
 } from './wcagProgress.js';
 export { getTotalRulesCount, getIssuesPercentage } from './issuesPercentage.js';
+export {
+  getWcagCriteriaMap,
+  getPotentialNeedsReviewWcagCriteria,
+  categorizeWcagCriterion,
+  categorizeWcagCriteria,
+} from './wcagClassification.js';
 export { default as getStoragePath } from './getStoragePath.js';
 export { default as getPdfStoragePath } from './getPdfStoragePath.js';
 export { default as isWhitelistedContentType } from './isWhitelistedContentType.js';
