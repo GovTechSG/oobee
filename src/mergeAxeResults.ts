@@ -26,12 +26,10 @@ import {
 import { consoleLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
-import { buildHtmlGroups, convertItemsToReferences } from './mergeAxeResults/itemReferences.js';
+import formatAboutStartTime from './mergeAxeResults/formatAboutStartTime.js';
+import { buildHtmlGroups } from './mergeAxeResults/itemReferences.js';
 import flattenAndSortResults from './mergeAxeResults/flattenAndSortResults.js';
-import {
-  compressJsonFileStreaming,
-  writeJsonAndBase64Files,
-} from './mergeAxeResults/jsonArtifacts.js';
+import { writeJsonAndBase64Files } from './mergeAxeResults/jsonArtifacts.js';
 import writeCsv from './mergeAxeResults/writeCsv.js';
 import writeHTML from './mergeAxeResults/writeHTML.js';
 import writeScanDetailsCsv from './mergeAxeResults/writeScanDetailsCsv.js';
@@ -39,7 +37,7 @@ import writeSitemap from './mergeAxeResults/writeSitemap.js';
 import writeSummaryHTML from './mergeAxeResults/writeSummaryHTML.js';
 import writeSummaryPdf from './mergeAxeResults/writeSummaryPdf.js';
 import populateScanPagesDetail from './mergeAxeResults/scanPages.js';
-import sendWcagBreakdownToSentry from './mergeAxeResults/sentryTelemetry.js';
+import sendWcagBreakdownToSentry from './services/wcagSentryReporter.js';
 import type { AllIssues, PageInfo } from './mergeAxeResults/types.js';
 
 export type {
@@ -263,33 +261,6 @@ const moveElemScreenshots = (randomToken: string, storagePath: string) => {
   if (fs.existsSync(currentScreenshotsPath)) {
     fs.moveSync(currentScreenshotsPath, resultsScreenshotsPath);
   }
-};
-
-const formatAboutStartTime = (dateString: string) => {
-  const utcStartTimeDate = new Date(dateString);
-  const formattedStartTime = utcStartTimeDate.toLocaleTimeString('en-GB', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour12: false,
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZoneName: 'shortGeneric',
-  });
-
-  const timezoneAbbreviation = new Intl.DateTimeFormat('en', {
-    timeZoneName: 'shortOffset',
-  })
-    .formatToParts(utcStartTimeDate)
-    .find(part => part.type === 'timeZoneName').value;
-
-  // adding a breakline between the time and timezone so it looks neater on report
-  const timeColonIndex = formattedStartTime.lastIndexOf(':');
-  const timePart = formattedStartTime.slice(0, timeColonIndex + 3);
-  const timeZonePart = formattedStartTime.slice(timeColonIndex + 4);
-  const htmlFormattedStartTime = `${timePart}<br>${timeZonePart} ${timezoneAbbreviation}`;
-
-  return htmlFormattedStartTime;
 };
 
 const generateArtifacts = async (
@@ -674,22 +645,6 @@ const generateArtifacts = async (
     console.log('Report generated successfully');
 
   return ruleIdJson;
-};
-
-export {
-  writeHTML,
-  compressJsonFileStreaming,
-  convertItemsToReferences,
-  flattenAndSortResults,
-  populateScanPagesDetail,
-  sendWcagBreakdownToSentry,
-  getWcagPassPercentage,
-  getProgressPercentage,
-  getIssuesPercentage,
-  itemTypeDescription,
-  oobeeAiHtmlETL,
-  oobeeAiRules,
-  formatAboutStartTime,
 };
 
 export default generateArtifacts;

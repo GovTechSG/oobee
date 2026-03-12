@@ -1,20 +1,15 @@
 import fs from 'fs-extra';
 import path from 'path';
 
-import {
-  compressJsonFileStreaming,
-  writeHTML,
-  populateScanPagesDetail,
-  getWcagPassPercentage,
-  getProgressPercentage,
-  getIssuesPercentage,
-  itemTypeDescription,
-  oobeeAiHtmlETL,
-  oobeeAiRules,
-  formatAboutStartTime,
-  convertItemsToReferences,
-} from './mergeAxeResults.js';
 import flattenAndSortResults from './mergeAxeResults/flattenAndSortResults.js';
+import formatAboutStartTime from './mergeAxeResults/formatAboutStartTime.js';
+import { convertItemsToReferences } from './mergeAxeResults/itemReferences.js';
+import { compressJsonFileStreaming } from './mergeAxeResults/jsonArtifacts.js';
+import populateScanPagesDetail from './mergeAxeResults/scanPages.js';
+import writeHTML from './mergeAxeResults/writeHTML.js';
+import { getWcagPassPercentage, getProgressPercentage, getIssuesPercentage } from './utils.js';
+import itemTypeDescription from './constants/itemTypeDescription.js';
+import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 
 import constants, {
   ScannerTypes,
