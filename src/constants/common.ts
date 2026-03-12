@@ -33,7 +33,8 @@ import constants, {
 } from './constants.js';
 import { consoleLogger } from '../logs.js';
 import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
-import { cleanUpAndExit, randomThreeDigitNumberString, register } from '../utils.js';
+import { randomThreeDigitNumberString } from '../utils/index.js';
+import { cleanUpAndExit, register } from '../utils/index.js';
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
