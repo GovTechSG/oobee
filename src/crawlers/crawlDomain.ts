@@ -1,9 +1,6 @@
 import crawlee, { EnqueueStrategy } from 'crawlee';
-import fs from 'fs';
 import type { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
-import type { EnqueueLinksOptions, RequestOptions } from 'crawlee';
-import https from 'https';
-import type { BatchAddRequestsResult } from '@crawlee/types';
+import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
 import * as path from 'path';
 import fsp from 'fs/promises';
 import {
@@ -39,7 +36,7 @@ import {
   mapPdfScanResults,
   doPdfScreenshots,
 } from './pdfScanFunc.js';
-import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
+import { consoleLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
@@ -104,7 +101,8 @@ const crawlDomain = async ({
   const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
   let urlsCrawled: UrlsCrawled;
-  let requestQueue: crawlee.RequestQueue;
+  const { requestQueue }: { requestQueue: crawlee.RequestQueue } =
+    await createCrawleeSubFolders(randomToken);
   let durationExceeded = false;
 
   if (fromCrawlIntelligentSitemap) {
@@ -114,8 +112,6 @@ const crawlDomain = async ({
     ({ dataset } = await createCrawleeSubFolders(randomToken));
     urlsCrawled = { ...constants.urlsCrawledObj };
   }
-
-  ({ requestQueue } = await createCrawleeSubFolders(randomToken));
 
   const pdfDownloads: Promise<void>[] = [];
   const uuidToPdfMapping: Record<string, string> = {};
@@ -157,9 +153,176 @@ const crawlDomain = async ({
     label: url,
   });
 
+  const customEnqueueLinksByClickingElements = async (
+    currentPage: Page,
+    browserContext: BrowserContext,
+  ): Promise<void> => {
+    let workingPage = currentPage;
+    const initialPageUrl: string = workingPage.url().toString();
+
+    const isExcluded = (newPageUrl: string): boolean => {
+      const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
+      const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl, blacklistedPatterns);
+      const isNotFollowStrategy: boolean = !isFollowStrategy(newPageUrl, initialPageUrl, strategy);
+      const isNotSupportedDocument: boolean = disallowedListOfPatterns.some(pattern =>
+        newPageUrl.toLowerCase().startsWith(pattern),
+      );
+      return isNotSupportedDocument || isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
+    };
+    const setPageListeners = (pageListener: Page): void => {
+      // event listener to handle new page popups upon button click
+      pageListener.on('popup', async (newPage: Page) => {
+        try {
+          if (newPage.url() !== initialPageUrl && !isExcluded(newPage.url())) {
+            const newPageUrl: string = newPage.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
+            await enqueueUniqueRequest({
+              url: newPageUrl,
+              skipNavigation: isUrlPdf(newPage.url()),
+              label: newPageUrl,
+            });
+          } else {
+            try {
+              await newPage.close();
+            } catch {
+              // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
+              // Handles browser page object been closed.
+            }
+          }
+        } catch {
+          // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
+          // Handles browser page object been closed.
+        }
+      });
+
+      // event listener to handle navigation to new url within same page upon element click
+      pageListener.on('framenavigated', async (newFrame: Frame) => {
+        try {
+          if (
+            newFrame.url() !== initialPageUrl &&
+            !isExcluded(newFrame.url()) &&
+            !(newFrame.url() === 'about:blank')
+          ) {
+            const newFrameUrl: string = newFrame.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
+            await enqueueUniqueRequest({
+              url: newFrameUrl,
+              skipNavigation: isUrlPdf(newFrame.url()),
+              label: newFrameUrl,
+            });
+          }
+        } catch {
+          // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
+          // Handles browser page object been closed.
+        }
+      });
+    };
+    setPageListeners(workingPage);
+    let currentElementIndex: number = 0;
+    let isAllElementsHandled: boolean = false;
+    // This loop is intentionally sequential because each step depends on the latest page state
+    // (navigation, popup/frame events, and potential page recreation).
+    // Running iterations in parallel (for example with Promise.all) would race on shared `page`
+    // state, causing stale element handles and nondeterministic enqueue/navigation behavior.
+    /* eslint-disable no-await-in-loop */
+    while (!isAllElementsHandled) {
+      try {
+        // navigate back to initial page if clicking on a element previously caused it to navigate to a new url
+        if (workingPage.url() !== initialPageUrl) {
+          try {
+            await workingPage.close();
+          } catch {
+            // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
+            // Handles browser page object been closed.
+          }
+          workingPage = await browserContext.newPage();
+          await workingPage.goto(initialPageUrl, {
+            waitUntil: 'domcontentloaded',
+          });
+          setPageListeners(workingPage);
+        }
+        const selectedElementsString = cssQuerySelectors.join(', ');
+        const selectedElements: ElementHandle<SVGElement | HTMLElement>[] =
+          await workingPage.$$(selectedElementsString);
+        // edge case where there might be elements on page that appears intermittently
+        if (currentElementIndex + 1 > selectedElements.length || !selectedElements) {
+          break;
+        }
+        // handle the last element in selectedElements
+        if (currentElementIndex + 1 === selectedElements.length) {
+          isAllElementsHandled = true;
+        }
+        const element: ElementHandle<SVGElement | HTMLElement> =
+          selectedElements[currentElementIndex];
+        currentElementIndex += 1;
+        let newUrlFoundInElement: string = null;
+        if (await element.isVisible()) {
+          const currentPageUrl = workingPage.url();
+          // Find url in html elements without clicking them
+          const result = await workingPage.evaluate(pageElement => {
+            // find href attribute
+            const hrefUrl: string = pageElement.getAttribute('href');
+
+            // find url in datapath
+            const dataPathUrl: string = pageElement.getAttribute('data-path');
+
+            return hrefUrl || dataPathUrl;
+          }, element);
+          if (result) {
+            newUrlFoundInElement = result;
+            const pageUrl: URL = new URL(currentPageUrl);
+            const baseUrl: string = `${pageUrl.protocol}//${pageUrl.host}`;
+            let absoluteUrl: URL;
+            // Construct absolute URL using base URL
+            try {
+              // Check if newUrlFoundInElement is a valid absolute URL
+              absoluteUrl = new URL(newUrlFoundInElement);
+            } catch {
+              // If it's not a valid URL, treat it as a relative URL
+              absoluteUrl = new URL(newUrlFoundInElement, baseUrl);
+            }
+            newUrlFoundInElement = absoluteUrl.href;
+          }
+          if (newUrlFoundInElement && !isExcluded(newUrlFoundInElement)) {
+            const newUrlFoundInElementUrl: string = newUrlFoundInElement.replace(
+              /(?<=&|\?)utm_.*?(&|$)/gim,
+              '',
+            );
+
+            await enqueueUniqueRequest({
+              url: newUrlFoundInElementUrl,
+              skipNavigation: isUrlPdf(newUrlFoundInElement),
+              label: newUrlFoundInElementUrl,
+            });
+          } else if (!newUrlFoundInElement) {
+            try {
+              const shouldSkip = await shouldSkipClickDueToDisallowedHref(workingPage, element);
+              if (shouldSkip) {
+                const elementHtml = await workingPage.evaluate(el => el.outerHTML, element);
+                consoleLogger.info(
+                  'Skipping a click due to disallowed href nearby. Element HTML:',
+                  elementHtml,
+                );
+              } else {
+                // Find url in html elements by manually clicking them. New page navigation/popups will be handled by event listeners above
+                await element.click({ force: true });
+                await workingPage.waitForTimeout(1000); // Add a delay of 1 second between each Element click
+              }
+            } catch {
+              // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
+              // Handles browser page object been closed.
+            }
+          }
+        }
+      } catch {
+        // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
+        // Handles browser page object been closed.
+      }
+    }
+    /* eslint-enable no-await-in-loop */
+  };
+
   const enqueueProcess = async (
     page: Page,
-    enqueueLinks: (options: EnqueueLinksOptions) => Promise<BatchAddRequestsResult>,
+    enqueueLinks: PlaywrightCrawlingContext['enqueueLinks'],
     browserContext: BrowserContext,
   ) => {
     try {
@@ -194,176 +357,13 @@ const crawlDomain = async ({
         // Try catch is necessary as clicking links is best effort, it may result in new pages that cause browser load or navigation errors that PlaywrightCrawler does not handle
         try {
           await customEnqueueLinksByClickingElements(page, browserContext);
-        } catch (e) {
+        } catch {
           // do nothing;
         }
       }
     } catch {
       // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
       // Handles browser page object been closed.
-    }
-  };
-
-  const customEnqueueLinksByClickingElements = async (
-    page: Page,
-    browserContext: BrowserContext,
-  ): Promise<void> => {
-    const initialPageUrl: string = page.url().toString();
-
-    const isExcluded = (newPageUrl: string): boolean => {
-      const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
-      const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl, blacklistedPatterns);
-      const isNotFollowStrategy: boolean = !isFollowStrategy(newPageUrl, initialPageUrl, strategy);
-      const isNotSupportedDocument: boolean = disallowedListOfPatterns.some(pattern =>
-        newPageUrl.toLowerCase().startsWith(pattern),
-      );
-      return isNotSupportedDocument || isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
-    };
-    const setPageListeners = (page: Page): void => {
-      // event listener to handle new page popups upon button click
-      page.on('popup', async (newPage: Page) => {
-        try {
-          if (newPage.url() != initialPageUrl && !isExcluded(newPage.url())) {
-            const newPageUrl: string = newPage.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
-            await enqueueUniqueRequest({
-              url: newPageUrl,
-              skipNavigation: isUrlPdf(newPage.url()),
-              label: newPageUrl,
-            });
-          } else {
-            try {
-              await newPage.close();
-            } catch {
-              // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-              // Handles browser page object been closed.
-            }
-          }
-        } catch {
-          // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-          // Handles browser page object been closed.
-        }
-      });
-
-      // event listener to handle navigation to new url within same page upon element click
-      page.on('framenavigated', async (newFrame: Frame) => {
-        try {
-          if (
-            newFrame.url() !== initialPageUrl &&
-            !isExcluded(newFrame.url()) &&
-            !(newFrame.url() == 'about:blank')
-          ) {
-            const newFrameUrl: string = newFrame.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
-            await enqueueUniqueRequest({
-              url: newFrameUrl,
-              skipNavigation: isUrlPdf(newFrame.url()),
-              label: newFrameUrl,
-            });
-          }
-        } catch {
-          // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-          // Handles browser page object been closed.
-        }
-      });
-    };
-    setPageListeners(page);
-    let currentElementIndex: number = 0;
-    let isAllElementsHandled: boolean = false;
-    while (!isAllElementsHandled) {
-      try {
-        // navigate back to initial page if clicking on a element previously caused it to navigate to a new url
-        if (page.url() != initialPageUrl) {
-          try {
-            await page.close();
-          } catch {
-            // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-            // Handles browser page object been closed.
-          }
-          page = await browserContext.newPage();
-          await page.goto(initialPageUrl, {
-            waitUntil: 'domcontentloaded',
-          });
-          setPageListeners(page);
-        }
-        const selectedElementsString = cssQuerySelectors.join(', ');
-        const selectedElements: ElementHandle<SVGElement | HTMLElement>[] =
-          await page.$$(selectedElementsString);
-        // edge case where there might be elements on page that appears intermittently
-        if (currentElementIndex + 1 > selectedElements.length || !selectedElements) {
-          break;
-        }
-        // handle the last element in selectedElements
-        if (currentElementIndex + 1 === selectedElements.length) {
-          isAllElementsHandled = true;
-        }
-        const element: ElementHandle<SVGElement | HTMLElement> =
-          selectedElements[currentElementIndex];
-        currentElementIndex += 1;
-        let newUrlFoundInElement: string = null;
-        if (await element.isVisible()) {
-          // Find url in html elements without clicking them
-          await page
-            .evaluate(element => {
-              // find href attribute
-              const hrefUrl: string = element.getAttribute('href');
-
-              // find url in datapath
-              const dataPathUrl: string = element.getAttribute('data-path');
-
-              return hrefUrl || dataPathUrl;
-            }, element)
-            .then(result => {
-              if (result) {
-                newUrlFoundInElement = result;
-                const pageUrl: URL = new URL(page.url());
-                const baseUrl: string = `${pageUrl.protocol}//${pageUrl.host}`;
-                let absoluteUrl: URL;
-                // Construct absolute URL using base URL
-                try {
-                  // Check if newUrlFoundInElement is a valid absolute URL
-                  absoluteUrl = new URL(newUrlFoundInElement);
-                } catch (e) {
-                  // If it's not a valid URL, treat it as a relative URL
-                  absoluteUrl = new URL(newUrlFoundInElement, baseUrl);
-                }
-                newUrlFoundInElement = absoluteUrl.href;
-              }
-            });
-          if (newUrlFoundInElement && !isExcluded(newUrlFoundInElement)) {
-            const newUrlFoundInElementUrl: string = newUrlFoundInElement.replace(
-              /(?<=&|\?)utm_.*?(&|$)/gim,
-              '',
-            );
-
-            await enqueueUniqueRequest({
-              url: newUrlFoundInElementUrl,
-              skipNavigation: isUrlPdf(newUrlFoundInElement),
-              label: newUrlFoundInElementUrl,
-            });
-          } else if (!newUrlFoundInElement) {
-            try {
-              const shouldSkip = await shouldSkipClickDueToDisallowedHref(page, element);
-              if (shouldSkip) {
-                const elementHtml = await page.evaluate(el => el.outerHTML, element);
-                consoleLogger.info(
-                  'Skipping a click due to disallowed href nearby. Element HTML:',
-                  elementHtml,
-                );
-                continue;
-              }
-
-              // Find url in html elements by manually clicking them. New page navigation/popups will be handled by event listeners above
-              await element.click({ force: true });
-              await page.waitForTimeout(1000); // Add a delay of 1 second between each Element click
-            } catch {
-              // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-              // Handles browser page object been closed.
-            }
-          }
-        }
-      } catch {
-        // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-        // Handles browser page object been closed.
-      }
     }
   };
 
@@ -395,9 +395,12 @@ const crawlDomain = async ({
             await fsp.mkdir(subProfileDir, { recursive: true });
 
             // Assign to Crawlee's launcher
+            // Crawlee preLaunchHooks expects launchContext to be mutated in-place.
+            // eslint-disable-next-line no-param-reassign
             launchContext.userDataDir = subProfileDir;
 
             // Safely extend launchOptions
+            // eslint-disable-next-line no-param-reassign
             launchContext.launchOptions = {
               ...launchContext.launchOptions,
               ignoreHTTPSErrors: true,
@@ -426,7 +429,7 @@ const crawlDomain = async ({
               const observer = new MutationObserver(() => {
                 clearTimeout(timeout);
 
-                mutationCount++;
+                mutationCount += 1;
                 if (mutationCount > MAX_MUTATIONS) {
                   observer.disconnect();
                   resolve('Too many mutations, exiting.');
@@ -471,7 +474,14 @@ const crawlDomain = async ({
         },
       ],
       requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
-      requestHandler: async ({ page, request, response, crawler, sendRequest, enqueueLinks }) => {
+      requestHandler: async ({
+        page,
+        request,
+        response,
+        crawler: activeCrawler,
+        sendRequest,
+        enqueueLinks,
+      }) => {
         const browserContext: BrowserContext = page.context();
         try {
           await waitForPageLoaded(page, 10000);
@@ -501,7 +511,7 @@ const crawlDomain = async ({
               durationExceeded = true;
             }
             isAbortingScanNow = true;
-            crawler.autoscaledPool.abort();
+            activeCrawler.autoscaledPool.abort();
             return;
           }
 
@@ -539,7 +549,7 @@ const crawlDomain = async ({
 
               return;
             }
-            const { pdfFileName, url } = handlePdfDownload(
+            const { pdfFileName, url: downloadedPdfUrl } = handlePdfDownload(
               randomToken,
               pdfDownloads,
               request,
@@ -547,7 +557,7 @@ const crawlDomain = async ({
               urlsCrawled,
             );
 
-            uuidToPdfMapping[pdfFileName] = url;
+            uuidToPdfMapping[pdfFileName] = downloadedPdfUrl;
             return;
           }
 
@@ -658,20 +668,18 @@ const crawlDomain = async ({
                 results.actualUrl = actualUrl;
                 await dataset.pushData(results);
               }
-            } else {
+            } else if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
               // One more check if scanned pages have reached limit due to multi-instances of handler running
-              if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
-                guiInfoLog(guiInfoStatusTypes.SCANNED, {
-                  numScanned: urlsCrawled.scanned.length,
-                  urlScanned: request.url,
-                });
-                urlsCrawled.scanned.push({
-                  url: request.url,
-                  actualUrl: request.url,
-                  pageTitle: results.pageTitle,
-                });
-                await dataset.pushData(results);
-              }
+              guiInfoLog(guiInfoStatusTypes.SCANNED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              urlsCrawled.scanned.push({
+                url: request.url,
+                actualUrl: request.url,
+                pageTitle: results.pageTitle,
+              });
+              await dataset.pushData(results);
             }
           } else {
             // Don't inform the user it is skipped since web crawler is best-effort.
@@ -702,10 +710,10 @@ const crawlDomain = async ({
                 urlScanned: request.url,
               });
 
-              page = await browserContext.newPage();
-              await page.goto(request.url);
+              const recoveryPage = await browserContext.newPage();
+              await recoveryPage.goto(request.url);
 
-              await page.route('**/*', async route => {
+              await recoveryPage.route('**/*', async route => {
                 const interceptedRequest = route.request();
                 if (interceptedRequest.resourceType() === 'document') {
                   const interceptedRequestUrl = interceptedRequest
@@ -788,9 +796,7 @@ const crawlDomain = async ({
 
     // get screenshots from pdf docs
     if (includeScreenshots) {
-      await Promise.all(
-        pdfResults.map(async result => await doPdfScreenshots(randomToken, result)),
-      );
+      await Promise.all(pdfResults.map(result => doPdfScreenshots(randomToken, result)));
     }
 
     // push results for each pdf document to key value store
