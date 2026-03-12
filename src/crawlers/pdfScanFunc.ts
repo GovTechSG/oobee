@@ -15,8 +15,7 @@ import constants, {
   STATUS_CODE_METADATA,
   UrlsCrawled,
 } from '../constants/constants.js';
-import { cleanUpAndExit } from '../utils.js';
-import { getPdfStoragePath, getStoragePath } from '../utils/index.js';
+import { cleanUpAndExit, getPdfStoragePath, getStoragePath } from '../utils/index.js';
 import { error } from 'console';
 
 const require = createRequire(import.meta.url);

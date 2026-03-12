@@ -361,7 +361,7 @@ export const sitemapPaths = [
   '/sitemap_index.xml.xz',
 ];
 
-// Remember to update getWcagPassPercentage() in src/utils/utils.ts if you change this
+// Remember to update getWcagPassPercentage() in src/utils/wcagProgress.ts if you change this
 const wcagLinks = {
   'WCAG 1.1.1': 'https://www.w3.org/TR/WCAG22/#non-text-content',
   'WCAG 1.2.2': 'https://www.w3.org/TR/WCAG22/#captions-prerecorded',

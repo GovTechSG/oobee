@@ -32,7 +32,7 @@ import {
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
 } from '../constants/common.js';
-import { areLinksEqual, isFollowStrategy, register } from '../utils.js';
+import { areLinksEqual, isFollowStrategy, register } from '../utils/index.js';
 import {
   handlePdfDownload,
   runPdfScan,

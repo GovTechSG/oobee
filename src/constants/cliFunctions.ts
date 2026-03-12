@@ -1,7 +1,7 @@
 import { Options } from 'yargs';
 import printMessage from 'print-message';
 import { BrowserTypes, RuleFlags, ScannerTypes } from './constants.js';
-import { cleanUpAndExit } from '../utils.js';
+import { cleanUpAndExit } from '../utils/index.js';
 
 export const messageOptions = {
   border: false,
@@ -342,4 +342,3 @@ To obtain the JSON files, you need to base64-decode the file followed by gunzip.
     coerce: val => Number(val),
   },
 };
-
