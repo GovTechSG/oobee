@@ -8,7 +8,7 @@ import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { getPlaywrightLaunchOptions } from '../constants/common.js';
-import { register } from '../utils.js';
+import { register } from '../utils/index.js';
 
 const crawlIntelligentSitemap = async (
   url: string,

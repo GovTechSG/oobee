@@ -5,8 +5,10 @@ import { EnqueueStrategy } from 'crawlee';
 import {
   listenForCleanUp,
   cleanUpAndExit,
-} from './utils.js';
-import { getUserDataTxt, getVersion, writeToUserDataTxt } from './utils/index.js';
+  getUserDataTxt,
+  getVersion,
+  writeToUserDataTxt,
+} from './utils/index.js';
 import {
   prepareData,
   messageOptions,
