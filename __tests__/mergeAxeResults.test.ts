@@ -34,7 +34,7 @@ const {
   createFilenames,
   createFinalResultsInJson,
 } = require('../__mocks__/mockFunctions');
-const { getCurrentDate, getFormattedTime } = require('../utils');
+const { getCurrentDate, getFormattedTime } = require('../src/utils/index.js');
 const { consoleLogger, silentLogger } = require('../logs');
 
 let randomToken;

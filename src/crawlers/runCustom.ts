@@ -1,7 +1,7 @@
 /* eslint-env browser */
 import { chromium } from 'playwright';
 import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
-import { cleanUpAndExit, register, registerSoftClose } from '../utils.js';
+import { cleanUpAndExit, register, registerSoftClose } from '../utils/index.js';
 import constants, {
   getIntermediateScreenshotsPath,
   guiInfoStatusTypes,
