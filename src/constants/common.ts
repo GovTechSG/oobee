@@ -446,7 +446,19 @@ const checkUrlConnectivityWithBrowser = async (
 
     if (!response) throw new Error('No response from navigation');
 
-    // We use the response headers from the navigation we just performed.
+    // Wait briefly for JS/meta-refresh redirects to settle before reading the final URL.
+    // Server-side redirects are already reflected after goto(), but client-side redirects
+    // (e.g. domain.tld -> www.domain.tld via JS or meta-refresh) need extra time.
+    try {
+      await Promise.race([
+        page.waitForURL(currentUrl => currentUrl !== url, { timeout: 5000 }),
+        new Promise(resolve => setTimeout(resolve, 1000)), // minimum settle time
+      ]);
+    } catch {
+      // No redirect happened within the window — that's fine, continue with current URL
+    }
+
+    // Re-read page.url() AFTER potential client-side redirects have resolved
     const finalUrl = page.url();
     const finalStatus = response.status();
     const headers = response.headers();
