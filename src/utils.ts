@@ -4,6 +4,7 @@ import os from 'os';
 import fs from 'fs-extra';
 import axe, { Rule } from 'axe-core';
 import { v4 as uuidv4 } from 'uuid';
+import { getDomain } from 'tldts';
 import constants, {
   BrowserTypes,
   destinationPath,
@@ -1078,14 +1079,25 @@ export const randomThreeDigitNumberString = () => {
 };
 
 export const isFollowStrategy = (link1: string, link2: string, rule: string): boolean => {
-  const parsedLink1 = new URL(link1);
-  const parsedLink2 = new URL(link2);
-  if (rule === 'same-domain') {
-    const link1Domain = parsedLink1.hostname.split('.').slice(-2).join('.');
-    const link2Domain = parsedLink2.hostname.split('.').slice(-2).join('.');
-    return link1Domain === link2Domain;
+  try {
+    const parsedLink1 = new URL(link1);
+    const parsedLink2 = new URL(link2);
+    if (rule === 'all') {
+      return true;
+    }
+    if (rule === 'same-origin') {
+      return parsedLink1.origin === parsedLink2.origin;
+    }
+    if (rule === 'same-domain') {
+      const link1Domain = getDomain(parsedLink1.hostname, { allowPrivateDomains: true }) || parsedLink1.hostname;
+      const link2Domain = getDomain(parsedLink2.hostname, { allowPrivateDomains: true }) || parsedLink2.hostname;
+      return link1Domain.toLowerCase() === link2Domain.toLowerCase();
+    }
+    // default: same-hostname
+    return parsedLink1.hostname === parsedLink2.hostname;
+  } catch {
+    return false;
   }
-  return parsedLink1.hostname === parsedLink2.hostname;
 };
 
 export const retryFunction = async <T>(func: () => Promise<T>, maxAttempt: number): Promise<T> => {
