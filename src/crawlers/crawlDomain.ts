@@ -506,6 +506,12 @@ const crawlDomain = async ({
             actualUrl = page.url();
           }
 
+          // Second-pass requests: only do click-discovery, skip scanning
+          if (request.label?.startsWith('__clickpass__')) {
+            await enqueueProcess(page, enqueueLinks, browserContext);
+            return;
+          }
+
           if (
             !isFollowStrategy(url, actualUrl, strategy) &&
             (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))
@@ -800,6 +806,61 @@ const crawlDomain = async ({
   );
 
   await crawler.run();
+
+  // Additional passes: keep re-visiting scanned seed-hostname pages for
+  // click-discovery until no new pages are found or limits are reached.
+  if (!safeMode && !isAbortingScanNow && !durationExceeded) {
+    const seedHostname = new URL(url).hostname;
+    const clickPassVisited = new Set<string>();
+    let prevScannedCount: number;
+
+    do {
+      prevScannedCount = urlsCrawled.scanned.length;
+
+      if (prevScannedCount >= maxRequestsPerCrawl) break;
+      if (scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000) break;
+
+      const seedHostnamePages = urlsCrawled.scanned
+        .map(item => item.actualUrl || item.url)
+        .filter(pageUrl => {
+          try {
+            return new URL(pageUrl).hostname === seedHostname && !clickPassVisited.has(pageUrl);
+          } catch {
+            return false;
+          }
+        });
+
+      if (seedHostnamePages.length === 0) break;
+
+      let enqueued = 0;
+      for (const pageUrl of seedHostnamePages) {
+        if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) break;
+        if (scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000) break;
+
+        clickPassVisited.add(pageUrl);
+        try {
+          const clickPassLabel = `__clickpass__${pageUrl}`;
+          if (!queuedUrlSet.has(clickPassLabel)) {
+            queuedUrlSet.add(clickPassLabel);
+            await requestQueue.addRequest({
+              url: pageUrl,
+              label: clickPassLabel,
+              skipNavigation: false,
+            });
+            enqueued += 1;
+          }
+        } catch {
+          // ignore enqueue errors
+        }
+      }
+
+      if (enqueued === 0) break;
+
+      await crawler.run();
+
+      // Stop looping if no new pages were discovered in this pass
+    } while (urlsCrawled.scanned.length > prevScannedCount);
+  }
 
   if (pdfDownloads.length > 0) {
     // wait for pdf downloads to complete
