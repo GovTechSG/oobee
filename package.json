@@ -19,7 +19,7 @@
     "cheerio": "^1.0.0-rc.12",
     "crawlee": "^3.13.10",
     "ejs": "^3.1.9",
-    "file-type": "^21.3.2",
+    "file-type": "^21.3.3",
     "fs-extra": "^11.2.0",
     "glob": "^13.0.6",
     "https": "^1.0.0",
@@ -36,6 +36,7 @@
     "print-message": "^3.0.1",
     "safe-regex": "^2.1.1",
     "text-readability": "^1.1.0",
+    "tldts": "^7.0.26",
     "typescript": "^5.4.5",
     "url": "^0.11.3",
     "uuid": "^11.0.3",
@@ -89,7 +90,9 @@
     "glob": "^13.0.6",
     "jsdom": {
       "@tootallnate/once": "^3.0.1"
-    }
+    },
+    "flatted": "^3.4.1",
+    "file-type": "^21.3.3"
   },
   "optionalDependencies": {
     "@napi-rs/canvas-darwin-arm64": "^0.1.53",
