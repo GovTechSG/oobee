@@ -358,11 +358,20 @@ const crawlDomain = async ({
 
       // If safeMode flag is enabled, skip enqueueLinksByClickingElements
       if (!safeMode) {
-        // Try catch is necessary as clicking links is best effort, it may result in new pages that cause browser load or navigation errors that PlaywrightCrawler does not handle
-        try {
-          await customEnqueueLinksByClickingElements(page, browserContext);
-        } catch {
-          // do nothing;
+        // Only run the expensive element-clicking discovery on pages sharing the
+        // same hostname as the seed URL.  Cross-subdomain pages (reachable via
+        // same-domain strategy) still contribute their <a> links above, but
+        // clicking every interactive element on them is too slow and starves
+        // the crawler of time to discover pages on the primary hostname.
+        const currentHostname = new URL(page.url()).hostname;
+        const seedHostname = new URL(url).hostname;
+        if (currentHostname === seedHostname) {
+          // Try catch is necessary as clicking links is best effort, it may result in new pages that cause browser load or navigation errors that PlaywrightCrawler does not handle
+          try {
+            await customEnqueueLinksByClickingElements(page, browserContext);
+          } catch {
+            // do nothing;
+          }
         }
       }
     } catch {
@@ -456,6 +465,8 @@ const crawlDomain = async ({
               const root = document.documentElement || document.body || document;
               if (!root || typeof observer.observe !== 'function') {
                 resolve('No root node to observe.');
+              } else {
+                observer.observe(root, { childList: true, subtree: true });
               }
             });
           });
@@ -521,7 +532,7 @@ const crawlDomain = async ({
 
           // if URL has already been scanned
           if (scannedUrlSet.has(request.url)) {
-            // await enqueueProcess(page, enqueueLinks, browserContext);
+            await enqueueProcess(page, enqueueLinks, browserContext);
             return;
           }
 
