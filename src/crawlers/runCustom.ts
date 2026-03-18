@@ -11,6 +11,7 @@ import { DEBUG, initNewPage, log } from './custom/utils.js';
 import { guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { addUrlGuardScript } from './guards/urlGuard.js';
+import { getPlaywrightLaunchOptions } from '../constants/common.js';
 
 // Export of classes
 
@@ -79,11 +80,18 @@ const runCustom = async (
     const deviceConfig = viewportSettings.playwrightDeviceDetailsObject;
     const hasCustomViewport = !!deviceConfig;
 
+    const baseLaunchOptions = getPlaywrightLaunchOptions('chrome');
+
+    // Merge base args with custom flow specific args
+    const baseArgs = baseLaunchOptions.args || [];
+    const customArgs = hasCustomViewport ? ['--window-size=1920,1040'] : ['--start-maximized'];
+    const mergedArgs = [...baseArgs.filter(a => !a.startsWith('--window-size') && a !== '--start-maximized'), ...customArgs];
+
     const browser = await chromium.launch({
-      args: hasCustomViewport ? ['--window-size=1920,1040'] : ['--start-maximized'],
+      ...baseLaunchOptions,
+      args: mergedArgs,
       headless: false,
       channel: 'chrome',
-      // bypassCSP: true,
     });
 
     const context = await browser.newContext({

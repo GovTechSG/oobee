@@ -53,14 +53,25 @@ const crawlIntelligentSitemap = async (
     const homeUrl = getHomeUrl(link);
     let sitemapLink = '';
 
-    const effectiveUserDataDirectory =
-      process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
-    const context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
-      headless: process.env.CRAWLEE_HEADLESS === '1',
-      ...getPlaywrightLaunchOptions(browser),
-      ...(extraHTTPHeaders && { extraHTTPHeaders }),
-    });
-    register(context);
+    const launchOptions = getPlaywrightLaunchOptions(browser);
+    let context;
+    let browserInstance;
+
+    if (process.env.CRAWLEE_HEADLESS === '1') {
+      const effectiveUserDataDirectory = userDataDirectory || '';
+      context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
+        ...launchOptions,
+        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+      });
+      register(context);
+    } else {
+      // In headful mode, avoid launchPersistentContext to prevent "Browser window not found"
+      browserInstance = await constants.launcher.launch(launchOptions);
+      register(browserInstance as unknown as { close: () => Promise<void> });
+      context = await browserInstance.newContext({
+        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+      });
+    }
 
     const page = await context.newPage();
 
@@ -73,6 +84,9 @@ const crawlIntelligentSitemap = async (
     }
     await page.close();
     await context.close().catch(() => {});
+    if (browserInstance) {
+      await browserInstance.close().catch(() => {});
+    }
     return sitemapExist ? sitemapLink : '';
   }
 
