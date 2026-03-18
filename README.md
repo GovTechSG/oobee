@@ -90,6 +90,11 @@ verapdf --version
 | WARN_LEVEL | Only used in tests. |  |
 | OOBEE_DISABLE_BROWSER_DOWNLOAD | Experimental flag to disable file downloads on Chrome/Chromium/Edge.  Does not affect Local File scan | |
 | OOBEE_SLOWMO | Experimental flag to slow down web browser behaviour by specified duration (in miliseconds) | |
+| HTTP_PROXY | URL of the proxy server to be used for HTTP requests (e.g. `http://proxy.example.com:8080`). | |
+| HTTPS_PROXY | URL of the proxy server to be used for HTTPS requests (e.g. `https://proxy.example.com:8080`). | |
+| ALL_PROXY | URL of the proxy server to be used for all requests, typically used for SOCKS5 proxies (e.g. `socks5://proxy.example.com:1080`). | |
+| NO_PROXY | Comma-separated list of domains that should bypass the proxy (e.g. `localhost,127.0.0.1,.example.com`). | |
+| INCLUDE_PROXY | Comma-separated list of domains that should specifically be routed through the proxy. | |
 
 #### Environment variables used internally (Do not set)
 Do not set these environment variables or behaviour might change unexpectedly.
