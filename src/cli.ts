@@ -5,7 +5,13 @@ import printMessage from 'print-message';
 import { devices } from 'playwright';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { setHeadlessMode, getVersion, getStoragePath, listenForCleanUp, cleanUpAndExit } from './utils.js';
+import {
+  setHeadlessMode,
+  getVersion,
+  getStoragePath,
+  listenForCleanUp,
+  cleanUpAndExit,
+} from './utils.js';
 import {
   checkUrl,
   prepareData,
@@ -185,12 +191,14 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     return true;
   })
   .check(argvs => {
-    if (argvs.scanner !== ScannerTypes.WEBSITE && argvs.strategy) {
-      throw new Error('-s or --strategy is only available in website scans.');
+    const scanner = String(argvs.scanner ?? '');
+
+    if (argvs.strategy && scanner !== ScannerTypes.WEBSITE && scanner !== ScannerTypes.CUSTOM) {
+      throw new Error('-s or --strategy is only available in website and custom flow scans.');
     }
     return true;
   })
-  .coerce('l', (option) => {
+  .coerce('l', option => {
     const duration = Number(option);
     if (isNaN(duration) || duration < 0) {
       printMessage(
@@ -202,8 +210,8 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     return duration;
   })
   .check(argvs => {
-    if (argvs.scanner === ScannerTypes.CUSTOM && typeof argvs.scanDuration === 'number' && argvs.scanDuration > 0) {
-      throw new Error('-l or --scanDuration is not allowed for custom flow scans.');
+    if (argvs.scanner !== ScannerTypes.WEBSITE && argvs.strategy) {
+      throw new Error('-s or --strategy is only available in website scans.');
     }
     return true;
   })
@@ -235,10 +243,11 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     data.userDataDirectory,
     data.playwrightDeviceDetailsObject,
     data.extraHTTPHeaders,
-    data.fileTypes
+    data.fileTypes,
   );
 
-  if (res.httpStatus) consoleLogger.info(`Connectivity Check HTTP Response Code: ${res.httpStatus}`);
+  if (res.httpStatus)
+    consoleLogger.info(`Connectivity Check HTTP Response Code: ${res.httpStatus}`);
 
   if (res.status === statuses.success.code) {
     data.url = res.url;
@@ -267,15 +276,11 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     }
   }
 
-  const screenToScan = getScreenToScan(
-    data.deviceChosen,
-    data.customDevice,
-    data.viewportWidth,
-  );
+  const screenToScan = getScreenToScan(data.deviceChosen, data.customDevice, data.viewportWidth);
 
   printMessage([`Oobee version: ${appVersion}`, 'Starting scan...'], messageOptions);
-  consoleLogger.info(`Oobee version: ${appVersion}`); 
-  
+  consoleLogger.info(`Oobee version: ${appVersion}`);
+
   await combineRun(data, screenToScan);
 
   return getStoragePath(data.randomToken);

@@ -1,8 +1,8 @@
-/* eslint-disable no-shadow */
 /* eslint-disable no-alert */
 /* eslint-disable no-param-reassign */
 /* eslint-env browser */
 import path from 'path';
+import { getDomain } from 'tldts';
 import { runAxeScript } from '../commonCrawlerFunc.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
 import { guiInfoStatusTypes } from '../../constants/constants.js';
@@ -18,6 +18,44 @@ declare global {
     updateMenuPos?: (pos: 'LEFT' | 'RIGHT') => void;
   }
 }
+
+const sameRegistrableDomain = (hostA: string, hostB: string) => {
+  const domainA = getDomain(hostA);
+  const domainB = getDomain(hostB);
+
+  if (!domainA || !domainB) return hostA === hostB;
+
+  return domainA === domainB;
+};
+
+const parseBoolEnv = (val: string | undefined, defaultVal: boolean) => {
+  if (val == null) return defaultVal;
+  const v = String(val).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(v)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(v)) return false;
+  return defaultVal;
+};
+
+const RESTRICT_OVERLAY_TO_ENTRY_DOMAIN = parseBoolEnv(
+  process.env.RESTRICT_OVERLAY_TO_ENTRY_DOMAIN,
+  false,
+);
+
+const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
+  try {
+    const cur = new URL(currentUrl);
+
+    if (cur.protocol !== 'http:' && cur.protocol !== 'https:') return false;
+
+    if (!RESTRICT_OVERLAY_TO_ENTRY_DOMAIN) return true;
+
+    const base = new URL(entryUrl);
+
+    return sameRegistrableDomain(cur.hostname, base.hostname);
+  } catch {
+    return false;
+  }
+};
 
 //! For Cypress Test
 // env to check if Cypress test is running
@@ -67,10 +105,7 @@ export const screenshotFullPage = async (page, screenshotsDir: string, screensho
           setTimeout(async () => {
             await page.waitForLoadState('domcontentloaded');
 
-            const newHeight = await page.evaluate(
-              // eslint-disable-next-line no-shadow
-              () => document.body.scrollHeight,
-            );
+            const newHeight = await page.evaluate(() => document.body.scrollHeight);
             const result = newHeight > prevHeight;
 
             resolve(result);
@@ -248,7 +283,7 @@ export const updateMenu = async (page, urlsCrawled) => {
   log(`Overlay menu: updating: ${page.url()}`);
   await page.evaluate(
     vars => {
-      const shadowHost = document.querySelector('#oobee-shadow-host');
+      const shadowHost = document.querySelector('#oobeeShadowHost');
       if (shadowHost) {
         const p = shadowHost.shadowRoot.querySelector('#oobee-p-pages-scanned');
         if (p) {
@@ -261,7 +296,6 @@ export const updateMenu = async (page, urlsCrawled) => {
 
   consoleLogger.info(`Overlay menu updated`);
 };
-
 
 export const addOverlayMenu = async (
   page,
@@ -307,7 +341,7 @@ export const addOverlayMenu = async (
         `;
         minBtn.innerHTML = MINBTN_SVG;
 
-        let currentPos: 'LEFT' | 'RIGHT' = (vars.menuPos || 'RIGHT');
+        let currentPos: 'LEFT' | 'RIGHT' = vars.menuPos || 'RIGHT';
         const isCollapsed = () => panel.classList.contains('collapsed');
 
         const setPosClass = (pos: 'LEFT' | 'RIGHT') => {
@@ -325,7 +359,7 @@ export const addOverlayMenu = async (
         };
 
         const toggleCollapsed = (force?: boolean) => {
-          const willCollapse = (typeof force === 'boolean') ? force : !isCollapsed();
+          const willCollapse = typeof force === 'boolean' ? force : !isCollapsed();
           if (willCollapse) {
             panel.classList.add('collapsed');
             localStorage.setItem('oobee:overlay-collapsed', '1');
@@ -414,13 +448,13 @@ export const addOverlayMenu = async (
           const ol = document.createElement('ol');
           ol.className = 'oobee-ol';
 
-          scanned.forEach((item) => {
+          scanned.forEach(item => {
             const li = document.createElement('li');
             li.className = 'oobee-li';
 
             const title = document.createElement('div');
             title.className = 'oobee-item-title';
-            title.textContent = (item.pageTitle && item.pageTitle.trim()) ? item.pageTitle : item.url;
+            title.textContent = item.pageTitle && item.pageTitle.trim() ? item.pageTitle : item.url;
 
             const url = document.createElement('div');
             url.className = 'oobee-item-url';
@@ -730,8 +764,7 @@ export const addOverlayMenu = async (
 
           const closed = isCollapsed();
           const arrowPointsRight =
-            (currentPos === 'RIGHT' && !closed) ||
-            (currentPos === 'LEFT'  &&  closed);
+            (currentPos === 'RIGHT' && !closed) || (currentPos === 'LEFT' && closed);
 
           icon.classList.toggle('is-left', !arrowPointsRight);
           minBtn.setAttribute('aria-label', closed ? 'Expand panel' : 'Collapse panel');
@@ -761,11 +794,11 @@ export const addOverlayMenu = async (
 
         grip.addEventListener('pointerdown', (e: PointerEvent) => {
           startX = e.clientX;
-          grip.setPointerCapture(e.pointerId);       // <-- use the button
+          grip.setPointerCapture(e.pointerId); // <-- use the button
         });
 
         grip.addEventListener('pointermove', (e: PointerEvent) => {
-          if (!grip.hasPointerCapture?.(e.pointerId)) return;  // <-- check the button
+          if (!grip.hasPointerCapture?.(e.pointerId)) return; // <-- check the button
           const dx = e.clientX - startX;
           if (Math.abs(dx) >= THRESH) {
             const nextPos: 'LEFT' | 'RIGHT' = dx < 0 ? 'LEFT' : 'RIGHT';
@@ -779,7 +812,9 @@ export const addOverlayMenu = async (
         });
 
         grip.addEventListener('pointerup', (e: PointerEvent) => {
-          try { grip.releasePointerCapture(e.pointerId); } catch {}
+          try {
+            grip.releasePointerCapture(e.pointerId);
+          } catch {}
         });
 
         const stopDialog = document.createElement('dialog');
@@ -791,7 +826,7 @@ export const addOverlayMenu = async (
           borderRadius: '16px',
           overflow: 'hidden',
           boxShadow: '0 10px 40px rgba(0,0,0,.35)',
-          fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif'
+          fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
         });
         const dialogSheet = new CSSStyleSheet();
         dialogSheet.replaceSync(`
@@ -829,13 +864,18 @@ export const addOverlayMenu = async (
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '8px'
+          gap: '8px',
         });
 
         const title = document.createElement('h2');
         title.id = 'oobee-stop-title';
         title.textContent = 'Are you sure you want to stop this scan?';
-        Object.assign(title.style, { margin: '0', fontSize: '22px', fontWeight: '700', lineHeight: '1.25' });
+        Object.assign(title.style, {
+          margin: '0',
+          fontSize: '22px',
+          fontWeight: '700',
+          lineHeight: '1.25',
+        });
 
         const closeX = document.createElement('button');
         closeX.type = 'button';
@@ -853,14 +893,14 @@ export const addOverlayMenu = async (
           height: '36px',
           borderRadius: '12px',
           display: 'grid',
-          placeItems: 'center'
+          placeItems: 'center',
         });
         head.appendChild(title);
         head.appendChild(closeX);
 
         const bodyWrap = document.createElement('div');
         Object.assign(bodyWrap.style, {
-          padding: '12px 20px 20px 20px'
+          padding: '12px 20px 20px 20px',
         });
 
         const form = document.createElement('form');
@@ -869,7 +909,7 @@ export const addOverlayMenu = async (
         Object.assign(form.style, {
           display: 'grid',
           gridTemplateColumns: '1fr',
-          rowGap: '12px'
+          rowGap: '12px',
         });
 
         const label = document.createElement('label');
@@ -887,7 +927,7 @@ export const addOverlayMenu = async (
           padding: '12px 14px',
           fontSize: '14px',
           outline: 'none',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
         });
         input.addEventListener('focus', () => {
           input.style.borderColor = '#7b4dff';
@@ -913,7 +953,7 @@ export const addOverlayMenu = async (
           fontWeight: '600',
           color: '#fff',
           background: '#9021A6',
-          cursor: 'pointer'
+          cursor: 'pointer',
         });
 
         const cancel = document.createElement('button');
@@ -926,7 +966,7 @@ export const addOverlayMenu = async (
           fontSize: '14px',
           justifySelf: 'center',
           cursor: 'pointer',
-          padding: '6px'
+          padding: '6px',
         });
 
         actions.appendChild(primary);
@@ -936,7 +976,7 @@ export const addOverlayMenu = async (
           form.appendChild(label);
           form.appendChild(input);
         }
-         form.appendChild(actions);
+        form.appendChild(actions);
         bodyWrap.appendChild(form);
 
         stopDialog.appendChild(head);
@@ -944,17 +984,27 @@ export const addOverlayMenu = async (
         shadowRoot.appendChild(stopDialog);
 
         let stopResolver: null | ((v: { confirmed: boolean; label: string }) => void) = null;
-        const hideStop = () => { try { stopDialog.close(); } catch {} stopResolver = null; };
+        const hideStop = () => {
+          try {
+            stopDialog.close();
+          } catch {}
+          stopResolver = null;
+        };
         const showStop = () => {
           if (!shouldHideInput) input.value = '';
-          try { stopDialog.showModal(); } catch {}
+          try {
+            stopDialog.showModal();
+          } catch {}
           if (!shouldHideInput) {
             requestAnimationFrame(() => {
-              try { input.focus({ preventScroll: true }); input.select(); } catch {}
+              try {
+                input.focus({ preventScroll: true });
+                input.select();
+              } catch {}
             });
           }
         };
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', e => {
           e.preventDefault();
           const v = (input.value || '').trim();
           if (stopResolver) stopResolver({ confirmed: true, label: v });
@@ -968,13 +1018,13 @@ export const addOverlayMenu = async (
           if (stopResolver) stopResolver({ confirmed: false, label: '' });
           hideStop();
         });
-        stopDialog.addEventListener('cancel', (e) => {
+        stopDialog.addEventListener('cancel', e => {
           e.preventDefault();
           if (stopResolver) stopResolver({ confirmed: false, label: '' });
           hideStop();
         });
         (customWindow as Window).oobeeShowStopModal = () =>
-          new Promise<{ confirmed: boolean; label: string }>((resolve) => {
+          new Promise<{ confirmed: boolean; label: string }>(resolve => {
             stopResolver = resolve;
             showStop();
           });
@@ -1000,7 +1050,7 @@ export const addOverlayMenu = async (
       log('Overlay menu: successfully added');
     })
     .catch(error => {
-      error('Overlay menu: failed to add', error);
+      consoleLogger.error('Overlay menu: failed to add', error);
     });
 };
 
@@ -1027,7 +1077,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   // eslint-disable-next-line no-underscore-dangle
   const pageId = page._guid;
 
-  page.on('dialog', () => { });
+  page.on('dialog', () => {});
 
   const pageClosePromise = new Promise(resolve => {
     page.on('close', () => {
@@ -1058,11 +1108,18 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       await processPage(page, processPageParams);
       log('Scan: success');
       pagesDict[pageId].isScanning = false;
-       await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
-         inProgress: false,
-         collapsed: !!pagesDict[pageId]?.collapsed,
-         hideStopInput: !!processPageParams.customFlowLabel,
-       });
+
+      const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
+
+      if (allowed) {
+        await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
+          inProgress: false,
+          collapsed: !!pagesDict[pageId]?.collapsed,
+          hideStopInput: !!processPageParams.customFlowLabel,
+        });
+      } else {
+        await removeOverlayMenu(page);
+      }
     } catch (error) {
       log(`Scan failed ${error}`);
     }
@@ -1126,6 +1183,13 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
   page.on('domcontentloaded', async () => {
     try {
+      const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
+
+      if (!allowed) {
+        await removeOverlayMenu(page);
+        return;
+      }
+
       const existingOverlay = await page.evaluate(() => {
         return document.querySelector('#oobeeShadowHost');
       });
@@ -1141,12 +1205,6 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         });
       }
 
-      setTimeout(() => {
-        // Timeout here to slow things down a little
-      }, 1000);
-
-      //! For Cypress Test
-      // Auto-clicks 'Scan this page' button only once
       if (isCypressTest) {
         try {
           await handleOnScanClick();
@@ -1155,10 +1213,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
           consoleLogger.info(`Error in calling handleOnScanClick, isCypressTest: ${isCypressTest}`);
         }
       }
-
-      consoleLogger.info(`Overlay state: ${existingOverlay}`);
     } catch {
-      consoleLogger.info('Error in adding overlay menu to page');
       consoleLogger.info('Error in adding overlay menu to page');
     }
   });

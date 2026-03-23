@@ -25,6 +25,8 @@ export class ProcessPageParams {
   randomToken: string;
   customFlowLabel?: string;
   stopAll?: () => Promise<void>;
+  entryUrl!: string;
+  strategy: string;
 
   constructor(
     scannedIdx: number,
@@ -69,6 +71,8 @@ const runCustom = async (
     randomToken,
   );
 
+  processPageParams.entryUrl = url;
+
   if (initialCustomFlowLabel && initialCustomFlowLabel.trim()) {
     processPageParams.customFlowLabel = initialCustomFlowLabel.trim();
   }
@@ -85,7 +89,10 @@ const runCustom = async (
     // Merge base args with custom flow specific args
     const baseArgs = baseLaunchOptions.args || [];
     const customArgs = hasCustomViewport ? ['--window-size=1920,1040'] : ['--start-maximized'];
-    const mergedArgs = [...baseArgs.filter(a => !a.startsWith('--window-size') && a !== '--start-maximized'), ...customArgs];
+    const mergedArgs = [
+      ...baseArgs.filter(a => !a.startsWith('--window-size') && a !== '--start-maximized'),
+      ...customArgs,
+    ];
 
     const browser = await chromium.launch({
       ...baseLaunchOptions,
@@ -106,8 +113,7 @@ const runCustom = async (
       try {
         await context.close().catch(() => {});
         await browser.close().catch(() => {});
-      } catch {
-      }
+      } catch {}
     };
 
     // For handling closing playwright browser and continue generate artifacts etc
