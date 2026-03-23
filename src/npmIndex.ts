@@ -5,6 +5,8 @@ import axe, { AxeResults, ImpactValue } from 'axe-core';
 import { JSDOM } from 'jsdom';
 import { fileURLToPath } from 'url';
 import { EnqueueStrategy } from 'crawlee';
+import { BrowserContext, Page } from 'playwright';
+import { filter } from 'jszip';
 import constants, { BrowserTypes, RuleFlags, ScannerTypes } from './constants/constants.js';
 import {
   deleteClonedProfiles,
@@ -14,7 +16,10 @@ import {
 } from './constants/common.js';
 import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
 import { createAndUpdateResultsFolders, getVersion } from './utils.js';
-import generateArtifacts, { createBasicFormHTMLSnippet, sendWcagBreakdownToSentry } from './mergeAxeResults.js';
+import generateArtifacts, {
+  createBasicFormHTMLSnippet,
+  sendWcagBreakdownToSentry,
+} from './mergeAxeResults.js';
 import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
@@ -26,8 +31,6 @@ import { flagUnlabelledClickableElements } from './crawlers/custom/flagUnlabelle
 import xPathToCss from './crawlers/custom/xPathToCss.js';
 import { extractText } from './crawlers/custom/extractText.js';
 import { gradeReadability } from './crawlers/custom/gradeReadability.js';
-import { BrowserContext, Page } from 'playwright';
-import { filter } from 'jszip';
 
 // Define global window properties for Oobee injection functions
 declare global {
@@ -407,7 +410,7 @@ export const init = async ({
   const scripts = `${getAxeScript()}\n${getOobeeFunctions()}`;
   fs.writeFileSync(path.join(dirname, 'testScripts.txt'), scripts);
   */
- 
+
   const pushScanResults = async (
     res: { pageUrl: string; pageTitle: string; axeScanResults: AxeResults },
     metadata: string,
@@ -426,7 +429,7 @@ export const init = async ({
         pageToScan = page;
       } else {
         // use chrome by default
-        const browserData = getBrowserToRun(randomToken, BrowserTypes.CHROME, false);
+        const browserData = getBrowserToRun(randomToken, BrowserTypes.CHROMIUM, false);
         browserToRun = browserData.browserToRun;
         clonedBrowserDataDir = browserData.clonedBrowserDataDir;
 
@@ -590,16 +593,21 @@ export const init = async ({
 export default init;
 
 const processAndSubmitResults = async (
-  scanData: { axeScanResults: AxeResults; pageUrl: string; pageTitle: string } | { axeScanResults: AxeResults; pageUrl: string; pageTitle: string }[],
+  scanData:
+    | { axeScanResults: AxeResults; pageUrl: string; pageTitle: string }
+    | { axeScanResults: AxeResults; pageUrl: string; pageTitle: string }[],
   name: string,
   email: string,
   metadata: string,
 ) => {
   const items = Array.isArray(scanData) ? scanData : [scanData];
   const numberOfPagesScanned = items.length;
-  
+
   const allFilteredResults = items.map((item, index) => {
-    const filtered = filterAxeResults(item.axeScanResults, item.pageTitle, { pageIndex: index + 1, metadata });
+    const filtered = filterAxeResults(item.axeScanResults, item.pageTitle, {
+      pageIndex: index + 1,
+      metadata,
+    });
     (filtered as any).url = item.pageUrl;
     return filtered;
   });
@@ -636,9 +644,10 @@ const processAndSubmitResults = async (
 
             // Map the description to the short description if available
             if (constants.a11yRuleShortDescriptionMap[ruleId]) {
-              mergedResults[category].rules[ruleId].description = constants.a11yRuleShortDescriptionMap[ruleId];
+              mergedResults[category].rules[ruleId].description =
+                constants.a11yRuleShortDescriptionMap[ruleId];
             }
-            
+
             // Add url to items
             mergedResults[category].rules[ruleId].items.forEach((item: any) => {
               item.url = (result as any).url;
@@ -649,12 +658,12 @@ const processAndSubmitResults = async (
           } else {
             mergedResults[category].rules[ruleId].totalItems += ruleVal.totalItems;
             const newItems = ruleVal.items.map((item: any) => {
-               const newItem = { ...item, url: (result as any).url };
-               if (newItem.displayNeedsReview) {
-                 delete newItem.displayNeedsReview;
-               }
-               return newItem;
-             });
+              const newItem = { ...item, url: (result as any).url };
+              if (newItem.displayNeedsReview) {
+                delete newItem.displayNeedsReview;
+              }
+              return newItem;
+            });
             mergedResults[category].rules[ruleId].items.push(...newItems);
           }
         });
@@ -682,7 +691,7 @@ const processAndSubmitResults = async (
 
   // Generate WCAG breakdown for Sentry
   const wcagOccurrencesMap = new Map<string, number>();
-  
+
   // Iterate through relevant categories to collect WCAG violation occurrences
   (['mustFix', 'goodToFix'] as CategoryKey[]).forEach(category => {
     const rulesObj = mergedResults[category]?.rules;
@@ -702,17 +711,17 @@ const processAndSubmitResults = async (
   });
 
   const oobeeAppVersion = getVersion();
-  
+
   await sendWcagBreakdownToSentry(
     oobeeAppVersion,
     wcagOccurrencesMap,
     basicFormHTMLSnippet,
     {
-      entryUrl: entryUrl,
+      entryUrl,
       scanType: ScannerTypes.CUSTOM,
       browser: 'chromium', // Defaulting since we might scan HTML without browser or implicit browser
-      email: email,
-      name: name,
+      email,
+      name,
     },
     undefined,
     numberOfPagesScanned,
@@ -721,27 +730,26 @@ const processAndSubmitResults = async (
   // Return original single result if only one page was scanning to maintain backward compatibility structure
   if (numberOfPagesScanned === 1) {
     const singleResult = allFilteredResults[0];
-    
+
     // Clean up displayNeedsReview from single result
     (['mustFix', 'goodToFix', 'needsReview'] as CategoryKey[]).forEach(category => {
       const resultCategory = (singleResult as any)[category];
       if (resultCategory && resultCategory.rules) {
         Object.values(resultCategory.rules).forEach((rule: any) => {
-
           // Map the description to the short description if available
           if (constants.a11yRuleShortDescriptionMap[rule.rule]) {
             rule.description = constants.a11yRuleShortDescriptionMap[rule.rule];
           }
 
           if (rule.items) {
-           rule.items.forEach((item: any) => {
-             // Ensure item URL matches the result URL
-             item.url = (singleResult as any).url;
+            rule.items.forEach((item: any) => {
+              // Ensure item URL matches the result URL
+              item.url = (singleResult as any).url;
 
-             if (item.displayNeedsReview) {
-               delete item.displayNeedsReview;
-             }
-           });
+              if (item.displayNeedsReview) {
+                delete item.displayNeedsReview;
+              }
+            });
           }
         });
       }
@@ -800,7 +808,7 @@ export const scanHTML = async (
         resultTypes: ['violations', 'passes', 'incomplete'],
       },
     );
-    
+
     scanData.push({
       axeScanResults,
       pageUrl: htmlItems.length > 1 ? `${pageUrl}-${i + 1}` : pageUrl,
@@ -821,13 +829,7 @@ export const scanPage = async (
     ruleset?: RuleFlags[];
   },
 ) => {
-  const {
-    name,
-    email,
-    pageTitle,
-    metadata = '',
-    ruleset = [RuleFlags.DEFAULT],
-  } = config;
+  const { name, email, pageTitle, metadata = '', ruleset = [RuleFlags.DEFAULT] } = config;
 
   const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
@@ -869,13 +871,7 @@ export const scanPage = async (
     scanData[0].pageTitle = pageTitle;
   }
 
-  return processAndSubmitResults(
-    scanData,
-    name,
-    email,
-    metadata,
-  );
+  return processAndSubmitResults(scanData, name, email, metadata);
 };
 
 export { RuleFlags };
-
