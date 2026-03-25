@@ -349,44 +349,61 @@ const writeSummaryPdf = async (
   browser: string,
   _userDataDirectory: string,
 ) => {
-  const htmlFilePath = `${storagePath}/${filename}.html`;
-  const fileDestinationPath = `${storagePath}/${filename}.pdf`;
+  let browserInstance;
+  let context;
+  let page;
 
-  const launchOptions = getPlaywrightLaunchOptions(browser);
+  try {
+    const htmlFilePath = path.join(storagePath, `${filename}.html`);
+    const fileDestinationPath = path.join(storagePath, `${filename}.pdf`);
+    const htmlFileUrl = `file://${htmlFilePath}`;
 
-  const browserInstance = await constants.launcher.launch({
-    ...launchOptions,
-    headless: true, // force headless for PDF
-  });
+    const launchOptions = getPlaywrightLaunchOptions(browser);
 
-  register(browserInstance as unknown as { close: () => Promise<void> });
+    browserInstance = await constants.launcher.launch({
+      ...launchOptions,
+      headless: true,
+    });
 
-  const context = await browserInstance.newContext();
-  const page = await context.newPage();
+    register(browserInstance as unknown as { close: () => Promise<void> });
 
-  const data = fs.readFileSync(htmlFilePath, { encoding: 'utf-8' });
-  await page.setContent(data, { waitUntil: 'domcontentloaded' });
+    context = await browserInstance.newContext();
+    page = await context.newPage();
 
-  await page.emulateMedia({ media: 'print' });
+    await page.goto(htmlFileUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 120000,
+    });
 
-  await page.pdf({
-    margin: { bottom: '32px' },
-    path: fileDestinationPath,
-    format: 'A4',
-    displayHeaderFooter: true,
-    footerTemplate: `
+    await page.emulateMedia({ media: 'print' });
+
+    await page.pdf({
+      margin: { bottom: '32px' },
+      path: fileDestinationPath,
+      format: 'A4',
+      displayHeaderFooter: true,
+      footerTemplate: `
     <div style="margin-top:50px;color:#26241b;font-family:Open Sans;text-align: center;width: 100%;font-weight:400">
       <span style="color:#26241b;font-size: 14px;font-weight:400">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
     </div>
   `,
-  });
+    });
 
-  await page.close();
-  await context.close().catch(() => {});
-  await browserInstance.close().catch(() => {});
-
-  if (pagesScanned < 2000) {
-    fs.unlinkSync(htmlFilePath);
+    if (pagesScanned < 2000) {
+      fs.unlinkSync(htmlFilePath);
+    }
+  } catch (err) {
+    consoleLogger.info(`Error at writeSummaryPDF ${err instanceof Error ? err.stack : err}`);
+  } finally {
+    await page?.close().catch(err => {
+      consoleLogger.info(`Error at page close writeSummaryPDF ${err}`);
+    });
+    await context?.close().catch(err => {
+      consoleLogger.info(`Error at context close writeSummaryPDF ${err}`);
+    });
+    await browserInstance?.close().catch(err => {
+      consoleLogger.info(`Error at browserInstance close writeSummaryPDF ${err}`);
+    });
   }
 };
 
