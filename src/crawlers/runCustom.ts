@@ -117,28 +117,44 @@ const customArgs = ['--start-maximized','--use-fake-device-for-media-stream',
   timezoneId: 'Asia/Singapore',
   // 2. Grant permissions to avoid the "Prompt" state
   permissions: ['geolocation', 'notifications'],
-      viewport: { width: 1920, height: 1080 },
+      viewport: { width: 1280, height: 720 },
+  screen: { width: 1280, height: 800 },
     });
 
     await context.addInitScript(() => {
-  const maskWebGL = (context) => {
-    const getParameter = context.prototype.getParameter;
+  // Deep WebGL Masking
+  const getParameterProxy = (context) => {
+    const origGetParam = context.prototype.getParameter;
     context.prototype.getParameter = function(parameter) {
       // UNMASKED_VENDOR_WEBGL
       if (parameter === 37445) return 'NVIDIA Corporation';
       // UNMASKED_RENDERER_WEBGL
       if (parameter === 37446) return 'NVIDIA GeForce RTX 4070/PCIe/SSE2';
-      return getParameter.apply(this, arguments);
+      return origGetParam.apply(this, arguments);
     };
   };
+  getParameterProxy(WebGLRenderingContext);
+  getParameterProxy(WebGL2RenderingContext);
 
-  maskWebGL(WebGLRenderingContext);
-  maskWebGL(WebGL2RenderingContext);
-
-  // Mask the Platform and Hardware (Already doing, but keep these)
-  Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
-  Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
-  Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+  // CRITICAL: Mask the WebGL Debug Extension specifically
+  const getExtension = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, attributes) {
+    const ctx = getExtension.apply(this, arguments);
+    if (ctx && (type === 'webgl' || type === 'webgl2')) {
+      const origGetExt = ctx.getExtension;
+      ctx.getExtension = function(name) {
+        const ext = origGetExt.apply(this, arguments);
+        if (name === 'WEBGL_debug_renderer_info') {
+          return {
+            UNMASKED_VENDOR_WEBGL: 37445,
+            UNMASKED_RENDERER_WEBGL: 37446,
+          };
+        }
+        return ext;
+      };
+    }
+    return ctx;
+  };
 });
 
     register(context);
