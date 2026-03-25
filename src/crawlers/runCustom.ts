@@ -101,59 +101,53 @@ const customArgs = ['--start-maximized','--use-fake-device-for-media-stream',
     });
     const WINDOWS_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.7680.165 Safari/537.36';
     const MACOS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36';
-    const context = await browser.newContext({
-      userAgent: WINDOWS_UA,
-      // ignoreHTTPSErrors: true,
-      // serviceWorkers: 'block',
-      // // deviceScaleFactor: 1, // Standard desktop scale
-      // isMobile: false,
-      // hasTouch: false,
-      // locale: 'en-SG', // Essential: Match the Singapore context
-      // timezoneId: 'Asia/Singapore',
-      // permissions: ['geolocation'],
-      // viewport: null,
-      // ...(hasCustomViewport ? deviceConfig : {}),
-      locale: 'en-SG', 
+   const context = await browser.newContext({
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
+  // FIX: Ensure viewport is significantly smaller than screen to allow for "Outer" window space
+  viewport: { width: 1280, height: 720 },
+  screen: { width: 1600, height: 900 }, 
+  locale: 'en-SG',
   timezoneId: 'Asia/Singapore',
-  // 2. Grant permissions to avoid the "Prompt" state
   permissions: ['geolocation', 'notifications'],
-      viewport: { width: 1280, height: 720 },
-  screen: { width: 1280, height: 800 },
-    });
+});
 
-    await context.addInitScript(() => {
-  // Deep WebGL Masking
-  const getParameterProxy = (context) => {
-    const origGetParam = context.prototype.getParameter;
-    context.prototype.getParameter = function(parameter) {
+await context.addInitScript(() => {
+  // 1. MASK PLATFORM & HARDWARE
+  Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+  Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+  Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+
+  // 2. DEEP WEBGL MASKING (Targets the Debug Extension)
+  const maskWebGL = (ctx) => {
+    const getParameter = ctx.getParameter;
+    ctx.getParameter = function(parameter) {
       // UNMASKED_VENDOR_WEBGL
       if (parameter === 37445) return 'NVIDIA Corporation';
       // UNMASKED_RENDERER_WEBGL
       if (parameter === 37446) return 'NVIDIA GeForce RTX 4070/PCIe/SSE2';
-      return origGetParam.apply(this, arguments);
+      return getParameter.apply(this, arguments);
+    };
+
+    const getExtension = ctx.getExtension;
+    ctx.getExtension = function(name) {
+      if (name === 'WEBGL_debug_renderer_info') {
+        return {
+          UNMASKED_VENDOR_WEBGL: 37445,
+          UNMASKED_RENDERER_WEBGL: 37446,
+        };
+      }
+      return getExtension.apply(this, arguments);
     };
   };
-  getParameterProxy(WebGLRenderingContext);
-  getParameterProxy(WebGL2RenderingContext);
 
-  // CRITICAL: Mask the WebGL Debug Extension specifically
-  const getExtension = HTMLCanvasElement.prototype.getContext;
+  // Apply to both standard and WebGL2 contexts
+  const oldGetContext = HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.getContext = function(type, attributes) {
-    const ctx = getExtension.apply(this, arguments);
-    if (ctx && (type === 'webgl' || type === 'webgl2')) {
-      const origGetExt = ctx.getExtension;
-      ctx.getExtension = function(name) {
-        const ext = origGetExt.apply(this, arguments);
-        if (name === 'WEBGL_debug_renderer_info') {
-          return {
-            UNMASKED_VENDOR_WEBGL: 37445,
-            UNMASKED_RENDERER_WEBGL: 37446,
-          };
-        }
-        return ext;
-      };
+    const context = oldGetContext.apply(this, arguments);
+    if (type === 'webgl' || type === 'webgl2') {
+      maskWebGL(context);
     }
-    return ctx;
+    return context;
   };
 });
 
