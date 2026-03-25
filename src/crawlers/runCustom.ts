@@ -87,7 +87,7 @@ const runCustom = async (
     // Merge base args with custom flow specific args
     const baseArgs = baseLaunchOptions.args || [];
     const customArgs = hasCustomViewport ? ['--window-size=1920,1040'] : ['--start-maximized'];
-    const mergedArgs = ['--disable-blink-features=AutomationControlled','--no-sandbox', ...baseArgs.filter(a => !a.startsWith('--window-size') && a !== '--start-maximized'), ...customArgs];
+    const mergedArgs = [...baseArgs.filter(a => !a.startsWith('--window-size') && a !== '--start-maximized'), ...customArgs];
     
     chromium.use(StealthPlugin());
 
@@ -100,14 +100,14 @@ const runCustom = async (
     const MACOS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36';
     const context = await browser.newContext({
       userAgent: WINDOWS_UA,
-      ignoreHTTPSErrors: true,
+      // ignoreHTTPSErrors: true,
       // serviceWorkers: 'block',
-      deviceScaleFactor: 1, // Standard desktop scale
-      isMobile: false,
-      hasTouch: false,
-      locale: 'en-SG', // Essential: Match the Singapore context
-      timezoneId: 'Asia/Singapore',
-      permissions: ['geolocation'],
+      // // deviceScaleFactor: 1, // Standard desktop scale
+      // isMobile: false,
+      // hasTouch: false,
+      // locale: 'en-SG', // Essential: Match the Singapore context
+      // timezoneId: 'Asia/Singapore',
+      // permissions: ['geolocation'],
       // viewport: null,
       // ...(hasCustomViewport ? deviceConfig : {}),
       viewport: { width: 1920, height: 1080 },
