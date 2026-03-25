@@ -86,7 +86,10 @@ const runCustom = async (
 
     // Merge base args with custom flow specific args
     const baseArgs = baseLaunchOptions.args || [];
-    const customArgs = hasCustomViewport ? ['--window-size=1920,1040'] : ['--start-maximized'];
+    // const customArgs = hasCustomViewport ? ['--window-size=1920,1040'] : ['--start-maximized'];
+const customArgs = ['--start-maximized','--use-fake-device-for-media-stream',
+  '--use-fake-ui-for-media-stream','--disable-blink-features=AutomationControlled'];
+    
     const mergedArgs = [...baseArgs.filter(a => !a.startsWith('--window-size') && a !== '--start-maximized'), ...customArgs];
     
     chromium.use(StealthPlugin());
@@ -110,8 +113,32 @@ const runCustom = async (
       // permissions: ['geolocation'],
       // viewport: null,
       // ...(hasCustomViewport ? deviceConfig : {}),
+      locale: 'en-SG', 
+  timezoneId: 'Asia/Singapore',
+  // 2. Grant permissions to avoid the "Prompt" state
+  permissions: ['geolocation', 'notifications'],
       viewport: { width: 1920, height: 1080 },
     });
+
+    await context.addInitScript(() => {
+
+      Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+
+  // 2. Mask Languages (Consistency with en-SG)
+  Object.defineProperty(navigator, 'languages', { get: () => ['en-SG', 'en-GB', 'en'] });
+  // 3. Mask the WebGL Vendor/Renderer to something more specific/common
+  const getParameter = WebGLRenderingContext.prototype.getParameter;
+  WebGLRenderingContext.prototype.getParameter = function(parameter) {
+    // UNMASKED_VENDOR_WEBGL
+    if (parameter === 37445) return 'NVIDIA Corporation';
+    // UNMASKED_RENDERER_WEBGL
+    if (parameter === 37446) return 'NVIDIA GeForce RTX 4070/PCIe/SSE2';
+    return getParameter.apply(this, arguments);
+  };
+
+  // 4. Force Hardware Concurrency to a "Real" number (don't let it be 0 or 2)
+  Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+});
 
     register(context);
 
