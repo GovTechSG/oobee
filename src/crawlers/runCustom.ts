@@ -52,6 +52,14 @@ const createContextWithOptionalFingerprintInjection = async (
   browser: Browser,
   contextOptions: Parameters<Browser['newContext']>[0],
 ): Promise<BrowserContext> => {
+  console.log(
+    'inside createContextWithOptionalFingerprintInjection 111',
+    process.env.OOBEE_EXPERIMENTAL_FINGERPRINT_INJECTION,
+  );
+  console.log(
+    'inside createContextWithOptionalFingerprintInjection 222',
+    process.env.OOBEE_EXPERIMENTAL_FINGERPRINT_INJECTION !== '1',
+  );
   if (process.env.OOBEE_EXPERIMENTAL_FINGERPRINT_INJECTION !== '1') {
     return browser.newContext(contextOptions);
   }
