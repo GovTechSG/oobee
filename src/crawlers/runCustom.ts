@@ -204,6 +204,9 @@ const runCustom = async (
       headless: false,
     });
 
+    console.log('hello world 111');
+    consoleLogger.info('hello world 222');
+
     const context = await createContextWithOptionalFingerprintInjection(browser, {
       ignoreHTTPSErrors: true,
       serviceWorkers: 'block',
