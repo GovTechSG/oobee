@@ -878,4 +878,5 @@ export const scanPage = async (
 };
 
 export { RuleFlags };
+export { analyzeReports, formatReportText } from './reportAnalyzer.js';
 
