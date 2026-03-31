@@ -7,6 +7,18 @@ import { consoleLogger } from '../logs.js';
 const REGION = process.env.AWS_REGION || 'ap-southeast-1';
 const s3Client = new S3Client({ region: REGION });
 
+// S3 user metadata is sent over REST as x-amz-meta-* HTTP headers.
+// To avoid request-header validation failures in the Node/AWS SDK path,
+// normalize to printable ASCII before attaching metadata values.
+const sanitizeS3MetadataValue = (value: string): string => {
+  return value
+    .normalize('NFKD') // e.g. "é" -> "e" + combining accent, "Ａ" -> "A"
+    .replace(/[\u0300-\u036f]/g, '') // e.g. remove the combining accent from the decomposed "é"
+    .replace(/[^\x20-\x7E]+/g, ' ') // e.g. "公益金" or emoji -> " "
+    .replace(/\s+/g, ' ') // e.g. "Community   Chest \n" -> "Community Chest "
+    .trim(); // e.g. " Homepage | Community Chest " -> "Homepage | Community Chest"
+};
+
 export interface UploadedFileInfo {
   filename: string;
   s3Path: string;
@@ -75,32 +87,32 @@ export const uploadFolderToS3 = async (
   const allowedFileExtRegex = /\.(html|csv|pdf|zip)$/;
 
   const metadata: Record<string, string> = {
-    scanid: scanMetadata.scanId,
-    userid: scanMetadata.userId,
-    useremail: scanMetadata.email,
+    scanid: sanitizeS3MetadataValue(scanMetadata.scanId),
+    userid: sanitizeS3MetadataValue(scanMetadata.userId),
+    useremail: sanitizeS3MetadataValue(scanMetadata.email),
   };
 
   // Add optional metadata fields if present
   if (scanMetadata.messageId) {
-    metadata.messageid = scanMetadata.messageId;
+    metadata.messageid = sanitizeS3MetadataValue(scanMetadata.messageId);
   }
   if (scanMetadata.amplitudeUserId) {
-    metadata.amplitudeuserid = scanMetadata.amplitudeUserId;
+    metadata.amplitudeuserid = sanitizeS3MetadataValue(scanMetadata.amplitudeUserId);
   }
   if (scanMetadata.deviceId) {
-    metadata.deviceid = scanMetadata.deviceId;
+    metadata.deviceid = sanitizeS3MetadataValue(scanMetadata.deviceId);
   }
   if (scanMetadata.orgId) {
-    metadata.orgid = scanMetadata.orgId;
+    metadata.orgid = sanitizeS3MetadataValue(scanMetadata.orgId);
   }
   if (scanMetadata.userRole) {
-    metadata.userrole = scanMetadata.userRole;
+    metadata.userrole = sanitizeS3MetadataValue(scanMetadata.userRole);
   }
   if (scanMetadata.siteName) {
-    metadata.sitename = scanMetadata.siteName;
+    metadata.sitename = sanitizeS3MetadataValue(scanMetadata.siteName);
   }
   if (scanMetadata.durationExceeded !== undefined) {
-    metadata.durationexceeded = scanMetadata.durationExceeded;
+    metadata.durationexceeded = sanitizeS3MetadataValue(scanMetadata.durationExceeded);
   }
 
   consoleLogger.info(`Uploading ${files.length} files to S3...`);
