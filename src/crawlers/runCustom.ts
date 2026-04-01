@@ -123,7 +123,11 @@ const runCustom = async (
 
     // Detection of new page
     context.on('page', async newPage => {
-      await initNewPage(newPage, pageClosePromises, processPageParams, pagesDict);
+      try {
+        await initNewPage(newPage, pageClosePromises, processPageParams, pagesDict);
+      } catch (e) {
+        log(`Error initializing new page: ${e}`);
+      }
     });
 
     const page = await context.newPage();
