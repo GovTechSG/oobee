@@ -23,12 +23,17 @@
       const scanItems = <%- JSON.stringify(
         {
           ...items,
-          passed: {
-            rules: items.passed.rules.map(r => delete r.pagesAffected),
-            ...items.passed
-          },
+          ...['mustFix','goodToFix','needsReview','passed'].reduce((acc, cat) => {
+            if (items[cat]) {
+              acc[cat] = {
+                ...items[cat],
+                rules: (items[cat].rules || []).map(({ htmlGroups, ...rest }) => rest),
+              };
+            }
+            return acc;
+          }, {}),
         }
-      ) %>
+      ).replace(/<\//g, '<\\/') %>
     </script>
     <%- include('partials/scripts/summaryTable') %>
     <script>
