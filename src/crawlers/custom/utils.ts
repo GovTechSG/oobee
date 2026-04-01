@@ -100,17 +100,17 @@ export const screenshotFullPage = async (page, screenshotsDir: string, screensho
         window.scrollTo(0, document.body.scrollHeight);
       });
 
-      const isLoadMoreContent = async () =>
-        new Promise(resolve => {
-          setTimeout(async () => {
-            await page.waitForLoadState('domcontentloaded');
-
-            const newHeight = await page.evaluate(() => document.body.scrollHeight);
-            const result = newHeight > prevHeight;
-
-            resolve(result);
-          }, 2500);
-        });
+      const isLoadMoreContent = async () => {
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        if (page.isClosed()) return false;
+        try {
+          await page.waitForLoadState('domcontentloaded');
+          const newHeight = await page.evaluate(() => document.body.scrollHeight);
+          return newHeight > prevHeight;
+        } catch {
+          return false;
+        }
+      };
 
       const result = await isLoadMoreContent();
       return result;
@@ -1077,7 +1077,13 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   // eslint-disable-next-line no-underscore-dangle
   const pageId = page._guid;
 
-  page.on('dialog', () => {});
+  page.on('dialog', async dialog => {
+    try {
+      await dialog.dismiss();
+    } catch {
+      // dialog may already be closed
+    }
+  });
 
   const pageClosePromise = new Promise(resolve => {
     page.on('close', () => {
@@ -1109,6 +1115,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       log('Scan: success');
       pagesDict[pageId].isScanning = false;
 
+      if (page.isClosed()) return;
       const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
 
       if (allowed) {
@@ -1182,6 +1189,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   };
 
   page.on('domcontentloaded', async () => {
+    if (page.isClosed()) return;
     try {
       const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
 
@@ -1218,19 +1226,24 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
     }
   });
 
-  await page.exposeFunction('handleOnScanClick', handleOnScanClick);
-  await page.exposeFunction('handleOnStopClick', handleOnStopClick);
+  try {
+    if (page.isClosed()) return page;
+    await page.exposeFunction('handleOnScanClick', handleOnScanClick);
+    await page.exposeFunction('handleOnStopClick', handleOnStopClick);
 
-  type UpdateMenuPosFunction = (newPos: any) => void;
+    type UpdateMenuPosFunction = (newPos: any) => void;
 
-  // Define the updateMenuPos function
-  const updateMenuPos: UpdateMenuPosFunction = newPos => {
-    const prevPos = menuPos;
-    if (prevPos !== newPos) {
-      menuPos = newPos;
-    }
-  };
-  await page.exposeFunction('updateMenuPos', updateMenuPos);
+    // Define the updateMenuPos function
+    const updateMenuPos: UpdateMenuPosFunction = newPos => {
+      const prevPos = menuPos;
+      if (prevPos !== newPos) {
+        menuPos = newPos;
+      }
+    };
+    await page.exposeFunction('updateMenuPos', updateMenuPos);
+  } catch (e) {
+    log(`Error exposing functions on page: ${e}`);
+  }
 
   return page;
 };
