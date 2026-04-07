@@ -135,6 +135,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       const res = await runCustom(
         url,
         randomToken,
+        browser,
+        userDataDirectory,
         viewportSettings,
         blacklistedPatterns,
         includeScreenshots,

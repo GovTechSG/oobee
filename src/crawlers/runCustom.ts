@@ -1,5 +1,4 @@
 /* eslint-env browser */
-import { chromium } from 'playwright';
 import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
 import { cleanUpAndExit, register, registerSoftClose } from '../utils.js';
 import constants, {
@@ -11,7 +10,12 @@ import { DEBUG, initNewPage, log } from './custom/utils.js';
 import { guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { addUrlGuardScript } from './guards/urlGuard.js';
-import { getPlaywrightLaunchOptions } from '../constants/common.js';
+import {
+  getBrowserToRun,
+  getPlaywrightLaunchOptions,
+  initModifiedUserAgent,
+} from '../constants/common.js';
+import { BrowserTypes } from '../constants/constants.js';
 
 // Export of classes
 
@@ -50,6 +54,8 @@ export class ProcessPageParams {
 const runCustom = async (
   url: string,
   randomToken: string,
+  browserToRun: string,
+  userDataDirectory: string,
   viewportSettings: ViewportSettingsClass,
   blacklistedPatterns: string[] | null,
   includeScreenshots: boolean,
@@ -81,10 +87,19 @@ const runCustom = async (
   const pageClosePromises = [];
 
   try {
+    const { browserToRun: resolvedBrowserToRun } = getBrowserToRun(
+      randomToken,
+      browserToRun as BrowserTypes,
+      false,
+    );
     const deviceConfig = viewportSettings.playwrightDeviceDetailsObject;
     const hasCustomViewport = !!deviceConfig;
+    const rawDevice = (deviceConfig || {}) as Record<string, unknown>;
+    const { userAgent: deviceUserAgent, ...contextDeviceOptions } = rawDevice;
 
-    const baseLaunchOptions = getPlaywrightLaunchOptions();
+    await initModifiedUserAgent(resolvedBrowserToRun, viewportSettings.playwrightDeviceDetailsObject);
+
+    const baseLaunchOptions = getPlaywrightLaunchOptions(resolvedBrowserToRun);
 
     // Merge base args with custom flow specific args
     const baseArgs = baseLaunchOptions.args || [];
@@ -94,17 +109,15 @@ const runCustom = async (
       ...customArgs,
     ];
 
-    const browser = await chromium.launch({
+    const context = await constants.launcher.launchPersistentContext(userDataDirectory, {
       ...baseLaunchOptions,
       args: mergedArgs,
       headless: false,
-    });
-
-    const context = await browser.newContext({
       ignoreHTTPSErrors: true,
       serviceWorkers: 'block',
       viewport: null,
-      ...(hasCustomViewport ? deviceConfig : {}),
+      ...(hasCustomViewport ? contextDeviceOptions : {}),
+      userAgent: process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined),
     });
 
     register(context);
@@ -112,7 +125,6 @@ const runCustom = async (
     processPageParams.stopAll = async () => {
       try {
         await context.close().catch(() => {});
-        await browser.close().catch(() => {});
       } catch {}
     };
 
@@ -120,6 +132,9 @@ const runCustom = async (
     registerSoftClose(processPageParams.stopAll);
 
     addUrlGuardScript(context, { fallbackUrl: url });
+
+    const page = context.pages().find(existingPage => !existingPage.isClosed()) || (await context.newPage());
+    await initNewPage(page, pageClosePromises, processPageParams, pagesDict);
 
     // Detection of new page
     context.on('page', async newPage => {
@@ -130,7 +145,6 @@ const runCustom = async (
       }
     });
 
-    const page = await context.newPage();
     await page.goto(url, { timeout: 0 });
 
     // to execute and wait for all pages to close

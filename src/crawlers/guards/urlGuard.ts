@@ -5,43 +5,34 @@ export function addUrlGuardScript(context, opts = {}) {
 
   const lastAllowedUrlByPage = new WeakMap();
 
-  const attachGuardsToPage = (page) => {
+  const attachGuardsToPage = page => {
     if (!lastAllowedUrlByPage.has(page) && fallbackUrl) {
       lastAllowedUrlByPage.set(page, String(fallbackUrl));
     }
 
-    page.addInitScript(() => {
-      const isAllowedProtocol = (value) => {
-        try {
-          const s = value instanceof URL ? value.toString() : String(value);
-          const protocol = new URL(s, window.location.href).protocol;
-          return protocol === 'http:' || protocol === 'https:';
-        } catch {
-          return false;
-        }
-      };
+    page
+      .addInitScript(() => {
+        const isAllowedProtocol = value => {
+          try {
+            const s = value instanceof URL ? value.toString() : String(value);
+            const { protocol } = new URL(s, window.location.href);
+            return protocol === 'http:' || protocol === 'https:';
+          } catch {
+            return false;
+          }
+        };
 
-      const win = window;
+        const win = window;
 
-      const openOriginal = win.open;
-      win.open = function (targetUrl, ...args) {
-        if (!isAllowedProtocol(targetUrl)) return null;
-        return openOriginal.call(this, targetUrl, ...args);
-      };
-
-      const assignOriginal  = win.location.assign.bind(win.location);
-      const replaceOriginal = win.location.replace.bind(win.location);
-
-      win.location.assign  = (nextUrl) => { if (isAllowedProtocol(nextUrl)) assignOriginal(nextUrl); };
-      win.location.replace = (nextUrl) => { if (isAllowedProtocol(nextUrl)) replaceOriginal(nextUrl); };
-
-      Object.defineProperty(win.location, 'href', {
-        get() { return String(win.location.toString()); },
-        set(nextUrl) { if (isAllowedProtocol(nextUrl)) assignOriginal(nextUrl); },
+        const openOriginal = win.open;
+        win.open = function (targetUrl, ...args) {
+          if (!isAllowedProtocol(targetUrl)) return null;
+          return openOriginal.call(this, targetUrl, ...args);
+        };
+      })
+      .catch(() => {
+        // page may have closed before addInitScript completed; safe to ignore
       });
-    }).catch(() => {
-      // page may have closed before addInitScript completed; safe to ignore
-    });
 
     const restoreToSafeUrl = async (page, attemptedUrl) => {
       try {
@@ -52,15 +43,15 @@ export function addUrlGuardScript(context, opts = {}) {
       }
     };
 
-    page.on('framenavigated', async (frame) => {
+    page.on('framenavigated', async frame => {
       if (frame !== page.mainFrame()) return;
 
       const urlStr = frame.url();
       let urlObj;
       try {
-      	urlObj = new URL(urlStr);
+        urlObj = new URL(urlStr);
       } catch {
-      	return restoreToSafeUrl(page, urlStr);
+        return restoreToSafeUrl(page, urlStr);
       }
 
       if (ALLOWED_PROTOCOLS.has(urlObj.protocol)) {
