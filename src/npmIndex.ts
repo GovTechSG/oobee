@@ -887,5 +887,5 @@ export const scanPage = async (
   );
 };
 
-export { RuleFlags, a11yRuleLongDescriptionMap, a11yRuleStepByStepGuide };
+export { RuleFlags, a11yRuleLongDescriptionMap, a11yRuleStepByStepGuide, getOobeeFunctionsScript };
 

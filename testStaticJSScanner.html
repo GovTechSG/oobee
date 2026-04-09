@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<!--
+  testStaticJSScanner.html
+  ========================
+  Demo page for oobee-client-scanner.js.
+
+  Steps to use:
+    1. Build oobee:          npm run build
+    2. Generate the bundle:  node dist/generateOobeeClientScanner.js
+    3. Open this file in a browser (must be served, not file://, to avoid CORS on axe iframes):
+         npx serve .
+       Then visit: http://localhost:3000/testStaticJSScanner.html
+
+  The page contains intentional accessibility violations so the scanner has
+  something to find. Open the browser DevTools console to see the full JSON output.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oobee Client Scanner — Test Page</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { color: #333; }
+    .status { padding: 1rem; border-radius: 4px; margin: 1rem 0; background: #f0f0f0; }
+    .status.running  { background: #fff3cd; border-left: 4px solid #ffc107; }
+    .status.done     { background: #d4edda; border-left: 4px solid #28a745; }
+    .status.error    { background: #f8d7da; border-left: 4px solid #dc3545; }
+    pre { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 4px;
+          overflow: auto; max-height: 400px; font-size: 0.8rem; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+    th { background: #e9ecef; }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 3px;
+             font-size: 0.75rem; font-weight: bold; color: #fff; }
+    .badge.mustFix    { background: #dc3545; }
+    .badge.goodToFix  { background: #fd7e14; }
+    .badge.needsReview{ background: #6c757d; }
+    /* ── Intentional accessibility violations below ─────────────────────── */
+    .violation-area { border: 2px dashed #dc3545; padding: 1rem; margin: 1rem 0; }
+    .violation-area h3 { color: #dc3545; margin-top: 0; }
+  </style>
+</head>
+<body>
+
+  <h1>Oobee Client Scanner — Test Page</h1>
+  <p>
+    This page intentionally contains several accessibility violations so
+    <code>oobee-client-scanner.js</code> has something to detect.
+    Open the browser DevTools console for the full JSON output.
+  </p>
+
+  <!-- ── Status display ───────────────────────────────────────────────────── -->
+  <div id="status" class="status running">Scan running…</div>
+
+  <!-- ── Summary table (populated by JS) ─────────────────────────────────── -->
+  <div id="summary" style="display:none">
+    <h2>Scan Summary</h2>
+    <table id="summaryTable">
+      <thead>
+        <tr><th>Category</th><th>Total Issues</th><th>Unique Rules</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <h2>Issues Found</h2>
+    <div id="issuesList"></div>
+    <h2>Raw JSON Output (also in console)</h2>
+    <pre id="jsonOutput"></pre>
+  </div>
+
+  <!-- ── Intentional violations ───────────────────────────────────────────── -->
+  <div class="violation-area">
+    <h3>Intentional Accessibility Violations</h3>
+    <p>The elements below contain violations for the scanner to catch.</p>
+
+    <!-- 1. img with no alt → "image-alt" mustFix -->
+    <img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" width="50" height="50">
+
+    <!-- 2. img with confusing alt → "oobee-confusing-alt-text" -->
+    <img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="image" width="50" height="50">
+
+    <!-- 3. button with no accessible label → "button-name" mustFix -->
+    <button style="margin: 4px"><!-- empty --></button>
+
+    <!-- 4. input with no label → "label" mustFix -->
+    <input type="text" placeholder="Enter value" style="margin: 4px">
+
+    <!-- 5. link with non-descriptive text → "link-name" (may be incomplete/needsReview) -->
+    <a href="#">click here</a>
+
+    <!-- 6. Low contrast text → "color-contrast" -->
+    <p style="color:#ccc; background:#fff; font-size:12px">This text has low contrast.</p>
+  </div>
+
+  <!-- ── oobee-client-scanner.js ──────────────────────────────────────────── -->
+  <script src="oobee-client-scanner.js"></script>
+
+  <!-- ── Run the scan ─────────────────────────────────────────────────────── -->
+  <script>
+    (async function () {
+      const statusEl = document.getElementById('status');
+
+      try {
+        if (!window.oobee) {
+          throw new Error(
+            'window.oobee is not defined — make sure oobee-client-scanner.js loaded correctly.'
+          );
+        }
+
+        // ── Run the scan ──────────────────────────────────────────────────
+        const results = await window.oobee.scan({
+          disableOobee:  false,   // set true to skip oobee custom checks
+          enableWcagAaa: false,   // set true to also include WCAG AAA rules
+          elementsToScan: [],     // empty = scan the entire page
+        });
+
+        // ── Log full JSON to console ──────────────────────────────────────
+        console.log('[oobee-client-scanner] Scan complete. Full results:');
+        console.log(JSON.stringify(results, null, 2));
+
+        // ── Update status ─────────────────────────────────────────────────
+        statusEl.className = 'status done';
+        statusEl.textContent =
+          'Scan complete — see DevTools console for full JSON. ' +
+          'Summary below.';
+
+        // ── Populate summary table ────────────────────────────────────────
+        const categories = [
+          { key: 'mustFix',     label: 'Must Fix'    },
+          { key: 'goodToFix',   label: 'Good to Fix' },
+          { key: 'needsReview', label: 'Needs Review' },
+        ];
+
+        const tbody = document.querySelector('#summaryTable tbody');
+        categories.forEach(function ({ key, label }) {
+          const cat = results[key];
+          if (!cat) return;
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td><span class="badge ' + key + '">' + label + '</span></td>' +
+            '<td>' + cat.totalItems + '</td>' +
+            '<td>' + Object.keys(cat.rules).length + '</td>';
+          tbody.appendChild(tr);
+        });
+
+        // ── Render individual issues ──────────────────────────────────────
+        const issuesList = document.getElementById('issuesList');
+
+        categories.forEach(function ({ key, label }) {
+          const cat = results[key];
+          if (!cat || !cat.totalItems) return;
+
+          const section = document.createElement('div');
+          section.innerHTML = '<h3><span class="badge ' + key + '">' + label + '</span> ' +
+            cat.totalItems + ' issue(s)</h3>';
+
+          Object.entries(cat.rules).forEach(function ([ruleId, rule]) {
+            const ruleDiv = document.createElement('div');
+            ruleDiv.style.marginBottom = '1rem';
+            const shortDesc = rule.shortDescription || rule.description || ruleId;
+            ruleDiv.innerHTML =
+              '<strong>' + escapeHtml(ruleId) + '</strong> — ' + escapeHtml(shortDesc) +
+              ' <em>(' + rule.totalItems + ' occurrence(s))</em>' +
+              (rule.conformance ? ' <small>[' + rule.conformance.join(', ') + ']</small>' : '');
+            section.appendChild(ruleDiv);
+          });
+
+          issuesList.appendChild(section);
+        });
+
+        // ── Show results JSON (truncated for readability) ─────────────────
+        const jsonEl = document.getElementById('jsonOutput');
+        const summary = {
+          url:        results.url,
+          pageTitle:  results.pageTitle,
+          totalItems: results.totalItems,
+          mustFix:    summariseCategory(results.mustFix),
+          goodToFix:  summariseCategory(results.goodToFix),
+          needsReview:summariseCategory(results.needsReview),
+        };
+        jsonEl.textContent = JSON.stringify(summary, null, 2);
+
+        document.getElementById('summary').style.display = 'block';
+
+      } catch (err) {
+        statusEl.className = 'status error';
+        statusEl.textContent = 'Scan error: ' + (err && err.message ? err.message : String(err));
+        console.error('[oobee-client-scanner] Error:', err);
+      }
+
+      // ── Helpers ───────────────────────────────────────────────────────────
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function summariseCategory(cat) {
+        if (!cat) return null;
+        const rulesSummary = {};
+        Object.entries(cat.rules).forEach(function ([ruleId, rule]) {
+          rulesSummary[ruleId] = {
+            totalItems:       rule.totalItems,
+            shortDescription: rule.shortDescription,
+            conformance:      rule.conformance,
+          };
+        });
+        return { totalItems: cat.totalItems, rules: rulesSummary };
+      }
+    })();
+  </script>
+</body>
+</html>
