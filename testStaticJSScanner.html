@@ -20,24 +20,108 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Oobee Client Scanner — Test Page</title>
   <style>
-    body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { color: #333; }
-    .status { padding: 1rem; border-radius: 4px; margin: 1rem 0; background: #f0f0f0; }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem;
+      color: #212529; line-height: 1.5;
+    }
+    h1 { color: #1a1a2e; margin-bottom: 0.25rem; }
+    h2 { color: #343a40; border-bottom: 2px solid #dee2e6; padding-bottom: 0.4rem; margin-top: 2rem; }
+    h3 { color: #495057; margin-top: 1.5rem; }
+
+    /* ── Status bar ────────────────────────────────────────────────────────── */
+    .status {
+      padding: 0.85rem 1rem; border-radius: 6px; margin: 1rem 0;
+      font-weight: 500;
+    }
     .status.running  { background: #fff3cd; border-left: 4px solid #ffc107; }
     .status.done     { background: #d4edda; border-left: 4px solid #28a745; }
     .status.error    { background: #f8d7da; border-left: 4px solid #dc3545; }
-    pre { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 4px;
-          overflow: auto; max-height: 400px; font-size: 0.8rem; }
-    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
-    th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
-    th { background: #e9ecef; }
-    .badge { display: inline-block; padding: 2px 6px; border-radius: 3px;
-             font-size: 0.75rem; font-weight: bold; color: #fff; }
-    .badge.mustFix    { background: #dc3545; }
-    .badge.goodToFix  { background: #fd7e14; }
-    .badge.needsReview{ background: #6c757d; }
-    /* ── Intentional accessibility violations below ─────────────────────── */
-    .violation-area { border: 2px dashed #dc3545; padding: 1rem; margin: 1rem 0; }
+
+    /* ── Category badges ───────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 0.72rem; font-weight: 700; color: #fff; white-space: nowrap;
+    }
+    .badge.mustFix     { background: #dc3545; }
+    .badge.goodToFix   { background: #fd7e14; }
+    .badge.needsReview { background: #6c757d; }
+
+    /* ── Summary table ─────────────────────────────────────────────────────── */
+    table.summary-table {
+      border-collapse: collapse; margin: 0.75rem 0;
+    }
+    table.summary-table th,
+    table.summary-table td {
+      border: 1px solid #dee2e6; padding: 0.45rem 0.8rem; text-align: left;
+    }
+    table.summary-table th { background: #f1f3f5; font-weight: 600; }
+
+    /* ── Issues table ──────────────────────────────────────────────────────── */
+    .table-scroll { overflow-x: auto; margin: 1rem 0; }
+    table.issues-table {
+      border-collapse: collapse; width: 100%; min-width: 900px;
+      font-size: 0.875rem;
+    }
+    table.issues-table th {
+      background: #1a1a2e; color: #fff;
+      padding: 0.55rem 0.75rem; text-align: left;
+      font-weight: 600; white-space: nowrap;
+    }
+    table.issues-table td {
+      border: 1px solid #dee2e6; padding: 0.5rem 0.75rem;
+      vertical-align: top;
+    }
+    table.issues-table tr:nth-child(even) td { background: #f8f9fa; }
+    table.issues-table tr:hover td          { background: #e9f4ff; }
+
+    /* Rule ID cell */
+    .rule-id { font-family: monospace; font-size: 0.82rem; color: #0d6efd; font-weight: 600; }
+
+    /* Conformance tags */
+    .conf-tag {
+      display: inline-block; margin: 1px 2px;
+      padding: 1px 5px; border-radius: 3px; font-size: 0.7rem;
+      background: #e9ecef; color: #495057; border: 1px solid #ced4da;
+    }
+
+    /* Occurrences pill */
+    .occ-pill {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      background: #e9ecef; font-weight: 600; font-size: 0.8rem;
+    }
+
+    /* Long description cell — collapsible */
+    details summary {
+      cursor: pointer; color: #0d6efd; font-size: 0.82rem;
+      user-select: none; list-style: none;
+    }
+    details summary::before { content: '▶ '; font-size: 0.7rem; }
+    details[open] summary::before { content: '▼ '; }
+    details p { margin: 0.4rem 0 0; font-size: 0.83rem; color: #495057; }
+
+    /* Step-by-step guide */
+    .steps { margin: 0; padding: 0; list-style: none; font-size: 0.82rem; }
+    .steps li { margin-bottom: 0.35rem; }
+    .step-label {
+      display: inline-block; min-width: 3.5rem;
+      font-weight: 700; color: #343a40;
+    }
+
+    /* ── Raw JSON block ────────────────────────────────────────────────────── */
+    pre {
+      background: #1e1e1e; color: #d4d4d4;
+      padding: 1rem; border-radius: 6px;
+      overflow: auto; max-height: 500px;
+      font-size: 0.78rem; line-height: 1.4;
+    }
+
+    /* ── Violation sandbox ─────────────────────────────────────────────────── */
+    .violation-area {
+      border: 2px dashed #dc3545; padding: 1rem; margin: 2rem 0;
+      border-radius: 6px; background: #fff5f5;
+    }
     .violation-area h3 { color: #dc3545; margin-top: 0; }
   </style>
 </head>
@@ -53,19 +137,56 @@
   <!-- ── Status display ───────────────────────────────────────────────────── -->
   <div id="status" class="status running">Scan running…</div>
 
-  <!-- ── Summary table (populated by JS) ─────────────────────────────────── -->
+  <!-- ── Results (populated by JS) ───────────────────────────────────────── -->
   <div id="summary" style="display:none">
+
+    <!-- Summary counts -->
     <h2>Scan Summary</h2>
-    <table id="summaryTable">
+    <table class="summary-table">
       <thead>
-        <tr><th>Category</th><th>Total Issues</th><th>Unique Rules</th></tr>
+        <tr>
+          <th>Category</th>
+          <th>Total Occurrences</th>
+          <th>Unique Rules</th>
+        </tr>
       </thead>
-      <tbody></tbody>
+      <tbody id="summaryBody"></tbody>
     </table>
+
+    <!-- Issues table -->
     <h2>Issues Found</h2>
-    <div id="issuesList"></div>
-    <h2>Raw JSON Output (also in console)</h2>
-    <pre id="jsonOutput"></pre>
+    <div class="table-scroll">
+      <table class="issues-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Rule ID</th>
+            <th>Occurrences</th>
+            <th>Conformance</th>
+            <th>Short Description</th>
+            <th>Long Description</th>
+            <th>Step-by-Step Guide</th>
+          </tr>
+        </thead>
+        <tbody id="issuesBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Raw JSON: full scan results -->
+    <h2>Raw JSON — Full Scan Results</h2>
+    <p style="font-size:0.875rem; color:#6c757d;">
+      Complete output of <code>window.oobee.scan()</code>, including every occurrence per rule.
+      Use this to build your own UI on top of the scanner.
+    </p>
+    <pre id="jsonFullOutput"></pre>
+
+    <!-- Raw JSON: description maps only -->
+    <h2>Raw JSON — Description Maps</h2>
+    <p style="font-size:0.875rem; color:#6c757d;">
+      Flat maps of <code>shortDescription</code>, <code>longDescription</code>, and
+      <code>stepByStepGuide</code> keyed by rule ID — only rules found in this scan are included.
+    </p>
+    <pre id="jsonDescOutput"></pre>
   </div>
 
   <!-- ── Intentional violations ───────────────────────────────────────────── -->
@@ -85,7 +206,7 @@
     <!-- 4. input with no label → "label" mustFix -->
     <input type="text" placeholder="Enter value" style="margin: 4px">
 
-    <!-- 5. link with non-descriptive text → "link-name" (may be incomplete/needsReview) -->
+    <!-- 5. link with non-descriptive text → may surface as incomplete/needsReview -->
     <a href="#">click here</a>
 
     <!-- 6. Low contrast text → "color-contrast" -->
@@ -109,8 +230,8 @@
 
         // ── Run the scan ──────────────────────────────────────────────────
         const results = await window.oobee.scan({
-          disableOobee:  false,   // set true to skip oobee custom checks
-          enableWcagAaa: false,   // set true to also include WCAG AAA rules
+          disableOobee:   false,  // set true to skip oobee custom checks
+          enableWcagAaa:  false,  // set true to also include WCAG AAA rules
           elementsToScan: [],     // empty = scan the entire page
         });
 
@@ -120,18 +241,17 @@
 
         // ── Update status ─────────────────────────────────────────────────
         statusEl.className = 'status done';
-        statusEl.textContent =
-          'Scan complete — see DevTools console for full JSON. ' +
-          'Summary below.';
+        statusEl.textContent = 'Scan complete. Summary and raw JSON output below.';
 
-        // ── Populate summary table ────────────────────────────────────────
+        // ── Categories to render ──────────────────────────────────────────
         const categories = [
           { key: 'mustFix',     label: 'Must Fix'    },
           { key: 'goodToFix',   label: 'Good to Fix' },
           { key: 'needsReview', label: 'Needs Review' },
         ];
 
-        const tbody = document.querySelector('#summaryTable tbody');
+        // ── Summary table ─────────────────────────────────────────────────
+        const summaryBody = document.getElementById('summaryBody');
         categories.forEach(function ({ key, label }) {
           const cat = results[key];
           if (!cat) return;
@@ -140,45 +260,108 @@
             '<td><span class="badge ' + key + '">' + label + '</span></td>' +
             '<td>' + cat.totalItems + '</td>' +
             '<td>' + Object.keys(cat.rules).length + '</td>';
-          tbody.appendChild(tr);
+          summaryBody.appendChild(tr);
         });
 
-        // ── Render individual issues ──────────────────────────────────────
-        const issuesList = document.getElementById('issuesList');
+        // ── Issues table ──────────────────────────────────────────────────
+        const issuesBody = document.getElementById('issuesBody');
 
         categories.forEach(function ({ key, label }) {
           const cat = results[key];
           if (!cat || !cat.totalItems) return;
 
-          const section = document.createElement('div');
-          section.innerHTML = '<h3><span class="badge ' + key + '">' + label + '</span> ' +
-            cat.totalItems + ' issue(s)</h3>';
-
           Object.entries(cat.rules).forEach(function ([ruleId, rule]) {
-            const ruleDiv = document.createElement('div');
-            ruleDiv.style.marginBottom = '1rem';
-            const shortDesc = rule.shortDescription || rule.description || ruleId;
-            ruleDiv.innerHTML =
-              '<strong>' + escapeHtml(ruleId) + '</strong> — ' + escapeHtml(shortDesc) +
-              ' <em>(' + rule.totalItems + ' occurrence(s))</em>' +
-              (rule.conformance ? ' <small>[' + rule.conformance.join(', ') + ']</small>' : '');
-            section.appendChild(ruleDiv);
-          });
+            const tr = document.createElement('tr');
 
-          issuesList.appendChild(section);
+            // Category
+            const tdCat = document.createElement('td');
+            tdCat.innerHTML = '<span class="badge ' + key + '">' + label + '</span>';
+
+            // Rule ID
+            const tdRule = document.createElement('td');
+            tdRule.innerHTML = '<span class="rule-id">' + escapeHtml(ruleId) + '</span>';
+
+            // Occurrences
+            const tdOcc = document.createElement('td');
+            tdOcc.innerHTML = '<span class="occ-pill">' + rule.totalItems + '</span>';
+
+            // Conformance tags
+            const tdConf = document.createElement('td');
+            if (rule.conformance && rule.conformance.length) {
+              tdConf.innerHTML = rule.conformance
+                .map(function (c) { return '<span class="conf-tag">' + escapeHtml(c) + '</span>'; })
+                .join(' ');
+            } else {
+              tdConf.textContent = '—';
+            }
+
+            // Short description
+            const tdShort = document.createElement('td');
+            tdShort.textContent = rule.shortDescription || rule.description || '—';
+
+            // Long description — collapsible
+            const tdLong = document.createElement('td');
+            if (rule.longDescription) {
+              tdLong.innerHTML =
+                '<details><summary>Show</summary><p>' +
+                escapeHtml(rule.longDescription) +
+                '</p></details>';
+            } else {
+              tdLong.textContent = '—';
+            }
+
+            // Step-by-step guide
+            const tdSteps = document.createElement('td');
+            const guide = rule.stepByStepGuide;
+            if (guide) {
+              const steps = [
+                { n: '1', label: 'Check',  text: guide.check  },
+                { n: '2', label: 'Fix',    text: guide.fix    },
+                { n: '3', label: 'Review', text: guide.review },
+                { n: '4', label: 'Learn',  text: guide.learn  },
+              ];
+              tdSteps.innerHTML =
+                '<ul class="steps">' +
+                steps.map(function (s) {
+                  return '<li>' +
+                    '<span class="step-label">' + s.n + '. ' + s.label + ':</span> ' +
+                    escapeHtml(s.text || '—') +
+                    '</li>';
+                }).join('') +
+                '</ul>';
+            } else {
+              tdSteps.textContent = '—';
+            }
+
+            tr.append(tdCat, tdRule, tdOcc, tdConf, tdShort, tdLong, tdSteps);
+            issuesBody.appendChild(tr);
+          });
         });
 
-        // ── Show results JSON (truncated for readability) ─────────────────
-        const jsonEl = document.getElementById('jsonOutput');
-        const summary = {
-          url:        results.url,
-          pageTitle:  results.pageTitle,
-          totalItems: results.totalItems,
-          mustFix:    summariseCategory(results.mustFix),
-          goodToFix:  summariseCategory(results.goodToFix),
-          needsReview:summariseCategory(results.needsReview),
-        };
-        jsonEl.textContent = JSON.stringify(summary, null, 2);
+        // ── Raw JSON: description maps for found rules only ────────────────
+        const shortDescMap    = {};
+        const longDescMap     = {};
+        const stepByStepMap   = {};
+
+        categories.forEach(function ({ key }) {
+          const cat = results[key];
+          if (!cat || !cat.rules) return;
+          Object.entries(cat.rules).forEach(function ([ruleId, rule]) {
+            if (rule.shortDescription  !== undefined) shortDescMap[ruleId]  = rule.shortDescription;
+            if (rule.longDescription   !== undefined) longDescMap[ruleId]   = rule.longDescription;
+            if (rule.stepByStepGuide   !== undefined) stepByStepMap[ruleId] = rule.stepByStepGuide;
+          });
+        });
+
+        // ── Full scan results JSON ────────────────────────────────────────
+        document.getElementById('jsonFullOutput').textContent =
+          JSON.stringify(results, null, 2);
+
+        // ── Description maps JSON (found rules only) ──────────────────────
+        document.getElementById('jsonDescOutput').textContent = JSON.stringify(
+          { shortDescriptionMap: shortDescMap, longDescriptionMap: longDescMap, stepByStepGuideMap: stepByStepMap },
+          null, 2
+        );
 
         document.getElementById('summary').style.display = 'block';
 
@@ -188,26 +371,13 @@
         console.error('[oobee-client-scanner] Error:', err);
       }
 
-      // ── Helpers ───────────────────────────────────────────────────────────
+      // ── Helper ────────────────────────────────────────────────────────────
       function escapeHtml(str) {
         return String(str)
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;');
-      }
-
-      function summariseCategory(cat) {
-        if (!cat) return null;
-        const rulesSummary = {};
-        Object.entries(cat.rules).forEach(function ([ruleId, rule]) {
-          rulesSummary[ruleId] = {
-            totalItems:       rule.totalItems,
-            shortDescription: rule.shortDescription,
-            conformance:      rule.conformance,
-          };
-        });
-        return { totalItems: cat.totalItems, rules: rulesSummary };
       }
     })();
   </script>
