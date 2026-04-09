@@ -12,6 +12,7 @@ import constants, {
   a11yRuleShortDescriptionMap,
   disabilityBadgesMap,
   a11yRuleLongDescriptionMap,
+  a11yRuleStepByStepGuide,
 } from './constants/constants.js';
 import { getBrowserToRun, getPlaywrightLaunchOptions } from './constants/common.js';
 
@@ -784,6 +785,7 @@ const generateArtifacts = async (
     a11yRuleShortDescriptionMap,
     disabilityBadgesMap,
     a11yRuleLongDescriptionMap,
+    a11yRuleStepByStepGuide,
     wcagCriteriaLabels: constants.wcagCriteriaLabels,
     scanPagesDetail: {
       pagesAffected: [],
