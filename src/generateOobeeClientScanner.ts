@@ -161,11 +161,13 @@ const filterAxeResultsScript = `
             items:       [],
           };
         }
+        var passedXpath = (node.target && node.target.length === 1 && typeof node.target[0] === 'string')
+          ? node.target[0] : undefined;
         passed.rules[rule].items.push({
           html:           _oobeeTruncateHtml(node.html || ''),
           screenshotPath: '',
           message:        '',
-          xpath:          '',
+          xpath:          passedXpath,
         });
         passed.totalItems              += 1;
         passed.rules[rule].totalItems  += 1;

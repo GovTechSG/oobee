@@ -196,7 +196,7 @@ export const filterAxeResults = (
     const conformance = tags.filter(tag => tag.startsWith('wcag') || tag === 'best-practice');
 
     nodes.forEach(node => {
-      const { html } = node;
+      const { html, target } = node;
       if (!(rule in passed.rules)) {
         passed.rules[rule] = {
           description,
@@ -207,9 +207,10 @@ export const filterAxeResults = (
           items: [],
         };
       }
-      
+
       const finalHtml = truncateHtml(html);
-      passed.rules[rule].items.push({ html: finalHtml, screenshotPath: '', message: '', xpath: '' });
+      const xpath = target.length === 1 && typeof target[0] === 'string' ? target[0] : undefined;
+      passed.rules[rule].items.push({ html: finalHtml, screenshotPath: '', message: '', xpath: xpath || '' });
 
       passed.totalItems += 1;
       passed.rules[rule].totalItems += 1;
