@@ -5,7 +5,7 @@ import axe, { AxeResults, ImpactValue } from 'axe-core';
 import { JSDOM } from 'jsdom';
 import { fileURLToPath } from 'url';
 import { EnqueueStrategy } from 'crawlee';
-import constants, { BrowserTypes, RuleFlags, ScannerTypes, a11yRuleLongDescriptionMap, a11yRuleStepByStepGuide } from './constants/constants.js';
+import constants, { BrowserTypes, RuleFlags, ScannerTypes, a11yRuleShortDescriptionMap, a11yRuleLongDescriptionMap, a11yRuleStepByStepGuide } from './constants/constants.js';
 import {
   deleteClonedProfiles,
   getBrowserToRun,
@@ -639,7 +639,8 @@ const processAndSubmitResults = async (
               mergedResults[category].rules[ruleId].description = constants.a11yRuleShortDescriptionMap[ruleId];
             }
 
-            // Add long description and step-by-step guide
+            // Add short description, long description and step-by-step guide
+            mergedResults[category].rules[ruleId].shortDescription = a11yRuleShortDescriptionMap[ruleId];
             mergedResults[category].rules[ruleId].longDescription = a11yRuleLongDescriptionMap[ruleId];
             mergedResults[category].rules[ruleId].stepByStepGuide = a11yRuleStepByStepGuide[ruleId];
             
@@ -737,7 +738,8 @@ const processAndSubmitResults = async (
             rule.description = constants.a11yRuleShortDescriptionMap[rule.rule];
           }
 
-          // Add long description and step-by-step guide
+          // Add short description, long description and step-by-step guide
+          rule.shortDescription = a11yRuleShortDescriptionMap[rule.rule];
           rule.longDescription = a11yRuleLongDescriptionMap[rule.rule];
           rule.stepByStepGuide = a11yRuleStepByStepGuide[rule.rule];
 
