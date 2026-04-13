@@ -99,6 +99,10 @@
       white-space: nowrap;
     }
     .goto-link:hover { text-decoration: underline; }
+    .item-message {
+      display: block; font-size: 0.75rem; color: #6c757d;
+      margin: 1px 0 6px; font-style: italic;
+    }
 
     /* Long description cell — collapsible */
     details summary {
@@ -378,22 +382,45 @@
             const tdOcc = document.createElement('td');
             tdOcc.innerHTML = '<span class="occ-pill">' + rule.totalItems + '</span>';
 
-            // Elements — one "Go to element" link per item that has a non-empty xpath
+            // Elements — one "Go to element" link + message per item with a non-empty xpath
             const tdEl = document.createElement('td');
             if (rule.items && rule.items.length) {
               rule.items.forEach(function (item, idx) {
                 if (!item.xpath) return;
                 const a = document.createElement('a');
-                a.href      = '#';
-                a.className = 'goto-link';
+                a.href        = '#';
+                a.className   = 'goto-link';
                 a.textContent = '↗ Element ' + (idx + 1);
-                a.title     = item.xpath;
+                a.title       = item.xpath;
                 a.addEventListener('click', function (e) {
                   e.preventDefault();
                   window.oobee.scrollToElement(item.xpath);
                 });
                 tdEl.appendChild(a);
-                tdEl.appendChild(document.createElement('br'));
+                if (item.message) {
+                  const lines = item.message.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+                  const wrap = document.createElement('span');
+                  wrap.className = 'item-message';
+                  if (lines.length <= 1) {
+                    wrap.textContent = item.message;
+                  } else {
+                    // First line is the header (e.g. "Fix any of the following:")
+                    const header = document.createElement('span');
+                    header.textContent = lines[0];
+                    wrap.appendChild(header);
+                    const ul = document.createElement('ul');
+                    ul.style.cssText = 'margin:2px 0 0 1rem; padding:0;';
+                    lines.slice(1).forEach(function(line) {
+                      const li = document.createElement('li');
+                      li.textContent = line;
+                      ul.appendChild(li);
+                    });
+                    wrap.appendChild(ul);
+                  }
+                  tdEl.appendChild(wrap);
+                } else {
+                  tdEl.appendChild(document.createElement('br'));
+                }
               });
             }
             if (!tdEl.hasChildNodes()) tdEl.textContent = '—';
