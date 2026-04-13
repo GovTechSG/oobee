@@ -22,7 +22,7 @@
  *       userInfo:       { email: 'you@example.com', name: 'Your Name' },
  *       // scanMode:    [string]  choices: "default" | "disable-oobee" | "enable-wcag-aaa" | "disable-oobee,enable-wcag-aaa"
  *       disableOobee:   false,   // true → skip oobee custom checks
- *       enableWcagAaa:  false,   // true → also run WCAG AAA rules
+ *       enableWcagAaa:  true,   // true → also run WCAG AAA rules
  *       elementsToScan: [],      // [] = full page; or CSS selectors / DOM nodes
  *     }).then(results => console.log(results));
  *
@@ -498,7 +498,7 @@ function generateClientBundle(): string {
  *       //                        "enable-wcag-aaa"          — axe-core + oobee + WCAG AAA rules
  *       //                        "disable-oobee,enable-wcag-aaa" — axe-core + WCAG AAA, no oobee checks
  *       disableOobee:   false,   // true  → same as "disable-oobee"
- *       enableWcagAaa:  false,   // true  → same as "enable-wcag-aaa"
+ *       enableWcagAaa:  true,   // true  → same as "enable-wcag-aaa"
  *       elementsToScan: [],      // [] = full page; or pass CSS selectors / DOM nodes
  *     }).then(results => console.log(JSON.stringify(results, null, 2)));
  *   </script>

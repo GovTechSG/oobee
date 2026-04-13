@@ -18,7 +18,7 @@
  *       //                        "enable-wcag-aaa"          — axe-core + oobee + WCAG AAA rules
  *       //                        "disable-oobee,enable-wcag-aaa" — axe-core + WCAG AAA, no oobee checks
  *       disableOobee:   false,   // true  → same as "disable-oobee"
- *       enableWcagAaa:  false,   // true  → same as "enable-wcag-aaa"
+ *       enableWcagAaa:  true,   // true  → same as "enable-wcag-aaa"
  *       elementsToScan: [],      // [] = full page; or pass CSS selectors / DOM nodes
  *     }).then(results => console.log(JSON.stringify(results, null, 2)));
  *   </script>
@@ -34651,7 +34651,7 @@ A higher score reflects better readability.`,
 
   // ── Sentry browser telemetry (Sentry JS SDK, loaded from CDN) ────────────
   
-  var _oobeeSentryDsn          = "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168";
+  var _oobeeSentryDsn          = "https://71006b428cec7ba25f845a16563f2d14@o4509047624761344.ingest.us.sentry.io/4509716723400704";
   var _oobeeAppVersion         = "0.10.85";
   var _oobeeSentryVersion      = "9.47.1";
   var _oobeeSentryInitialized  = false;

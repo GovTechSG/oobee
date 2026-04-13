@@ -136,6 +136,28 @@
     .scan-btn:active { background: #0d0d1a; }
     .scan-btn:disabled { background: #6c757d; cursor: not-allowed; }
 
+    /* ── Integration instructions ─────────────────────────────────────────── */
+    .integration-box {
+      background: #f0f4ff; border: 1px solid #c7d4f5;
+      border-radius: 8px; padding: 1.25rem 1.5rem; margin: 1.5rem 0;
+    }
+    .integration-box h2 {
+      margin-top: 0; border-bottom: none; font-size: 1rem;
+      color: #1a1a2e; padding-bottom: 0;
+    }
+    .integration-box ol { margin: 0.5rem 0 0 1.25rem; padding: 0; }
+    .integration-box li { margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .integration-box pre {
+      background: #1e1e1e; color: #d4d4d4;
+      padding: 0.85rem 1rem; border-radius: 5px;
+      overflow-x: auto; max-height: none;
+      font-size: 0.78rem; line-height: 1.5; margin: 0.5rem 0 0;
+    }
+    .integration-box code {
+      background: #e8edf8; color: #1a1a2e;
+      padding: 1px 5px; border-radius: 3px; font-size: 0.85em;
+    }
+
     /* ── Violation sandbox ─────────────────────────────────────────────────── */
     .violation-area {
       border: 2px dashed #dc3545; padding: 1rem; margin: 2rem 0;
@@ -152,6 +174,37 @@
     <code>oobee-client-scanner.js</code> has something to detect.
     Open the browser DevTools console for the full JSON output.
   </p>
+
+  <!-- ── Integration instructions ────────────────────────────────────────── -->
+  <div class="integration-box">
+    <h2>How to integrate into your own page</h2>
+    <ol>
+      <li>
+        <strong>Add the script</strong> — include the scanner before your closing
+        <code>&lt;/body&gt;</code> tag:
+        <pre>&lt;script src="https://cdn.jsdelivr.net/gh/GovTechSG/oobee@e1254730f5a849b3ca6031aff5f0106d264d37ba/oobee-client-scanner.js"&gt;&lt;/script&gt;</pre>
+      </li>
+      <li>
+        <strong>Run the scan</strong> — call <code>window.oobee.scan()</code> in your own script,
+        e.g. on a button click or on page load:
+        <pre>&lt;script&gt;
+  window.oobee.scan({
+    userInfo: { email: 'you@example.com', name: 'Your Name' },
+    // disableOobee:   false,  // true → skip oobee custom checks
+    // enableWcagAaa:  true,  // true → also run WCAG AAA rules
+    // elementsToScan: [],     // [] = full page; or pass CSS selectors / DOM nodes
+  }).then(function(results) {
+    console.log(JSON.stringify(results, null, 2));
+  });
+&lt;/script&gt;</pre>
+      </li>
+      <li>
+        <strong>Navigate to a flagged element</strong> — call
+        <code>window.oobee.scrollToElement(item.xpath)</code> with any
+        <code>item.xpath</code> value from the scan results to scroll and highlight it.
+      </li>
+    </ol>
+  </div>
 
   <button id="scanBtn" class="scan-btn">Check Accessibility</button>
 
