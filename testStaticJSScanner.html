@@ -425,12 +425,15 @@
             }
             if (!tdEl.hasChildNodes()) tdEl.textContent = '—';
 
-            // Conformance tags
+            // Conformance tags — formatted via window.oobee.formatConformance
             const tdConf = document.createElement('td');
             if (rule.conformance && rule.conformance.length) {
-              tdConf.innerHTML = rule.conformance
-                .map(function (c) { return '<span class="conf-tag">' + escapeHtml(c) + '</span>'; })
-                .join(' ');
+              const fmt = window.oobee.formatConformance(rule.conformance);
+              const parts = fmt.criteria.slice();
+              if (fmt.level) parts.push('Level ' + fmt.level);
+              tdConf.innerHTML = parts.length
+                ? parts.map(function (c) { return '<span class="conf-tag">' + escapeHtml(c) + '</span>'; }).join(' ')
+                : '—';
             } else {
               tdConf.textContent = '—';
             }

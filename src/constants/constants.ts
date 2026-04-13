@@ -393,7 +393,7 @@ const wcagLinks = {
   'WCAG 4.1.2': 'https://www.w3.org/TR/WCAG22/#name-role-value',
 };
 
-const wcagCriteriaLabels = {
+export const wcagCriteriaLabels: Record<string, string> = {
   'WCAG 1.1.1': 'A',
   'WCAG 1.2.2': 'A',
   'WCAG 1.3.1': 'A',
@@ -421,6 +421,28 @@ const wcagCriteriaLabels = {
   'WCAG 3.3.2': 'A',
   'WCAG 4.1.2': 'A',
 };
+
+/**
+ * Format a numeric WCAG criterion tag to a human-readable string.
+ * Mirrors the identically-named function in utils.ejs (single source of truth
+ * for server-side TypeScript; the EJS version remains for template use).
+ *
+ * wcag111  → "WCAG 1.1.1"
+ * wcag143  → "WCAG 1.4.3"
+ * wcag1412 → "WCAG 1.4.12"
+ *
+ * Non-numeric tags (e.g. wcag2a, best-practice) are returned unchanged.
+ * NOTE: Uses string concatenation so Function.toString() embeds safely in
+ * backtick template strings inside generateOobeeClientScanner.ts.
+ */
+export function formatWcagId(wcag: string): string {
+  if (!wcag) return '';
+  const numbers = wcag.replace('wcag', '').split('');
+  if (numbers.length === 3) return 'WCAG ' + numbers[0] + '.' + numbers[1] + '.' + numbers[2];
+  if (numbers.length === 4) return 'WCAG ' + numbers[0] + '.' + numbers[1] + '.' + numbers[2] + numbers[3];
+  if (numbers.length === 5) return 'WCAG ' + numbers[0] + '.' + numbers[1] + '.' + numbers.slice(2).join('');
+  return wcag;
+}
 
 const urlCheckStatuses = {
   success: { code: 0 },

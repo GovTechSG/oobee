@@ -41,6 +41,8 @@ import {
   a11yRuleLongDescriptionMap,
   a11yRuleStepByStepGuide,
   sentryConfig,
+  wcagCriteriaLabels,
+  formatWcagId,
 } from './constants/constants.js';
 import { getOobeeFunctionsScript } from './npmIndex.js';
 import { getVersion } from './utils.js';
@@ -61,6 +63,42 @@ const SENTRY_NODE_VERSION: string = (() => {
     return '9.47.1';   // safe fallback matching currently installed version
   }
 })();
+
+// ---------------------------------------------------------------------------
+// WCAG conformance helpers — formatWcagId and wcagCriteriaLabels are exported
+// from constants.ts; embedded here so the browser bundle has the same logic.
+// ---------------------------------------------------------------------------
+const wcagConformanceScript = `
+  // Format a numeric WCAG criterion tag (mirrors formatWcagId in constants.ts).
+  // e.g. wcag143 → "WCAG 1.4.3",  wcag1412 → "WCAG 1.4.12"
+  var _oobeeFormatWcagId = ${formatWcagId.toString()};
+
+  // Criteria → level map (mirrors wcagCriteriaLabels in constants.ts).
+  var _oobeeWcagCriteriaLabels = ${JSON.stringify(wcagCriteriaLabels, null, 2)};
+
+  /**
+   * Given an axe-core conformance array (e.g. ["wcag2a","wcag111","wcag143"]),
+   * returns the formatted criteria labels and the resolved level string —
+   * mirrors the logic used in ruleOffcanvas.ejs / AllIssues.ejs.
+   *
+   * Returns: { criteria: string[], level: string|null }
+   *   criteria — e.g. ["WCAG 1.1.1", "WCAG 1.4.3"]
+   *   level    — e.g. "A", "AA", "AAA", or null if none found
+   */
+  function _oobeeFormatConformance(conformance) {
+    var wcagTags = (conformance || []).filter(function(c) { return c.startsWith('wcag'); });
+    var criteria = [];
+    var level = null;
+    wcagTags.forEach(function(tag) {
+      var formatted = _oobeeFormatWcagId(tag);
+      if (_oobeeWcagCriteriaLabels[formatted]) {
+        criteria.push(formatted);
+        if (!level) level = _oobeeWcagCriteriaLabels[formatted];
+      }
+    });
+    return { criteria: criteria, level: level };
+  }
+`;
 
 // ---------------------------------------------------------------------------
 // filterAxeResults — browser-compatible (mirrors commonCrawlerFunc.ts)
@@ -445,6 +483,17 @@ const scanApiScript = (
     },
 
     /**
+     * Format a raw conformance tag array into criteria labels + level.
+     * Mirrors ruleOffcanvas.ejs / AllIssues.ejs logic (single source of truth
+     * via formatWcagId + wcagCriteriaLabels exported from constants.ts).
+     *
+     * @param {string[]} conformance  e.g. ["wcag2a","wcag111","wcag143"]
+     * @returns {{ criteria: string[], level: string|null }}
+     *   e.g. { criteria: ["WCAG 1.1.1","WCAG 1.4.3"], level: "A" }
+     */
+    formatConformance: _oobeeFormatConformance,
+
+    /**
      * Scroll the element matching the given CSS selector into view and briefly
      * highlight it with an outline flash.  The selector comes from item.xpath
      * in the scan results (axe-core stores CSS selectors there).
@@ -514,6 +563,9 @@ function generateClientBundle(): string {
 
   // ── filterAxeResults (browser-compatible) ─────────────────────────────────
   ${filterAxeResultsScript}
+
+  // ── WCAG conformance helpers (formatWcagId + wcagCriteriaLabels from constants.ts) ──
+  ${wcagConformanceScript}
 
   // ── Sentry browser telemetry (Sentry JS SDK, loaded from CDN) ────────────
   ${sentryTelemetryScript(SENTRY_DSN, APP_VERSION, SENTRY_NODE_VERSION)}

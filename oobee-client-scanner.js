@@ -34649,9 +34649,80 @@ A higher score reflects better readability.`,
   }
 
 
+  // ── WCAG conformance helpers (formatWcagId + wcagCriteriaLabels from constants.ts) ──
+  
+  // Format a numeric WCAG criterion tag (mirrors formatWcagId in constants.ts).
+  // e.g. wcag143 → "WCAG 1.4.3",  wcag1412 → "WCAG 1.4.12"
+  var _oobeeFormatWcagId = function formatWcagId(wcag) {
+    if (!wcag)
+        return '';
+    const numbers = wcag.replace('wcag', '').split('');
+    if (numbers.length === 3)
+        return 'WCAG ' + numbers[0] + '.' + numbers[1] + '.' + numbers[2];
+    if (numbers.length === 4)
+        return 'WCAG ' + numbers[0] + '.' + numbers[1] + '.' + numbers[2] + numbers[3];
+    if (numbers.length === 5)
+        return 'WCAG ' + numbers[0] + '.' + numbers[1] + '.' + numbers.slice(2).join('');
+    return wcag;
+};
+
+  // Criteria → level map (mirrors wcagCriteriaLabels in constants.ts).
+  var _oobeeWcagCriteriaLabels = {
+  "WCAG 1.1.1": "A",
+  "WCAG 1.2.2": "A",
+  "WCAG 1.3.1": "A",
+  "WCAG 1.3.5": "AA",
+  "WCAG 1.4.1": "A",
+  "WCAG 1.4.2": "A",
+  "WCAG 1.4.3": "AA",
+  "WCAG 1.4.4": "AA",
+  "WCAG 1.4.6": "AAA",
+  "WCAG 1.4.12": "AA",
+  "WCAG 2.1.1": "A",
+  "WCAG 2.1.3": "AAA",
+  "WCAG 2.2.1": "A",
+  "WCAG 2.2.2": "A",
+  "WCAG 2.2.4": "AAA",
+  "WCAG 2.4.1": "A",
+  "WCAG 2.4.2": "A",
+  "WCAG 2.4.4": "A",
+  "WCAG 2.4.9": "AAA",
+  "WCAG 2.5.8": "AA",
+  "WCAG 3.1.1": "A",
+  "WCAG 3.1.2": "AA",
+  "WCAG 3.1.5": "AAA",
+  "WCAG 3.2.5": "AAA",
+  "WCAG 3.3.2": "A",
+  "WCAG 4.1.2": "A"
+};
+
+  /**
+   * Given an axe-core conformance array (e.g. ["wcag2a","wcag111","wcag143"]),
+   * returns the formatted criteria labels and the resolved level string —
+   * mirrors the logic used in ruleOffcanvas.ejs / AllIssues.ejs.
+   *
+   * Returns: { criteria: string[], level: string|null }
+   *   criteria — e.g. ["WCAG 1.1.1", "WCAG 1.4.3"]
+   *   level    — e.g. "A", "AA", "AAA", or null if none found
+   */
+  function _oobeeFormatConformance(conformance) {
+    var wcagTags = (conformance || []).filter(function(c) { return c.startsWith('wcag'); });
+    var criteria = [];
+    var level = null;
+    wcagTags.forEach(function(tag) {
+      var formatted = _oobeeFormatWcagId(tag);
+      if (_oobeeWcagCriteriaLabels[formatted]) {
+        criteria.push(formatted);
+        if (!level) level = _oobeeWcagCriteriaLabels[formatted];
+      }
+    });
+    return { criteria: criteria, level: level };
+  }
+
+
   // ── Sentry browser telemetry (Sentry JS SDK, loaded from CDN) ────────────
   
-  var _oobeeSentryDsn          = "https://71006b428cec7ba25f845a16563f2d14@o4509047624761344.ingest.us.sentry.io/4509716723400704";
+  var _oobeeSentryDsn          = "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168";
   var _oobeeAppVersion         = "0.10.85";
   var _oobeeSentryVersion      = "9.47.1";
   var _oobeeSentryInitialized  = false;
@@ -34880,6 +34951,17 @@ A higher score reflects better readability.`,
 
       return filtered;
     },
+
+    /**
+     * Format a raw conformance tag array into criteria labels + level.
+     * Mirrors ruleOffcanvas.ejs / AllIssues.ejs logic (single source of truth
+     * via formatWcagId + wcagCriteriaLabels exported from constants.ts).
+     *
+     * @param {string[]} conformance  e.g. ["wcag2a","wcag111","wcag143"]
+     * @returns {{ criteria: string[], level: string|null }}
+     *   e.g. { criteria: ["WCAG 1.1.1","WCAG 1.4.3"], level: "A" }
+     */
+    formatConformance: _oobeeFormatConformance,
 
     /**
      * Scroll the element matching the given CSS selector into view and briefly
