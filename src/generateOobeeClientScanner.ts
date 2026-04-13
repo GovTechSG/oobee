@@ -19,8 +19,15 @@
  *   <script src="oobee-client-scanner.js"></script>
  *   <script>
  *     window.oobee.scan({
- *       userInfo: { email: 'you@example.com', name: 'Your Name' },
+ *       userInfo:       { email: 'you@example.com', name: 'Your Name' },
+ *       // scanMode:    [string]  choices: "default" | "disable-oobee" | "enable-wcag-aaa" | "disable-oobee,enable-wcag-aaa"
+ *       disableOobee:   false,   // true → skip oobee custom checks
+ *       enableWcagAaa:  false,   // true → also run WCAG AAA rules
+ *       elementsToScan: [],      // [] = full page; or CSS selectors / DOM nodes
  *     }).then(results => console.log(results));
+ *
+ *     // Scroll to an element by CSS selector (item.xpath from scan results):
+ *     window.oobee.scrollToElement(item.xpath);
  *   </script>
  */
 
@@ -436,6 +443,27 @@ const scanApiScript = (
 
       return filtered;
     },
+
+    /**
+     * Scroll the element matching the given CSS selector into view and briefly
+     * highlight it with an outline flash.  The selector comes from item.xpath
+     * in the scan results (axe-core stores CSS selectors there).
+     *
+     * @param {string} selector  CSS selector, e.g. "button:nth-child(2)"
+     */
+    scrollToElement: function(selector) {
+      if (!selector) return;
+      var el;
+      try { el = document.querySelector(selector); } catch (e) { return; }
+      if (!el) return;
+
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Brief outline flash so the element is easy to spot
+      var prev = el.style.outline;
+      el.style.outline = '3px solid #fd7e14';
+      setTimeout(function() { el.style.outline = prev; }, 1800);
+    },
   };
 
   console.log(
@@ -463,7 +491,15 @@ function generateClientBundle(): string {
  *   <script src="oobee-client-scanner.js"></script>
  *   <script>
  *     window.oobee.scan({
- *       userInfo: { email: 'you@example.com', name: 'Your Name' },
+ *       userInfo:       { email: 'you@example.com', name: 'Your Name' },
+ *       // scanMode:    [string]  choices: "default" | "disable-oobee" | "enable-wcag-aaa" | "disable-oobee,enable-wcag-aaa"
+ *       //                        "default"                  — axe-core + oobee custom checks, WCAG A/AA only
+ *       //                        "disable-oobee"            — axe-core only, no oobee custom checks
+ *       //                        "enable-wcag-aaa"          — axe-core + oobee + WCAG AAA rules
+ *       //                        "disable-oobee,enable-wcag-aaa" — axe-core + WCAG AAA, no oobee checks
+ *       disableOobee:   false,   // true  → same as "disable-oobee"
+ *       enableWcagAaa:  false,   // true  → same as "enable-wcag-aaa"
+ *       elementsToScan: [],      // [] = full page; or pass CSS selectors / DOM nodes
  *     }).then(results => console.log(JSON.stringify(results, null, 2)));
  *   </script>
  */

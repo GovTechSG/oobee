@@ -92,6 +92,14 @@
       background: #e9ecef; font-weight: 600; font-size: 0.8rem;
     }
 
+    /* Go-to-element links */
+    .goto-link {
+      display: inline-block; margin: 2px 0;
+      font-size: 0.78rem; color: #0d6efd; text-decoration: none;
+      white-space: nowrap;
+    }
+    .goto-link:hover { text-decoration: underline; }
+
     /* Long description cell — collapsible */
     details summary {
       cursor: pointer; color: #0d6efd; font-size: 0.82rem;
@@ -117,6 +125,17 @@
       font-size: 0.78rem; line-height: 1.4;
     }
 
+    /* ── Check Accessibility button ───────────────────────────────────────── */
+    .scan-btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.65rem 1.4rem; font-size: 1rem; font-weight: 600;
+      color: #fff; background: #1a1a2e; border: none; border-radius: 6px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .scan-btn:hover  { background: #2e2e5e; }
+    .scan-btn:active { background: #0d0d1a; }
+    .scan-btn:disabled { background: #6c757d; cursor: not-allowed; }
+
     /* ── Violation sandbox ─────────────────────────────────────────────────── */
     .violation-area {
       border: 2px dashed #dc3545; padding: 1rem; margin: 2rem 0;
@@ -134,8 +153,10 @@
     Open the browser DevTools console for the full JSON output.
   </p>
 
+  <button id="scanBtn" class="scan-btn">Check Accessibility</button>
+
   <!-- ── Status display ───────────────────────────────────────────────────── -->
-  <div id="status" class="status running">Scan running…</div>
+  <div id="status" style="display:none" class="status"></div>
 
   <!-- ── Results (populated by JS) ───────────────────────────────────────── -->
   <div id="summary" style="display:none">
@@ -162,6 +183,7 @@
             <th>Category</th>
             <th>Rule ID</th>
             <th>Occurrences</th>
+            <th>Elements</th>
             <th>Conformance</th>
             <th>Short Description</th>
             <th>Long Description</th>
@@ -218,8 +240,22 @@
 
   <!-- ── Run the scan ─────────────────────────────────────────────────────── -->
   <script>
-    (async function () {
+    document.getElementById('scanBtn').addEventListener('click', async function () {
+      const btn      = document.getElementById('scanBtn');
       const statusEl = document.getElementById('status');
+
+      // Reset previous results
+      document.getElementById('summary').style.display = 'none';
+      document.getElementById('summaryBody').innerHTML = '';
+      document.getElementById('issuesBody').innerHTML  = '';
+      document.getElementById('jsonFullOutput').textContent = '';
+      document.getElementById('jsonDescOutput').textContent = '';
+
+      btn.disabled      = true;
+      btn.textContent   = 'Scanning…';
+      statusEl.className   = 'status running';
+      statusEl.textContent = 'Scan running…';
+      statusEl.style.display = 'block';
 
       try {
         if (!window.oobee) {
@@ -231,7 +267,7 @@
         // ── Run the scan ──────────────────────────────────────────────────
         const results = await window.oobee.scan({
           disableOobee:   false,  // set true to skip oobee custom checks
-          enableWcagAaa:  false,  // set true to also include WCAG AAA rules
+          enableWcagAaa:  true,   // set true to also include WCAG AAA rules
           elementsToScan: [],     // empty = scan the entire page
           userInfo: {
             email: 'accessibility@tech.gov.sg',
@@ -289,6 +325,26 @@
             const tdOcc = document.createElement('td');
             tdOcc.innerHTML = '<span class="occ-pill">' + rule.totalItems + '</span>';
 
+            // Elements — one "Go to element" link per item that has a non-empty xpath
+            const tdEl = document.createElement('td');
+            if (rule.items && rule.items.length) {
+              rule.items.forEach(function (item, idx) {
+                if (!item.xpath) return;
+                const a = document.createElement('a');
+                a.href      = '#';
+                a.className = 'goto-link';
+                a.textContent = '↗ Element ' + (idx + 1);
+                a.title     = item.xpath;
+                a.addEventListener('click', function (e) {
+                  e.preventDefault();
+                  window.oobee.scrollToElement(item.xpath);
+                });
+                tdEl.appendChild(a);
+                tdEl.appendChild(document.createElement('br'));
+              });
+            }
+            if (!tdEl.hasChildNodes()) tdEl.textContent = '—';
+
             // Conformance tags
             const tdConf = document.createElement('td');
             if (rule.conformance && rule.conformance.length) {
@@ -337,7 +393,7 @@
               tdSteps.textContent = '—';
             }
 
-            tr.append(tdCat, tdRule, tdOcc, tdConf, tdShort, tdLong, tdSteps);
+            tr.append(tdCat, tdRule, tdOcc, tdEl, tdConf, tdShort, tdLong, tdSteps);
             issuesBody.appendChild(tr);
           });
         });
@@ -370,20 +426,24 @@
         document.getElementById('summary').style.display = 'block';
 
       } catch (err) {
-        statusEl.className = 'status error';
+        statusEl.className   = 'status error';
         statusEl.textContent = 'Scan error: ' + (err && err.message ? err.message : String(err));
+        statusEl.style.display = 'block';
         console.error('[oobee-client-scanner] Error:', err);
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = 'Check Accessibility';
       }
+    });
 
-      // ── Helper ────────────────────────────────────────────────────────────
-      function escapeHtml(str) {
-        return String(str)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;');
-      }
-    })();
+    // ── Helper ──────────────────────────────────────────────────────────────
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
   </script>
 </body>
 </html>
