@@ -76,6 +76,7 @@ const crawlSitemap = async ({
   let dataset: crawlee.Dataset;
   let urlsCrawled: UrlsCrawled;
   let durationExceeded = false;
+  let isAbortingScan = false;
 
   if (fromCrawlIntelligentSitemap) {
     dataset = datasetFromIntelligent;
@@ -244,128 +245,146 @@ const crawlSitemap = async ({
           return;
         }
 
-        await waitForPageLoaded(page, 10000);
+        try {
+          await waitForPageLoaded(page, 10000);
 
-        const actualUrl = page.url() || request.loadedUrl || request.url;
+          const actualUrl = page.url() || request.loadedUrl || request.url;
 
-        const hasExceededDuration =
-          scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
+          const hasExceededDuration =
+            scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
 
-        if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
-          if (hasExceededDuration) {
-            console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting sitemap crawl.`);
-            durationExceeded = true;
-          }
-          crawler.autoscaledPool.abort(); // stops new requests
-          return;
-        }
-
-        if (request.skipNavigation && actualUrl === 'about:blank') {
-          if (isScanPdfs) {
-            // pushes download promise into pdfDownloads
-            const { pdfFileName, url } = handlePdfDownload(
-              randomToken,
-              pdfDownloads,
-              request,
-              sendRequest,
-              urlsCrawled,
-            );
-
-            uuidToPdfMapping[pdfFileName] = url;
+          if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
+            isAbortingScan = true;
+            if (hasExceededDuration) {
+              console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting sitemap crawl.`);
+              durationExceeded = true;
+            }
+            crawler.autoscaledPool.abort(); // stops new requests
             return;
           }
 
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.userExcluded.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl: request.url, // because about:blank is not useful
-            metadata: STATUS_CODE_METADATA[1],
-            httpStatusCode: 1,
-          });
+          if (request.skipNavigation && actualUrl === 'about:blank') {
+            if (isScanPdfs) {
+              // pushes download promise into pdfDownloads
+              const { pdfFileName, url } = handlePdfDownload(
+                randomToken,
+                pdfDownloads,
+                request,
+                sendRequest,
+                urlsCrawled,
+              );
 
-          return;
-        }
-
-        const contentType = response?.headers?.()['content-type'] || '';
-        const status = response ? response.status() : 0;
-
-        if (isScanHtml && status < 300 && isWhitelistedContentType(contentType)) {
-          const isRedirected = !areLinksEqual(page.url(), request.url);
-          const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-            item => (item.actualUrl || item.url) === page.url(),
-          );
-
-          if (isRedirected && isLoadedUrlInCrawledUrls) {
-            urlsCrawled.notScannedRedirects.push({
-              fromUrl: request.url,
-              toUrl: actualUrl, // i.e. actualUrl
-            });
-            return;
-          }
-
-          // This logic is different from crawlDomain, as it also checks if the pae is redirected before checking if it is excluded using exclusions.txt
-          if (isRedirected && blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
-            urlsCrawled.userExcluded.push({
-              url: request.url,
-              pageTitle: request.url,
-              actualUrl,
-              metadata: STATUS_CODE_METADATA[0],
-              httpStatusCode: 0,
-            });
+              uuidToPdfMapping[pdfFileName] = url;
+              return;
+            }
 
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: request.url, // because about:blank is not useful
+              metadata: STATUS_CODE_METADATA[1],
+              httpStatusCode: 1,
+            });
+
             return;
           }
 
-          const results = await runAxeScript({ includeScreenshots, page, randomToken });
+          const contentType = response?.headers?.()['content-type'] || '';
+          const status = response ? response.status() : 0;
 
-          guiInfoLog(guiInfoStatusTypes.SCANNED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
+          if (isScanHtml && status < 300 && isWhitelistedContentType(contentType)) {
+            const isRedirected = !areLinksEqual(page.url(), request.url);
+            const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
+              item => (item.actualUrl || item.url) === page.url(),
+            );
 
-          urlsCrawled.scanned.push({
-            url: request.url,
-            pageTitle: results.pageTitle,
-            actualUrl, // i.e. actualUrl
-          });
+            if (isRedirected && isLoadedUrlInCrawledUrls) {
+              urlsCrawled.notScannedRedirects.push({
+                fromUrl: request.url,
+                toUrl: actualUrl, // i.e. actualUrl
+              });
+              return;
+            }
 
-          urlsCrawled.scannedRedirects.push({
-            fromUrl: request.url,
-            toUrl: actualUrl,
-          });
+            // This logic is different from crawlDomain, as it also checks if the pae is redirected before checking if it is excluded using exclusions.txt
+            if (isRedirected && blacklistedPatterns && isSkippedUrl(actualUrl, blacklistedPatterns)) {
+              urlsCrawled.userExcluded.push({
+                url: request.url,
+                pageTitle: request.url,
+                actualUrl,
+                metadata: STATUS_CODE_METADATA[0],
+                httpStatusCode: 0,
+              });
 
-          results.url = request.url;
-          results.actualUrl = actualUrl;
+              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              return;
+            }
 
-          await dataset.pushData(results);
-        } else {
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
+            const results = await runAxeScript({ includeScreenshots, page, randomToken });
 
-          if (isScanHtml) {
-            // carry through the HTTP status metadata
-            const status = response?.status();
-            const metadata =
-              typeof status === 'number'
-                ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
-                : STATUS_CODE_METADATA[2];
+            guiInfoLog(guiInfoStatusTypes.SCANNED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
 
-            urlsCrawled.invalid.push({
-              actualUrl,
+            urlsCrawled.scanned.push({
+              url: request.url,
+              pageTitle: results.pageTitle,
+              actualUrl, // i.e. actualUrl
+            });
+
+            urlsCrawled.scannedRedirects.push({
+              fromUrl: request.url,
+              toUrl: actualUrl,
+            });
+
+            results.url = request.url;
+            results.actualUrl = actualUrl;
+
+            await dataset.pushData(results);
+          } else {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+
+            if (isScanHtml) {
+              // carry through the HTTP status metadata
+              const status = response?.status();
+              const metadata =
+                typeof status === 'number'
+                  ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
+                  : STATUS_CODE_METADATA[2];
+
+              urlsCrawled.invalid.push({
+                actualUrl,
+                url: request.url,
+                pageTitle: request.url,
+                metadata,
+                httpStatusCode: typeof status === 'number' ? status : 0,
+              });
+            }
+          }
+        } catch (e) {
+          if (!isAbortingScan) {
+            guiInfoLog(guiInfoStatusTypes.ERROR, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+
+            urlsCrawled.error.push({
               url: request.url,
               pageTitle: request.url,
-              metadata,
-              httpStatusCode: typeof status === 'number' ? status : 0,
+              actualUrl: request.url,
+              metadata: STATUS_CODE_METADATA[2],
+              httpStatusCode: 0,
             });
           }
         }
