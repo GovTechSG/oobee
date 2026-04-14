@@ -414,9 +414,9 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
   const { url, pageTitle, filePath } = pageResults;
 
   const totalIssuesInPage = new Set();
-  Object.keys(pageResults.mustFix.rules).forEach(k => totalIssuesInPage.add(k));
-  Object.keys(pageResults.goodToFix.rules).forEach(k => totalIssuesInPage.add(k));
-  Object.keys(pageResults.needsReview.rules).forEach(k => totalIssuesInPage.add(k));
+  Object.keys(pageResults.mustFix?.rules ?? {}).forEach(k => totalIssuesInPage.add(k));
+  Object.keys(pageResults.goodToFix?.rules ?? {}).forEach(k => totalIssuesInPage.add(k));
+  Object.keys(pageResults.needsReview?.rules ?? {}).forEach(k => totalIssuesInPage.add(k));
 
   allIssues.topFiveMostIssues.push({
     url,
