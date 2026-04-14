@@ -213,6 +213,15 @@ export const validateXML = (content: string): { isValid: boolean; parsedContent:
   return { isValid, parsedContent };
 };
 
+export const validateTXT = (content: string): { isValid: boolean } => {
+  // Strip HTML tags first — browsers wrap .txt files in HTML when fetched via Playwright
+  const plainText = content.replace(/<[^>]+>/g, '\n');
+  const lines = plainText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  // Allow http, https and relative paths (starting with /) for txt sitemaps, as some sitemaps use relative paths and some txt sitemaps are fetched as HTML by Playwright
+  const urlPattern = /^(https?:\/\/|\/)[^\s]+$/i;
+  return { isValid: lines.some(line => urlPattern.test(line)) };
+};
+
 export const isSkippedUrl = (pageUrl: string, whitelistedDomains: string[]) => {
   const matched =
     whitelistedDomains.filter(p => {
@@ -541,14 +550,13 @@ export const isSitemapContent = (content: string) => {
 
   const regexForHtml = new RegExp('<(?:!doctype html|html|head|body)+?>', 'gmi');
   const regexForXmlSitemap = new RegExp('<(?:urlset|feed|rss)+?.*>', 'gmi');
-  const regexForUrl = new RegExp('^.*(http|https):/{2}.*$', 'gmi');
-
   if (content.match(regexForHtml) && content.match(regexForXmlSitemap)) {
     // is an XML sitemap wrapped in a HTML document
     return true;
   }
-  if (!content.match(regexForHtml) && content.match(regexForUrl)) {
-    // treat this as a txt sitemap where all URLs will be extracted for crawling
+  const { isValid: isTxtSitemap } = validateTXT(content);
+  if (isTxtSitemap) {
+    // treat this as a txt sitemap (plain text or browser-wrapped with HTML)
     return true;
   }
   // is HTML webpage
