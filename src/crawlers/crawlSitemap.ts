@@ -390,8 +390,7 @@ const crawlSitemap = async ({
         }
       },
       failedRequestHandler: async ({ request, response, error }) => {
-        // check if scanned pages have reached limit due to multi-instances of handler running
-        if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) {
+        if (isAbortingScan) {
           return;
         }
 
