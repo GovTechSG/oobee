@@ -627,6 +627,10 @@ export const addOverlayMenu = async (
             padding: 1rem;
           }
 
+          .oobee-panel.collapsed .oobee-actions {
+            padding: 1rem 0.5rem;
+          }
+
           /* Base button */
           .oobee-btn {
             width: 100%;
@@ -652,6 +656,19 @@ export const addOverlayMenu = async (
           .oobee-btn:disabled {
             opacity:.6;
             cursor:not-allowed
+          }
+
+          .oobee-panel.collapsed .oobee-btn {
+            width: 44px !important;
+            height: 44px !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
+            max-width: 44px !important;
+            max-height: 44px !important;
+            border-radius: 50% !important;
+            padding: 0 !important;
+            justify-content: center;
+            gap: 0;
           }
 
           /* Primary (filled) */
