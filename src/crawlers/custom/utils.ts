@@ -409,7 +409,7 @@ export const addOverlayMenu = async (
         const h2 = document.createElement('h2');
         h2.id = 'oobeeHPagesScanned';
         h2.className = 'oobee-section-title';
-        h2.textContent = 'Pages Scanned';
+        h2.textContent = `Pages Scanned (${vars.urlsCrawled.scanned.length || 0})`;
 
         const scanIcon = document.createElement('span');
         scanIcon.className = 'oobee-btn-icon';
@@ -550,7 +550,7 @@ export const addOverlayMenu = async (
             border-right: 1px solid rgba(0,0,0,.08)
           }
           .oobee-panel.collapsed {
-            width: 56px;
+            width: 58px;
             overflow: hidden
           }
 
@@ -628,7 +628,9 @@ export const addOverlayMenu = async (
           }
 
           .oobee-panel.collapsed .oobee-actions {
-            padding: 1rem 0.5rem;
+            display: flex;
+            justify-content: center;
+            padding: 1rem 0.7rem;
           }
 
           /* Base button */
@@ -762,7 +764,10 @@ export const addOverlayMenu = async (
           }
 
           .oobee-panel.collapsed .oobee-section-title {
-            display: none;
+            font-size: 14px;
+            display: flex;
+            justify-content: center;
+            text-align: center;
           }
 
           .oobee-ol {
