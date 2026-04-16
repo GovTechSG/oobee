@@ -411,23 +411,70 @@ export const addOverlayMenu = async (
         h2.className = 'oobee-section-title';
         h2.textContent = 'Pages Scanned';
 
+        const scanIcon = document.createElement('span');
+        scanIcon.className = 'oobee-btn-icon';
+
+        const SCAN_SVG = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <g clip-path="url(#clip0_1421_431)">
+              <path d="M12.5763 11.5472L12.2958 11.2857L12.1037 11.1005C12.776 10.3183 12.9194 9.56432 12.9194 8.45969C12.9194 5.99657 10.9228 4 8.45969 4C5.99657 4 4 5.99657 4 8.45969C4 10.9228 5.99657 12.9194 8.45969 12.9194C9.56432 12.9194 10.3183 12.776 11.1005 12.1037L11.2857 12.2958L11.5472 12.5763L14.9777 16L16 14.9777L12.5763 11.5472ZM8.45969 11.5472C6.75129 11.5472 5.37221 10.1681 5.37221 8.45969C5.37221 6.75129 6.75129 5.37221 8.45969 5.37221C10.1681 5.37221 11.5472 6.75129 11.5472 8.45969C11.5472 10.1681 10.1681 11.5472 8.45969 11.5472Z" fill="white"/>
+              <path d="M18.5 0H19.5C19.7761 0 20 0.223858 20 0.5V5H18.5V0Z" fill="white"/>
+              <path d="M19.5 2.18552e-08L19.5 1.5L15 1.5L15 -2.18556e-07L19.5 2.18552e-08Z" fill="white"/>
+              <path d="M1.5 0H0.5C0.223858 0 0 0.223858 0 0.5V5H1.5V0Z" fill="white"/>
+              <path d="M0.5 2.18552e-08L0.5 1.5L5 1.5L5 -2.18556e-07L0.5 2.18552e-08Z" fill="white"/>
+              <path d="M1.5 20H0.5C0.223858 20 0 19.7761 0 19.5V15H1.5V20Z" fill="white"/>
+              <path d="M0.5 20L0.5 18.5L5 18.5L5 20L0.5 20Z" fill="white"/>
+              <path d="M18.5 20H19.5C19.7761 20 20 19.7761 20 19.5V15H18.5V20Z" fill="white"/>
+              <path d="M19.5 20L19.5 18.5L15 18.5L15 20L19.5 20Z" fill="white"/>
+            </g>
+            <defs>
+              <clipPath id="clip0_1421_431">
+                <rect width="20" height="20" fill="white"/>
+              </clipPath>
+            </defs>
+          </svg>
+        `;
+        
+        scanIcon.innerHTML = SCAN_SVG; 
         const scanBtn = document.createElement('button');
         scanBtn.id = 'oobeeBtnScan';
         scanBtn.className = 'oobee-btn oobee-btn-primary';
-        scanBtn.innerText = 'Scan this page';
         scanBtn.disabled = inProgress;
+        scanBtn.appendChild(scanIcon);
+
+        const scanText = document.createElement('span');
+        scanText.className = 'oobee-btn-text';
+        scanText.innerText = 'Scan page';
+        scanBtn.appendChild(scanText);
+
         scanBtn.addEventListener('click', async () => customWindow.handleOnScanClick?.());
 
-        const stopBtn = document.createElement('button');
-        stopBtn.id = 'oobeeBtnStop';
-        stopBtn.className = 'oobee-btn oobee-btn-secondary';
-        stopBtn.innerText = 'Stop scan';
-        stopBtn.addEventListener('click', async () => customWindow.handleOnStopClick?.());
+        const endScanIcon = document.createElement('span');
+        endScanIcon.className = 'oobee-btn-icon';
+
+        const ENDSCAN_SVG = 
+          `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 0C4.47 0 0 4.47 0 10C0 15.53 4.47 20 10 20C15.53 20 20 15.53 20 10C20 4.47 15.53 0 10 0ZM10 18C5.59 18 2 14.41 2 10C2 5.59 5.59 2 10 2C14.41 2 18 5.59 18 10C18 14.41 14.41 18 10 18ZM13.59 5L10 8.59L6.41 5L5 6.41L8.59 10L5 13.59L6.41 15L10 11.41L13.59 15L15 13.59L11.41 10L15 6.41L13.59 5Z" fill="#9021A6"/>
+          </svg>
+        `;
+
+        endScanIcon.innerHTML = ENDSCAN_SVG;
+        const endScanBtn = document.createElement('button');
+        endScanBtn.id = 'oobeeBtnEndScan';
+        endScanBtn.className = 'oobee-btn oobee-btn-secondary';
+        endScanBtn.appendChild(endScanIcon);
+        
+        const endScanText = document.createElement('span');
+        endScanText.className = 'oobee-btn-text';
+        endScanText.innerText = 'End scan';
+        endScanBtn.appendChild(endScanText);
+
+        endScanBtn.addEventListener('click', async () => customWindow.handleOnStopClick?.());
 
         const btnGroup = document.createElement('div');
         btnGroup.className = 'oobee-actions';
         btnGroup.appendChild(scanBtn);
-        btnGroup.appendChild(stopBtn);
+        btnGroup.appendChild(endScanBtn);
 
         const listWrap = document.createElement('div');
         listWrap.id = 'oobeeList';
@@ -590,6 +637,10 @@ export const addOverlayMenu = async (
             line-height: 1.2;
             font-weight: 400;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
             transition: {
               box-shadow .12s ease,
               transform .02s ease,
@@ -655,6 +706,25 @@ export const addOverlayMenu = async (
           }
 
           .oobee-panel.collapsed .oobee-list {
+            display: none;
+          }
+
+          .oobee-btn-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            vertical-align: middle;
+          }
+
+          .oobee-btn-text {
+            display: inline;
+            white-space: nowrap;
+            vertical-align: middle;
+          }
+          
+          .oobee-panel.collapsed .oobee-btn-text {
             display: none;
           }
 
@@ -1157,10 +1227,10 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
       if (!inputValue?.confirmed) {
         await page.evaluate(() => {
-          const stopBtn = document.getElementById('oobeeBtnStop') as HTMLButtonElement | null;
-          if (stopBtn) {
-            stopBtn.disabled = false;
-            stopBtn.textContent = 'Stop';
+          const endScanBtn = document.getElementById('oobeeBtnEndScan') as HTMLButtonElement | null;
+          if (endScanBtn) {
+            endScanBtn.disabled = false;
+            endScanBtn.textContent = 'Stop';
           }
         });
         return;
