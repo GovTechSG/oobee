@@ -1932,14 +1932,16 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   const channel = browser || undefined;
 
   const resolution = proxyInfoToResolution(cacheProxyInfo);
+  const shouldIgnoreMuteAudio =
+    process.env.OOBEE_PLAYWRIGHT_IGNORE_DEFAULT_ARGS === '--mute-audio';
 
   // Start with your base args and sanitise
   const finalArgs = [...constants.launchOptionsArgs].filter(
-  arg =>
-    !arg.startsWith('--headless') &&
-    !arg.startsWith('--user-agent=') &&
-    arg !== '--mute-audio' &&
-    !(browser === BrowserTypes.CHROME && arg === '--edge-skip-compat-layer-relaunch'),
+    arg =>
+      !arg.startsWith('--headless') &&
+      !arg.startsWith('--user-agent=') &&
+      arg !== '--mute-audio' &&
+      !(browser === BrowserTypes.CHROME && arg === '--edge-skip-compat-layer-relaunch'),
   );
 
   // Headless flags (unchanged)
@@ -1964,7 +1966,9 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   }
 
   const options: LaunchOptions = {
-    ignoreDefaultArgs: ['--use-mock-keychain'],
+    ignoreDefaultArgs: shouldIgnoreMuteAudio
+      ? ['--use-mock-keychain', '--mute-audio']
+      : ['--use-mock-keychain'],
     args: finalArgs,
     headless: process.env.CRAWLEE_HEADLESS === '1',
     ...(channel && { channel }),
