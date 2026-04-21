@@ -889,3 +889,178 @@ export const scanPage = async (
 
 export { RuleFlags, a11yRuleLongDescriptionMap, a11yRuleStepByStepGuide, getOobeeFunctionsScript };
 
+// ---------------------------------------------------------------------------
+// Color-contrast context enrichment for LLM-assisted fixes
+// ---------------------------------------------------------------------------
+
+export type ColorContrastFinding = {
+  html: string;
+  xpath: string;
+  foreground: string;
+  background: string;
+  contrastRatio: number;
+  requiredRatio: number;
+  fontSize: string;
+  fontWeight: string;
+  isLargeText: boolean;
+  wcagLevel: 'AA' | 'AAA';
+  suggestedForeground: { hex: string; contrastRatio: number };
+  suggestedBackground: { hex: string; contrastRatio: number };
+  message: string;
+};
+
+// WCAG 2.1 relative luminance + contrast ratio (no external dependency)
+function _lin(c: number): number {
+  const s = c / 255;
+  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+function _lum(hex: string): number {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b);
+}
+function _contrast(a: string, b: string): number {
+  const l1 = _lum(a), l2 = _lum(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+// Minimal HSL <-> hex helpers for lightness walking
+function _toHsl(hex: string): [number, number, number] {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return [h * 360, s * 100, l * 100];
+}
+function _h2r(p: number, q: number, t: number): number {
+  if (t < 0) t += 1; if (t > 1) t -= 1;
+  if (t < 1 / 6) return p + (q - p) * 6 * t;
+  if (t < 1 / 2) return q;
+  if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+  return p;
+}
+function _fromHsl(h: number, s: number, l: number): string {
+  h /= 360; s /= 100; l /= 100;
+  let r: number, g: number, b: number;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = _h2r(p, q, h + 1 / 3);
+    g = _h2r(p, q, h);
+    b = _h2r(p, q, h - 1 / 3);
+  }
+  return '#' + [r, g, b].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
+}
+
+// Walk the lightness channel until the required contrast ratio is met
+function _findCompliant(
+  toAdjust: string,
+  reference: string,
+  required: number,
+): { hex: string; contrastRatio: number } {
+  const [h, s, l] = _toHsl(toAdjust);
+  const lighten = _lum(toAdjust) >= _lum(reference);
+  let cur = l;
+  for (let i = 0; i < 201; i++) {
+    cur = lighten ? Math.min(100, cur + 0.5) : Math.max(0, cur - 0.5);
+    const candidate = _fromHsl(h, s, cur);
+    const ratio = _contrast(candidate, reference);
+    if (ratio >= required) return { hex: candidate, contrastRatio: +ratio.toFixed(2) };
+    if (cur <= 0 || cur >= 100) break;
+  }
+  // Fallback to black or white if no compliant shade found (e.g. grey on grey)
+  const black = { hex: '#000000', contrastRatio: +_contrast('#000000', reference).toFixed(2) };
+  const white = { hex: '#ffffff', contrastRatio: +_contrast('#ffffff', reference).toFixed(2) };
+  return black.contrastRatio >= white.contrastRatio ? black : white;
+}
+
+function _isLargeText(fontSize: string, fontWeight: string): boolean {
+  const px = parseFloat((fontSize.match(/(\d+(?:\.\d+)?)px/) ?? [])[1] ?? '0');
+  const bold = fontWeight === 'bold' || parseInt(fontWeight) >= 700;
+  return px >= 24 || (bold && px >= 18.67);
+}
+
+// Matches axe failureSummary substring:
+// "...color contrast of 4.48 (foreground color: #777777, background color: #ffffff,
+//  font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+const _CC_RE =
+  /color contrast of ([\d.]+) \(foreground color: (#[0-9a-fA-F]+), background color: (#[0-9a-fA-F]+), font size: ([^,]+), font weight: ([^)]+)\)[^]*?ratio of ([\d.]+)/;
+
+function _parseMessage(message: string) {
+  const m = _CC_RE.exec(message);
+  if (!m) return null;
+  return {
+    contrastRatio: parseFloat(m[1]),
+    foreground: m[2].toLowerCase(),
+    background: m[3].toLowerCase(),
+    fontSize: m[4].trim(),
+    fontWeight: m[5].trim(),
+    requiredRatio: parseFloat(m[6]),
+  };
+}
+
+/**
+ * Extracts color-contrast findings from scan results returned by scanPage or scanHTML,
+ * enriched with WCAG-compliant color suggestions computed server-side.
+ *
+ * Usage:
+ *   const results = await scanPage(page, config);
+ *   const findings = getColorContrastContext(results);
+ *   // pass findings to LLM for accurate color fixes
+ */
+export function getColorContrastContext(scanResults: {
+  mustFix?: { rules: Record<string, { items: Array<{ html: string; message: string; xpath: string }> }> };
+  goodToFix?: { rules: Record<string, { items: Array<{ html: string; message: string; xpath: string }> }> };
+}): ColorContrastFinding[] {
+  const findings: ColorContrastFinding[] = [];
+
+  for (const [categoryKey, wcagLevel] of [['mustFix', 'AA'], ['goodToFix', 'AA']] as const) {
+    const category = scanResults[categoryKey];
+    if (!category?.rules) continue;
+
+    for (const [ruleId, rule] of Object.entries(category.rules)) {
+      if (ruleId !== 'color-contrast' && ruleId !== 'color-contrast-enhanced') continue;
+      if (!rule?.items) continue;
+
+      const level: 'AA' | 'AAA' = ruleId === 'color-contrast-enhanced' ? 'AAA' : 'AA';
+
+      for (const item of rule.items) {
+        const parsed = _parseMessage(item.message);
+        if (!parsed) continue;
+
+        findings.push({
+          html: item.html,
+          xpath: item.xpath,
+          foreground: parsed.foreground,
+          background: parsed.background,
+          contrastRatio: parsed.contrastRatio,
+          requiredRatio: parsed.requiredRatio,
+          fontSize: parsed.fontSize,
+          fontWeight: parsed.fontWeight,
+          isLargeText: _isLargeText(parsed.fontSize, parsed.fontWeight),
+          wcagLevel: level,
+          suggestedForeground: _findCompliant(parsed.foreground, parsed.background, parsed.requiredRatio),
+          suggestedBackground: _findCompliant(parsed.background, parsed.foreground, parsed.requiredRatio),
+          message: item.message,
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
