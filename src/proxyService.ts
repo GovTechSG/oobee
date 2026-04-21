@@ -17,7 +17,9 @@ import path from 'path';
 import { spawnSync } from 'child_process';
 
 export interface ProxyInfo {
-  // host:port OR user:pass@host:port (no scheme)
+  // http/https: host:port OR user:pass@host:port (no scheme)
+  // socks: scheme://host:port OR scheme://user:pass@host:port (scheme preserved from ALL_PROXY)
+  //        OR bare host:port when sourced from scutil (defaults to socks5:// on use)
   http?: string;
   https?: string;
   socks?: string;
@@ -88,7 +90,7 @@ function parseEnvProxyCommon(): ProxyInfo | null {
   const info: ProxyInfo = {};
   if (http) info.http = stripScheme(http);
   if (https) info.https = stripScheme(https);
-  if (socks) info.socks = stripScheme(socks);
+  if (socks) info.socks = socks; // keep original scheme so proxyInfoToResolution can use the right protocol
   if (noProxy) info.bypassList = semiJoin(noProxy.split(/[,;]/));
 
   const { username, password } = readCredsFromEnv();
@@ -435,6 +437,15 @@ function buildIncludeOnlyPac(proxyServer: string, includeList: string[]): string
   return pac;
 }
 
+/**
+ * Convert an info.socks value to a full proxy server URL.
+ * When the value already carries a scheme (e.g. ALL_PROXY=http://..., socks4://...),
+ * it is used as-is. Bare host:port values (from scutil) default to socks5://.
+ */
+function toSocksServer(socks: string): string {
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(socks) ? socks : `socks5://${socks}`;
+}
+
 export function proxyInfoToResolution(info: ProxyInfo | null): ProxyResolution {
   if (!info) return { kind: 'none' };
 
@@ -444,7 +455,7 @@ export function proxyInfoToResolution(info: ProxyInfo | null): ProxyResolution {
     let proxyServer: string | undefined;
     if (info.http) proxyServer = `http://${info.http}`;
     else if (info.https) proxyServer = `http://${info.https}`;
-    else if (info.socks) proxyServer = `socks5://${info.socks}`;
+    else if (info.socks) proxyServer = toSocksServer(info.socks);
 
     if (proxyServer) {
       // If credentials exist, embed them for the manual proxy auth
@@ -457,6 +468,16 @@ export function proxyInfoToResolution(info: ProxyInfo | null): ProxyResolution {
       const pacDataUrl = `data:application/x-ns-proxy-autoconfig;base64,${Buffer.from(pac).toString('base64')}`;
       return { kind: 'pac', pacUrl: pacDataUrl, bypass: info.bypassList };
     }
+
+    // No direct proxy server was found — the configured proxy is PAC-based or auto-detect only.
+    // INCLUDE_PROXY needs a concrete server address to build a routing PAC script, so it cannot
+    // be applied here. Warn and fall through to use the existing PAC/autodetect as-is.
+    console.warn(
+      'INCLUDE_PROXY is set but no direct proxy server address was found. ' +
+      'INCLUDE_PROXY requires HTTP_PROXY, HTTPS_PROXY, or ALL_PROXY to be set with a direct ' +
+      'server address; it cannot be applied to a PAC URL or auto-detect proxy. ' +
+      'INCLUDE_PROXY will be ignored.',
+    );
   }
 
   // Prefer manual proxies first (these work with Playwright's proxy option)
@@ -478,7 +499,7 @@ export function proxyInfoToResolution(info: ProxyInfo | null): ProxyResolution {
   }
   if (info.socks) {
     return { kind: 'manual', settings: {
-      server: `socks5://${info.socks}`,
+      server: toSocksServer(info.socks),
       username: info.username,
       password: info.password,
       bypass: info.bypassList,
