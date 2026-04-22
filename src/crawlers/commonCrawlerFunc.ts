@@ -60,6 +60,24 @@ type CustomFlowDetails = {
   pageImagePath?: any;
 };
 
+type ContrastCheckData = {
+  fgColor?: string;
+  bgColor?: string;
+  contrastRatio?: string | number;
+  fontSize?: string;
+  fontWeight?: string;
+  expectedContrastRatio?: string;
+};
+
+type ContrastExample = {
+  fgColor: string;
+  bgColor: string;
+  contrastRatio: string;
+  fontSize: string;
+  fontWeight: string;
+  expectedContrastRatio: string;
+};
+
 type FilteredResults = {
   url: string;
   pageTitle: string;
@@ -96,6 +114,67 @@ const truncateHtml = (html: string, maxBytes = 1024, suffix = '…'): string => 
   }
 
   return result;
+};
+
+const formatContrastFontSize = (fontSize?: string) => {
+  if (!fontSize) return 'unknown size';
+
+  const pxMatch = fontSize.match(/\(([\d.]+px)\)/i);
+  return pxMatch ? pxMatch[1] : fontSize;
+};
+
+const buildColorContrastMessage = (node: NodeResultWithScreenshot): string | null => {
+  console.log('node 111', node)
+  const checks = [...(node.any || []), ...(node.all || []), ...(node.none || [])] as Array<{
+    data?: ContrastCheckData;
+  }>;
+  console.log('checks 111', checks)
+
+  const uniqueCombos = new Map<string, ContrastExample>();
+
+  checks.forEach(check => {
+    const data = check.data || {};
+    const hasContrastData =
+      data.fgColor ||
+      data.bgColor ||
+      data.contrastRatio !== undefined ||
+      data.expectedContrastRatio;
+
+    if (!hasContrastData) return;
+
+    const fgColor = data.fgColor || 'unknown foreground';
+    const bgColor = data.bgColor || 'unknown background';
+    const contrastRatio = String(data.contrastRatio ?? 'unknown');
+    const fontSize = formatContrastFontSize(data.fontSize);
+    const fontWeight = data.fontWeight || 'normal';
+    const expectedContrastRatio = data.expectedContrastRatio || '4.5:1';
+
+    const key = [fgColor, bgColor, fontSize, fontWeight, expectedContrastRatio].join('|');
+
+    if (!uniqueCombos.has(key)) {
+      uniqueCombos.set(key, {
+        fgColor,
+        bgColor,
+        contrastRatio,
+        fontSize,
+        fontWeight,
+        expectedContrastRatio,
+      });
+    }
+  });
+
+  if (!uniqueCombos.size) return null;
+
+  const examples = [...uniqueCombos.values()]
+    .map(
+      example =>
+        `foreground ${example.fgColor} on ${example.bgColor} at ${example.fontSize} ${example.fontWeight} text (current contrast ${example.contrastRatio}, expected ${example.expectedContrastRatio})`,
+    )
+    .join(', and ');
+
+  const targetRatio = [...uniqueCombos.values()][0]?.expectedContrastRatio || '4.5:1';
+
+  return `Multiple text elements in this component fail WCAG 1.4.3 Color Contrast Minimum. Audit all visible text in the snippet and update every failing foreground color so normal text achieves at least ${targetRatio} contrast against its actual background, with a safety margin above the minimum where possible. Known failing combinations in this snippet include ${examples}. Fix all failing text colors in the component, not just the first reported element.`;
 };
 
 export const filterAxeResults = (
@@ -145,9 +224,14 @@ export const filterAxeResults = (
           items: [],
         };
       }
-      const message = displayNeedsReview
+      console.log('failureSummary 111', failureSummary)
+      const defaultMessage = displayNeedsReview
         ? failureSummary.slice(failureSummary.indexOf('\n') + 1).trim()
         : failureSummary;
+      const message =
+        rule === 'color-contrast'
+          ? buildColorContrastMessage(node) || defaultMessage
+          : defaultMessage;
 
       let finalHtml = html;
       if (html.includes('</script>')) {
