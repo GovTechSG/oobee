@@ -7,7 +7,7 @@ import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
 import { ViewportSettingsClass } from '../combine.js';
-import { getPlaywrightLaunchOptions } from '../constants/common.js';
+import { getPlaywrightLaunchOptions, launchPersistentContextWithSafeBrowsing } from '../constants/common.js';
 import { register } from '../utils.js';
 
 const crawlIntelligentSitemap = async (
@@ -59,7 +59,7 @@ const crawlIntelligentSitemap = async (
 
     if (process.env.CRAWLEE_HEADLESS === '1') {
       const effectiveUserDataDirectory = userDataDirectory || '';
-      context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
+      context = await launchPersistentContextWithSafeBrowsing(effectiveUserDataDirectory, {
         ...launchOptions,
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
       });

@@ -37,6 +37,8 @@ import { cleanUpAndExit, randomThreeDigitNumberString, register } from '../utils
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
+import { ensureAndInjectSafeBrowsing } from '../safeBrowsingProfile.js';
+import { BrowserContext } from 'playwright';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -389,7 +391,7 @@ const checkUrlConnectivityWithBrowser = async (
 
   try {
     const launchPersistent = async () => {
-      browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
+      browserContext = await launchPersistentContextWithSafeBrowsing(clonedDataDir, {
         ...launchOptions,
         ...contextOptions,
       });
@@ -867,7 +869,7 @@ const getRobotsTxtViaPlaywright = async (
 
   try {
     if (process.env.CRAWLEE_HEADLESS === '1') {
-      browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
+      browserContext = await launchPersistentContextWithSafeBrowsing(robotsDataDir, {
         ...getPlaywrightLaunchOptions(browser),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
       });
@@ -1057,7 +1059,7 @@ export const getLinksFromSitemap = async (
 
       try {
         if (process.env.CRAWLEE_HEADLESS === '1') {
-          browserContext = await constants.launcher.launchPersistentContext(
+          browserContext = await launchPersistentContextWithSafeBrowsing(
             finalUserDataDirectory,
             {
               ...getPlaywrightLaunchOptions(browser),
@@ -1821,7 +1823,7 @@ export const submitFormViaPlaywright = async (
   userDataDirectory: string,
   finalUrl: string,
 ) => {
-  const browserContext = await constants.launcher.launchPersistentContext(userDataDirectory, {
+  const browserContext = await launchPersistentContextWithSafeBrowsing(userDataDirectory, {
     ...getPlaywrightLaunchOptions(browserToRun),
   });
 
@@ -1924,6 +1926,14 @@ export async function initModifiedUserAgent(
 
 const cacheProxyInfo = getProxyInfo();
 
+export const launchPersistentContextWithSafeBrowsing = async (
+  userDataDir: string,
+  options: Parameters<typeof constants.launcher.launchPersistentContext>[1],
+): Promise<BrowserContext> => {
+  await ensureAndInjectSafeBrowsing(userDataDir);
+  return constants.launcher.launchPersistentContext(userDataDir, options);
+};
+
 /**
  * @param {string} browser browser name ("chrome" or "edge", null for chromium, the default Playwright browser)
  * @returns playwright launch options object. For more details: https://playwright.dev/docs/api/class-browsertype#browser-type-launch
@@ -1967,8 +1977,8 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const options: LaunchOptions = {
     ignoreDefaultArgs: shouldIgnoreMuteAudio
-      ? ['--use-mock-keychain', '--mute-audio']
-      : ['--use-mock-keychain'],
+      ? ['--use-mock-keychain', '--mute-audio', '--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking']
+      : ['--use-mock-keychain', '--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking'],
     args: finalArgs,
     headless: process.env.CRAWLEE_HEADLESS === '1',
     ...(channel && { channel }),
@@ -1979,6 +1989,16 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
+  }
+
+  if (process.env.OOBEE_SAFE_BROWSING_DEBUG === '1') {
+    options.args = [
+      ...(options.args ?? []),
+      '--enable-logging=stderr',
+      '--log-level=0',
+      '--vmodule=safe_browsing*=2,*phishing*=2',
+    ];
+    consoleLogger.info('Safe Browsing debug logging enabled');
   }
 
   return options;

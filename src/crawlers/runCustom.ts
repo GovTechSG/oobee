@@ -14,6 +14,7 @@ import {
   getBrowserToRun,
   getPlaywrightLaunchOptions,
   initModifiedUserAgent,
+  launchPersistentContextWithSafeBrowsing,
 } from '../constants/common.js';
 import { BrowserTypes } from '../constants/constants.js';
 
@@ -109,7 +110,7 @@ const runCustom = async (
       ...customArgs,
     ];
 
-    const context = await constants.launcher.launchPersistentContext(userDataDirectory, {
+    const context = await launchPersistentContextWithSafeBrowsing(userDataDirectory, {
       ...baseLaunchOptions,
       args: mergedArgs,
       headless: false,
