@@ -125,6 +125,7 @@ export function injectSafeBrowsingDb(targetDir: string): void {
 }
 
 export async function ensureAndInjectSafeBrowsing(targetDir: string): Promise<void> {
+  if (process.env.OOBEE_SAFE_BROWSING !== '1') return;
   await warmupSafeBrowsingBaseProfile();
   injectSafeBrowsingDb(targetDir);
 }

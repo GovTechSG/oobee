@@ -1977,8 +1977,8 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const options: LaunchOptions = {
     ignoreDefaultArgs: shouldIgnoreMuteAudio
-      ? ['--use-mock-keychain', '--mute-audio', '--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking']
-      : ['--use-mock-keychain', '--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking'],
+      ? ['--use-mock-keychain', '--mute-audio', ...(process.env.OOBEE_SAFE_BROWSING === '1' ? ['--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking'] : [])]
+      : ['--use-mock-keychain', ...(process.env.OOBEE_SAFE_BROWSING === '1' ? ['--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking'] : [])],
     args: finalArgs,
     headless: process.env.CRAWLEE_HEADLESS === '1',
     ...(channel && { channel }),
