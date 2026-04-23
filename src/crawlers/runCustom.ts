@@ -132,7 +132,7 @@ const runCustom = async (
     // For handling closing playwright browser and continue generate artifacts etc
     registerSoftClose(processPageParams.stopAll);
 
-    addUrlGuardScript(context, { fallbackUrl: url });
+    addUrlGuardScript(context, { fallbackUrl: url, allowChromeErrors: process.env.OOBEE_SAFE_BROWSING === '1' });
 
     const page = context.pages().find(existingPage => !existingPage.isClosed()) || (await context.newPage());
     await initNewPage(page, pageClosePromises, processPageParams, pagesDict);

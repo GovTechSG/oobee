@@ -1,7 +1,11 @@
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 
 export function addUrlGuardScript(context, opts = {}) {
-  const { fallbackUrl }: any = opts;
+  const { fallbackUrl, allowChromeErrors }: any = opts;
+
+  const allowedProtocols = allowChromeErrors
+    ? new Set([...ALLOWED_PROTOCOLS, 'chrome-error:'])
+    : ALLOWED_PROTOCOLS;
 
   const lastAllowedUrlByPage = new WeakMap();
 
@@ -54,7 +58,7 @@ export function addUrlGuardScript(context, opts = {}) {
         return restoreToSafeUrl(page, urlStr);
       }
 
-      if (ALLOWED_PROTOCOLS.has(urlObj.protocol)) {
+      if (allowedProtocols.has(urlObj.protocol)) {
         lastAllowedUrlByPage.set(page, urlObj.toString());
         return;
       }
