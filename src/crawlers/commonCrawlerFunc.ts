@@ -338,10 +338,16 @@ const findCompliantColorByLightness = (
  *                               i.e. ≥ ~24 px    /  ≥ ~18.5 px):
  *     Required contrast ≥ 3:1    (G145)
  *
- * axe-core applies this rule upstream and stores the result in the check's
- * `expectedContrastRatio` field ("4.5:1" or "3:1"), so the `required` value
- * used here already reflects the correct threshold for the text's size and
- * weight — no additional font classification is needed in this function.
+ * axe-core applies this rule upstream using:
+ *   ptSize      = Math.ceil(fontSize_px × 72) / 96          // px → pt
+ *   isSmallFont = (bold && ptSize < boldTextPt)              // default 14 pt
+ *              || (!bold && ptSize < largeTextPt)            // default 18 pt
+ *   bold        = fontWeight ≥ 700 || fontWeight === 'bold'  // boldValue = 700
+ * and stores the result as `expectedContrastRatio: "4.5:1"` (Situation A) or
+ * `"3:1"` (Situation B).  The `required` value used here is derived from that
+ * field via `parseFloat("4.5:1") → 4.5` or `parseFloat("3:1") → 3`, so the
+ * binary search automatically targets the correct threshold for each
+ * combination's font size and weight — no re-classification is needed here.
  *
  * WCAG 1.4.3 exceptions (no contrast requirement — filtered by axe-core
  * before the data ever reaches this function):
@@ -425,6 +431,64 @@ const buildContrastRecommendation = (example: ContrastExample): string | null =>
   return `for foreground ${example.fgColor} on background ${example.bgColor} (target ${example.expectedContrastRatio}), adjust ${parts.join(' or ')}`;
 };
 
+/**
+ * Builds the augmented issue description for a single axe-core color-contrast
+ * violation node.
+ *
+ * ─── WCAG rules applied ──────────────────────────────────────────────────────
+ *
+ * WCAG 1.4.3 "Contrast (Minimum)" distinguishes two situations:
+ *
+ *   Situation A — normal text (< 18 pt non-bold / < 14 pt bold,
+ *                               i.e. < ~24 px   / < ~18.5 px at 96 dpi):
+ *     Required contrast ratio ≥ 4.5:1
+ *
+ *   Situation B — large text  (≥ 18 pt non-bold / ≥ 14 pt bold,
+ *                               i.e. ≥ ~24 px   / ≥ ~18.5 px at 96 dpi):
+ *     Required contrast ratio ≥ 3:1
+ *
+ * axe-core classifies each element before this function runs:
+ *   ptSize      = Math.ceil(fontSize_px × 72) / 96          // px → pt
+ *   isSmallFont = (bold  && ptSize < 14)                     // Situation A bold
+ *              || (!bold && ptSize < 18)                     // Situation A normal
+ *   bold        = fontWeight ≥ 700 || fontWeight === 'bold'
+ * …and stores the result in check.data.expectedContrastRatio as "4.5:1" or "3:1".
+ *
+ * Exceptions (no contrast requirement — already excluded by axe-core upstream):
+ *   • Pure decoration (no informational purpose)
+ *   • Inactive / disabled UI components
+ *   • Logotypes and brand names
+ *   • Text inside photographs with significant other visual content
+ *
+ * ─── Function flow ───────────────────────────────────────────────────────────
+ *
+ *  1. Collect checks — flatten node.any, node.all, node.none into one array.
+ *     Each entry may carry a ContrastCheckData payload with fgColor, bgColor,
+ *     contrastRatio, fontSize, fontWeight, and expectedContrastRatio.
+ *
+ *  2. Deduplicate — key each combination on
+ *     [fgColor, bgColor, fontSize, fontWeight, expectedContrastRatio].
+ *     A single DOM node can generate multiple identical checks; the Map ensures
+ *     each distinct failing pair is reported once.
+ *
+ *  3. Build the base message — lists every unique failing combination with its
+ *     current contrast ratio and the required ratio, and instructs the developer
+ *     to fix all failing text in the component, not just the first element.
+ *
+ *  4. Build per-combo recommendations (via buildContrastRecommendation) —
+ *     for each failing pair, binary-search HSL lightness to find the nearest
+ *     compliant foreground (background fixed) and the nearest compliant
+ *     background (foreground fixed), both expressed as hex + rgb().  The binary
+ *     search targets the combination's own expectedContrastRatio (4.5 or 3),
+ *     so large-text recommendations are correctly held to the 3:1 threshold
+ *     and normal-text recommendations to 4.5:1.
+ *
+ *  5. Concatenate — append "Recommendation: …" after the base message so the
+ *     existing description is never modified, only extended.
+ *
+ * Returns null when no check carries usable contrast data (axe-core may omit
+ * it for pseudo-element or out-of-viewport cases).
+ */
 const buildColorContrastMessage = (node: NodeResultWithScreenshot): string | null => {
   const checks = [...(node.any || []), ...(node.all || []), ...(node.none || [])] as Array<{
     data?: ContrastCheckData;
