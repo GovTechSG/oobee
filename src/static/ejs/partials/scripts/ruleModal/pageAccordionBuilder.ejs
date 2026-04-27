@@ -393,14 +393,17 @@
         </div>
 
           ${
-            item.displayNeedsReview
-              ? `<div class="d-flex justify-content-between g-one modal-view">
+            (() => {
+              const showDetails = item.displayNeedsReview || ['color-contrast', 'color-contrast-enhanced', 'oobee-grading-text-contents'].includes(aiConfig.ruleInCategory.rule);
+              return showDetails && item.message
+                ? `<div class="d-flex justify-content-between g-one modal-view">
             <div class="fw-semibold page-item-card-section-title">Details</div>
             <div class="page-item-card-section-content">
-              ${generateItemMessageElement(item.displayNeedsReview, item.message)}
+              ${generateItemMessageElement(item.displayNeedsReview || true, item.message)}
             </div>
           </div>`
-              : ''
+                : '';
+            })()
           }
           ${isPurpleAiRule ? createAiSuggestionSection(item, oobeeAiQueryLabel, aiConfig) : ''}
         </div>
