@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { chromium as playwrightChromium } from 'playwright';
 import { consoleLogger } from './logs.js';
 
 const BASE_PROFILE_DIR = path.join(os.homedir(), '.oobee', 'safe-browsing-profile');
@@ -17,18 +18,38 @@ function getChromeExecutable(): string {
             'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
             'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
           ]
-        : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser'];
-  return candidates.find(p => fs.existsSync(p)) ?? 'google-chrome';
+        : [
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+          ];
+
+  const found = candidates.find(p => fs.existsSync(p));
+  if (found) return found;
+
+  // Fall back to Playwright's bundled Chromium (available in Docker/CI with ms-playwright image)
+  try {
+    const playwrightPath = playwrightChromium.executablePath();
+    if (fs.existsSync(playwrightPath)) return playwrightPath;
+  } catch {}
+
+  return 'google-chrome';
 }
 
-function getSystemChromeSafeBrowsingDir(): string {
-  if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'Safe Browsing');
-  }
-  if (process.platform === 'win32') {
-    return path.join(process.env.LOCALAPPDATA ?? '', 'Google', 'Chrome', 'User Data', 'Safe Browsing');
-  }
-  return path.join(os.homedir(), '.config', 'google-chrome', 'Safe Browsing');
+// Returns the first system Safe Browsing DB dir that is already populated.
+// Checks Chrome then Chromium on Linux (Docker may only have Chromium).
+function findSystemSafeBrowsingDir(): string | null {
+  const candidates =
+    process.platform === 'darwin'
+      ? [path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'Safe Browsing')]
+      : process.platform === 'win32'
+        ? [path.join(process.env.LOCALAPPDATA ?? '', 'Google', 'Chrome', 'User Data', 'Safe Browsing')]
+        : [
+            path.join(os.homedir(), '.config', 'google-chrome', 'Safe Browsing'),
+            path.join(os.homedir(), '.config', 'chromium', 'Safe Browsing'),
+          ];
+  return candidates.find(isDbDir) ?? null;
 }
 
 function isDbDir(dir: string): boolean {
@@ -43,9 +64,10 @@ function copyDirectory(src: string, dst: string): void {
   }
 }
 
-// Spawns real Chrome (no --remote-debugging-pipe) to download the Safe Browsing DB.
+// Spawns a real Chrome/Chromium (no --remote-debugging-pipe) to download the Safe Browsing DB.
+// On Linux without a display (Docker), first tries Xvfb; falls back to --headless=old.
 async function spawnChromeForWarmup(): Promise<void> {
-  consoleLogger.info('Downloading Safe Browsing threat database via Chrome (up to 90s)...');
+  consoleLogger.info('Downloading Safe Browsing threat database via Chrome (up to 120s)...');
 
   fs.mkdirSync(path.join(BASE_PROFILE_DIR, 'Default'), { recursive: true });
   fs.writeFileSync(
@@ -53,20 +75,49 @@ async function spawnChromeForWarmup(): Promise<void> {
     JSON.stringify({ safebrowsing: { enabled: true, enhanced: false } }),
   );
 
-  // Run without --headless so Chrome's component updater fires (headless suppresses it).
-  // Minimise the window to avoid showing up on screen.
+  const exe = getChromeExecutable();
+
+  const baseArgs = [
+    `--user-data-dir=${BASE_PROFILE_DIR}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-extensions',
+    // Required when running as non-root in Docker
+    ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
+  ];
+
+  let spawnEnv: NodeJS.ProcessEnv = { ...process.env };
+  // On Linux without a display, attempt Xvfb so Chrome can run non-headless
+  // (headless=new suppresses the Safe Browsing DB download; headless=old is the fallback)
+  let windowArgs: string[] = ['--window-position=-10000,-10000', '--window-size=1,1'];
+
+  if (process.platform === 'linux' && !process.env.DISPLAY) {
+    const displayNum = ':99';
+    let xvfbStarted = false;
+    try {
+      const xvfb = spawn('Xvfb', [displayNum, '-screen', '0', '1024x768x24'], {
+        stdio: 'ignore',
+        detached: true,
+      });
+      xvfb.unref();
+      await new Promise(r => setTimeout(r, 1500));
+      spawnEnv = { ...process.env, DISPLAY: displayNum };
+      xvfbStarted = true;
+    } catch {
+      // Xvfb not available
+    }
+
+    if (!xvfbStarted) {
+      // headless=old runs more background services than headless=new,
+      // giving the Safe Browsing updater a chance to fire
+      windowArgs = ['--headless=old', '--disable-gpu'];
+    }
+  }
+
   const chrome = spawn(
-    getChromeExecutable(),
-    [
-      `--user-data-dir=${BASE_PROFILE_DIR}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-extensions',
-      '--window-position=-10000,-10000',
-      '--window-size=1,1',
-      'about:blank',
-    ],
-    { stdio: 'ignore', detached: false },
+    exe,
+    [...baseArgs, ...windowArgs, 'about:blank'],
+    { stdio: 'ignore', detached: false, env: spawnEnv },
   );
 
   const maxWait = 120_000;
@@ -79,16 +130,16 @@ async function spawnChromeForWarmup(): Promise<void> {
   try { chrome.kill(); } catch {}
 }
 
-// Seeds the base profile. Tries system Chrome profile first (instant),
-// falls back to spawning Chrome if system profile unavailable.
+// Seeds the base profile. Tries system Chrome/Chromium profile first (instant),
+// falls back to spawning Chrome/Chromium if no system profile is available.
 export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
   if (isDbDir(SB_DIR)) return;
 
   fs.mkdirSync(BASE_PROFILE_DIR, { recursive: true });
 
-  const systemSbDir = getSystemChromeSafeBrowsingDir();
-  if (isDbDir(systemSbDir)) {
-    consoleLogger.info('Copying Safe Browsing threat database from system Chrome profile...');
+  const systemSbDir = findSystemSafeBrowsingDir();
+  if (systemSbDir) {
+    consoleLogger.info('Copying Safe Browsing threat database from system Chrome/Chromium profile...');
     copyDirectory(systemSbDir, SB_DIR);
     consoleLogger.info('Safe Browsing threat database ready.');
     return;
