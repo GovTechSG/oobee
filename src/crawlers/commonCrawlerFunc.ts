@@ -36,8 +36,30 @@ export interface ResultWithScreenshot extends Result {
   nodes: NodeResultWithScreenshot[];
 }
 
+export type ContrastDOMContext = {
+  /** Raw computed background-image value on the element itself (empty string if none). */
+  backgroundImage: string;
+  /** True when the element's own background-image contains a CSS gradient. */
+  hasGradient: boolean;
+  /** True when the element's own background-image is a url() image (not a gradient). */
+  hasBackgroundImage: boolean;
+  /** True when any ancestor up to <body> has a gradient background. */
+  ancestorHasGradient: boolean;
+  /** True when any ancestor up to <body> has a url() image background. */
+  ancestorHasBackgroundImage: boolean;
+  /** True when the element or any ancestor has computed opacity < 1. */
+  hasReducedOpacity: boolean;
+  /** Non-null when the element's mix-blend-mode is not 'normal'. */
+  mixBlendMode: string | null;
+  /** Non-null when a backdrop-filter is applied to the element. */
+  backdropFilter: string | null;
+  /** Non-null when a CSS filter (e.g. brightness, contrast) is applied to the element. */
+  filter: string | null;
+};
+
 export interface NodeResultWithScreenshot extends NodeResult {
   screenshotPath?: string;
+  contrastDOMContext?: ContrastDOMContext;
 }
 
 type RuleDetails = {
@@ -546,9 +568,64 @@ const buildColorContrastMessage = (node: NodeResultWithScreenshot): string | nul
     .map(buildContrastRecommendation)
     .filter((r): r is string => r !== null);
 
-  if (recommendations.length === 0) return base;
+  const recSection =
+    recommendations.length > 0
+      ? ` Recommendation: To meet the required contrast ratio, ${recommendations.join('; ')}.`
+      : '';
 
-  return `${base} Recommendation: To meet the required contrast ratio, ${recommendations.join('; ')}.`;
+  const ctx = node.contrastDOMContext;
+  if (!ctx) return `${base}${recSection}`;
+
+  const notes: string[] = [];
+
+  if (ctx.hasGradient) {
+    notes.push(
+      `gradient background detected (${ctx.backgroundImage}): the sampled background color represents a single point — verify contrast at every gradient stop and position where text appears, then adjust the gradient stops or add a solid color fallback behind the text`,
+    );
+  } else if (ctx.ancestorHasGradient) {
+    notes.push(
+      `an ancestor provides a gradient background: the sampled background color may not match what is visually beneath the text — verify contrast against the actual rendered gradient`,
+    );
+  }
+
+  if (ctx.hasBackgroundImage) {
+    notes.push(
+      `background image detected: contrast cannot be fully determined from a sampled color alone — ensure text remains readable across all image content and states`,
+    );
+  } else if (ctx.ancestorHasBackgroundImage) {
+    notes.push(
+      `an ancestor has a background image: the effective background under this text may differ from the sampled value`,
+    );
+  }
+
+  if (ctx.hasReducedOpacity) {
+    notes.push(
+      `opacity less than 1 detected on this element or an ancestor: the rendered contrast is lower than the computed color values indicate`,
+    );
+  }
+
+  if (ctx.mixBlendMode) {
+    notes.push(
+      `mix-blend-mode: ${ctx.mixBlendMode} is applied: actual rendered colors depend on the underlying layers`,
+    );
+  }
+
+  if (ctx.backdropFilter) {
+    notes.push(`backdrop-filter: ${ctx.backdropFilter} is applied: the effective background appearance is modified`);
+  }
+
+  if (ctx.filter) {
+    notes.push(
+      `CSS filter: ${ctx.filter} is applied to this element: rendered colors may differ from computed values`,
+    );
+  }
+
+  const ctxSection =
+    notes.length > 0
+      ? ` Rendering complexity: ${notes.join('; ')}. The color fix recommendations above may not be accurate for this element — manual verification of the actual rendered contrast is strongly advised.`
+      : '';
+
+  return `${base}${recSection}${ctxSection}`;
 };
 
 export const filterAxeResults = (

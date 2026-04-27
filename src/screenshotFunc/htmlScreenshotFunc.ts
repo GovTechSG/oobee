@@ -5,7 +5,11 @@ import path from 'path';
 // import { silentLogger } from '../logs.js';
 import { Result } from 'axe-core';
 import { Page } from 'playwright';
-import { NodeResultWithScreenshot, ResultWithScreenshot } from '../crawlers/commonCrawlerFunc.js';
+import {
+  ContrastDOMContext,
+  NodeResultWithScreenshot,
+  ResultWithScreenshot,
+} from '../crawlers/commonCrawlerFunc.js';
 
 const screenshotMap: Record<string, string> = {}; // Map of screenshot hashkey to its buffer value and screenshot path
 
@@ -66,6 +70,67 @@ export const takeScreenshotForHTMLElements = async (
           }
         } catch (e) {
           // consoleLogger.info(`Unable to take element screenshot at ${selector}`);
+        }
+
+        if (rule === 'color-contrast') {
+          try {
+            const domContext = await page.evaluate((sel: string): ContrastDOMContext | null => {
+              const el = document.querySelector(sel);
+              if (!el) return null;
+
+              const style = window.getComputedStyle(el);
+              const bgImage = style.backgroundImage;
+              const hasGradient = bgImage !== 'none' && bgImage.includes('gradient');
+              const hasBackgroundImage = bgImage !== 'none' && !hasGradient;
+
+              let hasReducedOpacity = parseFloat(style.opacity) < 1;
+              let ancestorHasGradient = false;
+              let ancestorHasBackgroundImage = false;
+
+              let ancestor = el.parentElement;
+              while (ancestor && ancestor.tagName !== 'HTML') {
+                const anStyle = window.getComputedStyle(ancestor);
+                if (!hasReducedOpacity && parseFloat(anStyle.opacity) < 1) {
+                  hasReducedOpacity = true;
+                }
+                const anBgImg = anStyle.backgroundImage;
+                if (anBgImg !== 'none') {
+                  if (!ancestorHasGradient && anBgImg.includes('gradient')) {
+                    ancestorHasGradient = true;
+                  } else if (!ancestorHasBackgroundImage) {
+                    ancestorHasBackgroundImage = true;
+                  }
+                }
+                ancestor = ancestor.parentElement;
+              }
+
+              const mixBlendMode = style.mixBlendMode !== 'normal' ? style.mixBlendMode : null;
+              const backdropFilter =
+                style.backdropFilter && style.backdropFilter !== 'none'
+                  ? style.backdropFilter
+                  : null;
+              const filter =
+                style.filter && style.filter !== 'none' ? style.filter : null;
+
+              return {
+                backgroundImage: bgImage !== 'none' ? bgImage : '',
+                hasGradient,
+                hasBackgroundImage,
+                ancestorHasGradient,
+                ancestorHasBackgroundImage,
+                hasReducedOpacity,
+                mixBlendMode,
+                backdropFilter,
+                filter,
+              };
+            }, selector);
+
+            if (domContext) {
+              nodeWithScreenshotPath.contrastDOMContext = domContext;
+            }
+          } catch (_e) {
+            // Non-critical; proceed without DOM context
+          }
         }
       }
       newViolationNodes.push(nodeWithScreenshotPath);
