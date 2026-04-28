@@ -1078,6 +1078,21 @@ export const randomThreeDigitNumberString = () => {
   return String(threeDigitNumber);
 };
 
+export const getMatchPathPrefix = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname;
+    if (pathname === '/' || pathname.endsWith('/')) {
+      return parsed.origin + pathname;
+    }
+    const lastSlash = pathname.lastIndexOf('/');
+    const dirPath = lastSlash >= 0 ? pathname.substring(0, lastSlash + 1) : '/';
+    return parsed.origin + dirPath;
+  } catch {
+    return url;
+  }
+};
+
 export const isFollowStrategy = (link1: string, link2: string, rule: string): boolean => {
   try {
     const parsedLink1 = new URL(link1);

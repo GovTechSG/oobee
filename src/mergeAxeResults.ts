@@ -798,6 +798,7 @@ const generateArtifacts = async (
     advancedScanOptionsSummaryItems: {
       showIncludeScreenshots: [true].includes(scanDetails.isIncludeScreenshots),
       showAllowSubdomains: ['same-domain'].includes(scanDetails.isAllowSubdomains),
+      showOnlySubpages: ['same-path'].includes(scanDetails.isAllowSubdomains),
       showEnableCustomChecks: ['default', 'enable-wcag-aaa'].includes(
         scanDetails.isEnableCustomChecks?.[0],
       ),

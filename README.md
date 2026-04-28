@@ -224,6 +224,16 @@ If the website URL provided is invalid, an error message will be prompted for yo
 >> Cannot resolve URL. Please provide a valid URL.
 ```
 
+### Scan Strategy
+
+When running a website scan, the `-s` / `--strategy` option controls which URLs are enqueued for scanning:
+
+| Strategy | Description |
+|---|---|
+| `same-domain` (default) | Crawls all pages sharing the same registered domain, including subdomains (e.g. `docs.example.com` and `www.example.com` are both crawled from `example.com`). |
+| `same-hostname` | Restricts crawling to the exact hostname of the provided URL. Subdomains are not followed. |
+| `same-path` | Only enqueues URLs whose path starts with the directory path of the provided URL. For example, scanning `https://example.com/docs/guide` will only crawl pages under `https://example.com/docs/`. |
+
 ### Customised Mobile Device Scan
 
 ```shell
@@ -325,9 +335,10 @@ Options:
                                       Chrome, 3) Edge. Defaults to Chromium.
                      [choices: "chromium", "chrome", "edge"] [default: "chrome"]
   -s, --strategy                     Crawls up to general (same parent) domains,
-                                      or only specific hostname. Defaults to "sa
-                                     me-domain".
-                                       [choices: "same-domain", "same-hostname"]
+                                     only specific hostname, or only URLs under
+                                     the same path as the provided URL. Defaults
+                                      to "same-domain".
+                       [choices: "same-domain", "same-hostname", "same-path"]
   -e, --exportDirectory              Preferred directory to store scan results.
                                      Path is relative to your home directory.
                                                                         [string]

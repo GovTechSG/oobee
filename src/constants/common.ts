@@ -746,7 +746,11 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     playwrightDeviceDetailsObject,
     maxRequestsPerCrawl: maxpages || constants.maxRequestsPerCrawl,
     strategy:
-      strategy === 'same-hostname' ? EnqueueStrategy.SameHostname : EnqueueStrategy.SameDomain,
+      strategy === 'same-hostname'
+        ? EnqueueStrategy.SameHostname
+        : strategy === 'same-path'
+          ? 'same-path'
+          : EnqueueStrategy.SameDomain,
     isLocalFileScan,
     browser: browserToRun,
     nameEmail,

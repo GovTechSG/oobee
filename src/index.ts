@@ -64,7 +64,7 @@ export type Data = {
   viewportWidth: number;
   playwrightDeviceDetailsObject: DeviceDescriptor;
   maxRequestsPerCrawl: number;
-  strategy: EnqueueStrategy;
+  strategy: EnqueueStrategy | string;
   isLocalFileScan: boolean;
   browser: string;
   nameEmail: string;
