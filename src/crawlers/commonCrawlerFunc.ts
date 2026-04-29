@@ -628,6 +628,106 @@ const buildColorContrastMessage = (node: NodeResultWithScreenshot): string | nul
   return `${base}${recSection}${ctxSection}`;
 };
 
+// Enriches axe violation failureSummaries with additional DOM context gathered via Playwright,
+// providing LLMs with the specific details they need to apply correct fixes.
+const enrichViolationMessages = async (results: AxeResults, page: Page): Promise<void> => {
+  for (const violation of results.violations) {
+    if (violation.id !== 'target-size' && violation.id !== 'valid-lang') continue;
+
+    for (const node of violation.nodes) {
+      const cssSelector =
+        node.target.length === 1 && typeof node.target[0] === 'string' ? node.target[0] : null;
+      if (!cssSelector) continue;
+
+      if (violation.id === 'target-size') {
+        const ctx = await page
+          .evaluate((sel: string) => {
+            try {
+              const el = document.querySelector(sel) as HTMLElement | null;
+              if (!el) return null;
+              const rect = el.getBoundingClientRect();
+              const computed = window.getComputedStyle(el);
+              return {
+                renderedWidth: Math.round(rect.width),
+                renderedHeight: Math.round(rect.height),
+                boxSizing: computed.boxSizing,
+                inlineWidth: el.style.width || null,
+                inlineHeight: el.style.height || null,
+                tagName: el.tagName.toLowerCase(),
+              };
+            } catch {
+              return null;
+            }
+          }, cssSelector)
+          .catch(() => null);
+
+        if (ctx) {
+          const lines: string[] = [
+            `  Computed hit area: ${ctx.renderedWidth}px × ${ctx.renderedHeight}px (box-sizing: ${ctx.boxSizing}).`,
+          ];
+
+          // The most common LLM mistake: adding padding to an element that already has explicit
+          // width/height with box-sizing:border-box (browser default for <button>), so the padding
+          // is absorbed into the declared dimensions and the rendered size stays the same.
+          if (
+            ctx.boxSizing === 'border-box' &&
+            (ctx.inlineWidth !== null || ctx.inlineHeight !== null)
+          ) {
+            const dims = [
+              ctx.inlineWidth ? `width: ${ctx.inlineWidth}` : null,
+              ctx.inlineHeight ? `height: ${ctx.inlineHeight}` : null,
+            ]
+              .filter(Boolean)
+              .join(', ');
+            lines.push(
+              `  WARNING: inline style sets ${dims} with box-sizing: border-box — padding is included within those dimensions and will NOT increase the hit area. Fix: remove the explicit width/height and use min-width: 24px; min-height: 24px instead, or place the visual content in a child <span> element.`,
+            );
+          }
+
+          node.failureSummary += '\n' + lines.join('\n');
+        }
+      } else if (violation.id === 'valid-lang') {
+        const ctx = await page
+          .evaluate((sel: string) => {
+            try {
+              const el = document.querySelector(sel);
+              if (!el) return null;
+              return {
+                langValue: el.getAttribute('lang') ?? '',
+                textSnippet: (el.textContent ?? '').trim().slice(0, 120),
+              };
+            } catch {
+              return null;
+            }
+          }, cssSelector)
+          .catch(() => null);
+
+        if (ctx) {
+          const lines: string[] = [];
+
+          // Private-use x-* subtags are syntactically valid BCP 47 but axe-core's valid-lang
+          // rule rejects them — LLMs commonly switch to x-* thinking it satisfies the rule.
+          if (ctx.langValue.startsWith('x-')) {
+            lines.push(
+              `  NOTE: "${ctx.langValue}" uses a private-use "x-" prefix. axe-core's valid-lang rule also rejects private-use subtags — you must use a registered IANA language code.`,
+            );
+          }
+
+          if (ctx.textSnippet) {
+            lines.push(
+              `  Element text: "${ctx.textSnippet}". Identify the actual language of this text and use its registered BCP 47 code (e.g., lang="it" Italian, "es" Spanish, "fr" French, "de" German, "zh" Chinese, "ja" Japanese, "ko" Korean, "pt" Portuguese, "ar" Arabic).`,
+            );
+          }
+
+          if (lines.length > 0) {
+            node.failureSummary += '\n' + lines.join('\n');
+          }
+        }
+      }
+    }
+  }
+};
+
 export const filterAxeResults = (
   results: AxeResultsWithScreenshot,
   pageTitle: string,
@@ -989,6 +1089,8 @@ export const runAxeScript = async ({
       xPathToCssFunctionString: xPathToCss.toString(),
     },
   );
+
+  await enrichViolationMessages(results, page);
 
   if (includeScreenshots) {
     results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);

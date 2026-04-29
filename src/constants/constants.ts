@@ -1315,7 +1315,7 @@ export const a11yRuleStepByStepGuide: Record<string, { check: string; fix: strin
   },
   bypass: {
     check: 'Use keyboard navigation (Tab key) on the page: Can you quickly reach the main content without tabbing through all navigation? Is there a main content area marked or a skip link available?',
-    fix: '(Developer) Implement a bypass method— mark a main content area with a main landmark, headings so screen readers can navigate to it directly.',
+    fix: '(Developer) Implement a bypass method— mark a main content area with a main landmark, headings so screen readers can navigate to it directly. If adding a skip link: (1) place it as the very first focusable element, (2) ensure the href target ID exists on the page, (3) give it at least 24×24 CSS px of touch target area (e.g. min-height: 24px with padding) so it does not introduce a new target-size violation.',
     review: 'Test keyboard navigation: Use assistive tools (VoiceOver Rotor, Android or NVDA/JAWS shortcuts) to confirm you can reach the main content and sections of the page area quickly without tabbing through repeated navigation blocks.',
     learn: 'Review and learn more about this issue on A11y Playground',
   },
