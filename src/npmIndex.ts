@@ -12,10 +12,10 @@ import {
   getPlaywrightLaunchOptions,
   submitForm,
 } from './constants/common.js';
-import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
+import { createCrawleeSubFolders, enrichViolationMessages, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
 import { createAndUpdateResultsFolders, getVersion } from './utils.js';
 import generateArtifacts, { createBasicFormHTMLSnippet, sendWcagBreakdownToSentry } from './mergeAxeResults.js';
-import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
+import { enrichColorContrastDOMContext, takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
 import { evaluateAltText } from './crawlers/custom/evaluateAltText.js';
@@ -863,6 +863,9 @@ export const scanPage = async (
       const scanResult = await page.evaluate(async () => {
         return window.runA11yScan();
       });
+
+      await enrichViolationMessages(scanResult.axeScanResults, page);
+      await enrichColorContrastDOMContext(scanResult.axeScanResults.violations, page);
 
       scanData.push({
         axeScanResults: scanResult.axeScanResults,

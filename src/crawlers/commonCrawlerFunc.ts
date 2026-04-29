@@ -9,7 +9,7 @@ import {
   saflyIconSelector,
 } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
-import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
+import { enrichColorContrastDOMContext, takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
@@ -630,7 +630,7 @@ const buildColorContrastMessage = (node: NodeResultWithScreenshot): string | nul
 
 // Enriches axe violation failureSummaries with additional DOM context gathered via Playwright,
 // providing LLMs with the specific details they need to apply correct fixes.
-const enrichViolationMessages = async (results: AxeResults, page: Page): Promise<void> => {
+export const enrichViolationMessages = async (results: AxeResults, page: Page): Promise<void> => {
   for (const violation of results.violations) {
     if (violation.id !== 'target-size' && violation.id !== 'valid-lang') continue;
 
@@ -779,7 +779,7 @@ export const filterAxeResults = (
         ? failureSummary.slice(failureSummary.indexOf('\n') + 1).trim()
         : failureSummary;
       const message =
-        rule === 'color-contrast'
+        rule === 'color-contrast' || rule === 'color-contrast-enhanced'
           ? buildColorContrastMessage(node) || defaultMessage
           : defaultMessage;
 
@@ -1091,6 +1091,7 @@ export const runAxeScript = async ({
   );
 
   await enrichViolationMessages(results, page);
+  await enrichColorContrastDOMContext(results.violations, page);
 
   if (includeScreenshots) {
     results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
