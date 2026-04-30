@@ -1,0 +1,47 @@
+<script>
+	function renderWcagGaugeFromScanData() {
+		const wcagTotals = scanData?.wcagPassPercentage ?? {};
+		const totalChecks = Number(wcagTotals.totalWcagChecksAA ?? 0);
+		const violations = Number(wcagTotals.totalWcagViolationsAA ?? 0);
+		const checksPassed = Math.max(0, totalChecks - violations);
+
+		const numEl    = document.getElementById('gaugeValueNumber');
+		const totalEl  = document.getElementById('gaugeValueTotal');
+		const targetEl = document.getElementById('gaugeTarget');
+
+		if (numEl)    numEl.textContent    = String(checksPassed);
+		if (totalEl)  totalEl.textContent  = String(totalChecks);
+		if (targetEl) targetEl.textContent = String(totalChecks);
+
+		const gaugeFillPath  = document.getElementById('gaugeFill');
+		const ratio = totalChecks > 0 ? checksPassed / totalChecks : 0;
+		const isPerfectWcagScore = totalChecks > 0 && violations === 0;
+
+		if (isPerfectWcagScore) {
+			numEl.classList.toggle('perfect-score', isPerfectWcagScore);
+		}
+
+		if (gaugeFillPath && typeof gaugeFillPath.getTotalLength === 'function') {
+			const len = gaugeFillPath.getTotalLength();
+			gaugeFillPath.style.strokeDasharray  = String(len);
+			gaugeFillPath.style.strokeDashoffset = String(len);
+
+			gaugeFillPath.classList.remove('bad', 'good');
+			gaugeFillPath.classList.add(isPerfectWcagScore ? 'good' : 'bad');
+
+			requestAnimationFrame(() => {
+				gaugeFillPath.style.strokeDashoffset = String(len * (1 - ratio));
+			});
+		}
+
+		const gauge = document.getElementById('wcagGauge');
+		if (gauge) {
+			gauge.setAttribute(
+				'aria-label',
+				`WCAG A & AA automated checks passed: ${checksPassed} out of ${totalChecks}`
+			);
+		}
+	}
+
+	renderWcagGaugeFromScanData();
+</script>

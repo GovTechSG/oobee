@@ -1,0 +1,197 @@
+<script>
+  const a11yPlaygroundLink = 'https://a11y.tech.gov.sg/?utm_source=oobee';
+
+  const whyItMatters = {
+    accesskeys:
+      '<p>\n  Specifying a <code>accesskey</code> attribute value for some part of a\n  document allows users to quickly activate or move the focus to a specific\n  element by pressing the specified key (usually in combination with the\n  <code><kbd>alt</kbd></code> key). Duplicating <code>accesskey</code> values\n  creates unexpected effects that ultimately make the page less accessible.\n</p>',
+    'area-alt':
+      '<p>\n  Screen readers have no way of translating images into words. It is important\n  that all images, including image maps, have <code>alt</code> text values.\n</p>',
+    'aria-allowed-attr':
+      '<p>\n  Using ARIA attributes in roles where they are not allowed can interfere with\n  the accessibility of the web page. Using an invalid role-attribute combination\n  will, at best, result in no effect on the accessibility of the application\n  and, at worst, may trigger behavior that disables accessibility for entire\n  portions of an application.\n</p>',
+    'aria-command-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;link&quot;</code>, <code>role=&quot;button&quot;</code>, or\n  <code>role=&quot;menuitem&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-dialog-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;dialog&quot;</code> or <code>role=&quot;alertdialog&quot;</code> that do not have\n  an accessible name.\n</p>',
+    'aria-hidden-focus':
+      '<p>\n  Using the <code>aria-hidden=&quot;true&quot;</code> attribute on an element removes the\n  element and ALL of its child nodes from the accessibility API making it\n  completely inaccessible to screen readers and other assistive technologies.\n  Aria-hidden may be used with extreme caution to hide visibly rendered content\n  from assistive technologies only if the act of hiding this content is intended\n  to improve the experience for users of assistive technologies by removing\n  redundant or extraneous content. If aria-hidden is used to hide visible\n  content from screen readers, the identical or equivalent meaning and\n  functionality must be exposed to assistive technologies.\n</p>',
+    'aria-input-field-name':
+      '<p>\n  This new rule ensures every ARIA input field has an accessible name.\n  Accessible names must exist for the following input field roles:\n</p>\n<ul>\n  <li>combobox</li>\n  <li>listbox</li>\n  <li>searchbox</li>\n  <li>slider</li>\n  <li>spinbutton</li>\n  <li>textbox</li>\n</ul>',
+    'aria-meter-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;meter&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-progressbar-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;progressbar&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-required-children':
+      '<p>\n  For each role, WAI-ARIA explicitly defines which child and parent roles are\n  allowable and/or required. ARIA <code>role</code>s missing required child\n  <code>role</code>s will not be able to perform the accessibility functions\n  intended by the developer.\n</p>',
+    'aria-required-parent':
+      '<p>\n  For each role, WAI-ARIA explicitly defines which child and parent roles are\n  allowable and/or required. Elements containing ARIA <code>role</code> values\n  missing required parent element <code>role</code> values will not enable\n  assistive technology to function as intended by the developer.\n</p>',
+    'aria-roledescription':
+      '<p>\n  Inappropriate <code>aria-roledescription</code> attribute values that conflict\n  with an element&apos;s implied or explicit <code>role</code> value can interfere\n  with the accessibility of the web page. A conflicting\n  <code>aria-roledescription</code> attribute value may result in no effect on\n  the accessibility of the application and may trigger behavior that disables\n  accessibility for entire portions of an application.\n</p>',
+    'aria-text':
+      '<p>\n  When a text node is split by markup (e.g.\n  <code>&lt;h1&gt;Hello &lt;span&gt;World&lt;/span&gt;&lt;/h1&gt;</code>)\n  VoiceOver will treat it as two separate phrases instead of just one. Adding\n  <code>role=&quot;text&quot;</code> around the elements solves the problem. However, it\n  also overrides the role of the element and all descendants and treats them all\n  as text nodes. If one of the descendant elements is also focusable it would\n  create an empty tab stop. That is, you could tab to the element but VoiceOver\n  would not announce its name, role, or value.\n</p>',
+    'aria-toggle-field-name':
+      '<p>\n  Ensures every element with a semantic role also has an accessible name.\n  Semantic roles include:\n</p>\n<ul>\n  <li>checkbox</li>\n  <li>menu</li>\n  <li>menuitemcheckbox</li>\n  <li>menuitemradio</li>\n  <li>radio</li>\n  <li>radiogroup</li>\n  <li>switch</li>\n</ul>',
+    'aria-tooltip-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;tooltip&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-treeitem-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;treeitem&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-valid-attr-value':
+      '<p>\n  ARIA attributes (i.e. starting with <code>aria-</code>) must contain valid\n  values. These values must be spelled correctly and correspond to values that\n  make sense for a particular attribute to perform the intended accessibility\n  function.\n</p>',
+    'aria-valid-attr':
+      '<p>\n  If the developer uses a non-existent or misspelled ARIA attribute, the\n  attribute will not be able to perform the accessibility function intended by\n  the developer.\n</p>',
+    'autocomplete-valid':
+      '<p>\n  Failure to provide autocomplete values in form fields results in inaccessible\n  content. Screen readers do not read identified autocomplete form fields if the\n  appropriate autocomplete attribute values are missing. Users cannot correctly\n  navigate forms when screen readers cannot provide adequate information to the\n  user regarding form field interaction requirements.\n</p>',
+    'avoid-inline-spacing':
+      '<p>\n  Many people with cognitive disabilities have trouble tracking lines of text\n  when a block of text is single spaced. Providing spacing between 1.5 to 2\n  allows them to start a new line more easily once they have finished the\n  previous one.\n</p>',
+    blink:
+      '<p>\n  As the name suggests, <code>blink</code> tags cause content to flash. Though\n  you may like the effect, blinking text can be difficult to read, and blinking\n  objects (links, buttons, etc.) can be difficult to activate, especially for\n  users with imprecise or limited dexterity.\n</p>',
+    'definition-list':
+      '<p>\n  Screen readers have a specific way of announcing definition lists. When such\n  lists are not properly marked up, this creates the opportunity for confusing\n  or inaccurate screen reader output.\n</p>',
+    dlitem:
+      '<p>\n  A definition list item must be wrapped in parent <code>dl</code> elements,\n  otherwise it will be invalid.\n</p>',
+    'duplicate-id-active':
+      '<p>\n  The ID attribute uniquely identifies focusable elements on a page. It does not\n  make sense to duplicate an active ID.\n</p>',
+    'empty-table-header':
+      '<p>\n  Table header elements should have visible text that describes the purpose of\n  the row or column to both sighted users and screen reader users.\n</p>',
+    'frame-focusable-content':
+      '<p>\n  When a frame has a negative tabindex, the browser is prevented from\n  redirecting the focus to the content inside that frame. This causes all its\n  content from getting skipped in keyboard navigation, and if the frame is\n  scrollable also prevents the focus from reaching any element from which the\n  frame can be scrolled with the keyboard.\n</p>',
+    'frame-tested':
+      '<p>\n  Without the axe-core script, it is not possible for the tool to perform\n  violation checking on multiple levels of nested iframes.\n</p>',
+    'frame-title-unique':
+      '<p>\n  Screen reader users rely on a frame title to describe the contents of the\n  <code>frame</code>. Navigating through frames and iframes can quickly become\n  difficult and confusing for users of this technology if the frames are not\n  marked with a <code>title</code> attribute.\n</p>',
+    'frame-title':
+      '<p>\n  Screen reader users rely on a frame title to describe the contents of the\n  <code>frame</code>. Navigating through <code>frame</code> and\n  <code>iframe</code> elements quickly becomes difficult and confusing for users\n  of this technology if the markup does not contain a\n  <code>title</code> attribute.\n</p>',
+    'html-xml-lang-mismatch':
+      '<p>\n  When configuring a screen reader, users select a default language. If the\n  language of a webpage is not specified, the screen reader assumes the default\n  language set by the user. Multiple languages are an issue for users who speak\n  and access websites in multiple languages. It is essential to specify a\n  default language and ensure that it is valid for screen readers to function\n  correctly.\n</p>',
+    'image-alt':
+      '<p>\n  Screen readers have no way of translating an image into words that gets read\n  to the user, even if the image only consists of text. As a result, it&apos;s\n  necessary for images to have short, descriptive <code>alt</code> text so\n  screen reader users clearly understand the image&apos;s contents and purpose.\n</p>',
+    'image-redundant-alt':
+      '<p>\n  It is unnecessary and potentially confusing to have alternative text for a\n  link or image to be repeated in text adjacent to the link or image since it\n  would be read twice by a screen reader.\n</p>',
+    'input-button-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of an\n  <code>input type=&quot;button&quot;</code> without an accessible name.\n</p>',
+    'input-image-alt':
+      '<p>\n  An <code>&lt;input type=&quot;image&quot;&gt;</code> button must have\n  alternate text, otherwise screen reader users will not know the button&apos;s\n  purpose. Even if the image contains only text, it still requires alternate\n  text, since a screen reader cannot translate images of words into output.\n</p>',
+    'landmark-banner-is-top-level':
+      '<p>\n  If the banner landmark is not the top-level landmark (and is contained within\n  another landmark), it does not effectively designate the pre-defined header\n  portion of the layout in the design and therefore prevents screen reader users\n  from being able to easily find their way around the layout.\n</p>',
+    'landmark-complementary-is-top-level':
+      '<p>\n  Complementary content is ancillary content to the main theme of a document or\n  page. Screen reader users have the option to skip over complementary content\n  when it appears at the top level of the accessibility API. Embedding an\n  <code>&lt;aside&gt;</code> element in another landmark may disable screen\n  reader functionality allowing users to navigate through complementary content.\n</p>',
+    'landmark-contentinfo-is-top-level':
+      '<p>\n  The purpose of the <code>contentinfo</code> landmark can be defeated when\n  placed within another landmark, as it can prevent blind screen reader users\n  from being able to quickly find and navigate to the appropriate landmark.\n</p>',
+    'landmark-main-is-top-level':
+      '<p>\n  Navigating a web page is far simpler for screen reader users if the content\n  splits between some high-level sections. Content outside of these sections is\n  difficult to find, and its purpose may be unclear.\n</p>',
+    'landmark-no-duplicate-banner':
+      '<p>\n  Landmarks allow blind users to navigate and find content quickly. Missing\n  landmarks require screen reader users to sort through too much extra\n  information to find anything.\n</p>',
+    'landmark-no-duplicate-contentinfo':
+      '<p>\n  One of the main purposes of landmarks is to allow blind users to quickly find\n  and navigate to the appropriate landmark, so you should keep the total number\n  of landmarks relatively low. If you don&apos;t, screen reader users will have to\n  sort through too much extra information to find what they&apos;re looking for.\n</p>',
+    'landmark-no-duplicate-main':
+      '<p>\n  Navigating a web page is far simpler for screen reader users if all of the\n  content splits between one or more high-level sections. Content outside of\n  these sections is difficult to find, and its purpose may be unclear.\n</p>',
+    'landmark-unique':
+      '<p>\n  <code>landmark-unique</code> is a new best practice rule ensures that\n  landmarks have a unique role or accessible name (i.e. role, label, title)\n  combination.\n</p>',
+    list: '<p>\n  Screen readers have a specific way of announcing lists. This feature makes\n  lists clearer to understand, but will only work if lists are properly\n  structured.\n</p>',
+    listitem:
+      '<p>\n  For a list to be valid, it must have both parent and child elements. Parent\n  elements can either be a set of <code>ul</code> tags or a set of\n  <code>ol</code> tags. Child elements must be declared inside of these tags\n  using the <code>li</code> tag.\n</p>',
+    marquee:
+      '<p>\n  The <code>marquee</code> element creates scrolling text that is difficult to\n  read and click on. Beyond that, it can be distracting to viewers, especially\n  to those with low vision, cognitive disabilities, or attention deficits.\n</p>',
+    'meta-refresh':
+      '<p>\n  Since users do not expect a page to refresh automatically, such refreshing can\n  be disorienting. Refreshing also moves the programmatic focus back to the top\n  of the page, away from where the user had it. Such resetting is frustrating\n  for users.\n</p>',
+    'object-alt':
+      '<p>\n  Screen readers have no way of translating non-text content into text announced\n  to users. Instead, they read out alternative text. For screen reader users to\n  obtain the information contained in embedded <code>object</code> elements\n  which must contain short, descriptive alternative text.\n</p>',
+    'presentation-role-conflict':
+      '<p>\n  There are certain cases where the semantic role of an element with\n  <code>role=&quot;none&quot;</code> or <code>role=&quot;presentation&quot;</code> does not resolve\n  to none or presentation (respectively). When this happens, the element is not\n  removed from the accessibility tree (as expected) and screen readers are able\n  to interact with it.\n</p>',
+    'role-img-alt':
+      '<p>\n  Screen readers have no way of translating an image into words that gets read\n  to the user, even if the image only consists of text. As a result, it&apos;s\n  necessary for images to have short, descriptive and accessible alternative\n  text so screen reader users clearly understand the image&apos;s contents and\n  purpose.\n</p>',
+    'scope-attr-valid':
+      '<p>\n  The <code>scope</code> attribute makes table navigation much easier for screen\n  reader users, provided that it is used correctly. Incorrectly used,\n  <code>scope</code> can make table navigation much harder and less efficient.\n</p>',
+    'scrollable-region-focusable':
+      '<p>\n  Checks scrollable content for focusable elements enabling keyboard navigation.\n  Keyboard navigation should not fail when focus moves to an element within a\n  scrollable region.\n</p>',
+    'select-name':
+      '<p>\n  Effective form labels are required to make forms accessible. The purpose of\n  form elements such as checkboxes, radio buttons, input fields, etcetera, is\n  often apparent to sighted users, even if the form element is not\n  programmatically labeled. Screen readers users require useful form labels to\n  identify form fields. Adding a label to all form elements eliminates ambiguity\n  and contributes to a more accessible product.\n</p>',
+    'server-side-image-map':
+      '<p>\n  Server-side image maps are not keyboard accessible; mouse clicks are required\n  to access the links contained in the image, making the image inaccessible to\n  people who only use keyboards for their navigation.\n</p>',
+    'skip-link':
+      '<p>\n  Screen readers announce content sequentially as it appears in the HTML file.\n  What this means for users of assistive technology is that the content at the\n  top of the page, typically including the entire navigation, is read out to the\n  user before reaching any of the main content. Since content at the top of the\n  page can often be very lengthy, it can be time-consuming to listen to or tab\n  through all of it when the user is only interested in the main content.\n  Including a skip link in an HTML page is beneficial to blind users, users with\n  low vision, and mouse-only users.\n</p>',
+    'svg-img-alt':
+      "<p>\n If you can't see, images are completely useless without a digital text alternative. The same is true in varying degrees for people with low vision or colour-blindness. \n</p>",
+    tabindex:
+      '<p>\n  Using <code>tabindex</code> with a value greater than 0 can create as many\n  problems as it solves. It creates an unexpected tab order, which makes the\n  page less intuitive and can give the appearance of skipping certain elements\n  entirely.\n</p>',
+    'table-duplicate-name':
+      '<p>\n  When tables have summary and caption text that is identical, screen reader\n  users can be confused and find it difficult to know the name and purpose of\n  the table.\n</p>',
+    'td-headers-attr':
+      "<p>\n  Sighted users can usually tell at a glance what the table's headers are and\n  what their relationship to the data is. For non-sighted users this must be\n  done in the markup.\n</p>",
+    'th-has-data-cells':
+      '<p>\n  When tables are not marked up semantically and do not have the correct header\n  structure, screen reader users cannot correctly perceive the relationships\n  between the cells and their contents visually.\n</p>',
+    'valid-lang':
+      '<p>\n  When configuring a screen reader, users select a default language. If the\n  language of a webpage is not specified, the screen reader assumes it is the\n  default language set by the user. Language selection becomes an issue for\n  users who speak multiple languages and access the website in more than one\n  language. It is essential to specify a language and ensure that it is valid so\n  website text is pronounced correctly.\n</p>',
+    'video-caption':
+      '<p>\n  If a video has no caption, deaf users have limited or no access to the\n  information contained in it. Even if a captions track is available, ensure\n  that it contains all meaningful information in the video, not just dialogue.\n</p>',
+    'no-autoplay-audio':
+      '<p>\n  People who are blind or have low vision and use screen reading software can\n  find it hard to hear the screen reader&apos;s speech output if there is other audio\n  playing at the same time. If automatically playing audio lasts more than three\n  seconds, an easily located, accessible mechanism must be provided to pause or\n  stop the audio or control the audio volume. An audio control allows screen\n  reader users to hear the screen reader without other sounds playing.\n</p>',
+    'aria-hidden-body':
+      '<p>\n  Screen readers do not read content marked with the <code>aria-hidden="true"</code> attribute value. Users can still tab to focusable elements in the hidden objects, but screen readers remain silent.\n</p>',
+    'aria-required-attr':
+      '<p>\n  ARIA widget roles require additional attributes that describe the state of the\n  widget. The state of the widget is not communicated to screen reader users if\n  a required attribute is omitted.\n</p>',
+    bypass:
+      '<p>\n  Since web sites often display secondary, repeated content on multiple pages\n  (such as navigation links, heading graphics, and advertising frames),\n  keyboard-only users benefit from faster, more direct access to the primary\n  content on a page. This reduces keystrokes and minimizes associated physical\n  pain.\n</p>',
+    'color-contrast':
+      '<p>\n  Some people with low vision experience low contrast, meaning that there aren&apos;t\n  very many bright or dark areas. Everything tends to appear about the same\n  brightness, which makes it hard to distinguish outlines, borders, edges, and\n  details. Text that is too close in luminance (brightness) to the background\n  can be hard to read.\n</p>',
+    'document-title':
+      '<p>\n  Screen reader users use page titles to get an overview of the contents of the\n  page. Navigating through pages can quickly become difficult and confusing for\n  screen reader users if the pages are not marked with a title. The page\n  <code>title</code> element is the first thing screen reader users hear when\n  first loading a web page.\n</p>',
+    'duplicate-id-aria':
+      '<p>\n  Duplicate IDs are common validation errors that may break the accessibility of\n  labels, e.g., ARIA elements, form fields, table header cells.\n</p>',
+    'duplicate-id':
+      "<p>\n  The ID attribute uniquely identifies elements on a page. It does not make\n  sense to duplicate an ID.\n</p>\n\n<p>\n  Duplicate ID's can break the accessibility of labels for forms, table header\n  cells, etc., by the second instance being skipped by screen readers, or by\n  client-side scripts. They are common markup validation errors that can\n  eliminate possible sources of accessibility problems, when not breaking\n  accessibility.\n</p>",
+    'empty-heading':
+      '<p>\n  Screen readers alert users to the presence of a heading tag. If the heading is\n  empty or the text cannot be accessed, this could either confuse users or even\n  prevent them from accessing information on the page&apos;s structure.\n</p>',
+    'form-field-multiple-labels':
+      '<p>\n  Assigning multiple labels to the same form field can cause problems for some\n  combinations of screen readers and browsers, and the results are inconsistent\n  from one combination to the next. Some combinations will read the first label.\n  Some will read the last label. Others will read both labels.\n</p>',
+    'heading-order':
+      '<p>\n  The underlying purpose of headers is to convey the structure of the page. For\n  sighted users, the same purpose is achieved using different sizes of text.\n  Text size, however, is not helpful for users of screen readers, because a\n  screen reader identifies a header only if it is properly marked-up. When\n  heading elements are applied correctly, the page becomes much easier to\n  navigate for screen reader users and sighted users alike.\n</p>',
+    'html-has-lang':
+      '<p>\n  When configuring a screen reader, users select a default language. If the\n  language of a webpage is not specified, the screen reader assumes the default\n  language set by the user. Language settings become an issue for users who\n  speak multiple languages and access website in more than one language. It is\n  essential to specify a language and ensure that it is valid so website text is\n  pronounced correctly.\n</p>',
+    'html-lang-valid':
+      '<p>\n  When configuring a screen reader, users select a default language. If the\n  language of a webpage is not specified, the screen reader assumes the default\n  language set by the user. Language settings are an issue for users who speak\n  multiple languages and access website in more than one language. It is\n  essential to specify a language and ensure that it is valid so website text is\n  pronounced correctly.\n</p>',
+    'label-title-only':
+      '<p>\n  The <code>title</code> and <code>aria-describedby</code> attributes are used\n  to provide additional information such as a hint. Hints are exposed to\n  accessibility APIs differently than labels and as such, this can cause\n  problems with assistive technologies.\n</p>',
+    'link-in-text-block':
+      '<p>\n  Some people with low vision experience low contrast, meaning that there aren&apos;t\n  very many bright or dark areas. Everything tends to appear about the same\n  brightness, which makes it hard to distinguish outlines, borders, edges, and\n  details. Text that is too close in luminance (brightness) to the background\n  can be hard to read.\n</p>',
+    'link-name':
+      '<p>\n Inaccessible link elements pose barriers to accessibility, as they are a fundamental component of a website.\n </p>',
+    'meta-viewport-large':
+      '<p>\n  The <code>user-scalable=&quot;no&quot;</code> parameter inside the\n  <code>content</code> attribute of\n  <code>&lt;meta name=&quot;viewport&quot;&gt;</code> element disables zooming on a page.\n  The <code>maximum-scale</code> parameter limits the amount the user can zoom.\n  This is problematic for people with low vision who rely on screen magnifiers\n  to properly see the contents of a web page.\n</p>',
+    'meta-viewport':
+      '<p>\n  The <code>user-scalable=&quot;no&quot;</code> parameter inside the\n  <code>content</code> attribute of\n  <code>&lt;meta name=&quot;viewport&quot;&gt;</code> element disables zooming on a page.\n  The <code>maximum-scale</code> parameter limits the amount the user can zoom.\n  This is problematic for people with low vision who rely on screen magnifiers\n  to properly see the contents of a web page.\n</p>',
+    'nested-interactive':
+      '<p>\n  Focusable elements with an interactive control ancestor (any element that\n  accepts user input such as button or anchor elements) are not announced by\n  screen readers and create an empty tab stop. That is, you could tab to the\n  element but the screen reader will not announce its name, role, or state.\n</p>',
+    'page-has-heading-one':
+      '<p>\n  Screen reader users can use keyboard shortcuts to navigate directly to the\n  first <code>h1</code>, which, in principle, should allow them to jump directly\n  to the main content of the web page. If there is no <code>h1</code>, or if the\n  <code>h1</code> appears somewhere other than at the start of the main content,\n  screen reader users must listen to more of the web page to understand its\n  structure, wasting valuable time.\n</p>',
+    region:
+      '<p>\n  Navigating a web page is far simpler for screen reader users if the content\n  splits between multiple high-level sections. Content outside of sections is\n  difficult to find, and the content&apos;s purpose may be unclear.\n</p>',
+    'button-name':
+      '<p>\n  Screen reader users are not able to discern the purpose of elements with\n  <code>role=&quot;link&quot;</code>, <code>role=&quot;button&quot;</code>, or\n  <code>role=&quot;menuitem&quot;</code> that do not have an accessible name.\n</p>',
+    'aria-allowed-role':
+      '<p>\n  Intended accessible technology behavior by a developer is not enabled when an\n  assigned WAI-ARIA role value is invalid for the parent element.\n</p>',
+    'aria-roles':
+      '<p>\n  Elements assigned invalid ARIA role values are not interpreted by assistive\n  technology as intended by the developer.\n</p>',
+    label:
+      '<p>\n  Effective form labels are required to make forms accessible. The purpose of\n  form elements such as checkboxes, radio buttons, input fields, etcetera, is\n  often apparent to sighted users, even if the form element is not\n  programmatically labeled. Screen readers users require useful form labels to\n  identify form fields. Adding a label to all form elements eliminates ambiguity\n  and contributes to a more accessible product.\n</p>',
+    'landmark-one-main':
+      '<p>\n  Navigating a web page is far simpler for screen reader users if all of the\n  content splits between one or more high-level sections. Content outside of\n  these sections is difficult to find, and its purpose may be unclear.\n</p>',
+    'aria-braille-equivalent':
+      '<p class="rule-desc-text">\nARIA braille attributes were introduced to allow adjusting how labels and role descriptions are rendered on a braille display. They cannot be the only attribute providing a label, or a role description. When used without a corresponding label or role description ARIA says to ignore these attributes, although this may not happen consistently in screen readers and other assistive technologies.\n</p>',
+    'aria-conditional-attr':
+      '<p class="rule-desc-text">\nUsing ARIA attributes on elements where they are not expected can result in unpredictable behavior for assistive technologies. This can lead to a poor user experience for people with disabilities who rely on these technologies. It is important to follow the ARIA specification to ensure that assistive technologies can properly interpret and communicate the intended meaning of the content.\n</p>',
+    'aria-deprecated-role':
+      '<p class="rule-desc-text">\nUsing deprecated WAI-ARIA roles is bad for accessibility. They will not be recognized or correctly processed by screen readers and other assistive technologies. Using these means not everyone will be able to access essential information.\n</p>',
+    'aria-prohibited-attr':
+      '<p class="rule-desc-text">\nUsing ARIA attributes in roles where they are prohibited can mean that important information is not communicated to users of assistive technologies. assistive technologies may also attempt to compensate for the issue, resulting in inconsistent and confusing behavior of these tools.\n</p>',
+    'target-size':
+      '<p>\n Touch targets must have sufficient size and spacing in order to "be easily activated without accidentally activating an adjacent target." When touch targets are too small or too close together, it becomes difficult for users to activate them.\n</p>',
+    'oobee-confusing-alt-text':
+      '<p>\n Alt text should be clear and concise. It should relay informative content / function of the image. If the alt text is too long or confusing, it can be difficult for screen reader users to understand the image.\n</p>',
+    'oobee-accessible-label':
+      '<p>\n Unlabelled clickable elements are inaccessible because it prevents screen readers from effectively conveying the purpose of the element. This causes challenges for screen reader users to navigate and understand the webpage. Clickable elements should also be made focusable by screen readers unless deliberately excluded (e.g. decorative or functionally redundant).\n</p>',
+    'oobee-grading-text-contents':
+      '<p>\n Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.\n</p>',
+  };
+
+  const stepByStepGuide = <%- JSON.stringify(a11yRuleStepByStepGuide) %>;
+</script>

@@ -1,0 +1,82 @@
+<div class="category-badges-container">
+  <div class="category-item">
+    <div class="category-item-inner">
+      <span class="category-badge must-fix">Must Fix</span>
+
+      <span class="category-tooltip-wrapper">
+        <button
+          type="button"
+          class="category-tooltip-icon"
+          aria-describedby="mustFixTooltip"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+               viewBox="0 0 14 14" fill="none" aria-hidden="true" focusable="false">
+            <path d="M6.3 11.2H7.7V9.8H6.3V11.2ZM7 0C3.136 0 0 3.136 0 7C0 10.864 3.136 14 7 14C10.864 14 14 10.864 14 7C14 3.136 10.864 0 7 0ZM7 12.6C3.913 12.6 1.4 10.087 1.4 7C1.4 3.913 3.913 1.4 7 1.4C10.087 1.4 12.6 3.913 12.6 7C12.6 10.087 10.087 12.6 7 12.6ZM7 2.8C5.453 2.8 4.2 4.053 4.2 5.6H5.6C5.6 4.83 6.23 4.2 7 4.2C7.77 4.2 8.4 4.83 8.4 5.6C8.4 7 6.3 6.825 6.3 9.1H7.7C7.7 7.525 9.8 7.35 9.8 5.6C9.8 4.053 8.547 2.8 7 2.8Z"
+                  fill="#38268B"/>
+          </svg>
+        </button>
+
+        <span class="category-tooltip-bubble" id="mustFixTooltip" role="tooltip">
+          Must Fix highlights issues based on the minimum accessibility standards
+          (Level A and AA). Fix them to achieve 20/20 WCAG Score.
+        </span>
+      </span>
+
+      <span><%= items.mustFix.rules.length %> issues</span>
+    </div>
+  </div>
+
+  <div class="category-item">
+    <div class="category-item-inner">
+      <span class="category-badge good-to-fix">Good to Fix</span>
+
+      <span class="category-tooltip-wrapper">
+        <button
+          type="button"
+          class="category-tooltip-icon"
+          aria-describedby="goodToFixTooltip"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+               viewBox="0 0 14 14" fill="none" aria-hidden="true" focusable="false">
+            <path d="M6.3 11.2H7.7V9.8H6.3V11.2ZM7 0C3.136 0 0 3.136 0 7C0 10.864 3.136 14 7 14C10.864 14 14 10.864 14 7C14 3.136 10.864 0 7 0ZM7 12.6C3.913 12.6 1.4 10.087 1.4 7C1.4 3.913 3.913 1.4 7 1.4C10.087 1.4 12.6 3.913 12.6 7C12.6 10.087 10.087 12.6 7 12.6ZM7 2.8C5.453 2.8 4.2 4.053 4.2 5.6H5.6C5.6 4.83 6.23 4.2 7 4.2C7.77 4.2 8.4 4.83 8.4 5.6C8.4 7 6.3 6.825 6.3 9.1H7.7C7.7 7.525 9.8 7.35 9.8 5.6C9.8 4.053 8.547 2.8 7 2.8Z"
+                  fill="#38268B"/>
+          </svg>
+        </button>
+
+        <span class="category-tooltip-bubble" id="goodToFixTooltip" role="tooltip">
+          Good to Fix highlights issues based on WCAG Level AAA, and all industry
+          best practices.
+        </span>
+      </span>
+
+      <span><%= items.goodToFix.rules.length %> issues</span>
+    </div>
+  </div>
+
+  <div class="category-item">
+    <div class="category-item-inner">
+      <span class="category-badge needs-review">Manual Test</span>
+
+      <span class="category-tooltip-wrapper">
+        <button
+          type="button"
+          class="category-tooltip-icon"
+          aria-describedby="manualTestTooltip"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+               viewBox="0 0 14 14" fill="none" aria-hidden="true" focusable="false">
+            <path d="M6.3 11.2H7.7V9.8H6.3V11.2ZM7 0C3.136 0 0 3.136 0 7C0 10.864 3.136 14 7 14C10.864 14 14 10.864 14 7C14 3.136 10.864 0 7 0ZM7 12.6C3.913 12.6 1.4 10.087 1.4 7C1.4 3.913 3.913 1.4 7 1.4C10.087 1.4 12.6 3.913 12.6 7C12.6 10.087 10.087 12.6 7 12.6ZM7 2.8C5.453 2.8 4.2 4.053 4.2 5.6H5.6C5.6 4.83 6.23 4.2 7 4.2C7.77 4.2 8.4 4.83 8.4 5.6C8.4 7 6.3 6.825 6.3 9.1H7.7C7.7 7.525 9.8 7.35 9.8 5.6C9.8 4.053 8.547 2.8 7 2.8Z"
+                  fill="#38268B"/>
+          </svg>
+        </button>
+
+        <span class="category-tooltip-bubble" id="manualTestTooltip" role="tooltip">
+          Manual Test highlights issues that require human testing using screen
+          readers and keyboards.
+        </span>
+      </span>
+
+      <span><%= items.needsReview.rules.length %> issues</span>
+    </div>
+  </div>
+</div>

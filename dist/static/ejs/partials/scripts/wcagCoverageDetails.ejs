@@ -1,0 +1,75 @@
+<script>
+  const makeExternalIcon = () => {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("width", "16");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("viewBox", "0 0 8 8");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    svg.setAttribute("style", "margin-left: 0.3rem");
+    svg.setAttribute("class", "link-external-icon");
+
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute(
+      "d",
+      "M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z"
+    );
+    path.setAttribute("fill", "#5735DF");
+    svg.appendChild(path);
+    return svg;
+  };
+
+  const scanDataWCAGList = () => {
+    const linksMap  = scanData.wcagLinks || {};
+    const labelMap  = scanData.wcagCriteriaLabels || {};
+    const norm = (s) => String(s||"").normalize("NFKC").replace(/\s+/g," ").trim().toUpperCase();
+
+    const labelLookup = new Map(
+      Object.entries(labelMap).map(([k,v]) => [norm(k), String(v).toUpperCase()])
+    );
+
+    const aaa = [];
+    const aaOrA = [];
+    Object.entries(linksMap).forEach(([code, url]) => {
+      const level = labelLookup.get(norm(code));
+      (level === "AAA" ? aaa : aaOrA).push([code, url]);
+    });
+
+    const wcagSort = ([a],[b]) => a.localeCompare(b, undefined, {numeric:true});
+    aaOrA.sort(wcagSort);
+    aaa.sort(wcagSort);
+
+    const listAA   = document.getElementById("wcagLinksListAA");
+    const listAAA  = document.getElementById("wcagLinksListAAA");
+    const countAA  = document.getElementById("wcagAALabelCount");
+    const countAAA = document.getElementById("wcagAAALabelCount");
+
+    const render = (ul, items) => {
+      if (!ul) return;
+      ul.innerHTML = "";
+      items.forEach(([code, url]) => {
+        const li = document.createElement("li");
+
+        const a  = document.createElement("a");
+        a.className = "wcag-link";
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener";
+
+        a.append(document.createTextNode(code), makeExternalIcon()); // text + icon both clickable
+
+        li.appendChild(a);
+        ul.appendChild(li);
+      });
+    };
+
+    render(listAA, aaOrA);
+    render(listAAA, aaa);
+
+    if (countAA)  countAA.textContent  = String(aaOrA.length);
+    if (countAAA) countAAA.textContent = String(aaa.length);
+  };
+
+  scanDataWCAGList();
+</script>

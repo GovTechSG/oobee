@@ -1,0 +1,51 @@
+<script>
+  (function () {
+    const btns = Array.from(document.querySelectorAll('.js-view-btn'));
+    const panes = Array.from(document.querySelectorAll('[data-viewpane]'));
+
+    function showPane(targetId) {
+      // hide all panes
+      panes.forEach(p => p.hidden = true);
+      // deselect all buttons
+      btns.forEach(b => b.setAttribute('aria-selected', 'false'));
+
+      // show the requested pane
+      const pane = document.getElementById(targetId);
+      if (pane) {
+        pane.hidden = false;
+
+        // mark the controlling button active
+        const btn = btns.find(b => b.getAttribute('aria-controls') === targetId);
+        if (btn) btn.setAttribute('aria-selected', 'true');
+
+        // move focus to the pane heading for screen readers/keyboard users
+        const h = pane.querySelector('h4, h3, h2, [role="heading"]');
+        if (h) h.setAttribute('tabindex', '-1'), h.focus();
+      }
+    }
+
+    btns.forEach(b => {
+      b.addEventListener('click', () => showPane(b.getAttribute('aria-controls')));
+      // make Enter/Space work if someone adds role="tab" later
+      b.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); b.click(); }
+      });
+    });
+
+    // initial state: ensure only crawl is visible (or switch here if you prefer WCAG)
+    showPane('view-crawl');
+  })();
+
+  const pagesWord = scanData.totalPagesScanned === 1 ? 'page' : 'pages';
+  const rawLabel = (scanData.customFlowLabel ?? '').trim();
+  const displayLabel = !rawLabel || rawLabel.toLowerCase() === 'none'
+    ? 'Custom Flow'
+    : rawLabel;
+
+  const title = scanData.isCustomFlow
+    ? `${displayLabel} (${scanData.totalPagesScanned} ${pagesWord})`
+    : `${scanData.scanType} crawl (${scanData.totalPagesScanned} ${pagesWord})`;
+
+  document.getElementById('pagesScannedModalLabel').innerHTML = title;
+  document.getElementById('pagesScannedModalToggleTxt').innerHTML = title;
+</script>

@@ -1,0 +1,44 @@
+<section class="about-scan-details-right">
+  <section id="view-crawl" data-viewpane>
+    <h2 id="pagesScannedModalLabel" class="modal-title fw-bold">
+      NA
+    </h2>
+    <%- include('../../scannedPagesSegmentedTabs') %>
+    <div class="seg-panels">
+      <div id="pages-scanned" role="tabpanel">
+        <ul id="pagesScannedList" class="unbulleted-list">
+          <!-- dynamically populated -->
+        </ul>
+      </div>
+      <div id="pages-not-scanned" role="tabpanel" hidden>
+        <ul id="pagesNotScannedList" class="unbulleted-list">
+          <!-- dynamically populated -->
+        </ul>
+      </div>
+      <div id="pages-unsupported" role="tabpanel" hidden>
+        <ul id="unsupportedDocsList" class="unbulleted-list">
+          <!-- dynamically populated -->
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-wcag" data-viewpane hidden>
+    <h2 class="modal-title fw-bold">
+      WCAG Automated Testing Coverage
+    </h2>
+    <p>
+      Only 20 WCAG 2.2 Success Criteria (A &amp; AA) can be checked reasonably through automated testing.
+    </p>
+    <p>
+      <a aria-label="Manual Testing" href="https://go.gov.sg/a11y-manual-testing" target="_blank" rel="noopener">
+        Manual Testing
+        <svg class="link-external-icon" width="16" height="12" viewBox="0 0 8 8" aria-hidden="true" focusable="false">
+          <path d="M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z" fill="#5735DF"/>
+        </svg>
+      </a> is still recommended as they involve subjective judgements and human interpretation, which cannot be fully automated.
+    </p>
+
+    <%- include('../../wcagCoverageDetails') %>
+  </section>
+</section>

@@ -1,0 +1,16 @@
+<% const formattedCategoryTitles = { 
+  mustFix: "Must Fix",
+  goodToFix: "Good to Fix",
+  needsReview: "Manual Review Required",
+  passed: "Passed"
+} %>
+<li class="d-flex align-items-center mb-3 justify-content-between">
+  <span class="d-flex align-items-center d-inline mb-0"
+    ><img alt="<%= category %>Icon" id="summary<%= category %>Icon"><%= formattedCategoryTitles[category] %></span
+  >
+  <span><%= items[category].rules.length %></span>
+</li>
+<% if (category !== 'passed') { %> 
+  <hr/>
+<% } %>
+

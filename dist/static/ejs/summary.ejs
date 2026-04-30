@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" id="accessibility-site-report">
+  <head lang="en">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Oobee Scan Summary</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M23.5 6C11.7707 6 10 11.1369 10 19.23V28.77C10 36.8631 11.7707 42 23.5 42C35.2293 42 37 36.8631 37 28.77V19.23C37 11.1369 35.2293 6 23.5 6ZM25.4903 14.5985V35.0562H21.5097V12.9438H27.8925L25.4903 14.5985Z' fill='%239021A6'/%3E%3C/svg%3E
+      "
+    />
+    <%- include('partials/styles/summaryBootstrap') %> <%- include('partials/styles/highlightjs') %>
+    <%- include('partials/styles/styles') %>
+  </head>
+  <body class="d-flex flex-column">
+    <%- include('partials/summaryHeader') %> <%- include('partials/summaryMain') %> <%-
+    include('partials/scripts/popper') %> <%- include('partials/scripts/bootstrap') %> <%-
+    include('partials/scripts/highlightjs') %> <%- include('partials/scripts/utils') %> <%-
+    include('partials/scripts/ruleModal/ruleOffcanvas') %> <%- include('partials/scripts/summaryScanResults')
+    %>
+    <script>
+      const scanItems = <%- JSON.stringify(
+        {
+          ...items,
+          ...['mustFix','goodToFix','needsReview','passed'].reduce((acc, cat) => {
+            if (items[cat]) {
+              acc[cat] = {
+                ...items[cat],
+                rules: (items[cat].rules || []).map(({ htmlGroups, ...rest }) => rest),
+              };
+            }
+            return acc;
+          }, {}),
+        }
+      ).replace(/<\//g, '<\\/') %>
+    </script>
+    <%- include('partials/scripts/summaryTable') %>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(
+          document.querySelectorAll('[data-bs-toggle="tooltip"]'),
+        );
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+          const tooltip = new bootstrap.Tooltip(tooltipTriggerEl);
+          tooltipTriggerEl.addEventListener('mouseleave', () => tooltip.hide());
+          return tooltip;
+        });
+      });
+    </script>
+  </body>
+</html>

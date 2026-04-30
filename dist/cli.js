@@ -1,0 +1,253 @@
+#!/usr/bin/env node
+import _yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+import printMessage from 'print-message';
+import { devices } from 'playwright';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import { setHeadlessMode, getVersion, getStoragePath, listenForCleanUp, cleanUpAndExit, } from './utils.js';
+import { checkUrl, prepareData, validEmail, validName, getScreenToScan, validateDirPath, validateFilePath, validateCustomFlowLabel, } from './constants/common.js';
+import constants, { ScannerTypes } from './constants/constants.js';
+import { cliOptions, messageOptions } from './constants/cliFunctions.js';
+import combineRun from './combine.js';
+import { consoleLogger } from './logs.js';
+const appVersion = getVersion();
+const yargs = _yargs(hideBin(process.argv));
+const options = yargs
+    .version(false)
+    .usage(`Oobee version: ${appVersion}
+Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`)
+    .strictOptions(true)
+    .options(cliOptions)
+    .example([
+    [
+        `To scan sitemap of website:', 'npm run cli -- -c [ 1 | sitemap ] -u <url_link> [ -d <device> | -w <viewport_width> ]`,
+    ],
+    [
+        `To scan a website', 'npm run cli -- -c [ 2 | website ] -u <url_link> [ -d <device> | -w <viewport_width> ]`,
+    ],
+    [
+        `To start a custom flow scan', 'npm run cli -- -c [ 3 | custom ] -u <url_link> [ -d <device> | -w <viewport_width> ]`,
+    ],
+])
+    .coerce('d', option => {
+    const device = devices[option];
+    if (!device && option !== 'Desktop' && option !== 'Mobile') {
+        printMessage([`Invalid device. Please provide an existing device to start the scan.`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return option;
+})
+    .coerce('w', option => {
+    if (!option || Number.isNaN(option)) {
+        printMessage([`Invalid viewport width. Please provide a number. `], messageOptions);
+        cleanUpAndExit(1);
+    }
+    else if (option < 320 || option > 1080) {
+        printMessage(['Invalid viewport width! Please provide a viewport width between 320-1080 pixels.'], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return option;
+})
+    .coerce('p', option => {
+    if (!Number.isInteger(option) || Number(option) <= 0) {
+        printMessage([`Invalid maximum number of pages. Please provide a positive integer.`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return option;
+})
+    .coerce('t', option => {
+    if (!Number.isInteger(option) || Number(option) <= 0) {
+        printMessage([`Invalid number for max concurrency. Please provide a positive integer.`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return option;
+})
+    .coerce('k', nameEmail => {
+    if (nameEmail.indexOf(':') === -1) {
+        printMessage([`Invalid format. Please provide your name and email address separated by ":"`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    const [name, email] = nameEmail.split(':');
+    if (name === '' || name === undefined || name === null) {
+        printMessage([`Please provide your name.`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    if (!validName(name)) {
+        printMessage([`Invalid name. Please provide a valid name.`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    if (!validEmail(email)) {
+        printMessage([`Invalid email address. Please provide a valid email address.`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return nameEmail;
+})
+    .coerce('e', option => {
+    const validationErrors = validateDirPath(option);
+    if (validationErrors) {
+        printMessage([`Invalid exportDirectory directory path. ${validationErrors}`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return option;
+})
+    .coerce('x', option => {
+    const filename = fileURLToPath(import.meta.url);
+    const dirname = `${path.dirname(filename)}/../`; // check in the parent of dist directory
+    try {
+        return validateFilePath(option, dirname);
+    }
+    catch (err) {
+        printMessage([`Invalid blacklistedPatternsFilename file path. ${err}`], messageOptions);
+        cleanUpAndExit(1);
+    }
+})
+    .coerce('i', option => {
+    const { choices } = cliOptions.i;
+    if (!choices.includes(option)) {
+        printMessage([`Invalid value for fileTypes. Please provide valid keywords: ${choices.join(', ')}.`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return option;
+})
+    .coerce('j', option => {
+    const { isValid, errorMessage } = validateCustomFlowLabel(option);
+    if (!isValid) {
+        printMessage([errorMessage], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return option;
+})
+    .coerce('a', option => {
+    const { choices } = cliOptions.a;
+    if (!choices.includes(option)) {
+        printMessage([`Invalid value for additional. Please provide valid keywords: ${choices.join(', ')}.`], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return option;
+})
+    .coerce('q', option => {
+    try {
+        JSON.parse(option);
+    }
+    catch {
+        // default to empty object
+        return '{}';
+    }
+    return option;
+})
+    .coerce('m', option => {
+    return option;
+})
+    .check(argvs => {
+    if (argvs.scanner === ScannerTypes.CUSTOM && argvs.maxpages) {
+        throw new Error('-p or --maxpages is only available in website, sitemap and local file scans.');
+    }
+    return true;
+})
+    .check(argvs => {
+    const scanner = String(argvs.scanner ?? '');
+    if (argvs.strategy && scanner !== ScannerTypes.WEBSITE && scanner !== ScannerTypes.CUSTOM) {
+        throw new Error('-s or --strategy is only available in website and custom flow scans.');
+    }
+    return true;
+})
+    .coerce('l', option => {
+    const duration = Number(option);
+    if (isNaN(duration) || duration < 0) {
+        printMessage(['Invalid scan duration. Please provide a positive number of seconds.'], messageOptions);
+        cleanUpAndExit(1);
+    }
+    return duration;
+})
+    .check(argvs => {
+    if (argvs.scanner !== ScannerTypes.WEBSITE && argvs.strategy) {
+        throw new Error('-s or --strategy is only available in website scans.');
+    }
+    return true;
+})
+    .conflicts('d', 'w')
+    .parse();
+const scanInit = async (argvs) => {
+    const updatedArgvs = { ...argvs };
+    // Cannot use data.browser and data.isHeadless as the connectivity check comes first before prepareData
+    setHeadlessMode(updatedArgvs.browserToRun, updatedArgvs.headless);
+    const statuses = constants.urlCheckStatuses;
+    let data;
+    try {
+        data = await prepareData(updatedArgvs);
+    }
+    catch (e) {
+        consoleLogger.error(`Error preparing data: ${e.message}\n${e.stack}`);
+        cleanUpAndExit(1);
+    }
+    // Executes cleanUp script if error encountered
+    listenForCleanUp(data.randomToken);
+    const res = await checkUrl(data.type, data.entryUrl, data.browser, data.userDataDirectory, data.playwrightDeviceDetailsObject, data.extraHTTPHeaders, data.fileTypes);
+    if (res.httpStatus)
+        consoleLogger.info(`Connectivity Check HTTP Response Code: ${res.httpStatus}`);
+    if (res.status === statuses.success.code) {
+        data.url = res.url;
+        if (process.env.OOBEE_VALIDATE_URL) {
+            consoleLogger.info('Url is valid');
+            cleanUpAndExit(0, data.randomToken);
+            return;
+        }
+        // fall through (continue normal flow after success)
+    }
+    else {
+        const match = Object.values(statuses).find((s) => s.code === res.status);
+        const msg = match && 'message' in match ? match.message : 'Unknown error';
+        printMessage([msg], messageOptions);
+        consoleLogger.info(msg);
+        cleanUpAndExit(res.status);
+        return;
+    }
+    if (process.env.OOBEE_VERBOSE) {
+        const randomTokenMessage = {
+            type: 'randomToken',
+            payload: `${data.randomToken}`,
+        };
+        if (process.send) {
+            process.send(JSON.stringify(randomTokenMessage));
+        }
+    }
+    const screenToScan = getScreenToScan(data.deviceChosen, data.customDevice, data.viewportWidth);
+    printMessage([`Oobee version: ${appVersion}`, 'Starting scan...'], messageOptions);
+    consoleLogger.info(`Oobee version: ${appVersion}`);
+    await combineRun(data, screenToScan);
+    return getStoragePath(data.randomToken);
+};
+const optionsAnswer = {
+    scanner: options.scanner,
+    header: options.header,
+    browserToRun: options.browserToRun,
+    zip: options.zip,
+    url: options.url,
+    finalUrl: options.finalUrl,
+    headless: options.headless,
+    maxpages: options.maxpages,
+    metadata: options.metadata,
+    safeMode: options.safeMode,
+    strategy: options.strategy,
+    fileTypes: options.fileTypes,
+    nameEmail: options.nameEmail,
+    additional: options.additional,
+    customDevice: options.customDevice,
+    deviceChosen: options.deviceChosen,
+    followRobots: options.followRobots,
+    customFlowLabel: options.customFlowLabel,
+    viewportWidth: options.viewportWidth,
+    isLocalFileScan: options.isLocalFileScan,
+    exportDirectory: options.exportDirectory,
+    clonedBrowserDataDir: options.clonedBrowserDataDir,
+    specifiedMaxConcurrency: options.specifiedMaxConcurrency,
+    blacklistedPatternsFilename: options.blacklistedPatternsFilename,
+    playwrightDeviceDetailsObject: options.playwrightDeviceDetailsObject,
+    ruleset: options.ruleset,
+    generateJsonFiles: options.generateJsonFiles,
+    scanDuration: options.scanDuration,
+};
+await scanInit(optionsAnswer);
+cleanUpAndExit(0);
+export default options;

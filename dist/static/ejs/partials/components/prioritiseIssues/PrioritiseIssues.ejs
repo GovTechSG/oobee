@@ -1,0 +1,47 @@
+<div id="prioritiseIssuesCard" class="card rounded mt-4">
+  <div class="card-body">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <svg
+        width="40"
+        height="40"
+        viewBox="0 0 40 40"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <g clip-path="url(#clip0_281_401)">
+          <path
+            d="M15.0002 34.9997C15.0002 35.9163 15.7502 36.6663 16.6668 36.6663H23.3335C24.2502 36.6663 25.0002 35.9163 25.0002 34.9997V33.333H15.0002V34.9997ZM20.0002 3.33301C13.5668 3.33301 8.3335 8.56634 8.3335 14.9997C8.3335 18.9663 10.3168 22.4497 13.3335 24.5663V28.333C13.3335 29.2497 14.0835 29.9997 15.0002 29.9997H25.0002C25.9168 29.9997 26.6668 29.2497 26.6668 28.333V24.5663C29.6835 22.4497 31.6668 18.9663 31.6668 14.9997C31.6668 8.56634 26.4335 3.33301 20.0002 3.33301ZM23.3335 22.833V26.6663H16.6668V22.833C14.1335 21.0497 11.6668 19.2163 11.6668 14.9997C11.6668 10.3997 15.4002 6.66634 20.0002 6.66634C24.6002 6.66634 28.3335 10.3997 28.3335 14.9997C28.3335 19.1497 25.8168 21.083 23.3335 22.833Z"
+            fill="#4D34BF"
+          />
+          <path
+            d="M19 10.5C19 10.2239 19.2239 10 19.5 10H20.5C20.7761 10 21 10.2239 21 10.5V17.5C21 17.7761 20.7761 18 20.5 18H19.5C19.2239 18 19 17.7761 19 17.5V10.5Z"
+            fill="#4D34BF"
+          />
+          <path
+            d="M19 20.5C19 20.2239 19.2239 20 19.5 20H20.5C20.7761 20 21 20.2239 21 20.5V21.5C21 21.7761 20.7761 22 20.5 22H19.5C19.2239 22 19 21.7761 19 21.5V20.5Z"
+            fill="#4D34BF"
+          />
+        </g>
+        <defs>
+          <clipPath id="clip0_281_401">
+            <rect width="40" height="40" fill="white" />
+          </clipPath>
+        </defs>
+      </svg>
+      <h2 class="mb-0">Prioritise these issues first</h2>
+    </div>
+    
+    <div class="prioritise-issues-container">
+      <div class="prioritise-issues-main">
+        <div class="fw-semibold mb-3">
+          <%- include('../shared/InfoAlert', { text: 'Resolving each Must Fix issue within a criteria increases your WCAG score by 1.' }) %>
+        </div>
+        <div id="prioritiseIssuesAccordion" class="prioritise-issues-accordion">
+          <!-- Dynamically populated by script -->
+        </div>
+      </div>
+      
+      <%- include('./IssueDetailCard') %>
+    </div>
+  </div>
+</div>
