@@ -1165,6 +1165,8 @@ export const removeOverlayMenu = async page => {
 
 export const initNewPage = async (page, pageClosePromises, processPageParams, pagesDict) => {
   let menuPos = MENU_POSITION.right;
+  let overlayRefreshSeq = 0;
+  let overlayRefreshChain = Promise.resolve();
 
   // eslint-disable-next-line no-underscore-dangle
   const pageId = page._guid;
@@ -1194,6 +1196,63 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
     };
   }
 
+  const reconcileOverlayMenu = async (trigger: string) => {
+    // Mark this as the latest refresh so older ones can stop.
+    const refreshSeq = ++overlayRefreshSeq;
+
+    // Serialize overlay updates so multiple navigation events do not add/remove concurrently.
+    overlayRefreshChain = overlayRefreshChain
+      .catch(() => {})
+      .then(async () => {
+        if (refreshSeq !== overlayRefreshSeq || page.isClosed()) return;
+
+        try {
+          // `framenavigated` can fire before the new document is ready for DOM inspection/injection.
+          await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
+        } catch {
+          // Best effort only. The page may still be mid-navigation.
+        }
+
+        try {
+          // Give fast redirect chains a brief chance to advance before we inject/remove the overlay.
+          await page.waitForTimeout(300);
+        } catch {
+          // Best effort only. The page may already be closing.
+        }
+
+        // Re-check staleness after waiting because a newer navigation may have happened meanwhile.
+        if (refreshSeq !== overlayRefreshSeq || page.isClosed()) return;
+
+        const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
+
+        if (!allowed) {
+          await removeOverlayMenu(page);
+          return;
+        }
+
+        const hasOverlay = await page.evaluate(() =>
+          Boolean(document.querySelector('#oobeeShadowHost')),
+        );
+
+        consoleLogger.info(`Overlay state (${trigger}): ${hasOverlay}`);
+
+        if (!hasOverlay) {
+          // Recreate the overlay after allowed redirects while preserving current UI state.
+          consoleLogger.info(`Adding overlay menu to page (${trigger}): ${page.url()}`);
+          await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
+            inProgress: !!pagesDict[pageId]?.isScanning,
+            collapsed: !!pagesDict[pageId]?.collapsed,
+            hideStopInput: !!processPageParams.customFlowLabel,
+          });
+        }
+      })
+      .catch(() => {
+        consoleLogger.info('Error in adding overlay menu to page');
+      });
+
+    await overlayRefreshChain;
+  };
+
   type handleOnScanClickFunction = () => void;
 
   // Window functions exposed in browser
@@ -1208,17 +1267,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       pagesDict[pageId].isScanning = false;
 
       if (page.isClosed()) return;
-      const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
-
-      if (allowed) {
-        await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
-          inProgress: false,
-          collapsed: !!pagesDict[pageId]?.collapsed,
-          hideStopInput: !!processPageParams.customFlowLabel,
-        });
-      } else {
-        await removeOverlayMenu(page);
-      }
+      await reconcileOverlayMenu('scan-click');
     } catch (error) {
       log(`Scan failed ${error}`);
     }
@@ -1282,40 +1331,23 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
   page.on('domcontentloaded', async () => {
     if (page.isClosed()) return;
-    try {
-      const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
+    await reconcileOverlayMenu('domcontentloaded');
 
-      if (!allowed) {
-        await removeOverlayMenu(page);
-        return;
+    if (isCypressTest) {
+      try {
+        await handleOnScanClick();
+        page.close();
+      } catch {
+        consoleLogger.info(
+          `Error in calling handleOnScanClick, isCypressTest: ${isCypressTest}`,
+        );
       }
-
-      const existingOverlay = await page.evaluate(() => {
-        return document.querySelector('#oobeeShadowHost');
-      });
-
-      consoleLogger.info(`Overlay state: ${existingOverlay}`);
-
-      if (!existingOverlay) {
-        consoleLogger.info(`Adding overlay menu to page: ${page.url()}`);
-        await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
-          inProgress: !!pagesDict[pageId]?.isScanning,
-          collapsed: !!pagesDict[pageId]?.collapsed,
-          hideStopInput: !!processPageParams.customFlowLabel,
-        });
-      }
-
-      if (isCypressTest) {
-        try {
-          await handleOnScanClick();
-          page.close();
-        } catch {
-          consoleLogger.info(`Error in calling handleOnScanClick, isCypressTest: ${isCypressTest}`);
-        }
-      }
-    } catch {
-      consoleLogger.info('Error in adding overlay menu to page');
     }
+  });
+
+  page.on('framenavigated', async (frame: any) => {
+    if (frame !== page.mainFrame() || page.isClosed()) return;
+    await reconcileOverlayMenu('framenavigated');
   });
 
   try {
@@ -1336,6 +1368,8 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   } catch (e) {
     log(`Error exposing functions on page: ${e}`);
   }
+
+  await reconcileOverlayMenu('init');
 
   return page;
 };

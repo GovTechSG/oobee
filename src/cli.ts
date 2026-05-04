@@ -250,7 +250,11 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     consoleLogger.info(`Connectivity Check HTTP Response Code: ${res.httpStatus}`);
 
   if (res.status === statuses.success.code) {
-    data.url = res.url;
+    // Custom flow should continue from the user-provided entry URL so auth redirects
+    // do not replace the original domain used for overlay gating and navigation.
+    if (data.type !== ScannerTypes.CUSTOM) {
+      data.url = res.url;
+    }
     if (process.env.OOBEE_VALIDATE_URL) {
       consoleLogger.info('Url is valid');
       cleanUpAndExit(0, data.randomToken);
