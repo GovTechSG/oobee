@@ -40,6 +40,7 @@ const RESTRICT_OVERLAY_TO_ENTRY_DOMAIN = parseBoolEnv(
   process.env.RESTRICT_OVERLAY_TO_ENTRY_DOMAIN,
   false,
 );
+const OVERLAY_OPERATION_TIMEOUT_MS = 5000;
 
 const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
   try {
@@ -306,7 +307,7 @@ export const addOverlayMenu = async (
     collapsed: false,
   },
 ) => {
-  await page.waitForLoadState('domcontentloaded');
+  await page.waitForLoadState('domcontentloaded', { timeout: OVERLAY_OPERATION_TIMEOUT_MS });
   consoleLogger.info(`Overlay menu: adding to ${menuPos}...`);
 
   // Add the overlay menu with initial styling
@@ -1143,6 +1144,7 @@ export const addOverlayMenu = async (
     })
     .catch(error => {
       consoleLogger.error('Overlay menu: failed to add', error);
+      throw error;
     });
 };
 
@@ -1226,7 +1228,18 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
 
         if (!allowed) {
-          await removeOverlayMenu(page);
+          await Promise.race([
+            removeOverlayMenu(page),
+            new Promise((_, reject) => {
+              setTimeout(() => {
+                reject(
+                  new Error(
+                    `removeOverlayMenu timed out after ${OVERLAY_OPERATION_TIMEOUT_MS}ms`,
+                  ),
+                );
+              }, OVERLAY_OPERATION_TIMEOUT_MS);
+            }),
+          ]);
           return;
         }
 
@@ -1239,11 +1252,20 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         if (!hasOverlay) {
           // Recreate the overlay after allowed redirects while preserving current UI state.
           consoleLogger.info(`Adding overlay menu to page (${trigger}): ${page.url()}`);
-          await addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
-            inProgress: !!pagesDict[pageId]?.isScanning,
-            collapsed: !!pagesDict[pageId]?.collapsed,
-            hideStopInput: !!processPageParams.customFlowLabel,
-          });
+          await Promise.race([
+            addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
+              inProgress: !!pagesDict[pageId]?.isScanning,
+              collapsed: !!pagesDict[pageId]?.collapsed,
+              hideStopInput: !!processPageParams.customFlowLabel,
+            }),
+            new Promise((_, reject) => {
+              setTimeout(() => {
+                reject(
+                  new Error(`addOverlayMenu timed out after ${OVERLAY_OPERATION_TIMEOUT_MS}ms`),
+                );
+              }, OVERLAY_OPERATION_TIMEOUT_MS);
+            }),
+          ]);
         }
       })
       .catch(() => {
