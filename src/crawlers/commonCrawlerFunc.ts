@@ -406,7 +406,8 @@ const buildContrastRecommendation = (example: ContrastExample): string | null =>
   // parseFloat handles "4.5:1" → 4.5 because it stops at the non-numeric ':'.
   // The value is either 4.5 (Situation A, normal text) or 3 (Situation B,
   // large text), as determined by axe-core from the element's font metrics.
-  const required = parseFloat(example.expectedContrastRatio);
+  const CONTRAST_BUFFER = 1.05;
+  const required = parseFloat(example.expectedContrastRatio) * CONTRAST_BUFFER;
   if (isNaN(required)) return null;
 
   // Find the nearest compliant foreground (try both directions, pick closest).
