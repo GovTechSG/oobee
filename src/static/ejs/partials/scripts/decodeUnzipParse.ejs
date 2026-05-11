@@ -28,8 +28,11 @@ async function decodeUnzipParse(input) {
       offset += arr.length;
     }
 
-    // Step 2: Decompress with pako (GZIP)
-    const decompressed = pako.ungzip(merged, { to: 'string' });
+    // Step 2: Decompress with pako (GZIP) to bytes first to avoid large-string
+    // construction inside pako for very large payloads.
+    const decompressedBytes = pako.ungzip(merged);
+
+    const decompressed = new TextDecoder().decode(decompressedBytes);
 
     // Step 3: Parse JSON
     return JSON.parse(decompressed);

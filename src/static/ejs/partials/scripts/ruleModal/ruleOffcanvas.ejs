@@ -270,8 +270,8 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
           if (!Array.isArray(rule.pagesAffected)) return;
 
           rule.pagesAffected.sort((a, b) => {
-            const lenA = Array.isArray(a.items) ? a.items.length : 0;
-            const lenB = Array.isArray(b.items) ? b.items.length : 0;
+            const lenA = Array.isArray(a.items) ? a.items.length : a.itemsCount || 0;
+            const lenB = Array.isArray(b.items) ? b.items.length : b.itemsCount || 0;
             return lenB - lenA; // DESC
           });
         });

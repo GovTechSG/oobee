@@ -185,15 +185,15 @@ const writeHTML = async (
     'utf-8',
   );
 
-  // Create lighter version with item references for embedding in HTML
-  const scanItemsWithHtmlGroupRefs = convertItemsToReferences(allIssues);
+  // Create the lighter scanItems payload for embedding in the HTML report.
+  const lightScanItemsPayload = convertItemsToReferences(allIssues);
 
   // Write the lighter items to a file and get the base64 path
   const {
-    jsonFilePath: scanItemsWithHtmlGroupRefsJsonFilePath,
-    base64FilePath: scanItemsWithHtmlGroupRefsBase64FilePath,
+    jsonFilePath: lightScanItemsPayloadJsonFilePath,
+    base64FilePath: lightScanItemsPayloadBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(
-    scanItemsWithHtmlGroupRefs.items,
+    lightScanItemsPayload,
     storagePath,
     'scanItems-light',
   );
@@ -212,8 +212,8 @@ const writeHTML = async (
         await Promise.all([
           fs.promises.unlink(topFilePath),
           fs.promises.unlink(bottomFilePath),
-          fs.promises.unlink(scanItemsWithHtmlGroupRefsBase64FilePath),
-          fs.promises.unlink(scanItemsWithHtmlGroupRefsJsonFilePath),
+          fs.promises.unlink(lightScanItemsPayloadBase64FilePath),
+          fs.promises.unlink(lightScanItemsPayloadJsonFilePath),
         ]);
       } catch (err) {
         console.error('Error cleaning up temporary files:', err);
@@ -251,6 +251,9 @@ const writeHTML = async (
   } else {
     console.warn('Skipping fetch GenAI feature as it is local report');
   }
+
+  var scanData = null;
+  var scanItems = null;
   \n`);
 
     outputStream.write('</script>\n<script type="text/plain" id="scanDataRaw">');
@@ -259,14 +262,14 @@ const writeHTML = async (
     scanDetailsReadStream.on('end', async () => {
       outputStream.write('</script>\n<script>\n');
       outputStream.write(
-        "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); })();\n",
+        "var scanDataPromise = (async () => { console.log('Loading scanData...'); scanData = await decodeUnzipParse(document.getElementById('scanDataRaw').textContent); console.log('[report] scanData loaded'); })();\n",
       );
       outputStream.write('</script>\n');
 
       // Write scanItems in 2MB chunks using a stream to avoid loading entire file into memory
       try {
         let chunkIndex = 1;
-        const scanItemsStream = fs.createReadStream(scanItemsWithHtmlGroupRefsBase64FilePath, {
+        const scanItemsStream = fs.createReadStream(lightScanItemsPayloadBase64FilePath, {
           encoding: 'utf8',
           highWaterMark: CHUNK_SIZE,
         });
@@ -291,6 +294,7 @@ var scanItemsPromise = (async () => {
     i++;
   }
   scanItems = await decodeUnzipParse(chunks);
+  console.log('[report] scanItems loaded');
 })();\n`);
         outputStream.write(suffixData);
         outputStream.end();

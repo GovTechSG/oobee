@@ -22,6 +22,7 @@ import constants, {
   a11yRuleShortDescriptionMap,
   disabilityBadgesMap,
   a11yRuleLongDescriptionMap,
+  a11yRuleStepByStepGuide,
 } from './constants/constants.js';
 
 import { consoleLogger } from './logs.js';
@@ -65,7 +66,12 @@ const ensureCategory = (
     if (typeof rule.totalItems !== 'number') {
       rule.totalItems = rule.pagesAffected.reduce(
         (accumulate: number, page: any) =>
-          accumulate + (Array.isArray(page.items) ? page.items.length : 0),
+          accumulate +
+          (Array.isArray(page.items)
+            ? page.items.length
+            : typeof page.itemsCount === 'number'
+              ? page.itemsCount
+              : 0),
         0,
       );
     }
@@ -87,7 +93,10 @@ const ensureCategory = (
   };
 };
 
-export const generateHtmlReport = async (resultDir: string): Promise<string> => {
+export const generateHtmlReport = async (
+  resultDir: string,
+  htmlFilename = 'report',
+): Promise<string> => {
   try {
     const storagePath = path.resolve(resultDir);
     const scanDataJsonPath = path.join(storagePath, 'scanData.json');
@@ -117,24 +126,22 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
     const scanData = JSON.parse(await fs.readFile(scanDataJsonPath, 'utf8'));
     const scanItemsAll = JSON.parse(await fs.readFile(scanItemsJsonPath, 'utf8'));
 
-    // Use convertItemsToReferences to normalize items structure to match scanItemsWithHtmlGroupRefs format
-    const scanItemsWithHtmlGroupRefs = convertItemsToReferences({
+    // Build the lighter scanItems payload used by the HTML report.
+    const lightScanItemsPayload = convertItemsToReferences({
       items: scanItemsAll,
-      ...scanData
     });
 
     const {
       mustFix = {},
       goodToFix = {},
       needsReview = {},
-      passed = {},
-    } = scanItemsWithHtmlGroupRefs;
+    } = lightScanItemsPayload;
 
     const items = {
       mustFix: ensureCategory(mustFix, 'mustFix'),
       goodToFix: ensureCategory(goodToFix, 'goodToFix'),
       needsReview: ensureCategory(needsReview, 'needsReview'),
-      passed: ensureCategory(passed, 'passed'),
+      passed: ensureCategory(scanItemsAll.passed || {}, 'passed'),
     };
 
     const pagesScanned = Array.isArray(scanData.pagesScanned) ? scanData.pagesScanned : [];
@@ -183,6 +190,8 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       a11yRuleShortDescriptionMap,
       disabilityBadgesMap,
       a11yRuleLongDescriptionMap,
+      a11yRuleStepByStepGuide,
+      wcagCriteriaLabels: constants.wcagCriteriaLabels,
       advancedScanOptionsSummaryItems: {
         showIncludeScreenshots: !!scanData.advancedScanOptionsSummaryItems?.showIncludeScreenshots,
         showAllowSubdomains: !!scanData.advancedScanOptionsSummaryItems?.showAllowSubdomains,
@@ -217,10 +226,11 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       (allIssues as any).advancedScanOptionsSummaryItems?.disableOobee,
     );
 
-    await writeHTML(allIssues, storagePath, 'report', scanDataB64Path, scanItemsB64Path);
+    await writeHTML(allIssues, storagePath, htmlFilename, scanDataB64Path, scanItemsB64Path);
 
-    consoleLogger.info(`Report generated at: ${path.join(storagePath, 'report.html')}`);
-    return path.join(storagePath, 'report.html');
+    const outputPath = path.join(storagePath, `${htmlFilename}.html`);
+    consoleLogger.info(`Report generated at: ${outputPath}`);
+    return outputPath;
   } catch (err: any) {
     consoleLogger.error(`generateHtmlReport failed: ${err?.message || err}`);
     throw err;

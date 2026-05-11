@@ -1,10 +1,44 @@
 <script>
   /**
-   * Resolves item references (composite "html\x00xpath" strings) to full item data using htmlGroups.
+   * Rebuilds the item list for a page from pre-computed htmlGroups when the light report omits page.items.
+   */
+  function buildItemsFromHtmlGroupsForPage(page, ruleInCategory) {
+    const htmlGroups = ruleInCategory.htmlGroups || {};
+    const resolvedItems = [];
+
+    Object.values(htmlGroups).forEach(groupData => {
+      if (!Array.isArray(groupData.pageUrls) || !groupData.pageUrls.includes(page.url)) {
+        return;
+      }
+
+      resolvedItems.push({
+        html: groupData.html,
+        xpath: groupData.xpath,
+        message: groupData.message,
+        screenshotPath: groupData.screenshotPath,
+        displayNeedsReview: groupData.displayNeedsReview,
+        pageUrl: page.url,
+        pageTitle: page.pageTitle || page.metadata
+      });
+    });
+
+    return resolvedItems;
+  }
+
+  /**
+   * The embedded report payload now omits page.items and rebuilds occurrences from
+   * htmlGroups + page metadata. Keep the older page.items resolution logic below
+   * commented for an easy rollback if we need to restore mixed payload support.
    */
   function resolveItemReferencesForPage(page, ruleInCategory) {
+    return buildItemsFromHtmlGroupsForPage(page, ruleInCategory);
+
+    /*
     const items = page.items || [];
-    if (items.length === 0) return [];
+
+    if (items.length === 0) {
+      return buildItemsFromHtmlGroupsForPage(page, ruleInCategory);
+    }
 
     const isReference = typeof items[0] === 'string';
 
@@ -27,6 +61,7 @@
           pageTitle: page.pageTitle || page.metadata
         };
       }
+
       // Fallback: parse composite key
       const nullByteIndex = compositeKey.indexOf('\x00');
       const html = nullByteIndex !== -1 ? compositeKey.slice(0, nullByteIndex) : compositeKey;
@@ -40,6 +75,7 @@
         pageTitle: page.pageTitle || page.metadata
       };
     });
+    */
   }
 
   function buildItemCardsWithPagination(accordionId, category, ruleInCategory, page, index) {
