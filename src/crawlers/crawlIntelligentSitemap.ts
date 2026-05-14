@@ -18,7 +18,7 @@ const crawlIntelligentSitemap = async (
   maxRequestsPerCrawl: number,
   browser: string,
   userDataDirectory: string,
-  strategy: EnqueueStrategy,
+  strategy: EnqueueStrategy | string,
   specifiedMaxConcurrency: number,
   fileTypes: FileTypes,
   blacklistedPatterns: string[],

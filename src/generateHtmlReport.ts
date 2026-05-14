@@ -186,6 +186,7 @@ export const generateHtmlReport = async (resultDir: string): Promise<string> => 
       advancedScanOptionsSummaryItems: {
         showIncludeScreenshots: !!scanData.advancedScanOptionsSummaryItems?.showIncludeScreenshots,
         showAllowSubdomains: !!scanData.advancedScanOptionsSummaryItems?.showAllowSubdomains,
+        showOnlySubpages: !!scanData.advancedScanOptionsSummaryItems?.showOnlySubpages,
         showEnableCustomChecks: !!scanData.advancedScanOptionsSummaryItems?.showEnableCustomChecks,
         showEnableWcagAaa: !!scanData.advancedScanOptionsSummaryItems?.showEnableWcagAaa,
         showSlowScanMode: !!scanData.advancedScanOptionsSummaryItems?.showSlowScanMode,

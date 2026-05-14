@@ -29,7 +29,7 @@ import {
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
 } from '../constants/common.js';
-import { areLinksEqual, isFollowStrategy, register } from '../utils.js';
+import { areLinksEqual, getMatchPathPrefix, isFollowStrategy, register } from '../utils.js';
 import {
   handlePdfDownload,
   runPdfScan,
@@ -84,7 +84,7 @@ const crawlDomain = async ({
   maxRequestsPerCrawl: number;
   browser: string;
   userDataDirectory: string;
-  strategy: EnqueueStrategy;
+  strategy: EnqueueStrategy | string;
   specifiedMaxConcurrency: number;
   fileTypes: FileTypes;
   blacklistedPatterns: string[];
@@ -122,6 +122,7 @@ const crawlDomain = async ({
   );
   const isScanHtml = [FileTypes.All, FileTypes.HtmlOnly].includes(fileTypes as FileTypes);
   const isScanPdfs = [FileTypes.All, FileTypes.PdfOnly].includes(fileTypes as FileTypes);
+  const matchPathPrefix = strategy === 'same-path' ? getMatchPathPrefix(url) : '';
   const { maxConcurrency } = constants;
   const { playwrightDeviceDetailsObject } = viewportSettings;
 
@@ -168,7 +169,10 @@ const crawlDomain = async ({
     const isExcluded = (newPageUrl: string): boolean => {
       const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
       const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl, blacklistedPatterns);
-      const isNotFollowStrategy: boolean = !isFollowStrategy(newPageUrl, initialPageUrl, strategy);
+      const isNotFollowStrategy: boolean =
+        strategy === 'same-path'
+          ? !newPageUrl.startsWith(matchPathPrefix)
+          : !isFollowStrategy(newPageUrl, initialPageUrl, strategy);
       const isNotSupportedDocument: boolean = disallowedListOfPatterns.some(pattern =>
         newPageUrl.toLowerCase().startsWith(pattern),
       );
@@ -333,7 +337,8 @@ const crawlDomain = async ({
       await enqueueLinks({
         // set selector matches anchor elements with href but not contains # or starting with mailto:
         selector: `a:not(${disallowedSelectorPatterns})`,
-        strategy,
+        strategy:
+          strategy === 'same-path' ? EnqueueStrategy.SameHostname : (strategy as EnqueueStrategy),
         requestQueue,
         transformRequestFunction: (req: RequestOptions): RequestOptions | null => {
           try {
@@ -341,6 +346,7 @@ const crawlDomain = async ({
           } catch (e) {
             consoleLogger.error(e);
           }
+          if (strategy === 'same-path' && !req.url.startsWith(matchPathPrefix)) return null;
           if (scannedUrlSet.has(req.url)) {
             req.skipNavigation = true;
           }
@@ -475,7 +481,10 @@ const crawlDomain = async ({
           const requestLabelUrl = request.label;
 
           // to handle scenario where the redirected link is not within the scanning website
-          const isLoadedUrlFollowStrategy = isFollowStrategy(finalUrl, requestLabelUrl, strategy);
+          const isLoadedUrlFollowStrategy =
+            strategy === 'same-path'
+              ? finalUrl.startsWith(matchPathPrefix)
+              : isFollowStrategy(finalUrl, requestLabelUrl, strategy);
           if (!isLoadedUrlFollowStrategy) {
             finalUrl = requestLabelUrl;
           }
@@ -513,7 +522,9 @@ const crawlDomain = async ({
           }
 
           if (
-            !isFollowStrategy(url, actualUrl, strategy) &&
+            !(strategy === 'same-path'
+              ? actualUrl.startsWith(matchPathPrefix)
+              : isFollowStrategy(url, actualUrl, strategy)) &&
             (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))
           ) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
