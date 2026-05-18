@@ -1,0 +1,40 @@
+<script>
+/**
+ * Decodes a Base64-encoded, GZIP-compressed JSON string.
+ * Accepts either a single base64 string or an array of base64 chunks.
+ * @param {string|string[]} input - The encoded string or array of encoded chunks
+ * @returns {Promise<Object>} - The parsed JSON object
+ */
+async function decodeUnzipParse(input) {
+  try {
+    // Step 1: Base64 decode each chunk into Uint8Array, then merge
+    const chunks = Array.isArray(input) ? input : [input];
+    const byteArrays = [];
+    for (const chunk of chunks) {
+      const binaryString = atob(chunk);
+      const chunkBytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        chunkBytes[i] = binaryString.charCodeAt(i);
+      }
+      byteArrays.push(chunkBytes);
+    }
+
+    // Merge all byte arrays into one
+    const totalLength = byteArrays.reduce((sum, arr) => sum + arr.length, 0);
+    const merged = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const arr of byteArrays) {
+      merged.set(arr, offset);
+      offset += arr.length;
+    }
+
+    // Step 2: Decompress with pako (GZIP)
+    const decompressed = pako.ungzip(merged, { to: 'string' });
+
+    // Step 3: Parse JSON
+    return JSON.parse(decompressed);
+  } catch (err) {
+    throw new Error(`Failed to decode/unzip/parse: ${err.message}`);
+  }
+}
+</script>

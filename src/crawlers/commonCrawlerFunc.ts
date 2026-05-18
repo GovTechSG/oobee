@@ -9,7 +9,7 @@ import {
   saflyIconSelector,
 } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
-import { takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
+import { enrichColorContrastDOMContext, takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath } from '../constants/common.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
@@ -36,8 +36,30 @@ export interface ResultWithScreenshot extends Result {
   nodes: NodeResultWithScreenshot[];
 }
 
+export type ContrastDOMContext = {
+  /** Raw computed background-image value on the element itself (empty string if none). */
+  backgroundImage: string;
+  /** True when the element's own background-image contains a CSS gradient. */
+  hasGradient: boolean;
+  /** True when the element's own background-image is a url() image (not a gradient). */
+  hasBackgroundImage: boolean;
+  /** True when any ancestor up to <body> has a gradient background. */
+  ancestorHasGradient: boolean;
+  /** True when any ancestor up to <body> has a url() image background. */
+  ancestorHasBackgroundImage: boolean;
+  /** True when the element or any ancestor has computed opacity < 1. */
+  hasReducedOpacity: boolean;
+  /** Non-null when the element's mix-blend-mode is not 'normal'. */
+  mixBlendMode: string | null;
+  /** Non-null when a backdrop-filter is applied to the element. */
+  backdropFilter: string | null;
+  /** Non-null when a CSS filter (e.g. brightness, contrast) is applied to the element. */
+  filter: string | null;
+};
+
 export interface NodeResultWithScreenshot extends NodeResult {
   screenshotPath?: string;
+  contrastDOMContext?: ContrastDOMContext;
 }
 
 type RuleDetails = {
@@ -58,6 +80,24 @@ type CustomFlowDetails = {
   pageIndex?: any;
   metadata?: any;
   pageImagePath?: any;
+};
+
+type ContrastCheckData = {
+  fgColor?: string;
+  bgColor?: string;
+  contrastRatio?: string | number;
+  fontSize?: string;
+  fontWeight?: string;
+  expectedContrastRatio?: string;
+};
+
+type ContrastExample = {
+  fgColor: string;
+  bgColor: string;
+  contrastRatio: string;
+  fontSize: string;
+  fontWeight: string;
+  expectedContrastRatio: string;
 };
 
 type FilteredResults = {
@@ -96,6 +136,597 @@ const truncateHtml = (html: string, maxBytes = 1024, suffix = '…'): string => 
   }
 
   return result;
+};
+
+const formatContrastFontSize = (fontSize?: string) => {
+  if (!fontSize) return 'unknown size';
+
+  const pxMatch = fontSize.match(/\(([\d.]+px)\)/i);
+  return pxMatch ? pxMatch[1] : fontSize;
+};
+
+/**
+ * Parses a CSS color string into an [R, G, B] tuple (values 0–255).
+ *
+ * axe-core serialises colours via its internal `Color.toHexString()`, which
+ * always produces lowercase 6-digit hex (#rrggbb).  The parser also accepts
+ * 3-digit hex (#rgb) and functional rgb() notation for robustness.
+ *
+ * Returns null if the string does not match any supported format.
+ */
+const parseColor = (color: string): [number, number, number] | null => {
+  const hex6 = color.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (hex6) return [parseInt(hex6[1], 16), parseInt(hex6[2], 16), parseInt(hex6[3], 16)];
+
+  const hex3 = color.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+  if (hex3)
+    return [
+      parseInt(hex3[1] + hex3[1], 16),
+      parseInt(hex3[2] + hex3[2], 16),
+      parseInt(hex3[3] + hex3[3], 16),
+    ];
+
+  const rgb = color.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+  if (rgb) return [parseInt(rgb[1]), parseInt(rgb[2]), parseInt(rgb[3])];
+
+  return null;
+};
+
+/**
+ * Computes the WCAG 2.x relative luminance of an sRGB colour.
+ *
+ * Algorithm (WCAG 2.1 §1.4.3 / IEC 61966-2-1 sRGB standard):
+ *   1. Normalise each 8-bit channel to [0, 1] by dividing by 255.
+ *   2. Gamma-expand (linearise) each normalised channel:
+ *        if sRGB ≤ 0.04045  →  linear = sRGB / 12.92
+ *        else               →  linear = ((sRGB + 0.055) / 1.055) ^ 2.4
+ *      The threshold 0.04045 and the slope 1/12.92 describe the near-black
+ *      linear segment of the sRGB electro-optical transfer function (EOTF).
+ *      The power 2.4 (≈ gamma 2.2) and the offset 0.055 handle the rest.
+ *   3. Weight the linear channels by the CIE 1931 XYZ D65 Y-row coefficients
+ *      projected onto the sRGB primaries:
+ *        L = 0.2126 R_lin + 0.7152 G_lin + 0.0722 B_lin
+ *      These weights reflect human eye sensitivity: the eye is most sensitive
+ *      to green, moderately to red, and least to blue.
+ *
+ * Returns a value in [0, 1]: 0 = absolute black, 1 = perfect white.
+ */
+const relativeLuminance = (r: number, g: number, b: number): number => {
+  const linearise = (c: number) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * linearise(r) + 0.7152 * linearise(g) + 0.0722 * linearise(b);
+};
+
+/**
+ * Computes the WCAG 2.x contrast ratio between two relative luminances.
+ *
+ * Formula: (L_lighter + 0.05) / (L_darker + 0.05)
+ *
+ * The additive offset 0.05 models the luminance of ambient flare (reflected
+ * light) assumed in a reference viewing environment.  It prevents the ratio
+ * from reaching infinity for pure black and anchors the scale so that
+ * white-on-black yields exactly 21:1.  The lighter luminance is always placed
+ * in the numerator so the result is always ≥ 1.
+ *
+ * WCAG thresholds:
+ *   AA  normal text  ≥ 4.5:1   |  large text ≥ 3:1
+ *   AAA normal text  ≥ 7:1     |  large text ≥ 4.5:1
+ */
+const wcagContrastRatio = (l1: number, l2: number): number => {
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
+/**
+ * Converts an sRGB colour to HSL cylindrical coordinates.
+ *   H (hue)        ∈ [0°, 360°)
+ *   S (saturation) ∈ [0, 1]
+ *   L (lightness)  ∈ [0, 1]
+ *
+ * We work in HSL because adjusting L alone changes perceived brightness while
+ * preserving the hue and saturation of the original brand colour — the
+ * smallest perceptible change needed to satisfy the contrast requirement.
+ * Achromatic colours (R = G = B) return H = 0, S = 0.
+ */
+const rgbToHsl = (r: number, g: number, b: number): [number, number, number] => {
+  const R = r / 255,
+    G = g / 255,
+    B = b / 255;
+  const max = Math.max(R, G, B),
+    min = Math.min(R, G, B);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h: number;
+  if (max === R) h = ((G - B) / d + (G < B ? 6 : 0)) / 6;
+  else if (max === G) h = ((B - R) / d + 2) / 6;
+  else h = ((R - G) / d + 4) / 6;
+  return [h * 360, s, l];
+};
+
+/**
+ * Converts HSL back to sRGB (inverse of rgbToHsl).
+ *
+ * Uses the standard two-step piecewise-linear hue reconstruction:
+ *   q = L < 0.5 ? L(1+S) : L+S−L·S   (upper chroma boundary)
+ *   p = 2L − q                         (lower chroma boundary)
+ * Each R, G, B channel is obtained by evaluating a piecewise hue function
+ * with offsets of +1/3 (120°) and −1/3 (−120°) for R and B respectively.
+ */
+const hslToRgb = (h: number, s: number, l: number): [number, number, number] => {
+  h = h / 360;
+  if (s === 0) {
+    const v = Math.round(l * 255);
+    return [v, v, v];
+  }
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const hue2rgb = (p: number, q: number, t: number): number => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return [
+    Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+    Math.round(hue2rgb(p, q, h) * 255),
+    Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+  ];
+};
+
+/** Converts an [R, G, B] tuple (0–255) to a lowercase 6-digit hex string. */
+const rgbToHex = (r: number, g: number, b: number): string =>
+  '#' +
+  [r, g, b].map(c => c.toString(16).padStart(2, '0')).join('');
+
+/**
+ * Finds the lightness-adjusted version of `adjustRgb` that is as close as
+ * possible to the original colour while achieving at least `requiredRatio`
+ * contrast against `fixedRgb`.
+ *
+ * Strategy — binary search on HSL lightness L ∈ [0, 1]:
+ *   direction = 'darker':  searches L ∈ [0, original_L] for the MAXIMUM L
+ *     (least dark, closest to original) at which contrast ≥ required.
+ *   direction = 'lighter': searches L ∈ [original_L, 1] for the MINIMUM L
+ *     (least light, closest to original) at which contrast ≥ required.
+ *
+ * Hue (H) and saturation (S) are held constant so the result stays as close
+ * to the original brand/design colour as possible.
+ *
+ * 30 iterations yield a lightness precision of 1/2^30 ≈ 10⁻⁹, well below
+ * the 1/255 ≈ 0.004 resolution of 8-bit channels, so the result is
+ * effectively exact at 8-bit depth.
+ *
+ * Returns null if even the extreme value for this direction (pure black at
+ * L = 0 or pure white at L = 1 for the given H and S) cannot achieve the
+ * required ratio — an edge case that only arises for very low required ratios
+ * or highly chromatic near-neutral colours.
+ */
+const findCompliantColorByLightness = (
+  adjustRgb: [number, number, number],
+  fixedRgb: [number, number, number],
+  requiredRatio: number,
+  direction: 'darker' | 'lighter',
+): [number, number, number] | null => {
+  const fixedLum = relativeLuminance(...fixedRgb);
+  const [h, s, origHslL] = rgbToHsl(...adjustRgb);
+
+  // Verify the extreme value in this direction is sufficient at all.
+  const extremeHslL = direction === 'darker' ? 0 : 1;
+  const extremeRgb = hslToRgb(h, s, extremeHslL);
+  if (wcagContrastRatio(fixedLum, relativeLuminance(...extremeRgb)) < requiredRatio) {
+    return null;
+  }
+
+  let lo = direction === 'darker' ? 0 : origHslL;
+  let hi = direction === 'darker' ? origHslL : 1;
+  let best = extremeHslL; // guaranteed-passing extreme
+
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    const midRgb = hslToRgb(h, s, mid);
+    const passes = wcagContrastRatio(fixedLum, relativeLuminance(...midRgb)) >= requiredRatio;
+
+    if (passes) {
+      best = mid; // This midpoint works; try to get even closer to the original.
+      if (direction === 'darker') lo = mid; // Can we raise L further (less dark)?
+      else hi = mid; // Can we lower L further (less light)?
+    } else {
+      if (direction === 'darker') hi = mid; // Too light; go darker.
+      else lo = mid; // Too dark; go lighter.
+    }
+  }
+
+  return hslToRgb(h, s, best);
+};
+
+/**
+ * Builds a human-readable recommendation for a single failing contrast pair.
+ *
+ * WCAG 1.4.3 "Contrast (Minimum)" defines two situations based on font size
+ * and weight (1 pt = 1.333 px at 96 dpi):
+ *
+ *   Situation A — normal text (< 18 pt non-bold  /  < 14 pt bold,
+ *                               i.e. < ~24 px    /  < ~18.5 px):
+ *     Required contrast ≥ 4.5:1  (G18)
+ *
+ *   Situation B — large text  (≥ 18 pt non-bold  /  ≥ 14 pt bold,
+ *                               i.e. ≥ ~24 px    /  ≥ ~18.5 px):
+ *     Required contrast ≥ 3:1    (G145)
+ *
+ * axe-core applies this rule upstream using:
+ *   ptSize      = Math.ceil(fontSize_px × 72) / 96          // px → pt
+ *   isSmallFont = (bold && ptSize < boldTextPt)              // default 14 pt
+ *              || (!bold && ptSize < largeTextPt)            // default 18 pt
+ *   bold        = fontWeight ≥ 700 || fontWeight === 'bold'  // boldValue = 700
+ * and stores the result as `expectedContrastRatio: "4.5:1"` (Situation A) or
+ * `"3:1"` (Situation B).  The `required` value used here is derived from that
+ * field via `parseFloat("4.5:1") → 4.5` or `parseFloat("3:1") → 3`, so the
+ * binary search automatically targets the correct threshold for each
+ * combination's font size and weight — no re-classification is needed here.
+ *
+ * WCAG 1.4.3 exceptions (no contrast requirement — filtered by axe-core
+ * before the data ever reaches this function):
+ *   • Pure decoration (no informational purpose, rearrangeable/substitutable)
+ *   • Inactive / disabled user-interface components
+ *   • Logotypes and brand names
+ *   • Text inside photographs or images with significant other visual content
+ *
+ * Algorithm for each failing pair:
+ *   1. Parse both colours to [R, G, B] (axe-core supplies #rrggbb hex).
+ *   2. Convert each colour to HSL.  Search for the nearest compliant
+ *      foreground by binary-searching HSL lightness L in both the 'darker'
+ *      and 'lighter' directions while keeping H and S constant (preserves
+ *      hue/saturation of the original brand colour).
+ *   3. Repeat step 2 for the background (holding the foreground fixed).
+ *   4. For each colour role, pick whichever direction (darker/lighter)
+ *      requires the smaller change in L — i.e. the least visually
+ *      disruptive compliant alternative.
+ *   5. Report both the adjusted foreground and the adjusted background
+ *      (hex + rgb) so developers can choose whichever fits their design
+ *      system.  The target ratio is included so the output is unambiguous
+ *      when a page contains a mix of normal-text (4.5:1) and large-text
+ *      (3:1) failures.
+ *
+ * Returns null if the colours cannot be parsed or no compliant alternative
+ * can be found (extremely rare; only arises when the colour is already at
+ * the luminance extreme for its hue/saturation).
+ */
+const buildContrastRecommendation = (example: ContrastExample): string | null => {
+  const fgRgb = parseColor(example.fgColor);
+  const bgRgb = parseColor(example.bgColor);
+  if (!fgRgb || !bgRgb) return null;
+
+  // parseFloat handles "4.5:1" → 4.5 because it stops at the non-numeric ':'.
+  // The value is either 4.5 (Situation A, normal text) or 3 (Situation B,
+  // large text), as determined by axe-core from the element's font metrics.
+  const CONTRAST_BUFFER = 1.05;
+  const required = parseFloat(example.expectedContrastRatio) * CONTRAST_BUFFER;
+  if (isNaN(required)) return null;
+
+  // Find the nearest compliant foreground (try both directions, pick closest).
+  const fgDarker = findCompliantColorByLightness(fgRgb, bgRgb, required, 'darker');
+  const fgLighter = findCompliantColorByLightness(fgRgb, bgRgb, required, 'lighter');
+  const [, , origFgHslL] = rgbToHsl(...fgRgb);
+  let recFg: [number, number, number] | null = null;
+  if (fgDarker && fgLighter) {
+    const [, , dL] = rgbToHsl(...fgDarker);
+    const [, , lL] = rgbToHsl(...fgLighter);
+    recFg = Math.abs(dL - origFgHslL) <= Math.abs(lL - origFgHslL) ? fgDarker : fgLighter;
+  } else {
+    recFg = fgDarker ?? fgLighter;
+  }
+
+  // Find the nearest compliant background (try both directions, pick closest).
+  const bgDarker = findCompliantColorByLightness(bgRgb, fgRgb, required, 'darker');
+  const bgLighter = findCompliantColorByLightness(bgRgb, fgRgb, required, 'lighter');
+  const [, , origBgHslL] = rgbToHsl(...bgRgb);
+  let recBg: [number, number, number] | null = null;
+  if (bgDarker && bgLighter) {
+    const [, , dL] = rgbToHsl(...bgDarker);
+    const [, , lL] = rgbToHsl(...bgLighter);
+    recBg = Math.abs(dL - origBgHslL) <= Math.abs(lL - origBgHslL) ? bgDarker : bgLighter;
+  } else {
+    recBg = bgDarker ?? bgLighter;
+  }
+
+  if (!recFg && !recBg) return null;
+
+  const parts: string[] = [];
+  if (recFg) {
+    const [rr, gg, bb] = recFg;
+    parts.push(`foreground to ${rgbToHex(rr, gg, bb)} (rgb(${rr}, ${gg}, ${bb}))`);
+  }
+  if (recBg) {
+    const [rr, gg, bb] = recBg;
+    parts.push(`background to ${rgbToHex(rr, gg, bb)} (rgb(${rr}, ${gg}, ${bb}))`);
+  }
+
+  // Include the target ratio in the string so the message is unambiguous when
+  // a single element has a mix of normal-text (4.5:1) and large-text (3:1)
+  // failing combinations with different required thresholds.
+  return `for foreground ${example.fgColor} on background ${example.bgColor} (target ${example.expectedContrastRatio}), adjust ${parts.join(' or ')}`;
+};
+
+/**
+ * Builds the augmented issue description for a single axe-core color-contrast
+ * violation node.
+ *
+ * ─── WCAG rules applied ──────────────────────────────────────────────────────
+ *
+ * WCAG 1.4.3 "Contrast (Minimum)" distinguishes two situations:
+ *
+ *   Situation A — normal text (< 18 pt non-bold / < 14 pt bold,
+ *                               i.e. < ~24 px   / < ~18.5 px at 96 dpi):
+ *     Required contrast ratio ≥ 4.5:1
+ *
+ *   Situation B — large text  (≥ 18 pt non-bold / ≥ 14 pt bold,
+ *                               i.e. ≥ ~24 px   / ≥ ~18.5 px at 96 dpi):
+ *     Required contrast ratio ≥ 3:1
+ *
+ * axe-core classifies each element before this function runs:
+ *   ptSize      = Math.ceil(fontSize_px × 72) / 96          // px → pt
+ *   isSmallFont = (bold  && ptSize < 14)                     // Situation A bold
+ *              || (!bold && ptSize < 18)                     // Situation A normal
+ *   bold        = fontWeight ≥ 700 || fontWeight === 'bold'
+ * …and stores the result in check.data.expectedContrastRatio as "4.5:1" or "3:1".
+ *
+ * Exceptions (no contrast requirement — already excluded by axe-core upstream):
+ *   • Pure decoration (no informational purpose)
+ *   • Inactive / disabled UI components
+ *   • Logotypes and brand names
+ *   • Text inside photographs with significant other visual content
+ *
+ * ─── Function flow ───────────────────────────────────────────────────────────
+ *
+ *  1. Collect checks — flatten node.any, node.all, node.none into one array.
+ *     Each entry may carry a ContrastCheckData payload with fgColor, bgColor,
+ *     contrastRatio, fontSize, fontWeight, and expectedContrastRatio.
+ *
+ *  2. Deduplicate — key each combination on
+ *     [fgColor, bgColor, fontSize, fontWeight, expectedContrastRatio].
+ *     A single DOM node can generate multiple identical checks; the Map ensures
+ *     each distinct failing pair is reported once.
+ *
+ *  3. Build the base message — lists every unique failing combination with its
+ *     current contrast ratio and the required ratio, and instructs the developer
+ *     to fix all failing text in the component, not just the first element.
+ *
+ *  4. Build per-combo recommendations (via buildContrastRecommendation) —
+ *     for each failing pair, binary-search HSL lightness to find the nearest
+ *     compliant foreground (background fixed) and the nearest compliant
+ *     background (foreground fixed), both expressed as hex + rgb().  The binary
+ *     search targets the combination's own expectedContrastRatio (4.5 or 3),
+ *     so large-text recommendations are correctly held to the 3:1 threshold
+ *     and normal-text recommendations to 4.5:1.
+ *
+ *  5. Concatenate — append "Recommendation: …" after the base message so the
+ *     existing description is never modified, only extended.
+ *
+ * Returns null when no check carries usable contrast data (axe-core may omit
+ * it for pseudo-element or out-of-viewport cases).
+ */
+const buildColorContrastMessage = (node: NodeResultWithScreenshot): string | null => {
+  const checks = [...(node.any || []), ...(node.all || []), ...(node.none || [])] as Array<{
+    data?: ContrastCheckData;
+  }>;
+
+  const uniqueCombos = new Map<string, ContrastExample>();
+
+  checks.forEach(check => {
+    const data = check.data || {};
+    const hasContrastData =
+      data.fgColor ||
+      data.bgColor ||
+      data.contrastRatio !== undefined ||
+      data.expectedContrastRatio;
+
+    if (!hasContrastData) return;
+
+    const fgColor = data.fgColor || 'unknown foreground';
+    const bgColor = data.bgColor || 'unknown background';
+    const contrastRatio = String(data.contrastRatio ?? 'unknown');
+    const fontSize = formatContrastFontSize(data.fontSize);
+    const fontWeight = data.fontWeight || 'normal';
+    const expectedContrastRatio = data.expectedContrastRatio || '4.5:1';
+
+    const key = [fgColor, bgColor, fontSize, fontWeight, expectedContrastRatio].join('|');
+
+    if (!uniqueCombos.has(key)) {
+      uniqueCombos.set(key, {
+        fgColor,
+        bgColor,
+        contrastRatio,
+        fontSize,
+        fontWeight,
+        expectedContrastRatio,
+      });
+    }
+  });
+
+  if (!uniqueCombos.size) return null;
+
+  const combos = [...uniqueCombos.values()];
+
+  const examples = combos
+    .map(
+      example =>
+        `foreground ${example.fgColor} on ${example.bgColor} at ${example.fontSize} ${example.fontWeight} text (current contrast ${example.contrastRatio}, expected ${example.expectedContrastRatio})`,
+    )
+    .join(', and ');
+
+  const targetRatio = combos[0]?.expectedContrastRatio || '4.5:1';
+
+  const base = `Multiple text elements in this component fail WCAG 1.4.3 Color Contrast Minimum. Audit all visible text in the snippet and update every failing foreground color so normal text achieves at least ${targetRatio} contrast against its actual background, with a safety margin above the minimum where possible. Known failing combinations in this snippet include ${examples}. Fix all failing text colors in the component, not just the first reported element.`;
+
+  const recommendations = combos
+    .map(buildContrastRecommendation)
+    .filter((r): r is string => r !== null);
+
+  const recSection =
+    recommendations.length > 0
+      ? ` Recommendation: To meet the required contrast ratio, ${recommendations.join('; ')}.`
+      : '';
+
+  const ctx = node.contrastDOMContext;
+  if (!ctx) return `${base}${recSection}`;
+
+  const notes: string[] = [];
+
+  if (ctx.hasGradient) {
+    notes.push(
+      `gradient background detected (${ctx.backgroundImage}): the sampled background color represents a single point — verify contrast at every gradient stop and position where text appears, then adjust the gradient stops or add a solid color fallback behind the text`,
+    );
+  } else if (ctx.ancestorHasGradient) {
+    notes.push(
+      `an ancestor provides a gradient background: the sampled background color may not match what is visually beneath the text — verify contrast against the actual rendered gradient`,
+    );
+  }
+
+  if (ctx.hasBackgroundImage) {
+    notes.push(
+      `background image detected: contrast cannot be fully determined from a sampled color alone — ensure text remains readable across all image content and states`,
+    );
+  } else if (ctx.ancestorHasBackgroundImage) {
+    notes.push(
+      `an ancestor has a background image: the effective background under this text may differ from the sampled value`,
+    );
+  }
+
+  if (ctx.hasReducedOpacity) {
+    notes.push(
+      `opacity less than 1 detected on this element or an ancestor: the rendered contrast is lower than the computed color values indicate`,
+    );
+  }
+
+  if (ctx.mixBlendMode) {
+    notes.push(
+      `mix-blend-mode: ${ctx.mixBlendMode} is applied: actual rendered colors depend on the underlying layers`,
+    );
+  }
+
+  if (ctx.backdropFilter) {
+    notes.push(`backdrop-filter: ${ctx.backdropFilter} is applied: the effective background appearance is modified`);
+  }
+
+  if (ctx.filter) {
+    notes.push(
+      `CSS filter: ${ctx.filter} is applied to this element: rendered colors may differ from computed values`,
+    );
+  }
+
+  const ctxSection =
+    notes.length > 0
+      ? ` Rendering complexity: ${notes.join('; ')}. The color fix recommendations above may not be accurate for this element — manual verification of the actual rendered contrast is strongly advised.`
+      : '';
+
+  return `${base}${recSection}${ctxSection}`;
+};
+
+// Enriches axe violation failureSummaries with additional DOM context gathered via Playwright,
+// providing LLMs with the specific details they need to apply correct fixes.
+export const enrichViolationMessages = async (results: AxeResults, page: Page): Promise<void> => {
+  for (const violation of results.violations) {
+    if (violation.id !== 'target-size' && violation.id !== 'valid-lang') continue;
+
+    for (const node of violation.nodes) {
+      const cssSelector =
+        node.target.length === 1 && typeof node.target[0] === 'string' ? node.target[0] : null;
+      if (!cssSelector) continue;
+
+      if (violation.id === 'target-size') {
+        const ctx = await page
+          .evaluate((sel: string) => {
+            try {
+              const el = document.querySelector(sel) as HTMLElement | null;
+              if (!el) return null;
+              const rect = el.getBoundingClientRect();
+              const computed = window.getComputedStyle(el);
+              return {
+                renderedWidth: Math.round(rect.width),
+                renderedHeight: Math.round(rect.height),
+                boxSizing: computed.boxSizing,
+                inlineWidth: el.style.width || null,
+                inlineHeight: el.style.height || null,
+                tagName: el.tagName.toLowerCase(),
+              };
+            } catch {
+              return null;
+            }
+          }, cssSelector)
+          .catch(() => null);
+
+        if (ctx) {
+          const lines: string[] = [
+            `  Computed hit area: ${ctx.renderedWidth}px × ${ctx.renderedHeight}px (box-sizing: ${ctx.boxSizing}).`,
+          ];
+
+          // The most common LLM mistake: adding padding to an element that already has explicit
+          // width/height with box-sizing:border-box (browser default for <button>), so the padding
+          // is absorbed into the declared dimensions and the rendered size stays the same.
+          if (
+            ctx.boxSizing === 'border-box' &&
+            (ctx.inlineWidth !== null || ctx.inlineHeight !== null)
+          ) {
+            const dims = [
+              ctx.inlineWidth ? `width: ${ctx.inlineWidth}` : null,
+              ctx.inlineHeight ? `height: ${ctx.inlineHeight}` : null,
+            ]
+              .filter(Boolean)
+              .join(', ');
+            lines.push(
+              `  WARNING: inline style sets ${dims} with box-sizing: border-box — padding is included within those dimensions and will NOT increase the hit area. Fix: remove the explicit width/height and use min-width: 24px; min-height: 24px instead, or place the visual content in a child <span> element.`,
+            );
+          }
+
+          node.failureSummary += '\n' + lines.join('\n');
+        }
+      } else if (violation.id === 'valid-lang') {
+        const ctx = await page
+          .evaluate((sel: string) => {
+            try {
+              const el = document.querySelector(sel);
+              if (!el) return null;
+              return {
+                langValue: el.getAttribute('lang') ?? '',
+                textSnippet: (el.textContent ?? '').trim().slice(0, 120),
+              };
+            } catch {
+              return null;
+            }
+          }, cssSelector)
+          .catch(() => null);
+
+        if (ctx) {
+          const lines: string[] = [];
+
+          // Private-use x-* subtags are syntactically valid BCP 47 but axe-core's valid-lang
+          // rule rejects them — LLMs commonly switch to x-* thinking it satisfies the rule.
+          if (ctx.langValue.startsWith('x-')) {
+            lines.push(
+              `  NOTE: "${ctx.langValue}" uses a private-use "x-" prefix. axe-core's valid-lang rule also rejects private-use subtags — you must use a registered IANA language code.`,
+            );
+          }
+
+          if (ctx.textSnippet) {
+            lines.push(
+              `  Element text: "${ctx.textSnippet}". Identify the actual language of this text and use its registered BCP 47 code (e.g., lang="it" Italian, "es" Spanish, "fr" French, "de" German, "zh" Chinese, "ja" Japanese, "ko" Korean, "pt" Portuguese, "ar" Arabic).`,
+            );
+          }
+
+          if (lines.length > 0) {
+            node.failureSummary += '\n' + lines.join('\n');
+          }
+        }
+      }
+    }
+  }
 };
 
 export const filterAxeResults = (
@@ -145,9 +776,13 @@ export const filterAxeResults = (
           items: [],
         };
       }
-      const message = displayNeedsReview
+      const defaultMessage = displayNeedsReview
         ? failureSummary.slice(failureSummary.indexOf('\n') + 1).trim()
         : failureSummary;
+      const message =
+        rule === 'color-contrast' || rule === 'color-contrast-enhanced'
+          ? buildColorContrastMessage(node) || defaultMessage
+          : defaultMessage;
 
       let finalHtml = html;
       if (html.includes('</script>')) {
@@ -455,6 +1090,9 @@ export const runAxeScript = async ({
       xPathToCssFunctionString: xPathToCss.toString(),
     },
   );
+
+  await enrichViolationMessages(results, page);
+  await enrichColorContrastDOMContext(results.violations, page);
 
   if (includeScreenshots) {
     results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);

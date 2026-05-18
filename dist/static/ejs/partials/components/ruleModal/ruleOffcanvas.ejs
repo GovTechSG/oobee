@@ -1,0 +1,196 @@
+<%# this is a template; content will be populated using js %>
+<div
+  class="modal fade"
+  id="expandedRule"
+  tabindex="-1"
+  aria-labelledby="expandedRuleName"
+  aria-hidden="true"
+  data-bs-backdrop="true"
+  data-bs-keyboard="true"
+>
+  <div class="modal-dialog modal-dialog-centered rule-modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body rule-modal-body p-0">
+        <div class="d-flex w-100 modal-view">
+          <!-- Left Side -->
+          <div class="w-70 left-side-modal">
+            <div class="d-flex justify-content-end pt-3 pe-3">
+              <button
+                type="button"
+                class="btn-close modal-button-right"
+                data-bs-dismiss="modal"
+                aria-label="Close this popup"
+              ></button>
+            </div>
+            <!-- SVG Image -->
+            <div id="expandedRuleImageContainer" class="rule-modal-image-container">
+              <img
+                id="expandedRuleImage"
+                src=""
+                alt="Issue illustration"
+                class="rule-modal-image"
+              />
+            </div>
+
+            <div class="d-flex flex-column gap-3 p-4">
+              <h1 id="expandedRuleName">Loading...</h1>
+
+              <!-- Conformance badges -->
+              <div class="rule-modal-conformance">
+                <span id="expandedRuleCategoryBadge" class="mustfix-badge-label">Must Fix</span>
+                <div id="expandedRuleConformance" class="rule-modal-conformance-badges"></div>
+              </div>
+
+              <!-- Long description (from a11yRuleLongDescriptionMap) -->
+              <p id="expandedRuleDescription" class="rule-modal-description"></p>
+
+              <div id="expandedRuleManualTestSection" style="display: none">
+                <div>
+                  This occurrence might be a false positive that needs to be verified by a human.
+                </div>
+              </div>
+
+              <!-- Disability impact -->
+              <div
+                id="expandedRuleDisabilitySection"
+                class="rule-modal-disability"
+                style="display: none"
+              >
+                <div id="expandedRuleDisabilityMessage" class="info-alert mb-0" role="alert"></div>
+              </div>
+
+              <!-- AI Feedback Section -->
+              <div id="expandedRuleAiFeedback" class="rule-modal-ai-feedback" style="display: none">
+                <svg
+                  width="14"
+                  height="16"
+                  viewBox="0 0 14 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M6.45906 3.34063C5.68875 2.57003 5.1615 1.22438 4.89984 0C4.63778 1.22462 4.11109 2.57056 3.3405 3.34116C2.57019 4.11122 1.22413 4.63847 0 4.90066C1.22462 5.16231 2.57044 5.68925 3.34075 6.45988C4.11106 7.23019 4.63831 8.57613 4.90038 9.8005C5.16203 8.57588 5.68913 7.22994 6.45931 6.45934C7.22962 5.68903 8.57569 5.16203 9.79981 4.89984C8.57547 4.63819 7.22966 4.11097 6.45906 3.34063Z"
+                    fill="#5735DF"
+                  />
+                  <path
+                    d="M11.4627 9.5104C11.0029 9.05037 10.6874 8.24602 10.5311 7.51465C10.3745 8.24602 10.0601 9.05034 9.59975 9.51065C9.13944 9.97046 8.33525 10.2857 7.604 10.4423C8.3355 10.5988 9.13944 10.9136 9.59975 11.3739C10.0601 11.8339 10.3751 12.6382 10.5316 13.3696C10.6879 12.638 11.0029 11.8339 11.4629 11.3736C11.923 10.9136 12.7273 10.5986 13.4584 10.4417C12.7273 10.2854 11.923 9.97046 11.4627 9.5104Z"
+                    fill="#5735DF"
+                  />
+                  <path
+                    d="M3.30271 11.084C3.17124 11.698 2.90724 12.3735 2.52087 12.7598C2.13455 13.1459 1.45937 13.4104 0.845459 13.5419C1.45937 13.6736 2.13455 13.9374 2.52087 14.324C2.90724 14.7103 3.17177 15.3852 3.30324 15.9995C3.43458 15.3852 3.69871 14.7103 4.08521 14.3237C4.47127 13.9374 5.14658 13.6731 5.76037 13.5414C5.14662 13.4101 4.47127 13.1459 4.08496 12.7595C3.69871 12.3735 3.43405 11.698 3.30271 11.084Z"
+                    fill="#5735DF"
+                  />
+                </svg>
+                <span>This issue might benefit from AI suggested fixes.</span>
+              </div>
+            </div>
+
+            <div class="d-flex flex-column rule-modal-pages-section">
+              <!-- Pages Affected Section -->
+              <div id="expandedRulePagesSection">
+                <div class="accordion" id="pagesAccordion">
+                  <div class="accordion-item">
+                    <h2 class="accordion-header" id="pagesAccordionHeader">
+                      <button
+                        class="accordion-button collapsed accordion-title"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#pagesAccordionContent"
+                        aria-expanded="false"
+                        aria-controls="pagesAccordionContent"
+                      >
+                        <svg
+                          class="accordion-arrow"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M7.41 8.58984L12 13.1698L16.59 8.58984L18 9.99984L12 15.9998L6 9.99984L7.41 8.58984Z"
+                            fill="#5735DF"
+                          />
+                        </svg>
+                        <div class="d-flex justify-content-between align-items-center w-100">
+                          <h3 id="expandedRuleDropdownTitle" class="mb-0">
+                            Pages affected by this issue (#)
+                          </h3>
+                          <div class="d-flex align-items-center gap-3">
+                            <span
+                              id="expandedRuleDropdownToggleCategoryInfo"
+                              class="rule-occurrence-count"
+                              ># Total occ.</span
+                            >
+                          </div>
+                        </div>
+                      </button>
+                    </h2>
+                    <div
+                      id="pagesAccordionContent"
+                      class="accordion-collapse collapse"
+                      aria-labelledby="pagesAccordionHeader"
+                      data-bs-parent="#pagesAccordion"
+                    >
+                      <div class="accordion-body">
+                        <div class="group-by-toggle">
+                          <span class="group-by-label">Group by</span>
+                          <div class="group-by-options">
+                            <div class="form-check form-check-inline">
+                              <input
+                                type="radio"
+                                class="form-check-input"
+                                name="groupByOptions"
+                                id="groupByPage"
+                                value="page"
+                                checked
+                              />
+                              <label class="form-check-label" for="groupByPage">Page</label>
+                            </div>
+
+                            <div class="form-check form-check-inline">
+                              <input
+                                type="radio"
+                                class="form-check-input"
+                                name="groupByOptions"
+                                id="groupByHtmlElement"
+                                value="html"
+                              />
+                              <label class="form-check-label" for="groupByHtmlElement"
+                                >HTML Element</label
+                              >
+                            </div>
+                          </div>
+                        </div>
+                        <div id="expandedRuleCategoryContent"></div>
+                        <div id="expandedRulePageContent">Total # affected pages</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Side -->
+          <div class="w-30 d-flex flex-column right-side-modal p-4">
+            <div class="d-flex align-self-end">
+              <button
+                type="button"
+                class="btn-close modal-button"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+            <h2 class="rule-modal-section-title">Step by step plan</h2>
+            <h3>How to Fix</h3>
+            <!-- How to Fix Section -->
+            <div id="stepByStepContainer" class="rule-modal-how-to-fix">
+              <!-- Steps will be populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

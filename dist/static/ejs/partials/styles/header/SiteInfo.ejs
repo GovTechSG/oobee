@@ -1,0 +1,121 @@
+<style>
+  #site-header {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  #site-container {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    width: 100%;
+  }
+
+  #site-container > div {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  #site-container > div:nth-child(1),
+  #site-container > div:nth-child(2) {
+    overflow: hidden;
+  }
+
+  #site-container > div:nth-child(1) {
+    max-width: 48ch;
+  }
+
+  #site-container > div:nth-child(2) {
+    max-width: 56ch;
+  }
+
+  #site-container > div:nth-child(3) {
+    flex-shrink: 0;
+    width: auto;
+  }
+
+  #site-container > div:nth-child(1) > div,
+  #site-container > div:nth-child(2) {
+    overflow: hidden;
+  }
+
+  #siteName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+  }
+
+  #siteUrl {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+    vertical-align: middle;
+  }
+
+  #siteUrl .url-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  #siteUrl svg {
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 1300px) {
+    #site-container {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    #site-container > div:nth-child(1),
+    #site-container > div:nth-child(2) {
+      overflow: visible;
+    }
+
+    #site-container > div:nth-child(1) > div {
+      overflow: visible;
+    }
+
+    #siteName {
+      white-space: normal;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow: visible;
+    }
+
+    #siteUrl {
+      display: inline-flex !important;
+    }
+
+    #siteUrl .url-text {
+      white-space: normal;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow: visible;
+    }
+  }
+
+  #site-container svg {
+    flex-shrink: 0;
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  .label {
+    margin-bottom: 0 !important;
+  }
+
+  .link {
+    color: var(--a11y-majorelle-blue);
+    text-decoration: none;
+  }
+
+  .link:hover {
+    text-decoration: underline;
+  }
+</style>
