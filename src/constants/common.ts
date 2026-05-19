@@ -901,6 +901,38 @@ const getRobotsTxtViaPlaywright = async (
   }
 };
 
+export const getSitemapsFromRobotsTxt = async (
+  url: string,
+  browser: string,
+  userDataDirectory: string,
+  extraHTTPHeaders: Record<string, string>,
+): Promise<string[]> => {
+  const domain = new URL(url).origin;
+  const robotsUrl = domain.concat('/robots.txt');
+
+  let robotsTxt: string;
+  try {
+    robotsTxt = await getRobotsTxtViaPlaywright(robotsUrl, browser, userDataDirectory, extraHTTPHeaders);
+  } catch (e) {
+    consoleLogger.info(`Unable to fetch robots.txt from ${robotsUrl} for sitemap discovery`);
+    return [];
+  }
+
+  if (!robotsTxt) return [];
+
+  const sitemaps: string[] = [];
+  const lines = robotsTxt.split(/\r?\n/);
+  for (const line of lines) {
+    if (line.toLowerCase().startsWith('sitemap:')) {
+      const sitemapUrl = line.substring('sitemap:'.length).trim();
+      if (sitemapUrl) {
+        sitemaps.push(sitemapUrl);
+      }
+    }
+  }
+  return sitemaps;
+};
+
 export const isDisallowedInRobotsTxt = (url: string): boolean => {
   if (!constants.robotsTxtUrls) return;
 
