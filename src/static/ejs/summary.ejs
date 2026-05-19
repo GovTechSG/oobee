@@ -21,18 +21,24 @@
     %>
     <script>
       const scanItems = <%- JSON.stringify(
-        {
-          ...items,
-          ...['mustFix','goodToFix','needsReview','passed'].reduce((acc, cat) => {
-            if (items[cat]) {
-              acc[cat] = {
-                ...items[cat],
-                rules: (items[cat].rules || []).map(({ htmlGroups, ...rest }) => rest),
-              };
-            }
-            return acc;
-          }, {}),
-        }
+        ['mustFix','goodToFix','needsReview','passed'].reduce((acc, cat) => {
+          if (items[cat]) {
+            acc[cat] = {
+              description: items[cat].description,
+              totalItems: items[cat].totalItems,
+              totalRuleIssues: items[cat].totalRuleIssues,
+              rules: (items[cat].rules || []).map(rule => ({
+                rule: rule.rule,
+                description: rule.description,
+                helpUrl: rule.helpUrl,
+                conformance: rule.conformance,
+                totalItems: rule.totalItems,
+                pagesAffected: { length: (rule.pagesAffected || []).length },
+              })),
+            };
+          }
+          return acc;
+        }, {})
       ).replace(/<\//g, '<\\/') %>
     </script>
     <%- include('partials/scripts/summaryTable') %>
