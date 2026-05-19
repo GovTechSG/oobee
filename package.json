@@ -8,7 +8,7 @@
     "oobee": "./dist/cli.js"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.893.0",
+    "@aws-sdk/client-s3": "^3.1049.0",
     "@json2csv/node": "^7.0.3",
     "@napi-rs/canvas": "^0.1.53",
     "@sentry/node": "^9.13.0",
