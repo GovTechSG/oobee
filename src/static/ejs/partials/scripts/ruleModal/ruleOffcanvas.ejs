@@ -295,10 +295,10 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
             dropdownToggle.innerText = `${ruleInCategory.totalItems} Total occ.`;
             dropdownToggle.setAttribute('aria-label', occurrencesText);
           document.getElementById('expandedRuleDropdownTitle').innerText =
-            `Pages affected by this issue (${ruleInCategory.pagesAffected.length})`;
+            `Pages affected by this issue (${(ruleInCategory.pagesAffectedCount || ruleInCategory.pagesAffected.length)})`;
           buildExpandedRuleCategoryContent(category, ruleInCategory);
           document.getElementById('expandedRulePageContent').innerText =
-            `Total ${ruleInCategory.pagesAffected.length} affected pages`;
+            `Total ${(ruleInCategory.pagesAffectedCount || ruleInCategory.pagesAffected.length)} affected pages`;
         }
       }
     });

@@ -75,17 +75,17 @@ const cloneCategoryWithoutPageItems = (category: ScanCategory): ScanCategory =>
     rules: category.rules.map(
       rule =>
         ({
-          ...rule,
-          pagesAffected: rule.pagesAffected.map(
-            page => {
-              const { items, ...rest } = page;
-
-              return {
-                ...rest,
-                itemsCount: page.itemsCount ?? (Array.isArray(items) ? items.length : 0),
-              } as any;
-            },
-          ),
+          rule: rule.rule,
+          description: rule.description,
+          helpUrl: rule.helpUrl,
+          conformance: rule.conformance,
+          totalItems: rule.totalItems,
+          axeImpact: rule.axeImpact,
+          pagesAffected: rule.pagesAffected.map(page => ({
+            url: page.url,
+            pageTitle: page.pageTitle,
+            itemsCount: page.itemsCount ?? (Array.isArray((page as any).items) ? (page as any).items.length : 0),
+          })),
         }) as any,
     ),
   }) as ScanCategory;

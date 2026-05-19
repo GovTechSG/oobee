@@ -86,7 +86,7 @@
             // Use pre-computed htmlGroups for count if available, otherwise use pages
             const count = isHtmlGrouping && selectedCategory.htmlGroups
               ? Object.keys(selectedCategory.htmlGroups).length
-              : selectedCategory.pagesAffected.length;
+              : (selectedCategory.pagesAffectedCount || selectedCategory.pagesAffected.length);
             if (isHtmlGrouping) {
               dropdownTitle.innerText = `HTML elements affected by this issue (${count})`;
             } else {
