@@ -333,7 +333,7 @@ const crawlSitemap = async ({
               return;
             }
 
-            if (isRedirected && !isFollowStrategy(actualUrl, userUrl || request.url, strategy)) {
+            if (isRedirected && !isFollowStrategy(actualUrl, request.url, 'same-hostname')) {
               urlsCrawled.notScannedRedirects.push({
                 fromUrl: request.url,
                 toUrl: actualUrl,
