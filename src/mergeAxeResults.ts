@@ -212,8 +212,6 @@ const writeHTML = async (
         await Promise.all([
           fs.promises.unlink(topFilePath),
           fs.promises.unlink(bottomFilePath),
-          fs.promises.unlink(lightScanItemsPayloadBase64FilePath),
-          fs.promises.unlink(lightScanItemsPayloadJsonFilePath),
         ]);
       } catch (err) {
         console.error('Error cleaning up temporary files:', err);
@@ -996,11 +994,14 @@ const generateArtifacts = async (
     1,
   );
 
-  try {
-    await fs.promises.rm(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
-  } catch (error) {
-    consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
-  }
+  // Delay crawlee folder removal to allow lingering async storage operations to flush
+  setTimeout(async () => {
+    try {
+      await fs.promises.rm(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
+    } catch (error) {
+      // Silently ignore — folder may already be gone or still locked
+    }
+  }, 5000);
 
   try {
     await fs.promises.rm(path.join(storagePath, 'pdfs'), { recursive: true, force: true });
