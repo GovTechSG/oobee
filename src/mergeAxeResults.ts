@@ -275,9 +275,12 @@ const writeHTML = async (
         });
 
         for await (const chunk of scanItemsStream) {
-          outputStream.write(
+          const ok = outputStream.write(
             `<script type="text/plain" id="scanItemsRaw${chunkIndex}">${chunk}</script>\n`,
           );
+          if (!ok) {
+            await new Promise<void>(resolve => outputStream.once('drain', resolve));
+          }
           chunkIndex++;
         }
 
