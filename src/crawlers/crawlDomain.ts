@@ -654,6 +654,20 @@ const crawlDomain = async ({
 
             const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
+            // Re-check page URL after axe scan — JS redirects may have fired during scan
+            try {
+              const postScanUrl = page.url();
+              if (postScanUrl && postScanUrl !== 'about:blank' && !isFollowStrategy(postScanUrl, request.url, 'same-hostname')) {
+                urlsCrawled.notScannedRedirects.push({
+                  fromUrl: request.url,
+                  toUrl: postScanUrl,
+                });
+                return;
+              }
+            } catch (_) {
+              // Page/context was destroyed during scan — handled by outer catch
+            }
+
             if (isRedirected) {
               const isLoadedUrlInCrawledUrls = scannedResolvedUrlSet.has(actualUrl);
 

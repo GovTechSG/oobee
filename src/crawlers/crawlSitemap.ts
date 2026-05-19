@@ -347,6 +347,24 @@ const crawlSitemap = async ({
 
             const results = await runAxeScript({ includeScreenshots, page, randomToken });
 
+            // Re-check page URL after axe scan — JS redirects may have fired during scan
+            try {
+              const postScanUrl = page.url();
+              if (postScanUrl && postScanUrl !== 'about:blank' && !isFollowStrategy(postScanUrl, request.url, 'same-hostname')) {
+                urlsCrawled.notScannedRedirects.push({
+                  fromUrl: request.url,
+                  toUrl: postScanUrl,
+                });
+                guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                  numScanned: urlsCrawled.scanned.length,
+                  urlScanned: request.url,
+                });
+                return;
+              }
+            } catch (_) {
+              // Page/context was destroyed during scan — handled by outer catch
+            }
+
             guiInfoLog(guiInfoStatusTypes.SCANNED, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
