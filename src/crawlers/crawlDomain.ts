@@ -654,9 +654,20 @@ const crawlDomain = async ({
 
             const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
-            // Re-check page URL after axe scan — JS redirects may have fired during scan
+            // Detect JS redirects that fire during/after axe scan.
+            // Listen for navigation, then give a brief window for pending redirects to complete.
             try {
-              const postScanUrl = page.url();
+              let navigatedToUrl: string | null = null;
+              const onFrameNavigated = (frame: Frame) => {
+                if (frame === page.mainFrame()) {
+                  navigatedToUrl = frame.url();
+                }
+              };
+              page.on('framenavigated', onFrameNavigated);
+              await page.waitForTimeout(1000);
+              page.off('framenavigated', onFrameNavigated);
+
+              const postScanUrl = navigatedToUrl || page.url();
               if (postScanUrl && postScanUrl !== 'about:blank' && !isFollowStrategy(postScanUrl, request.url, 'same-hostname')) {
                 urlsCrawled.notScannedRedirects.push({
                   fromUrl: request.url,
@@ -665,7 +676,7 @@ const crawlDomain = async ({
                 return;
               }
             } catch (_) {
-              // Page/context was destroyed during scan — handled by outer catch
+              // Page/context was destroyed during navigation — handled by outer catch
             }
 
             if (isRedirected) {
