@@ -13,7 +13,7 @@
     "@napi-rs/canvas": "^0.1.53",
     "@sentry/node": "^9.13.0",
     "@types/aws-sdk": "^0.0.42",
-    "axe-core": "^4.11.1",
+    "axe-core": "^4.11.4",
     "axios": "^1.8.2",
     "base64-stream": "^1.0.0",
     "cheerio": "^1.0.0-rc.12",
