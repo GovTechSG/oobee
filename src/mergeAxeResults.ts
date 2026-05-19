@@ -212,8 +212,6 @@ const writeHTML = async (
         await Promise.all([
           fs.promises.unlink(topFilePath),
           fs.promises.unlink(bottomFilePath),
-          fs.promises.unlink(lightScanItemsPayloadBase64FilePath),
-          fs.promises.unlink(lightScanItemsPayloadJsonFilePath),
         ]);
       } catch (err) {
         console.error('Error cleaning up temporary files:', err);
