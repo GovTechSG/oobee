@@ -193,8 +193,11 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
   .check(argvs => {
     const scanner = String(argvs.scanner ?? '');
 
-    if (argvs.strategy && scanner !== ScannerTypes.WEBSITE && scanner !== ScannerTypes.CUSTOM) {
-      throw new Error('-s or --strategy is only available in website and custom flow scans.');
+    if (argvs.strategy && scanner !== ScannerTypes.WEBSITE && scanner !== ScannerTypes.CUSTOM && scanner !== ScannerTypes.INTELLIGENT && scanner !== ScannerTypes.SITEMAP) {
+      throw new Error('-s or --strategy is only available in website, custom flow, intelligent, and sitemap scans.');
+    }
+    if (argvs.strategy === 'ignore' && scanner !== ScannerTypes.SITEMAP) {
+      throw new Error('-s ignore is only available for sitemap scans.');
     }
     return true;
   })
@@ -210,13 +213,20 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     return duration;
   })
   .check(argvs => {
-    if (argvs.scanner !== ScannerTypes.WEBSITE && argvs.strategy) {
-      throw new Error('-s or --strategy is only available in website scans.');
+    if (argvs.scanner !== ScannerTypes.WEBSITE && argvs.scanner !== ScannerTypes.CUSTOM && argvs.scanner !== ScannerTypes.INTELLIGENT && argvs.scanner !== ScannerTypes.SITEMAP && argvs.strategy) {
+      throw new Error('-s or --strategy is only available in website, custom flow, intelligent, and sitemap scans.');
+    }
+    if (argvs.strategy === 'ignore' && argvs.scanner !== ScannerTypes.SITEMAP) {
+      throw new Error('-s ignore is only available for sitemap scans.');
     }
     return true;
   })
   .conflicts('d', 'w')
   .parse() as unknown as Answers;
+
+if (!options.strategy) {
+  options.strategy = options.scanner === ScannerTypes.SITEMAP ? 'ignore' : 'same-domain';
+}
 
 const scanInit = async (argvs: Answers): Promise<string> => {
   const updatedArgvs = { ...argvs };

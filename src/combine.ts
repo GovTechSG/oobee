@@ -161,6 +161,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         blacklistedPatterns,
         includeScreenshots,
         extraHTTPHeaders,
+        strategy,
+        userUrl: url,
         scanDuration,
       });
       urlsCrawledObj = sitemapResult.urlsCrawled;

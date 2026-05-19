@@ -1,4 +1,4 @@
-import crawlee, { LaunchContext, Request, RequestList, Dataset } from 'crawlee';
+import crawlee, { EnqueueStrategy, LaunchContext, Request, RequestList, Dataset } from 'crawlee';
 import fs from 'fs';
 import * as path from 'path';
 import fsp from 'fs/promises';
@@ -23,7 +23,7 @@ import {
   waitForPageLoaded,
   isFilePath,
 } from '../constants/common.js';
-import { areLinksEqual, isWhitelistedContentType, register } from '../utils.js';
+import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, register } from '../utils.js';
 import {
   handlePdfDownload,
   runPdfScan,
@@ -46,6 +46,8 @@ const crawlSitemap = async ({
   blacklistedPatterns,
   includeScreenshots,
   extraHTTPHeaders,
+  strategy = EnqueueStrategy.All,
+  userUrl = '',
   scanDuration = 0,
   fromCrawlIntelligentSitemap = false,
   userUrlInputFromIntelligent = null,
@@ -65,6 +67,8 @@ const crawlSitemap = async ({
   blacklistedPatterns: string[];
   includeScreenshots: boolean;
   extraHTTPHeaders: Record<string, string>;
+  strategy?: EnqueueStrategy;
+  userUrl?: string;
   scanDuration?: number;
   fromCrawlIntelligentSitemap?: boolean;
   userUrlInputFromIntelligent?: string;
@@ -99,6 +103,8 @@ const crawlSitemap = async ({
     userUrlInputFromIntelligent,
     fromCrawlIntelligentSitemap,
     extraHTTPHeaders,
+    strategy,
+    userUrl || sitemapUrl,
   );
 
   sitemapUrl = encodeURI(sitemapUrl);
@@ -320,6 +326,18 @@ const crawlSitemap = async ({
                 httpStatusCode: 0,
               });
 
+              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              return;
+            }
+
+            if (isRedirected && !isFollowStrategy(actualUrl, userUrl || request.url, strategy)) {
+              urlsCrawled.notScannedRedirects.push({
+                fromUrl: request.url,
+                toUrl: actualUrl,
+              });
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,

@@ -142,6 +142,8 @@ const crawlIntelligentSitemap = async (
     blacklistedPatterns,
     includeScreenshots,
     extraHTTPHeaders,
+    strategy,
+    userUrl: url,
     fromCrawlIntelligentSitemap,
     userUrlInputFromIntelligent: url,
     datasetFromIntelligent: dataset,

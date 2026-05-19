@@ -33,7 +33,7 @@ import constants, {
 } from './constants.js';
 import { consoleLogger } from '../logs.js';
 import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
-import { cleanUpAndExit, randomThreeDigitNumberString, register } from '../utils.js';
+import { cleanUpAndExit, isFollowStrategy, randomThreeDigitNumberString, register } from '../utils.js';
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
@@ -746,7 +746,9 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     playwrightDeviceDetailsObject,
     maxRequestsPerCrawl: maxpages || constants.maxRequestsPerCrawl,
     strategy:
-      strategy === 'same-hostname' ? EnqueueStrategy.SameHostname : EnqueueStrategy.SameDomain,
+      strategy === 'same-hostname' ? EnqueueStrategy.SameHostname
+      : strategy === 'ignore' ? EnqueueStrategy.All
+      : EnqueueStrategy.SameDomain,
     isLocalFileScan,
     browser: browserToRun,
     nameEmail,
@@ -931,6 +933,8 @@ export const getLinksFromSitemap = async (
   userUrlInput: string,
   isIntelligent: boolean,
   extraHTTPHeaders: Record<string, string>,
+  strategy: EnqueueStrategy = EnqueueStrategy.All,
+  userUrl: string = userUrlInput,
 ) => {
   const scannedSitemaps = new Set<string>();
   const urls: Record<string, Request> = {}; // dictionary of requests to urls to be scanned
@@ -940,6 +944,7 @@ export const getLinksFromSitemap = async (
   const addToUrlList = (url: string) => {
     if (!url) return;
     if (isDisallowedInRobotsTxt(url)) return;
+    if (!isFollowStrategy(url, userUrl, strategy)) return;
 
     url = convertPathToLocalFile(url);
 
