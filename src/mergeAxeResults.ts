@@ -996,14 +996,14 @@ const generateArtifacts = async (
     1,
   );
 
-  // Delay crawlee folder removal to allow lingering async storage operations to flush
-  setTimeout(async () => {
-    try {
-      await fs.promises.rm(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
-    } catch (error) {
-      // Silently ignore — folder may already be gone or still locked
-    }
-  }, 5000);
+  // Brief delay to allow lingering async crawlee storage operations to flush
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  try {
+    await fs.promises.rm(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
+  } catch (error) {
+    // Silently ignore — folder may already be gone or still locked
+  }
 
   try {
     await fs.promises.rm(path.join(storagePath, 'pdfs'), { recursive: true, force: true });
