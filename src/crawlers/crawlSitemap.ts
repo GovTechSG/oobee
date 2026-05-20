@@ -23,7 +23,7 @@ import {
   waitForPageLoaded,
   isFilePath,
 } from '../constants/common.js';
-import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, register } from '../utils.js';
+import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, normUrl, register } from '../utils.js';
 import {
   handlePdfDownload,
   runPdfScan,
@@ -305,7 +305,7 @@ const crawlSitemap = async ({
           if (isScanHtml && status < 300 && isWhitelistedContentType(contentType)) {
             const isRedirected = !areLinksEqual(page.url(), request.url);
             const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
-              item => (item.actualUrl || item.url) === page.url(),
+              item => normUrl(item.actualUrl || item.url) === normUrl(page.url()),
             );
 
             if (isRedirected && isLoadedUrlInCrawledUrls) {

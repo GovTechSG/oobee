@@ -29,7 +29,7 @@ import {
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
 } from '../constants/common.js';
-import { areLinksEqual, isFollowStrategy, register } from '../utils.js';
+import { areLinksEqual, isFollowStrategy, normUrl, register } from '../utils.js';
 import {
   handlePdfDownload,
   runPdfScan,
@@ -116,9 +116,9 @@ const crawlDomain = async ({
   const pdfDownloads: Promise<void>[] = [];
   const uuidToPdfMapping: Record<string, string> = {};
   const queuedUrlSet = new Set<string>();
-  const scannedUrlSet = new Set<string>(urlsCrawled.scanned.map(item => item.url));
+  const scannedUrlSet = new Set<string>(urlsCrawled.scanned.map(item => normUrl(item.url)));
   const scannedResolvedUrlSet = new Set<string>(
-    urlsCrawled.scanned.map(item => item.actualUrl || item.url),
+    urlsCrawled.scanned.map(item => normUrl(item.actualUrl || item.url)),
   );
   const isScanHtml = [FileTypes.All, FileTypes.HtmlOnly].includes(fileTypes as FileTypes);
   const isScanPdfs = [FileTypes.All, FileTypes.PdfOnly].includes(fileTypes as FileTypes);
@@ -166,7 +166,7 @@ const crawlDomain = async ({
     const selectedElementsString = cssQuerySelectors.join(', ');
 
     const isExcluded = (newPageUrl: string): boolean => {
-      const isAlreadyScanned: boolean = urlsCrawled.scanned.some(item => item.url === newPageUrl);
+      const isAlreadyScanned: boolean = scannedUrlSet.has(normUrl(newPageUrl));
       const isBlacklistedUrl: boolean = isBlacklisted(newPageUrl, blacklistedPatterns);
       const isNotFollowStrategy: boolean = !isFollowStrategy(newPageUrl, initialPageUrl, strategy);
       const isNotSupportedDocument: boolean = disallowedListOfPatterns.some(pattern =>
@@ -341,7 +341,7 @@ const crawlDomain = async ({
           } catch (e) {
             consoleLogger.error(e);
           }
-          if (scannedUrlSet.has(req.url)) {
+          if (scannedUrlSet.has(normUrl(req.url))) {
             req.skipNavigation = true;
           }
           if (isDisallowedInRobotsTxt(req.url)) return null;
@@ -537,7 +537,7 @@ const crawlDomain = async ({
           }
 
           // if URL has already been scanned
-          if (scannedUrlSet.has(request.url)) {
+          if (scannedUrlSet.has(normUrl(request.url))) {
             await enqueueProcess(page, enqueueLinks, browserContext);
             return;
           }
@@ -680,7 +680,7 @@ const crawlDomain = async ({
             }
 
             if (isRedirected) {
-              const isLoadedUrlInCrawledUrls = scannedResolvedUrlSet.has(actualUrl);
+              const isLoadedUrlInCrawledUrls = scannedResolvedUrlSet.has(normUrl(actualUrl));
 
               if (isLoadedUrlInCrawledUrls) {
                 urlsCrawled.notScannedRedirects.push({
@@ -702,8 +702,8 @@ const crawlDomain = async ({
                   pageTitle: results.pageTitle,
                   actualUrl, // i.e. actualUrl
                 });
-                scannedUrlSet.add(request.url);
-                scannedResolvedUrlSet.add(actualUrl);
+                scannedUrlSet.add(normUrl(request.url));
+                scannedResolvedUrlSet.add(normUrl(actualUrl));
 
                 urlsCrawled.scannedRedirects.push({
                   fromUrl: request.url,
@@ -725,8 +725,8 @@ const crawlDomain = async ({
                 actualUrl: request.url,
                 pageTitle: results.pageTitle,
               });
-              scannedUrlSet.add(request.url);
-              scannedResolvedUrlSet.add(request.url);
+              scannedUrlSet.add(normUrl(request.url));
+              scannedResolvedUrlSet.add(normUrl(request.url));
               await dataset.pushData(results);
             }
           } else {

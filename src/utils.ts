@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import axe, { Rule } from 'axe-core';
 import { v4 as uuidv4 } from 'uuid';
 import { getDomain } from 'tldts';
+import { normalizeUrl } from '@apify/utilities';
 import constants, {
   BrowserTypes,
   destinationPath,
@@ -1077,6 +1078,8 @@ export const randomThreeDigitNumberString = () => {
   const threeDigitNumber = Math.floor(scaledDecimal) + 100;
   return String(threeDigitNumber);
 };
+
+export const normUrl = (u: string): string => (u ? normalizeUrl(u) || u : '');
 
 export const isFollowStrategy = (link1: string, link2: string, rule: string): boolean => {
   try {
