@@ -183,11 +183,12 @@ const crawlIntelligentSitemap = async (
   }
 
   const elapsed = Date.now() - startTime;
-  const remainingScanDuration = Math.max(scanDuration - elapsed / 1000, 0); // in seconds
+  const remainingScanDuration = scanDuration > 0 ? Math.max(scanDuration - elapsed / 1000, 0) : 0;
+  const hasDurationRemaining = scanDuration === 0 || remainingScanDuration > 0;
 
-  if (urlsCrawledFinal.scanned.length < maxRequestsPerCrawl && remainingScanDuration > 0) {
+  if (urlsCrawled.scanned.length < maxRequestsPerCrawl && hasDurationRemaining) {
     console.log(
-      `Continuing crawl from root website. Remaining scan time: ${remainingScanDuration.toFixed(1)}s`,
+      `Continuing crawl from root website.${scanDuration > 0 ? ` Remaining scan time: ${remainingScanDuration.toFixed(1)}s` : ''}`,
     );
     urlsCrawledFinal = await crawlDomain({
       url,
@@ -207,10 +208,10 @@ const crawlIntelligentSitemap = async (
       safeMode,
       fromCrawlIntelligentSitemap,
       datasetFromIntelligent: dataset,
-      urlsCrawledFromIntelligent: urlsCrawledFinal,
+      urlsCrawledFromIntelligent: urlsCrawled,
       scanDuration: remainingScanDuration,
     });
-  } else if (remainingScanDuration <= 0) {
+  } else if (!hasDurationRemaining) {
     console.log(
       `Crawl duration exceeded before more pages could be found (limit: ${scanDuration}s).`,
     );
@@ -218,7 +219,7 @@ const crawlIntelligentSitemap = async (
   }
 
   guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
-  return { urlsCrawled: urlsCrawledFinal, durationExceeded };
+  return { urlsCrawled, durationExceeded };
 };
 
 export default crawlIntelligentSitemap;
