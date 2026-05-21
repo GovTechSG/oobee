@@ -976,7 +976,7 @@ export const getLinksFromSitemap = async (
   const addToUrlList = (url: string) => {
     if (!url) return;
     if (isDisallowedInRobotsTxt(url)) return;
-    if (!isFollowStrategy(url, userUrl, strategy)) return;
+    if (!isFilePath(userUrl) && !isFollowStrategy(url, userUrl, strategy)) return;
 
     url = convertPathToLocalFile(url);
 

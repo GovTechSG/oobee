@@ -1082,12 +1082,10 @@ export const randomThreeDigitNumberString = () => {
 export const normUrl = (u: string): string => (u ? normalizeUrl(u) || u : '');
 
 export const isFollowStrategy = (link1: string, link2: string, rule: string): boolean => {
+  if (rule === 'all') return true;
   try {
     const parsedLink1 = new URL(link1);
     const parsedLink2 = new URL(link2);
-    if (rule === 'all') {
-      return true;
-    }
     if (rule === 'same-origin') {
       return parsedLink1.origin === parsedLink2.origin;
     }
