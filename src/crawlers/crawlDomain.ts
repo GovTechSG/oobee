@@ -172,7 +172,8 @@ const crawlDomain = async ({
       const isNotSupportedDocument: boolean = disallowedListOfPatterns.some(pattern =>
         newPageUrl.toLowerCase().startsWith(pattern),
       );
-      return isNotSupportedDocument || isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy;
+      const isRobotsDisallowed: boolean = isDisallowedInRobotsTxt(newPageUrl);
+      return isNotSupportedDocument || isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy || isRobotsDisallowed;
     };
     const setPageListeners = (pageListener: Page): void => {
       // event listener to handle new page popups upon button click
@@ -481,7 +482,7 @@ const crawlDomain = async ({
           }
 
           const isRedirected = !areLinksEqual(finalUrl, requestLabelUrl);
-          if (isRedirected) {
+          if (isRedirected && !isDisallowedInRobotsTxt(finalUrl)) {
             await enqueueUniqueRequest({ url: finalUrl, label: finalUrl });
           } else {
             request.skipNavigation = false;
