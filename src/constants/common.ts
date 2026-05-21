@@ -806,7 +806,11 @@ export const getUrlsFromRobotsTxt = async (
   const disallowedUrls = [];
   const allowedUrls = [];
 
-  const sanitisePattern = (pattern: string): string => {
+  // Returns 1–2 minimatch glob patterns for a single robots.txt path pattern.
+  // Two patterns are returned for bare paths (no trailing wildcard) so that
+  // both the exact URL and all child paths are blocked, matching robots.txt
+  // prefix semantics.
+  const sanitisePattern = (pattern: string): string[] => {
     const directoryRegex = /^\/(?:[^?#/]+\/)*[^?#]*$/;
     const subdirWildcardRegex = /\/\*\//g;
     const filePathRegex = /^\/(?:[^\/]+\/)*[^\/]+\.[a-zA-Z0-9]{1,6}$/;
@@ -814,16 +818,30 @@ export const getUrlsFromRobotsTxt = async (
     if (subdirWildcardRegex.test(pattern)) {
       pattern = pattern.replace(subdirWildcardRegex, '/**/');
     }
+
+    // Query-string patterns (e.g. /faq?faqItem= or /faq/?faq&faqItem=):
+    // '?' is the query separator in robots.txt but a single-char wildcard in
+    // minimatch. Escape it to a literal match and append '*' so any query
+    // value after the stated prefix is also blocked.
+    if (pattern.includes('?')) {
+      return [domain + pattern.replace('?', '\\?') + '*'];
+    }
+
     if (pattern.match(directoryRegex) && !pattern.match(filePathRegex)) {
       if (pattern.endsWith('*')) {
-        pattern = pattern.concat('*');
+        // e.g. /ebook/* → /ebook/** (already covers all children)
+        return [domain + pattern.concat('*')];
       } else {
-        if (!pattern.endsWith('/')) pattern = pattern.concat('/');
-        pattern = pattern.concat('**');
+        // Bare path (e.g. /subscription/unsubscribe): robots.txt blocks the
+        // exact URL *and* every descendant. minimatch's '/**' glob does not
+        // match the bare path itself (no trailing slash), so we emit both the
+        // exact-path pattern and a children glob.
+        const base = domain + pattern;
+        const children = domain + (pattern.endsWith('/') ? pattern : pattern + '/') + '**';
+        return [base, children];
       }
     }
-    const final = domain.concat(pattern);
-    return final;
+    return [domain + pattern];
   };
 
   for (const line of lines) {
@@ -834,14 +852,12 @@ export const getUrlsFromRobotsTxt = async (
     } else if (shouldCapture && line.toLowerCase().startsWith('disallow:')) {
       let disallowed = line.substring('disallow: '.length).trim();
       if (disallowed) {
-        disallowed = sanitisePattern(disallowed);
-        disallowedUrls.push(disallowed);
+        disallowedUrls.push(...sanitisePattern(disallowed));
       }
     } else if (shouldCapture && line.toLowerCase().startsWith('allow:')) {
       let allowed = line.substring('allow: '.length).trim();
       if (allowed) {
-        allowed = sanitisePattern(allowed);
-        allowedUrls.push(allowed);
+        allowedUrls.push(...sanitisePattern(allowed));
       }
     }
   }
