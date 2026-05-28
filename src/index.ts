@@ -1,172 +1,30 @@
-#!/usr/bin/env node
-import printMessage from 'print-message';
-import inquirer from 'inquirer';
-import { EnqueueStrategy } from 'crawlee';
-import {
-  getVersion,
-  getUserDataTxt,
-  writeToUserDataTxt,
-  listenForCleanUp,
-  cleanUpAndExit,
-} from './utils.js';
-import {
-  prepareData,
-  messageOptions,
-  getPlaywrightDeviceDetailsObject,
-  getBrowserToRun,
-  getScreenToScan,
+export { default as crawlDomain } from './crawlers/crawlDomain.js';
+export { default as crawlSitemap } from './crawlers/crawlSitemap.js';
+export { default as crawlIntelligentSitemap } from './crawlers/crawlIntelligentSitemap.js';
+
+export {
+  getPlaywrightLaunchOptions,
   getClonedProfilesWithRandomToken,
   deleteClonedProfiles,
+  getLinksFromSitemap,
+  getUrlsFromRobotsTxt,
+  getSitemapsFromRobotsTxt,
+  isDisallowedInRobotsTxt,
+  isBlacklistedFileExtensions,
+  isSkippedUrl,
+  waitForPageLoaded,
+  isFilePath,
+  getBrowserToRun,
 } from './constants/common.js';
-import questions from './constants/questions.js';
-import combineRun from './combine.js';
-import { BrowserTypes, FileTypes, RuleFlags, ScannerTypes } from './constants/constants.js';
-import { DeviceDescriptor } from './types/types.js';
 
-export type Answers = {
-  headless: boolean;
-  deviceChosen: string;
-  customDevice: string;
-  viewportWidth: number;
-  browserToRun: BrowserTypes;
-  scanner: ScannerTypes;
-  url: string;
-  clonedBrowserDataDir: string;
-  playwrightDeviceDetailsObject: DeviceDescriptor;
-  nameEmail: string;
-  fileTypes: FileTypes;
-  metadata: string;
-  maxpages: number;
-  strategy: string;
-  isLocalFileScan: boolean;
-  finalUrl: string;
-  customFlowLabel: string;
-  specifiedMaxConcurrency: number;
-  blacklistedPatternsFilename: string;
-  additional: string;
-  followRobots: boolean;
-  header: string;
-  safeMode: boolean;
-  exportDirectory: string;
-  zip: string;
-  ruleset: RuleFlags[];
-  generateJsonFiles: boolean;
-  scanDuration?: number;
-};
+export {
+  getProxyInfo,
+  proxyInfoToResolution,
+} from './proxyService.js';
 
-export type Data = {
-  type: ScannerTypes;
-  url: string;
-  entryUrl: string;
-  isHeadless: boolean;
-  deviceChosen: string;
-  customDevice: string;
-  viewportWidth: number;
-  playwrightDeviceDetailsObject: DeviceDescriptor;
-  maxRequestsPerCrawl: number;
-  strategy: EnqueueStrategy;
-  isLocalFileScan: boolean;
-  browser: string;
-  nameEmail: string;
-  customFlowLabel: string;
-  specifiedMaxConcurrency: number;
-  randomToken: string;
-  fileTypes: FileTypes;
-  blacklistedPatternsFilename: string;
-  includeScreenshots: boolean;
-  metadata: string;
-  followRobots: boolean;
-  extraHTTPHeaders: Record<string, string>;
-  safeMode: boolean;
-  userDataDirectory?: string;
-  zip?: string;
-  ruleset: RuleFlags[];
-  generateJsonFiles: boolean;
-  scanDuration: number;
-};
+export { getStoragePath, normUrl, areLinksEqual, isFollowStrategy, register, stopAll } from './utils.js';
 
-const userData = getUserDataTxt();
+export type { PageHandler, PageHandlerContext, PageInfo, ViewportSettingsClass } from './types.js';
+export { UrlsCrawled, FileTypes, STATUS_CODE_METADATA } from './types.js';
 
-const runScan = async (answers: Answers) => {
-  const screenToScan = getScreenToScan(
-    answers.deviceChosen,
-    answers.customDevice,
-    answers.viewportWidth,
-  );
-  answers.playwrightDeviceDetailsObject = getPlaywrightDeviceDetailsObject(
-    answers.deviceChosen,
-    answers.customDevice,
-    answers.viewportWidth,
-  );
-    
-  if (!answers.nameEmail) {
-    answers.nameEmail = `${userData.name}:${userData.email}`;
-  }
-
-  answers.fileTypes = FileTypes.All;
-  answers.metadata = '{}';
-
-  const data: Data = await prepareData(answers);
-  
-  // Executes cleanUp script if error encountered
-  listenForCleanUp(data.randomToken);
-  
-  data.userDataDirectory = getClonedProfilesWithRandomToken(data.browser, data.randomToken);
-
-  printMessage(['Scanning website...'], messageOptions);
-
-  await combineRun(data, screenToScan);
-
-  // Delete dataset and request queues
-  cleanUpAndExit(0, data.randomToken);
-
-};
-
-if (userData) {
-  printMessage(
-    [
-      `Oobee (ver ${getVersion()})`,
-      'We recommend using Chrome browser for the best experience.',
-      '',
-      `Welcome back ${userData.name}!`,
-      `(Refer to readme.txt on how to change your profile)`,
-    ],
-    {
-      // Note that the color is based on kleur NPM package
-      border: true,
-      borderColor: 'magenta',
-    },
-  );
-
-  inquirer.prompt(questions).then(async answers => {
-    await runScan(answers);
-  });
-} else {
-  printMessage(
-    [`Oobee (ver ${getVersion()})`, 'We recommend using Chrome browser for the best experience.'],
-    {
-      // Note that the color is based on kleur NPM package
-      border: true,
-      borderColor: 'magenta',
-    },
-  );
-
-  printMessage(
-    [
-      `To personalise your experience, we will be collecting your name, email address and app usage data.`,
-      `Your information fully complies with GovTech's Privacy Policy.`,
-    ],
-    {
-      border: false,
-    },
-  );
-
-  inquirer.prompt(questions).then(async answers => {
-    const { name, email } = answers;
-    answers.nameEmail = `${name}:${email}`;
-    await writeToUserDataTxt('name', name);
-    await writeToUserDataTxt('email', email);
-
-    await runScan(answers);
-  });
-}
+export { guiInfoLog, consoleLogger, silentLogger } from './logs.js';

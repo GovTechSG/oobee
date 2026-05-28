@@ -23,20 +23,32 @@ import constants, {
   getDefaultChromeDataDir,
   getDefaultEdgeDataDir,
   getDefaultChromiumDataDir,
-  // Legacy code start - Google Sheets submission
-  formDataFields,
-  // Legacy code end - Google Sheets submission
   ScannerTypes,
   BrowserTypes,
   FileTypes,
   getEnumKey,
 } from './constants.js';
 import { consoleLogger } from '../logs.js';
-import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
-import { cleanUpAndExit, isFollowStrategy, randomThreeDigitNumberString, register } from '../utils.js';
-import { Answers, Data } from '../index.js';
-import { DeviceDescriptor } from '../types/types.js';
+import { isFollowStrategy, randomThreeDigitNumberString, register } from '../utils.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
+
+type DeviceDescriptor = any;
+type Answers = any;
+type Data = any;
+const cleanUpAndExit = (code: number) => { process.exit(code); };
+const formDataFields: any = {};
+
+const isUrlPdf = (url: string): boolean => {
+  const driveLetterPattern = /^[A-Z]:/i;
+  const backslashPattern = /\\/;
+  const isLocal = url.startsWith('/') || driveLetterPattern.test(url) || backslashPattern.test(url) ||
+    url.startsWith('./') || url.startsWith('../') || url.startsWith('.\\') || url.startsWith('..\\');
+  if (isLocal) {
+    return /\.pdf$/i.test(url);
+  }
+  const parsedUrl = new URL(url);
+  return /\.pdf($|\?|#)/i.test(parsedUrl.pathname) || /\.pdf($|\?|#)/i.test(parsedUrl.href);
+};
 
 // validateDirPath validates a provided directory path
 // returns null if no error

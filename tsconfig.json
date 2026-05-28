@@ -5,7 +5,10 @@
     "target": "es2021",
     "module": "nodenext",
     "rootDir": "./src",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
   },
   "include": ["./src/**/*"],
   "exclude": [

@@ -1,14 +1,19 @@
-import fs from 'fs';
 import { chromium, Page } from 'playwright';
-import { EnqueueStrategy } from 'crawlee';
-import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
+import { Dataset, EnqueueStrategy } from 'crawlee';
+import * as path from 'path';
 import constants, { FileTypes, guiInfoStatusTypes, sitemapPaths } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
-import { ViewportSettingsClass } from '../combine.js';
 import { getPlaywrightLaunchOptions, getSitemapsFromRobotsTxt } from '../constants/common.js';
-import { register } from '../utils.js';
+import { register, getStoragePath } from '../utils.js';
+import type { PageHandler, ViewportSettingsClass } from '../types.js';
+
+const createCrawleeSubFolders = async (randomToken: string) => {
+  const crawleeDir = path.join(getStoragePath(randomToken), 'crawlee');
+  const dataset = await Dataset.open(crawleeDir);
+  return { dataset };
+};
 
 const crawlIntelligentSitemap = async (
   url: string,
@@ -22,13 +27,13 @@ const crawlIntelligentSitemap = async (
   specifiedMaxConcurrency: number,
   fileTypes: FileTypes,
   blacklistedPatterns: string[],
-  includeScreenshots: boolean,
   followRobots: boolean,
   extraHTTPHeaders: Record<string, string>,
   safeMode: boolean,
   scanDuration: number,
+  pageHandler: PageHandler,
 ) => {
-  const startTime = Date.now(); // Track start time
+  const startTime = Date.now();
 
   let urlsCrawledFinal;
   const urlsCrawled = { ...constants.urlsCrawledObj };
@@ -65,7 +70,6 @@ const crawlIntelligentSitemap = async (
       });
       register(context);
     } else {
-      // In headful mode, avoid launchPersistentContext to prevent "Browser window not found"
       browserInstance = await constants.launcher.launch(launchOptions);
       register(browserInstance as unknown as { close: () => Promise<void> });
       context = await browserInstance.newContext({
@@ -100,7 +104,7 @@ const crawlIntelligentSitemap = async (
     }
   };
 
-  // Discover sitemaps from robots.txt first (supports multiple Sitemap: directives)
+  // Discover sitemaps from robots.txt first
   let sitemapUrls: string[] = [];
   try {
     sitemapUrls = await getSitemapsFromRobotsTxt(url, browser, userDataDirectory, extraHTTPHeaders);
@@ -138,11 +142,11 @@ const crawlIntelligentSitemap = async (
       specifiedMaxConcurrency,
       fileTypes,
       blacklistedPatterns,
-      includeScreenshots,
       followRobots,
       extraHTTPHeaders,
       safeMode,
       scanDuration,
+      pageHandler,
     });
   }
 
@@ -169,8 +173,8 @@ const crawlIntelligentSitemap = async (
       specifiedMaxConcurrency,
       fileTypes,
       blacklistedPatterns,
-      includeScreenshots,
       extraHTTPHeaders,
+      pageHandler,
       strategy,
       userUrl: url,
       fromCrawlIntelligentSitemap,
@@ -202,19 +206,17 @@ const crawlIntelligentSitemap = async (
       specifiedMaxConcurrency,
       fileTypes,
       blacklistedPatterns,
-      includeScreenshots,
       followRobots,
       extraHTTPHeaders,
       safeMode,
+      pageHandler,
       fromCrawlIntelligentSitemap,
       datasetFromIntelligent: dataset,
       urlsCrawledFromIntelligent: urlsCrawled,
       scanDuration: remainingScanDuration,
     });
   } else if (!hasDurationRemaining) {
-    console.log(
-      `Crawl duration exceeded before more pages could be found (limit: ${scanDuration}s).`,
-    );
+    console.log(`Crawl duration exceeded before more pages could be found (limit: ${scanDuration}s).`);
     durationExceeded = true;
   }
 

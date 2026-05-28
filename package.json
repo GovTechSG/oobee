@@ -1,123 +1,48 @@
 {
-  "name": "@govtechsg/oobee",
-  "main": "dist/npmIndex.js",
-  "version": "0.10.87",
+  "name": "@govtechsg/oobee-crawler",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "version": "0.1.0",
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
-  "bin": {
-    "oobee": "./dist/cli.js"
-  },
+  "description": "Shared crawling library (Playwright + Crawlee) for oobee and web-crawler. Provides crawlDomain, crawlSitemap, crawlIntelligentSitemap with a pluggable pageHandler callback.",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1049.0",
-    "@json2csv/node": "^7.0.3",
-    "@napi-rs/canvas": "^0.1.53",
-    "@sentry/node": "^9.13.0",
-    "@types/aws-sdk": "^0.0.42",
-    "axe-core": "^4.11.4",
+    "@apify/utilities": "^2.13.0",
     "axios": "^1.8.2",
-    "base64-stream": "^1.0.0",
     "cheerio": "^1.0.0-rc.12",
     "crawlee": "^3.13.10",
-    "ejs": "^3.1.9",
-    "file-type": "^21.3.3",
     "fs-extra": "^11.2.0",
     "glob": "^13.0.6",
-    "https": "^1.0.0",
-    "inquirer": "^9.2.12",
     "jsdom": "^29.0.0",
-    "jszip": "^3.10.1",
-    "lodash": "^4.17.21",
     "mime": "^4.0.7",
-    "mime-types": "^2.1.35",
     "minimatch": "^10.2.4",
-    "pdfjs-dist": "github:veraPDF/pdfjs-dist#v4.4.168-taggedPdf-0.1.20",
     "playwright": "^1.58.2",
-    "prettier": "^3.1.0",
     "print-message": "^3.0.1",
     "safe-regex": "^2.1.1",
-    "text-readability": "^1.1.0",
     "tldts": "^7.0.27",
-    "typescript": "^5.4.5",
-    "url": "^0.11.3",
-    "uuid": "^14.0.0",
     "validator": "^13.11.0",
     "which": "^4.0.0",
     "winston": "^3.11.0",
-    "xml2js": "^0.6.2",
-    "xpath-to-css": "^1.2.0",
-    "yargs": "^17.7.2"
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.0.2",
-    "@eslint/js": "^9.6.0",
-    "@types/base64-stream": "^1.0.5",
-    "@types/eslint__js": "^8.42.3",
     "@types/fs-extra": "^11.0.4",
-    "@types/inquirer": "^9.0.7",
-    "@types/lodash": "^4.17.7",
-    "@types/mime": "^3.0.4",
-    "@types/mime-types": "^2.1.4",
     "@types/safe-regex": "^1.1.6",
     "@types/validator": "^13.11.10",
     "@types/which": "^3.0.4",
     "@types/xml2js": "^0.4.14",
-    "browserify-zlib": "^0.2.0",
-    "eslint": "^9.26.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-config-prettier": "^8.6.0",
-    "eslint-plugin-import": "^2.27.4",
-    "eslint-plugin-prettier": "^5.0.0",
-    "globals": "^15.2.0",
-    "jest": "^30.0.5",
-    "readable-stream": "^4.7.0",
-    "typescript-eslint": "^8.36.0"
+    "typescript": "^5.4.5"
   },
   "overrides": {
-    "node-fetch": "^2.3.0",
-    "json5": "^2.2.3",
-    "ansi-regex": "^5.0.1",
-    "tough-cookie": "^5.0.0-rc.2",
-    "micromatch": "github:micromatch/micromatch.git#4.0.8",
-    "tmp": "0.2.4",
-    "tar": "^7.5.6",
-    "eslint-config-airbnb-base": {
-      "eslint": "^9.26.0"
-    },
-    "fast-xml-parser": ">=5.3.8",
-    "js-yaml": "^4.1.1",
-    "minimatch": "^10.2.4",
-    "brace-expansion": "^5.0.6",
-    "glob": "^13.0.6",
-    "flatted": "^3.4.1",
-    "file-type": "^21.3.3"
-  },
-  "optionalDependencies": {
-    "@napi-rs/canvas-darwin-arm64": "^0.1.53",
-    "@napi-rs/canvas-darwin-x64": "^0.1.53",
-    "@napi-rs/canvas-linux-arm64-gnu": "0.1.53",
-    "@napi-rs/canvas-linux-arm64-musl": "0.1.53",
-    "@napi-rs/canvas-linux-x64-gnu": "0.1.53",
-    "@napi-rs/canvas-linux-x64-musl": "0.1.53",
-    "@napi-rs/canvas-win32-x64-msvc": "0.1.53"
+    "minimatch": "^10.2.4"
   },
   "scripts": {
-    "build": "npm run copyfiles && tsc",
-    "build:watch": "npm run build -- --watch",
-    "copyfiles": "node ./scripts/copyFiles.js src/static/ejs dist/static && node ./scripts/copyFiles.js src/constants/errorMeta.json dist/constants && node ./scripts/copyFiles.js exclusions.txt dist",
-    "start": "node --max-old-space-size=10000 dist/index.js",
-    "cli": "node --max-old-space-size=10000 dist/cli.js",
-    "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
-    "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
-    "lint:fix": "eslint . --fix --report-unused-disable-directives --max-warnings 0"
+    "build": "tsc",
+    "build:watch": "tsc --watch"
   },
   "license": "MIT",
-  "description": "Oobee is a customisable, automated accessibility testing tool that allows software development teams to assess whether their products are user-friendly to persons with disabilities (PWDs).",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/GovTechSG/oobee.git"
-  },
-  "bugs": {
-    "url": "https://github.com/GovTechSG/oobee/issues"
-  },
-  "homepage": "https://github.com/GovTechSG/oobee#readme"
+    "url": "git+https://github.com/GovTechSG/oobee-crawler.git"
+  }
 }

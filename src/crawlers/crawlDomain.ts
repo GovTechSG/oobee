@@ -1,21 +1,13 @@
-import crawlee, { EnqueueStrategy } from 'crawlee';
+import crawlee, { Dataset, EnqueueStrategy, RequestQueue } from 'crawlee';
 import type { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
 import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
 import * as path from 'path';
 import fsp from 'fs/promises';
-import {
-  createCrawleeSubFolders,
-  runAxeScript,
-  isUrlPdf,
-  shouldSkipClickDueToDisallowedHref,
-  shouldSkipDueToUnsupportedContent,
-} from './commonCrawlerFunc.js';
 import constants, {
   UrlsCrawled,
   blackListedFileExtensions,
   guiInfoStatusTypes,
   cssQuerySelectors,
-  RuleFlags,
   STATUS_CODE_METADATA,
   disallowedListOfPatterns,
   disallowedSelectorPatterns,
@@ -29,15 +21,9 @@ import {
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
 } from '../constants/common.js';
-import { areLinksEqual, isFollowStrategy, normUrl, register } from '../utils.js';
-import {
-  handlePdfDownload,
-  runPdfScan,
-  mapPdfScanResults,
-  doPdfScreenshots,
-} from './pdfScanFunc.js';
+import { areLinksEqual, isFollowStrategy, normUrl, register, getStoragePath } from '../utils.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
-import { ViewportSettingsClass } from '../combine.js';
+import type { PageHandler, ViewportSettingsClass } from '../types.js';
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
@@ -45,7 +31,6 @@ const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   }
   try {
     const parsedUrl = new URL(url);
-
     return blacklistedPatterns.some(
       pattern => new RegExp(pattern).test(parsedUrl.hostname) || new RegExp(pattern).test(url),
     );
@@ -53,6 +38,29 @@ const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
     console.error(`Error parsing URL: ${url}`, error);
     return false;
   }
+};
+
+const isUrlPdf = (url: string): boolean => {
+  const driveLetterPattern = /^[A-Z]:/i;
+  const backslashPattern = /\\/;
+  const isLocal = url.startsWith('/') || driveLetterPattern.test(url) || backslashPattern.test(url) ||
+    url.startsWith('./') || url.startsWith('../') || url.startsWith('.\\') || url.startsWith('..\\');
+  if (isLocal) return /\.pdf$/i.test(url);
+  try {
+    const parsedUrl = new URL(url);
+    return /\.pdf($|\?|#)/i.test(parsedUrl.pathname) || /\.pdf($|\?|#)/i.test(parsedUrl.href);
+  } catch {
+    return false;
+  }
+};
+
+const createCrawleeSubFolders = async (
+  randomToken: string,
+): Promise<{ dataset: Dataset; requestQueue: RequestQueue }> => {
+  const crawleeDir = path.join(getStoragePath(randomToken), 'crawlee');
+  const dataset = await Dataset.open(crawleeDir);
+  const requestQueue = await RequestQueue.open(crawleeDir);
+  return { dataset, requestQueue };
 };
 
 const crawlDomain = async ({
@@ -67,15 +75,14 @@ const crawlDomain = async ({
   specifiedMaxConcurrency,
   fileTypes,
   blacklistedPatterns,
-  includeScreenshots,
   followRobots,
   extraHTTPHeaders,
+  pageHandler,
   scanDuration = 0,
   safeMode = false,
   fromCrawlIntelligentSitemap = false,
   datasetFromIntelligent = null,
   urlsCrawledFromIntelligent = null,
-  ruleset = [],
 }: {
   url: string;
   randomToken: string;
@@ -88,15 +95,14 @@ const crawlDomain = async ({
   specifiedMaxConcurrency: number;
   fileTypes: FileTypes;
   blacklistedPatterns: string[];
-  includeScreenshots: boolean;
   followRobots: boolean;
   extraHTTPHeaders: Record<string, string>;
+  pageHandler: PageHandler;
   scanDuration?: number;
   safeMode?: boolean;
   fromCrawlIntelligentSitemap?: boolean;
   datasetFromIntelligent?: crawlee.Dataset;
   urlsCrawledFromIntelligent?: UrlsCrawled;
-  ruleset?: RuleFlags[];
 }) => {
   const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
@@ -113,8 +119,6 @@ const crawlDomain = async ({
     urlsCrawled = { ...constants.urlsCrawledObj };
   }
 
-  const pdfDownloads: Promise<void>[] = [];
-  const uuidToPdfMapping: Record<string, string> = {};
   const queuedUrlSet = new Set<string>();
   const scannedUrlSet = new Set<string>(urlsCrawled.scanned.map(item => normUrl(item.url)));
   const scannedResolvedUrlSet = new Set<string>(
@@ -134,17 +138,10 @@ const crawlDomain = async ({
     skipNavigation?: boolean;
     label?: string;
   }) => {
-    if (queuedUrlSet.has(url)) {
-      return;
-    }
+    if (queuedUrlSet.has(url)) return;
     queuedUrlSet.add(url);
-
     try {
-      await requestQueue.addRequest({
-        url,
-        skipNavigation,
-        label,
-      });
+      await requestQueue.addRequest({ url, skipNavigation, label });
     } catch (error) {
       queuedUrlSet.delete(url);
       throw error;
@@ -175,8 +172,8 @@ const crawlDomain = async ({
       const isRobotsDisallowed: boolean = isDisallowedInRobotsTxt(newPageUrl);
       return isNotSupportedDocument || isAlreadyScanned || isBlacklistedUrl || isNotFollowStrategy || isRobotsDisallowed;
     };
+
     const setPageListeners = (pageListener: Page): void => {
-      // event listener to handle new page popups upon button click
       pageListener.on('popup', async (newPage: Page) => {
         try {
           if (newPage.url() !== initialPageUrl && !isExcluded(newPage.url())) {
@@ -187,142 +184,52 @@ const crawlDomain = async ({
               label: newPageUrl,
             });
           } else {
-            try {
-              await newPage.close();
-            } catch {
-              // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-              // Handles browser page object been closed.
-            }
+            try { await newPage.close(); } catch { /* best effort */ }
           }
-        } catch {
-          // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-          // Handles browser page object been closed.
-        }
-      });
-
-      // event listener to handle navigation to new url within same page upon element click
-      pageListener.on('framenavigated', async (newFrame: Frame) => {
-        try {
-          if (
-            newFrame.url() !== initialPageUrl &&
-            !isExcluded(newFrame.url()) &&
-            !(newFrame.url() === 'about:blank')
-          ) {
-            const newFrameUrl: string = newFrame.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
-            await enqueueUniqueRequest({
-              url: newFrameUrl,
-              skipNavigation: isUrlPdf(newFrame.url()),
-              label: newFrameUrl,
-            });
-          }
-        } catch {
-          // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-          // Handles browser page object been closed.
-        }
+        } catch { /* best effort */ }
       });
     };
+
     setPageListeners(workingPage);
-    let currentElementIndex: number = 0;
-    let isAllElementsHandled: boolean = false;
-    // This loop is intentionally sequential because each step depends on the latest page state
-    // (navigation, popup/frame events, and potential page recreation).
-    // Running iterations in parallel (for example with Promise.all) would race on shared `page`
-    // state, causing stale element handles and nondeterministic enqueue/navigation behavior.
-    /* eslint-disable no-await-in-loop */
-    while (!isAllElementsHandled) {
-      try {
-        // navigate back to initial page if clicking on a element previously caused it to navigate to a new url
-        if (workingPage.url() !== initialPageUrl) {
-          try {
-            await workingPage.close();
-          } catch {
-            // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-            // Handles browser page object been closed.
-          }
-          workingPage = await browserContext.newPage();
-          await workingPage.goto(initialPageUrl, {
-            waitUntil: 'domcontentloaded',
-          });
-          setPageListeners(workingPage);
-        }
-        const selectedElements: ElementHandle<SVGElement | HTMLElement>[] =
-          await workingPage.$$(selectedElementsString);
-        // edge case where there might be elements on page that appears intermittently
-        if (currentElementIndex + 1 > selectedElements.length || !selectedElements) {
-          break;
-        }
-        // handle the last element in selectedElements
-        if (currentElementIndex + 1 === selectedElements.length) {
-          isAllElementsHandled = true;
-        }
-        const element: ElementHandle<SVGElement | HTMLElement> =
-          selectedElements[currentElementIndex];
-        currentElementIndex += 1;
-        let newUrlFoundInElement: string = null;
-        if (await element.isVisible()) {
-          const currentPageUrl = workingPage.url();
-          // Find url in html elements without clicking them
-          const result = await workingPage.evaluate(pageElement => {
-            // find href attribute
-            const hrefUrl: string = pageElement.getAttribute('href');
 
-            // find url in datapath
-            const dataPathUrl: string = pageElement.getAttribute('data-path');
+    const selectedElements: ElementHandle[] = await workingPage.$$(selectedElementsString);
+    const filteredElements: ElementHandle[] = [];
 
-            return hrefUrl || dataPathUrl;
-          }, element);
-          if (result) {
-            newUrlFoundInElement = result;
-            const pageUrl: URL = new URL(currentPageUrl);
-            const baseUrl: string = `${pageUrl.protocol}//${pageUrl.host}`;
-            let absoluteUrl: URL;
-            // Construct absolute URL using base URL
-            try {
-              // Check if newUrlFoundInElement is a valid absolute URL
-              absoluteUrl = new URL(newUrlFoundInElement);
-            } catch {
-              // If it's not a valid URL, treat it as a relative URL
-              absoluteUrl = new URL(newUrlFoundInElement, baseUrl);
-            }
-            newUrlFoundInElement = absoluteUrl.href;
-          }
-          if (newUrlFoundInElement && !isExcluded(newUrlFoundInElement)) {
-            const newUrlFoundInElementUrl: string = newUrlFoundInElement.replace(
-              /(?<=&|\?)utm_.*?(&|$)/gim,
-              '',
-            );
-
-            await enqueueUniqueRequest({
-              url: newUrlFoundInElementUrl,
-              skipNavigation: isUrlPdf(newUrlFoundInElement),
-              label: newUrlFoundInElementUrl,
-            });
-          } else if (!newUrlFoundInElement) {
-            try {
-              const shouldSkip = await shouldSkipClickDueToDisallowedHref(workingPage, element);
-              if (shouldSkip) {
-                const elementHtml = await workingPage.evaluate(el => el.outerHTML, element);
-                consoleLogger.info(
-                  'Skipping a click due to disallowed href nearby. Element HTML:',
-                  elementHtml,
-                );
-              } else {
-                // Find url in html elements by manually clicking them. New page navigation/popups will be handled by event listeners above
-                await element.click({ force: true });
-                await workingPage.waitForTimeout(1000); // Add a delay of 1 second between each Element click
-              }
-            } catch {
-              // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-              // Handles browser page object been closed.
-            }
-          }
-        }
-      } catch {
-        // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-        // Handles browser page object been closed.
-      }
+    for (const element of selectedElements) {
+      const href = await element.evaluate(el => (el as HTMLElement).getAttribute('href'));
+      const shouldSkip = href && disallowedListOfPatterns.some(p => href.toLowerCase().startsWith(p));
+      if (!shouldSkip) filteredElements.push(element);
     }
-    /* eslint-enable no-await-in-loop */
+
+    for (const element of filteredElements) {
+      try {
+        const newUrl = await element.evaluate(el => {
+          const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+          el.dispatchEvent(event);
+          return (el as HTMLAnchorElement).href || '';
+        });
+
+        if (newUrl && !isExcluded(newUrl)) {
+          const cleanUrl = newUrl.replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
+          await enqueueUniqueRequest({
+            url: cleanUrl,
+            skipNavigation: isUrlPdf(cleanUrl),
+            label: cleanUrl,
+          });
+        }
+
+        const currentUrl = workingPage.url();
+        if (currentUrl !== initialPageUrl && !isExcluded(currentUrl)) {
+          const cleanCurrentUrl = currentUrl.replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
+          await enqueueUniqueRequest({
+            url: cleanCurrentUrl,
+            skipNavigation: isUrlPdf(cleanCurrentUrl),
+            label: cleanCurrentUrl,
+          });
+          await workingPage.goBack();
+        }
+      } catch { /* best effort click discovery */ }
+    }
   };
 
   const enqueueProcess = async (
@@ -332,7 +239,6 @@ const crawlDomain = async ({
   ) => {
     try {
       await enqueueLinks({
-        // set selector matches anchor elements with href but not contains # or starting with mailto:
         selector: `a:not(${disallowedSelectorPatterns})`,
         strategy,
         requestQueue,
@@ -348,37 +254,23 @@ const crawlDomain = async ({
           if (isDisallowedInRobotsTxt(req.url)) return null;
           if (isBlacklisted(req.url, blacklistedPatterns)) return null;
           if (isUrlPdf(req.url)) {
-            // playwright headless mode does not support navigation to pdf document
             req.skipNavigation = true;
           }
           req.label = req.url;
-
           return req;
         },
       });
 
-      // If safeMode flag is enabled, skip enqueueLinksByClickingElements
       if (!safeMode) {
-        // Only run the expensive element-clicking discovery on pages sharing the
-        // same hostname as the seed URL.  Cross-subdomain pages (reachable via
-        // same-domain strategy) still contribute their <a> links above, but
-        // clicking every interactive element on them is too slow and starves
-        // the crawler of time to discover pages on the primary hostname.
         const currentHostname = new URL(page.url()).hostname;
         const seedHostname = new URL(url).hostname;
         if (currentHostname === seedHostname) {
-          // Try catch is necessary as clicking links is best effort, it may result in new pages that cause browser load or navigation errors that PlaywrightCrawler does not handle
           try {
             await customEnqueueLinksByClickingElements(page, browserContext);
-          } catch {
-            // do nothing;
-          }
+          } catch { /* best effort */ }
         }
       }
-    } catch {
-      // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
-      // Handles browser page object been closed.
-    }
+    } catch { /* best effort */ }
   };
 
   let isAbortingScanNow = false;
@@ -388,7 +280,6 @@ const crawlDomain = async ({
       launchContext: {
         launcher: constants.launcher,
         launchOptions: getPlaywrightLaunchOptions(browser),
-        // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
         ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
       },
       retryOnBlocked: true,
@@ -396,25 +287,14 @@ const crawlDomain = async ({
         useFingerprints: false,
         preLaunchHooks: [
           async (_pageId, launchContext) => {
-            const baseDir = userDataDirectory; // e.g., /Users/young/.../Chrome/oobee-...
-
-            // Ensure base exists
+            const baseDir = userDataDirectory;
             await fsp.mkdir(baseDir, { recursive: true });
-
-            // Create a unique subdir per browser
             const subProfileDir = path.join(
               baseDir,
               `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             );
             await fsp.mkdir(subProfileDir, { recursive: true });
-
-            // Assign to Crawlee's launcher
-            // Crawlee preLaunchHooks expects launchContext to be mutated in-place.
-            // eslint-disable-next-line no-param-reassign
             launchContext.userDataDir = subProfileDir;
-
-            // Safely extend launchOptions
-            // eslint-disable-next-line no-param-reassign
             launchContext.launchOptions = {
               ...launchContext.launchOptions,
               ignoreHTTPSErrors: true,
@@ -422,9 +302,6 @@ const crawlDomain = async ({
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
               ...(extraHTTPHeaders && { extraHTTPHeaders }),
             };
-
-            // Optionally log for debugging
-            // console.log(`[HOOK] Using userDataDir: ${subProfileDir}`);
           },
         ],
       },
@@ -437,27 +314,23 @@ const crawlDomain = async ({
             return new Promise(resolve => {
               let timeout;
               let mutationCount = 0;
-              const MAX_MUTATIONS = 500; // stop if things never quiet down
-              const OBSERVER_TIMEOUT = 5000; // hard cap on total wait
+              const MAX_MUTATIONS = 500;
+              const OBSERVER_TIMEOUT = 5000;
 
               const observer = new MutationObserver(() => {
                 clearTimeout(timeout);
-
                 mutationCount += 1;
                 if (mutationCount > MAX_MUTATIONS) {
                   observer.disconnect();
                   resolve('Too many mutations, exiting.');
                   return;
                 }
-
-                // restart quiet‑period timer
                 timeout = setTimeout(() => {
                   observer.disconnect();
                   resolve('DOM stabilized.');
                 }, 1000);
               });
 
-              // overall timeout in case the page never settles
               timeout = setTimeout(() => {
                 observer.disconnect();
                 resolve('Observer timeout reached.');
@@ -475,7 +348,6 @@ const crawlDomain = async ({
           let finalUrl = page.url();
           const requestLabelUrl = request.label;
 
-          // to handle scenario where the redirected link is not within the scanning website
           const isLoadedUrlFollowStrategy = isFollowStrategy(finalUrl, requestLabelUrl, strategy);
           if (!isLoadedUrlFollowStrategy) {
             finalUrl = requestLabelUrl;
@@ -489,13 +361,12 @@ const crawlDomain = async ({
           }
         },
       ],
-      requestHandlerTimeoutSecs: 90, // Allow each page to be processed by up from default 60 seconds
+      requestHandlerTimeoutSecs: 90,
       requestHandler: async ({
         page,
         request,
         response,
         crawler: activeCrawler,
-        sendRequest,
         enqueueLinks,
       }) => {
         const browserContext: BrowserContext = page.context();
@@ -507,7 +378,6 @@ const crawlDomain = async ({
             actualUrl = page.url();
           }
 
-          // Second-pass requests: only do click-discovery, skip scanning
           if (request.label?.startsWith('__clickpass__')) {
             await enqueueProcess(page, enqueueLinks, browserContext);
             return;
@@ -515,7 +385,7 @@ const crawlDomain = async ({
 
           if (
             !isFollowStrategy(url, actualUrl, strategy) &&
-            (isBlacklisted(actualUrl, blacklistedPatterns) || (isUrlPdf(actualUrl) && !isScanPdfs))
+            (isBlacklisted(actualUrl, blacklistedPatterns) || isUrlPdf(actualUrl))
           ) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
@@ -537,7 +407,6 @@ const crawlDomain = async ({
             return;
           }
 
-          // if URL has already been scanned
           if (scannedUrlSet.has(normUrl(request.url))) {
             await enqueueProcess(page, enqueueLinks, browserContext);
             return;
@@ -548,56 +417,11 @@ const crawlDomain = async ({
             return;
           }
 
-          // handle pdfs
-          if (
-            shouldSkipDueToUnsupportedContent(response, request.url) ||
-            (request.skipNavigation && actualUrl === 'about:blank')
-          ) {
-            if (!isScanPdfs) {
-              // Don't inform the user it is skipped since web crawler is best-effort.
-              /*
-            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
-            urlsCrawled.userExcluded.push({
-              url: request.url,
-              pageTitle: request.url,
-              actualUrl: request.url, // because about:blank is not useful
-              metadata: STATUS_CODE_METADATA[1],
-              httpStatusCode: 0,
-            });
-            */
-
-              return;
-            }
-            const { pdfFileName, url: downloadedPdfUrl } = handlePdfDownload(
-              randomToken,
-              pdfDownloads,
-              request,
-              sendRequest,
-              urlsCrawled,
-            );
-
-            uuidToPdfMapping[pdfFileName] = downloadedPdfUrl;
+          if (request.skipNavigation && actualUrl === 'about:blank') {
             return;
           }
 
           if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
-            // Don't inform the user it is skipped since web crawler is best-effort.
-            /*
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.userExcluded.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl, // because about:blank is not useful
-            metadata: STATUS_CODE_METADATA[1],
-            httpStatusCode: 0,
-          });
-          */
             return;
           }
 
@@ -613,26 +437,21 @@ const crawlDomain = async ({
               metadata: STATUS_CODE_METADATA[0],
               httpStatusCode: 0,
             });
-
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
-
             await enqueueProcess(page, enqueueLinks, browserContext);
             return;
           }
 
           if (isScanHtml) {
-            // For deduplication, if the URL is redirected, we want to store the original URL and the redirected URL (actualUrl)
             const isRedirected = !areLinksEqual(actualUrl, request.url);
-
-            // check if redirected link is following strategy (same-domain/same-hostname)
             const isLoadedUrlFollowStrategy = isFollowStrategy(actualUrl, request.url, strategy);
             if (isRedirected && !isLoadedUrlFollowStrategy) {
               urlsCrawled.notScannedRedirects.push({
                 fromUrl: request.url,
-                toUrl: actualUrl, // i.e. actualUrl
+                toUrl: actualUrl,
               });
               return;
             }
@@ -653,98 +472,38 @@ const crawlDomain = async ({
               return;
             }
 
-            const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
+            // Call the consumer's page handler
+            await pageHandler({ page, request: { url: request.url }, response, enqueueLinks });
 
-            // Detect JS redirects that fire during/after axe scan.
-            // Listen for navigation, then give a brief window for pending redirects to complete.
-            try {
-              let navigatedToUrl: string | null = null;
-              const onFrameNavigated = (frame: Frame) => {
-                if (frame === page.mainFrame()) {
-                  navigatedToUrl = frame.url();
-                }
-              };
-              page.on('framenavigated', onFrameNavigated);
-              await page.waitForTimeout(1000);
-              page.off('framenavigated', onFrameNavigated);
-
-              const postScanUrl = navigatedToUrl || page.url();
-              if (postScanUrl && postScanUrl !== 'about:blank' && !isFollowStrategy(postScanUrl, request.url, 'same-hostname')) {
-                urlsCrawled.notScannedRedirects.push({
-                  fromUrl: request.url,
-                  toUrl: postScanUrl,
-                });
-                return;
-              }
-            } catch (_) {
-              // Page/context was destroyed during navigation — handled by outer catch
-            }
+            // Track page as scanned
+            const pageTitle = await page.title().catch(() => request.url);
 
             if (isRedirected) {
               const isLoadedUrlInCrawledUrls = scannedResolvedUrlSet.has(normUrl(actualUrl));
-
               if (isLoadedUrlInCrawledUrls) {
-                urlsCrawled.notScannedRedirects.push({
-                  fromUrl: request.url,
-                  toUrl: actualUrl, // i.e. actualUrl
-                });
+                urlsCrawled.notScannedRedirects.push({ fromUrl: request.url, toUrl: actualUrl });
                 return;
               }
 
-              // One more check if scanned pages have reached limit due to multi-instances of handler running
               if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
                 guiInfoLog(guiInfoStatusTypes.SCANNED, {
                   numScanned: urlsCrawled.scanned.length,
                   urlScanned: request.url,
                 });
-
-                urlsCrawled.scanned.push({
-                  url: request.url,
-                  pageTitle: results.pageTitle,
-                  actualUrl, // i.e. actualUrl
-                });
+                urlsCrawled.scanned.push({ url: request.url, pageTitle, actualUrl });
                 scannedUrlSet.add(normUrl(request.url));
                 scannedResolvedUrlSet.add(normUrl(actualUrl));
-
-                urlsCrawled.scannedRedirects.push({
-                  fromUrl: request.url,
-                  toUrl: actualUrl, // i.e. actualUrl
-                });
-
-                results.url = request.url;
-                results.actualUrl = actualUrl;
-                await dataset.pushData(results);
+                urlsCrawled.scannedRedirects.push({ fromUrl: request.url, toUrl: actualUrl });
               }
             } else if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
-              // One more check if scanned pages have reached limit due to multi-instances of handler running
               guiInfoLog(guiInfoStatusTypes.SCANNED, {
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
-              urlsCrawled.scanned.push({
-                url: request.url,
-                actualUrl: request.url,
-                pageTitle: results.pageTitle,
-              });
+              urlsCrawled.scanned.push({ url: request.url, actualUrl: request.url, pageTitle });
               scannedUrlSet.add(normUrl(request.url));
               scannedResolvedUrlSet.add(normUrl(request.url));
-              await dataset.pushData(results);
             }
-          } else {
-            // Don't inform the user it is skipped since web crawler is best-effort.
-            /*
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.userExcluded.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl, // because about:blank is not useful
-            metadata: STATUS_CODE_METADATA[1],
-            httpStatusCode: 0,
-          });
-          */
           }
 
           if (followRobots)
@@ -752,22 +511,17 @@ const crawlDomain = async ({
           await enqueueProcess(page, enqueueLinks, browserContext);
         } catch (e) {
           try {
-            if (!e.message.includes('page.evaluate')) {
-              // do nothing;
+            if (!e.message?.includes('page.evaluate')) {
               guiInfoLog(guiInfoStatusTypes.ERROR, {
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
-
               const recoveryPage = await browserContext.newPage();
               await recoveryPage.goto(request.url);
-
               await recoveryPage.route('**/*', async route => {
                 const interceptedRequest = route.request();
                 if (interceptedRequest.resourceType() === 'document') {
-                  const interceptedRequestUrl = interceptedRequest
-                    .url()
-                    .replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
+                  const interceptedRequestUrl = interceptedRequest.url().replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
                   await enqueueUniqueRequest({
                     url: interceptedRequestUrl,
                     skipNavigation: isUrlPdf(interceptedRequest.url()),
@@ -776,18 +530,13 @@ const crawlDomain = async ({
                 }
               });
             }
-          } catch {
-            // Do nothing since the error will be pushed
-          }
+          } catch { /* best effort recovery */ }
 
-          // when max pages have been scanned, scan will abort and all relevant pages still opened will close instantly.
-          // a browser close error will then be flagged. Since this is an intended behaviour, this error will be excluded.
           if (!isAbortingScanNow) {
             guiInfoLog(guiInfoStatusTypes.ERROR, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
-
             urlsCrawled.error.push({
               url: request.url,
               pageTitle: request.url,
@@ -802,13 +551,11 @@ const crawlDomain = async ({
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
-
         const status = response?.status();
         const metadata =
           typeof status === 'number'
             ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
             : STATUS_CODE_METADATA[2];
-
         urlsCrawled.error.push({
           url: request.url,
           pageTitle: request.url,
@@ -823,9 +570,9 @@ const crawlDomain = async ({
         autoscaledPoolOptions: {
           minConcurrency: specifiedMaxConcurrency ? Math.min(specifiedMaxConcurrency, 10) : 10,
           maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
-          desiredConcurrencyRatio: 0.98, // Increase threshold for scaling up
-          scaleUpStepRatio: 0.99, // Scale up faster
-          scaleDownStepRatio: 0.1, // Scale down slower
+          desiredConcurrencyRatio: 0.98,
+          scaleUpStepRatio: 0.99,
+          scaleDownStepRatio: 0.1,
         },
       }),
     }),
@@ -833,8 +580,7 @@ const crawlDomain = async ({
 
   await crawler.run();
 
-  // Additional passes: keep re-visiting scanned seed-hostname pages for
-  // click-discovery until no new pages are found or limits are reached.
+  // Additional click-discovery passes
   if (!safeMode && !isAbortingScanNow && !durationExceeded) {
     const seedHostname = new URL(url).hostname;
     const clickPassVisited = new Set<string>();
@@ -842,7 +588,6 @@ const crawlDomain = async ({
 
     do {
       prevScannedCount = urlsCrawled.scanned.length;
-
       if (prevScannedCount >= maxRequestsPerCrawl) break;
       if (scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000) break;
 
@@ -851,9 +596,7 @@ const crawlDomain = async ({
         .filter(pageUrl => {
           try {
             return new URL(pageUrl).hostname === seedHostname && !clickPassVisited.has(pageUrl);
-          } catch {
-            return false;
-          }
+          } catch { return false; }
         });
 
       if (seedHostnamePages.length === 0) break;
@@ -862,49 +605,20 @@ const crawlDomain = async ({
       for (const pageUrl of seedHostnamePages) {
         if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) break;
         if (scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000) break;
-
         clickPassVisited.add(pageUrl);
         try {
           const clickPassLabel = `__clickpass__${pageUrl}`;
           if (!queuedUrlSet.has(clickPassLabel)) {
             queuedUrlSet.add(clickPassLabel);
-            await requestQueue.addRequest({
-              url: pageUrl,
-              label: clickPassLabel,
-              skipNavigation: false,
-            });
+            await requestQueue.addRequest({ url: pageUrl, label: clickPassLabel, skipNavigation: false });
             enqueued += 1;
           }
-        } catch {
-          // ignore enqueue errors
-        }
+        } catch { /* ignore enqueue errors */ }
       }
 
       if (enqueued === 0) break;
-
       await crawler.run();
-
-      // Stop looping if no new pages were discovered in this pass
     } while (urlsCrawled.scanned.length > prevScannedCount);
-  }
-
-  if (pdfDownloads.length > 0) {
-    // wait for pdf downloads to complete
-    await Promise.all(pdfDownloads);
-
-    // scan and process pdf documents
-    await runPdfScan(randomToken);
-
-    // transform result format
-    const pdfResults = await mapPdfScanResults(randomToken, uuidToPdfMapping);
-
-    // get screenshots from pdf docs
-    if (includeScreenshots) {
-      await Promise.all(pdfResults.map(result => doPdfScreenshots(randomToken, result)));
-    }
-
-    // push results for each pdf document to key value store
-    await Promise.all(pdfResults.map(result => dataset.pushData(result)));
   }
 
   if (!fromCrawlIntelligentSitemap) {
