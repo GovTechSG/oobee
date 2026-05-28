@@ -45,7 +45,7 @@ export async function extractAndGradeText(page: Page): Promise<string> {
 
     // Determine the return value
     const result =
-      readabilityScore === 0 || readabilityScore > 50 ? '' : readabilityScore.toString(); // Convert readabilityScore to string
+      readabilityScore <= 0 || readabilityScore > 50 ? '' : readabilityScore.toString();
 
     return result;
   } catch (error) {

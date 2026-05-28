@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Combined Accessibility Test</title>
+<style>
+body { font-family: sans-serif; padding: 40px; }
+.icon-link {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  text-decoration: none;
+  color: #333;
+  overflow: hidden;
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Accessibility Violations Test Page</h1>
+
+<h2>Color Contrast</h2>
+<p style="color: #999999; font-size: 14px;">This light gray text on white background fails AA contrast</p>
+<p style="color: #aaaaaa; font-size: 14px; background-color: #f0f0f0;">Very light gray on light gray</p>
+<button style="background-color: #55aa99; color: #e8ffe8; font-size: 12px;">Low contrast button</button>
+
+<h2>Target Size</h2>
+<a href="/a" class="icon-link" style="width: 16px; height: 16px;">A</a>
+<a href="/b" class="icon-link" style="width: 16px; height: 16px;">B</a>
+<a href="/c" class="icon-link" style="width: 16px; height: 16px;">C</a>
+
+<h2>Valid Lang</h2>
+<div lang="x-klingon">This section has an invalid private-use lang tag with some sample text content for context.</div>
+
+<h2>Readability</h2>
+<p>The committee reviewed the proposed changes to the building safety standards last Thursday. Members noted that the current regulations do not address modern construction materials adequately. Several technical amendments were suggested to improve clarity for contractors and inspectors. The revised standards will require additional testing for fire resistance in commercial properties. Public consultation on these proposed changes will remain open until the end of next quarter. Building owners should review the draft guidelines to understand potential compliance requirements.</p>
+
+</main>
+</body>
+</html>
