@@ -8,6 +8,7 @@
     "oobee": "./dist/cli.js"
   },
   "dependencies": {
+    "@govtechsg/oobee-crawler": "file:../oobee-crawler",
     "@aws-sdk/client-s3": "^3.1049.0",
     "@json2csv/node": "^7.0.3",
     "@napi-rs/canvas": "^0.1.53",
