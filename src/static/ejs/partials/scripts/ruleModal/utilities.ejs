@@ -53,7 +53,8 @@
       if (htmlEscapedMessageArray.length === 1) {
         return `<p class="mb-0">${htmlEscapedMessageArray[0]}</p>`;
       } else {
-        return `<ul>${htmlEscapedMessageArray.map(m => `<li>${m}</li>`).join('')}</ul>`;
+        const [first, ...rest] = htmlEscapedMessageArray;
+        return `<p class="mb-0">${first}</p><ul>${rest.map(m => `<li>${m}</li>`).join('')}</ul>`;
       }
     } else {
       let i = 0;

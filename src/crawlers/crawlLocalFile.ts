@@ -8,6 +8,7 @@ import constants, {
   UrlsCrawled,
   STATUS_CODE_METADATA,
   FileTypes,
+  RuleFlags,
 } from '../constants/constants.js';
 import { ViewportSettingsClass } from '../combine.js';
 import {
@@ -35,6 +36,7 @@ export const crawlLocalFile = async ({
   includeScreenshots,
   extraHTTPHeaders,
   scanDuration = 0,
+  ruleset = [],
   fromCrawlIntelligentSitemap = false,
   userUrlInputFromIntelligent = null,
   datasetFromIntelligent = null,
@@ -53,6 +55,7 @@ export const crawlLocalFile = async ({
   includeScreenshots: boolean;
   extraHTTPHeaders: Record<string, string>;
   scanDuration?: number;
+  ruleset?: RuleFlags[];
   fromCrawlIntelligentSitemap?: boolean;
   userUrlInputFromIntelligent?: string | null;
   datasetFromIntelligent?: Dataset | null;
@@ -178,7 +181,7 @@ export const crawlLocalFile = async ({
       return urlsCrawled;
     }
 
-    const results = await runAxeScript({ includeScreenshots, page, randomToken });
+    const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
     const actualUrl = page.url() || request.loadedUrl || url;
 

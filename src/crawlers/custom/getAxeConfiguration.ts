@@ -10,6 +10,12 @@ export function getAxeConfiguration({
   gradingReadabilityFlag?: string;
   disableOobee?: boolean;
 }) {
+  function getReadabilityInterpretation(score: string): string {
+    const num = parseFloat(score);
+    if (Number.isNaN(num)) return '';
+    if (num > 30) return 'It is targeted for junior college (JC) level comprehension and above.';
+    return 'It is targeted for university graduate level comprehension and above.';
+  }
   return {
     branding: {
       application: 'oobee',
@@ -39,7 +45,7 @@ export function getAxeConfiguration({
           return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
         },
       },
-      ...(enableWcagAaa
+      ...((enableWcagAaa && gradingReadabilityFlag !== '')
         ? [
           {
             id: 'oobee-grading-text-contents',
@@ -47,17 +53,11 @@ export function getAxeConfiguration({
               impact: 'moderate' as ImpactValue,
               messages: {
                 pass: 'The text content is easy to understand.',
-                fail: 'The text content is potentially difficult to understand.',
-                incomplete: `The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ${gradingReadabilityFlag
-                  }.\nThe target passing score is above 50, indicating content readable by university students and lower grade levels.\nA higher score reflects better readability.`,
+                fail: `Text content is potentially difficult to read.\n  It scored ${gradingReadabilityFlag} out of 50 on the Flesch-Kincaid Readability Test.\n  ${getReadabilityInterpretation(gradingReadabilityFlag)}`,
+                incomplete: `Text content is potentially difficult to read.\n  It scored ${gradingReadabilityFlag} out of 50 on the Flesch-Kincaid Readability Test.\n  ${getReadabilityInterpretation(gradingReadabilityFlag)}`,
               },
             },
-            evaluate: (_node: HTMLElement) => {
-              if (gradingReadabilityFlag === '') {
-                return true; // Pass if no readability issues
-              }
-              // Fail if readability issues are detected
-            },
+            evaluate: (_node: HTMLElement) => false,
           },
         ]
         : []),
@@ -88,19 +88,21 @@ export function getAxeConfiguration({
           helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
         },
       },
-      {
-        id: 'oobee-grading-text-contents',
-        selector: 'html',
-        enabled: true,
-        any: ['oobee-grading-text-contents'],
-        tags: ['wcag2aaa', 'wcag315'],
-        metadata: {
-          description:
-            'Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.',
-          help: 'Text content should be clear and plain to ensure that it is easily understood.',
-          helpUrl: 'https://www.wcag.com/uncategorized/3-1-5-reading-level/',
-        },
-      },
+      ...((enableWcagAaa && gradingReadabilityFlag !== '')
+        ? [{
+            id: 'oobee-grading-text-contents',
+            selector: 'html',
+            enabled: true,
+            any: ['oobee-grading-text-contents'],
+            tags: ['wcag2aaa', 'wcag315'],
+            metadata: {
+              description:
+                'Text content should be easy to understand for individuals with education levels up to university graduates. If the text content is difficult to understand, provide supplemental content or a version that is easy to understand.',
+              help: 'Text content should be clear and plain to ensure that it is easily understood.',
+              helpUrl: 'https://www.wcag.com/uncategorized/3-1-5-reading-level/',
+            },
+          }]
+        : []),
     ]
       .filter(rule => (disableOobee ? !rule.id.startsWith('oobee') : true))
       .concat(

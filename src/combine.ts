@@ -184,6 +184,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         includeScreenshots,
         extraHTTPHeaders,
         scanDuration,
+        ruleset,
       });
       if (localFileResult) {
         if ('urlsCrawled' in localFileResult) {

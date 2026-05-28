@@ -12,10 +12,10 @@ import {
   getPlaywrightLaunchOptions,
   submitForm,
 } from './constants/common.js';
-import { createCrawleeSubFolders, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
+import { createCrawleeSubFolders, enrichViolationMessages, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
 import { createAndUpdateResultsFolders, getVersion } from './utils.js';
 import generateArtifacts, { createBasicFormHTMLSnippet, sendWcagBreakdownToSentry } from './mergeAxeResults.js';
-import { takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
+import { enrichColorContrastDOMContext, takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
 import { evaluateAltText } from './crawlers/custom/evaluateAltText.js';
@@ -86,6 +86,13 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
       window.xPathToCss = ${xPathToCss.toString()};
       window.extractText = ${extractText.toString()};
       
+      function getReadabilityInterpretation(score) {
+        const num = parseFloat(score);
+        if (Number.isNaN(num)) return '';
+        if (num > 30) return 'It is targeted for junior college (JC) level comprehension and above.';
+        return 'It is targeted for university graduate level comprehension and above.';
+      }
+
       function getAxeConfiguration({
         enableWcagAaa = false,
         gradingReadabilityFlag = '',
@@ -120,7 +127,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
                 return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
               },
             },
-            ...((enableWcagAaa && !disableOobee)
+            ...((enableWcagAaa && !disableOobee && gradingReadabilityFlag !== '')
               ? [
                   {
                     id: 'oobee-grading-text-contents',
@@ -128,16 +135,11 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
                       impact: 'moderate',
                       messages: {
                         pass: 'The text content is easy to understand.',
-                        fail: 'The text content is potentially difficult to understand.',
-                        incomplete: \`The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of \${gradingReadabilityFlag}.\nThe target passing score is above 50, indicating content readable by university students and lower grade levels.\nA higher score reflects better readability.\`,
+                        fail: \`Text content is potentially difficult to read.\n  It scored \${gradingReadabilityFlag} out of 50 on the Flesch-Kincaid Readability Test.\n  \${getReadabilityInterpretation(gradingReadabilityFlag)}\`,
+                        incomplete: \`Text content is potentially difficult to read.\n  It scored \${gradingReadabilityFlag} out of 50 on the Flesch-Kincaid Readability Test.\n  \${getReadabilityInterpretation(gradingReadabilityFlag)}\`,
                       },
                     },
-                    evaluate: (_node) => {
-                      if (gradingReadabilityFlag === '') {
-                        return true; // Pass if no readability issues
-                      }
-                      // Fail if readability issues are detected
-                    },
+                    evaluate: (_node) => false,
                   },
                 ]
               : []),
@@ -168,7 +170,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
                 helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
               },
             },
-            ...((enableWcagAaa && !disableOobee)
+            ...((enableWcagAaa && !disableOobee && gradingReadabilityFlag !== '')
               ? [
                   {
                     id: 'oobee-grading-text-contents',
@@ -863,6 +865,9 @@ export const scanPage = async (
       const scanResult = await page.evaluate(async () => {
         return window.runA11yScan();
       });
+
+      await enrichViolationMessages(scanResult.axeScanResults, page);
+      await enrichColorContrastDOMContext(scanResult.axeScanResults.violations, page);
 
       scanData.push({
         axeScanResults: scanResult.axeScanResults,
