@@ -7,7 +7,7 @@ import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
 import { getPlaywrightLaunchOptions, getSitemapsFromRobotsTxt } from '../constants/common.js';
 import { register, getStoragePath } from '../utils.js';
-import type { PageHandler, ViewportSettingsClass } from '../types.js';
+import type { PageHandler, PlaywrightHook, ViewportSettingsClass } from '../types.js';
 
 const createCrawleeSubFolders = async (randomToken: string) => {
   const crawleeDir = path.join(getStoragePath(randomToken), 'crawlee');
@@ -32,6 +32,9 @@ const crawlIntelligentSitemap = async (
   safeMode: boolean,
   scanDuration: number,
   pageHandler: PageHandler,
+  preNavigationHooks: PlaywrightHook[] = [],
+  postNavigationHooks: PlaywrightHook[] = [],
+  pageDelayMs?: number | ((url: string) => number),
 ) => {
   const startTime = Date.now();
 
@@ -147,6 +150,9 @@ const crawlIntelligentSitemap = async (
       safeMode,
       scanDuration,
       pageHandler,
+      preNavigationHooks,
+      postNavigationHooks,
+      pageDelayMs,
     });
   }
 
@@ -183,6 +189,9 @@ const crawlIntelligentSitemap = async (
       urlsCrawledFromIntelligent: urlsCrawled,
       crawledFromLocalFile: false,
       scanDuration: scanDuration > 0 ? remainingDuration : 0,
+      preNavigationHooks,
+      postNavigationHooks,
+      pageDelayMs,
     });
   }
 
@@ -214,6 +223,9 @@ const crawlIntelligentSitemap = async (
       datasetFromIntelligent: dataset,
       urlsCrawledFromIntelligent: urlsCrawled,
       scanDuration: remainingScanDuration,
+      preNavigationHooks,
+      postNavigationHooks,
+      pageDelayMs,
     });
   } else if (!hasDurationRemaining) {
     console.log(`Crawl duration exceeded before more pages could be found (limit: ${scanDuration}s).`);

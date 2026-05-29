@@ -17,7 +17,7 @@ import {
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, normUrl, register, getStoragePath } from '../utils.js';
 import { guiInfoLog } from '../logs.js';
-import type { PageHandler, ViewportSettingsClass } from '../types.js';
+import type { PageHandler, PlaywrightHook, ViewportSettingsClass } from '../types.js';
 
 const createCrawleeSubFolders = async (randomToken: string) => {
   const crawleeDir = path.join(getStoragePath(randomToken), 'crawlee');
@@ -46,6 +46,9 @@ const crawlSitemap = async ({
   datasetFromIntelligent = null,
   urlsCrawledFromIntelligent = null,
   crawledFromLocalFile = false,
+  preNavigationHooks: consumerPreNavHooks = [],
+  postNavigationHooks: consumerPostNavHooks = [],
+  pageDelayMs,
 }: {
   sitemapUrl: string;
   randomToken: string;
@@ -67,6 +70,9 @@ const crawlSitemap = async ({
   datasetFromIntelligent?: Dataset;
   urlsCrawledFromIntelligent?: UrlsCrawled;
   crawledFromLocalFile?: boolean;
+  preNavigationHooks?: PlaywrightHook[];
+  postNavigationHooks?: PlaywrightHook[];
+  pageDelayMs?: number | ((url: string) => number);
 }) => {
   const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
@@ -140,6 +146,7 @@ const crawlSitemap = async ({
       },
       requestList,
       postNavigationHooks: [
+        ...consumerPostNavHooks,
         async ({ page }) => {
           try {
             await page.evaluate(() => {
@@ -181,6 +188,7 @@ const crawlSitemap = async ({
         },
       ],
       preNavigationHooks: [
+        ...consumerPreNavHooks,
         async ({ request, page }, gotoOptions) => {
           const url = request.url.toLowerCase();
           const isNotSupportedDocument = disallowedListOfPatterns.some(pattern =>
@@ -283,18 +291,25 @@ const crawlSitemap = async ({
               return;
             }
 
+            if (pageDelayMs) {
+              const delay = typeof pageDelayMs === 'function' ? pageDelayMs(request.url) : pageDelayMs;
+              if (delay > 0) await new Promise(r => setTimeout(r, delay));
+            }
+
             // Call the consumer's page handler
-            await pageHandler({ page, request: { url: request.url }, response, enqueueLinks });
+            await pageHandler({ page, request: { url: request.url }, response, enqueueLinks, dataset });
 
             const pageTitle = await page.title().catch(() => request.url);
 
-            guiInfoLog(guiInfoStatusTypes.SCANNED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
+            if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
+              guiInfoLog(guiInfoStatusTypes.SCANNED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
 
-            urlsCrawled.scanned.push({ url: request.url, pageTitle, actualUrl });
-            urlsCrawled.scannedRedirects.push({ fromUrl: request.url, toUrl: actualUrl });
+              urlsCrawled.scanned.push({ url: request.url, pageTitle, actualUrl });
+              urlsCrawled.scannedRedirects.push({ fromUrl: request.url, toUrl: actualUrl });
+            }
           } else {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
@@ -351,7 +366,7 @@ const crawlSitemap = async ({
         });
         crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
       },
-      maxRequestsPerCrawl: Infinity,
+      maxRequestsPerCrawl: maxRequestsPerCrawl * 3,
       maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
       ...(process.env.OOBEE_FAST_CRAWLER && {
         autoscaledPoolOptions: {

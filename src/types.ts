@@ -1,5 +1,5 @@
 import type { Page, Response as PlaywrightResponse } from 'playwright';
-import type { EnqueueLinksOptions } from 'crawlee';
+import type { EnqueueLinksOptions, PlaywrightCrawlingContext } from 'crawlee';
 
 export type PageInfo = {
   url: string;
@@ -9,11 +9,21 @@ export type PageInfo = {
   httpStatusCode?: number;
 };
 
+export interface DatasetLike {
+  pushData(data: Record<string, unknown> | Record<string, unknown>[]): Promise<void>;
+}
+
+export type PlaywrightHook = (
+  crawlingContext: PlaywrightCrawlingContext,
+  gotoOptions?: Parameters<Page['goto']>[1],
+) => Promise<void> | void;
+
 export type PageHandlerContext = {
   page: Page;
   request: { url: string };
   response: PlaywrightResponse | null;
   enqueueLinks: (options?: EnqueueLinksOptions) => Promise<any>;
+  dataset: DatasetLike;
 };
 
 export type PageHandler = (context: PageHandlerContext) => Promise<void>;

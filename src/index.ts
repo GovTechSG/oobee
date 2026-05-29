@@ -24,7 +24,7 @@ export {
 
 export { getStoragePath, normUrl, areLinksEqual, isFollowStrategy, register, stopAll } from './utils.js';
 
-export type { PageHandler, PageHandlerContext, PageInfo, ViewportSettingsClass } from './types.js';
+export type { PageHandler, PageHandlerContext, PageInfo, ViewportSettingsClass, DatasetLike, PlaywrightHook } from './types.js';
 export { UrlsCrawled, FileTypes, STATUS_CODE_METADATA } from './types.js';
 
 export { guiInfoLog, consoleLogger, silentLogger } from './logs.js';
