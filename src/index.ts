@@ -28,3 +28,9 @@ export type { PageHandler, PageHandlerContext, PageInfo, DatasetLike, Playwright
 export { ViewportSettingsClass, UrlsCrawled, FileTypes, STATUS_CODE_METADATA } from './types.js';
 
 export { guiInfoLog, consoleLogger, silentLogger } from './logs.js';
+
+export { createResourceBlockingHook, createCookieHook, createCloudflareHook } from './hooks.js';
+export type { CloudflareSignFn } from './hooks.js';
+export { SLOWDOWN_URLS_CONFIG, getSlowdownConfig } from './domainConfigs.js';
+export { createSearchSGPageHandler, isSingpassLoginPage, isGoGovForwarderUrl } from './pageDataExtractor.js';
+export type { SearchSGPageHandlerConfig } from './pageDataExtractor.js';
