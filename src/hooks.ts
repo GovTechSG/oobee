@@ -1,14 +1,7 @@
 import type { PlaywrightHook } from './types.js';
+import crawlConfig from './crawl-config.json' with { type: 'json' };
 
-const BLOCK_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.otf', '.woff', '.woff2', '.ttf', '.ico', '.pdf', '.zip'];
-
-const BLOCK_EXCEPTION_MAP: Record<string, string[]> = {
-  'np.edu.sg': ['.jpg', '.jpeg', '.png', '.svg', '.gif'],
-  'rp.edu.sg': ['.jpg', '.jpeg', '.png', '.svg', '.gif'],
-  'dc.gov.sg': ['.jpg', '.jpeg', '.png', '.svg', '.gif'],
-  'prepare.gov.sg': ['.jpg', '.jpeg', '.png', '.svg', '.gif'],
-  'moh.gov.sg': ['.jpg', '.jpeg', '.png', '.svg', '.gif'],
-};
+const { blockExtensions: BLOCK_EXTENSIONS, blockExceptionMap: BLOCK_EXCEPTION_MAP } = crawlConfig;
 
 export function createResourceBlockingHook(startingUrl: string): PlaywrightHook {
   const domain = new URL(startingUrl).hostname;

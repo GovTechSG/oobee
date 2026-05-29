@@ -1,0 +1,25 @@
+{
+  "blockExtensions": [
+    ".css", ".js", ".txt", ".mp3", ".mp4",
+    ".jpg", ".jpeg", ".png", ".svg", ".gif", ".webp", ".ico",
+    ".otf", ".woff", ".woff2", ".ttf",
+    ".pdf", ".zip",
+    ".json", ".xml"
+  ],
+  "blockExceptionMap": {
+    "np.edu.sg": [".jpg", ".jpeg", ".png", ".svg", ".gif"],
+    "rp.edu.sg": [".jpg", ".jpeg", ".png", ".svg", ".gif"],
+    "dc.gov.sg": [".jpg", ".jpeg", ".png", ".svg", ".gif"],
+    "prepare.gov.sg": [".jpg", ".jpeg", ".png", ".svg", ".gif"],
+    "moh.gov.sg": [".jpg", ".jpeg", ".png", ".svg", ".gif"]
+  },
+  "slowdownUrls": {
+    "https://www.mci.gov.sg": { "minConcurrency": 1, "maxConcurrency": 5, "delayMinMax": [0, 1000] },
+    "https://www.mas.gov.sg/": { "minConcurrency": 1, "maxConcurrency": 5, "delayMinMax": [0, 1000] },
+    "https://www.mlaw.gov.sg": { "minConcurrency": 1, "maxConcurrency": 5, "delayMinMax": [0, 1000] },
+    "https://www.a-star.edu.sg/": { "minConcurrency": 1, "maxConcurrency": 5, "delayMinMax": [1000, 2000] },
+    "https://www.developer.tech.gov.sg/": { "minConcurrency": 1, "maxConcurrency": 5, "delayMinMax": [1000, 2000] },
+    "https://www.psd.gov.sg": { "minConcurrency": 1, "maxConcurrency": 5, "delayMinMax": [0, 1000] },
+    "https://www.enablingguide.sg": { "minConcurrency": 1, "maxConcurrency": 5, "delayMinMax": [1000, 2000] }
+  }
+}

@@ -19,10 +19,9 @@ const maxRequestsPerCrawl = 100;
 
 export { PageInfo };
 
-export const blackListedFileExtensions = [
-  'css', 'js', 'txt', 'mp3', 'mp4', 'jpg', 'jpeg', 'png', 'svg',
-  'gif', 'woff', 'zip', 'webp', 'json', 'xml',
-];
+import crawlConfig from '../crawl-config.json' with { type: 'json' };
+
+export const blackListedFileExtensions = crawlConfig.blockExtensions.map(ext => ext.replace(/^\./, ''));
 
 export const getIntermediateScreenshotsPath = (datasetsPath: string): string =>
   `${datasetsPath}/screenshots`;

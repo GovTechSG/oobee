@@ -1,12 +1,6 @@
-export const SLOWDOWN_URLS_CONFIG: Record<string, { minConcurrency: number; maxConcurrency: number; delayMinMax: [number, number] }> = {
-  'https://www.mci.gov.sg': { minConcurrency: 1, maxConcurrency: 5, delayMinMax: [0, 1000] },
-  'https://www.mas.gov.sg/': { minConcurrency: 1, maxConcurrency: 5, delayMinMax: [0, 1000] },
-  'https://www.mlaw.gov.sg': { minConcurrency: 1, maxConcurrency: 5, delayMinMax: [0, 1000] },
-  'https://www.a-star.edu.sg/': { minConcurrency: 1, maxConcurrency: 5, delayMinMax: [1000, 2000] },
-  'https://www.developer.tech.gov.sg/': { minConcurrency: 1, maxConcurrency: 5, delayMinMax: [1000, 2000] },
-  'https://www.psd.gov.sg': { minConcurrency: 1, maxConcurrency: 5, delayMinMax: [0, 1000] },
-  'https://www.enablingguide.sg': { minConcurrency: 1, maxConcurrency: 5, delayMinMax: [1000, 2000] },
-};
+import crawlConfig from './crawl-config.json' with { type: 'json' };
+
+export const SLOWDOWN_URLS_CONFIG = crawlConfig.slowdownUrls as unknown as Record<string, { minConcurrency: number; maxConcurrency: number; delayMinMax: [number, number] }>;
 
 export function getSlowdownConfig(startingUrl: string): { maxConcurrency: number; delayFn: ((url: string) => number) | undefined } {
   const config = SLOWDOWN_URLS_CONFIG[startingUrl];
