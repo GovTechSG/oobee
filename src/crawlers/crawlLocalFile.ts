@@ -9,7 +9,7 @@ import constants, {
   STATUS_CODE_METADATA,
   FileTypes,
 } from '../constants/constants.js';
-import { ViewportSettingsClass } from '../combine.js';
+import { ViewportSettingsClass, crawlSitemap } from '@govtechsg/oobee-crawler';
 import {
   getPlaywrightLaunchOptions,
   isFilePath,
@@ -18,7 +18,7 @@ import {
 } from '../constants/common.js';
 import { runPdfScan, mapPdfScanResults, doPdfScreenshots } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
-import crawlSitemap from './crawlSitemap.js';
+import { createOobeePageHandler } from './oobeePageHandler.js';
 import { getPdfStoragePath, getStoragePath, register } from '../utils.js';
 
 export const crawlLocalFile = async ({
@@ -105,6 +105,7 @@ export const crawlLocalFile = async ({
   } else {
     sitemapUrl = url;
     // Put it to crawlSitemap function to handle xml files
+    const localFilePageHandler = createOobeePageHandler({ includeScreenshots, randomToken });
     const updatedUrlsCrawled = await crawlSitemap({
       sitemapUrl,
       randomToken,
@@ -116,7 +117,6 @@ export const crawlLocalFile = async ({
       specifiedMaxConcurrency,
       fileTypes,
       blacklistedPatterns,
-      includeScreenshots,
       extraHTTPHeaders,
       scanDuration,
       fromCrawlIntelligentSitemap,
@@ -124,6 +124,7 @@ export const crawlLocalFile = async ({
       datasetFromIntelligent,
       urlsCrawledFromIntelligent,
       crawledFromLocalFile: true,
+      pageHandler: localFilePageHandler,
     });
 
     urlsCrawled = { ...urlsCrawled, ...updatedUrlsCrawled };

@@ -1,9 +1,8 @@
 import printMessage from 'print-message';
 import { pathToFileURL } from 'url';
-import crawlSitemap from './crawlers/crawlSitemap.js';
-import crawlDomain from './crawlers/crawlDomain.js';
+import { crawlDomain, crawlSitemap, crawlIntelligentSitemap, ViewportSettingsClass } from '@govtechsg/oobee-crawler';
 import crawlLocalFile from './crawlers/crawlLocalFile.js';
-import crawlIntelligentSitemap from './crawlers/crawlIntelligentSitemap.js';
+import { createOobeePageHandler } from './crawlers/oobeePageHandler.js';
 import generateArtifacts from './mergeAxeResults.js';
 import { getHost, createAndUpdateResultsFolders, cleanUpAndExit, getStoragePath } from './utils.js';
 import { ScannerTypes, UrlsCrawled } from './constants/constants.js';
@@ -19,25 +18,8 @@ import {
   uploadFolderToS3,
 } from './services/s3Uploader.js';
 
-// Class exports
-export class ViewportSettingsClass {
-  deviceChosen: string;
-  customDevice: string;
-  viewportWidth: number;
-  playwrightDeviceDetailsObject: any; // You can replace 'any' with a more specific type if possible
-
-  constructor(
-    deviceChosen: string,
-    customDevice: string,
-    viewportWidth: number,
-    playwrightDeviceDetailsObject: any,
-  ) {
-    this.deviceChosen = deviceChosen;
-    this.customDevice = customDevice;
-    this.viewportWidth = viewportWidth;
-    this.playwrightDeviceDetailsObject = playwrightDeviceDetailsObject;
-  }
-}
+// Re-export ViewportSettingsClass from oobee-crawler for consumers
+export { ViewportSettingsClass } from '@govtechsg/oobee-crawler';
 
 const combineRun = async (details: Data, deviceToScan: string) => {
   const envDetails = { ...details };
@@ -148,6 +130,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       break;
 
     case ScannerTypes.SITEMAP:
+      const sitemapPageHandler = createOobeePageHandler({ includeScreenshots, randomToken, ruleset });
       const sitemapResult = await crawlSitemap({
         sitemapUrl: url,
         randomToken,
@@ -159,11 +142,11 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         specifiedMaxConcurrency,
         fileTypes,
         blacklistedPatterns,
-        includeScreenshots,
         extraHTTPHeaders,
         strategy,
         userUrl: url,
         scanDuration,
+        pageHandler: sitemapPageHandler,
       });
       urlsCrawledObj = sitemapResult.urlsCrawled;
       durationExceeded = sitemapResult.durationExceeded;
@@ -196,6 +179,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       break;
 
     case ScannerTypes.INTELLIGENT:
+      const intelligentPageHandler = createOobeePageHandler({ includeScreenshots, randomToken, ruleset });
       const intelligentResult = await crawlIntelligentSitemap(
         url,
         randomToken,
@@ -208,17 +192,18 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         specifiedMaxConcurrency,
         fileTypes,
         blacklistedPatterns,
-        includeScreenshots,
         followRobots,
         extraHTTPHeaders,
         safeMode,
         scanDuration,
+        intelligentPageHandler,
       );
       urlsCrawledObj = intelligentResult.urlsCrawled;
       durationExceeded = intelligentResult.durationExceeded;
       break;
 
     case ScannerTypes.WEBSITE:
+      const websitePageHandler = createOobeePageHandler({ includeScreenshots, randomToken, ruleset });
       const websiteResult = await crawlDomain({
         url,
         randomToken,
@@ -231,12 +216,11 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         specifiedMaxConcurrency,
         fileTypes,
         blacklistedPatterns,
-        includeScreenshots,
         followRobots,
         extraHTTPHeaders,
         scanDuration,
         safeMode,
-        ruleset,
+        pageHandler: websitePageHandler,
       });
       urlsCrawledObj = websiteResult.urlsCrawled;
       durationExceeded = websiteResult.durationExceeded;
