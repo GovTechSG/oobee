@@ -49,6 +49,8 @@ const crawlSitemap = async ({
   preNavigationHooks: consumerPreNavHooks = [],
   postNavigationHooks: consumerPostNavHooks = [],
   pageDelayMs,
+  urlFilter,
+  urlList,
 }: {
   sitemapUrl: string;
   randomToken: string;
@@ -73,6 +75,8 @@ const crawlSitemap = async ({
   preNavigationHooks?: PlaywrightHook[];
   postNavigationHooks?: PlaywrightHook[];
   pageDelayMs?: number | ((url: string) => number);
+  urlFilter?: (url: string) => boolean | Promise<boolean>;
+  urlList?: string[];
 }) => {
   const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
@@ -93,17 +97,30 @@ const crawlSitemap = async ({
     return;
   }
 
-  const linksFromSitemap = await getLinksFromSitemap(
-    sitemapUrl,
-    maxRequestsPerCrawl,
-    browser,
-    userDataDirectory,
-    userUrlInputFromIntelligent,
-    fromCrawlIntelligentSitemap,
-    extraHTTPHeaders,
-    strategy,
-    userUrl || sitemapUrl,
-  );
+  let linksFromSitemap: crawlee.Request[];
+  if (urlList) {
+    linksFromSitemap = urlList.map(u => new crawlee.Request({ url: u }));
+  } else {
+    linksFromSitemap = await getLinksFromSitemap(
+      sitemapUrl,
+      maxRequestsPerCrawl,
+      browser,
+      userDataDirectory,
+      userUrlInputFromIntelligent,
+      fromCrawlIntelligentSitemap,
+      extraHTTPHeaders,
+      strategy,
+      userUrl || sitemapUrl,
+    );
+  }
+
+  if (urlFilter) {
+    const filtered: crawlee.Request[] = [];
+    for (const req of linksFromSitemap) {
+      if (await urlFilter(req.url)) filtered.push(req);
+    }
+    linksFromSitemap = filtered;
+  }
 
   sitemapUrl = encodeURI(sitemapUrl);
 
