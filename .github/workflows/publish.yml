@@ -22,13 +22,15 @@ jobs:
       - run: npm run build
         continue-on-error: false
 
-      - name: Create and push git tag
+      - name: Create and push git tags
         run: |
           VERSION=$(node -p "require('./package.json').version")
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -af "v${VERSION}" -m "Version ${VERSION}"
           git push origin "v${VERSION}" --force
+          git tag -af "latest" -m "Latest release ${VERSION}"
+          git push origin "latest" --force
 
       - run: npm publish
         env:
