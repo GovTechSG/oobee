@@ -7,6 +7,8 @@ on:
         description: 'Release tag for the image (e.g. 0.10.87)'
         required: true
         type: string
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -15,6 +17,8 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,7 +47,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}:${{ inputs.release_tag }}
+            ghcr.io/${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}
             ghcr.io/${{ steps.repo.outputs.name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
