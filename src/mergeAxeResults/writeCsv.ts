@@ -1,18 +1,46 @@
 import { createWriteStream } from 'fs';
-import { AsyncParser, ParserOptions } from '@json2csv/node';
 import { a11yRuleShortDescriptionMap } from '../constants/constants.js';
 import type { AllIssues, RuleInfo } from './types.js';
+import type { ItemsStore } from './itemsStore.js';
 
-const writeCsv = async (allIssues: AllIssues, storagePath: string): Promise<void> => {
+function escapeCsvField(value: string): string {
+  if (value == null) return '';
+  const str = String(value);
+  return `"${str.replace(/"/g, '""')}"`;
+}
+
+const writeCsv = async (
+  allIssues: AllIssues,
+  storagePath: string,
+  itemsStore?: ItemsStore,
+): Promise<void> => {
   const csvOutput = createWriteStream(`${storagePath}/report.csv`, { encoding: 'utf8' });
+
   const formatPageViolation = (pageNum: number) => {
     if (pageNum < 0) return 'Document';
     return `Page ${pageNum}`;
   };
 
-  // transform allIssues into the form:
-  // [['mustFix', rule1], ['mustFix', rule2], ['goodToFix', rule3], ...]
-  const getRulesByCategory = (issues: AllIssues) => {
+  const fields = [
+    'customFlowLabel',
+    'deviceChosen',
+    'scanCompletedAt',
+    'severity',
+    'issueId',
+    'issueDescription',
+    'wcagConformance',
+    'url',
+    'pageTitle',
+    'context',
+    'howToFix',
+    'axeImpact',
+    'xpath',
+    'learnMore',
+  ];
+
+  csvOutput.write(fields.map(escapeCsvField).join(',') + '\n');
+
+  const getRulesByCategory = (issues: AllIssues): [string, RuleInfo][] => {
     return Object.entries(issues.items)
       .filter(([category]) => category !== 'passed')
       .reduce((prev: [string, RuleInfo][], [category, value]) => {
@@ -23,15 +51,14 @@ const writeCsv = async (allIssues: AllIssues, storagePath: string): Promise<void
         return prev;
       }, [])
       .sort((a, b) => {
-        // sort rules according to severity, then ruleId
         const compareCategory = -a[0].localeCompare(b[0]);
         return compareCategory === 0 ? a[1].rule.localeCompare(b[1].rule) : compareCategory;
       });
   };
 
-  const flattenRule = (catAndRule: [string, RuleInfo]) => {
-    const [severity, rule] = catAndRule;
-    const results = [];
+  const rulesByCategory = getRulesByCategory(allIssues);
+
+  for (const [severity, rule] of rulesByCategory) {
     const {
       rule: issueId,
       description: issueDescription,
@@ -41,104 +68,106 @@ const writeCsv = async (allIssues: AllIssues, storagePath: string): Promise<void
       helpUrl: learnMore,
     } = rule;
 
-    // format clauses as a string
     const wcagConformance = conformance.join(',');
 
-    pagesAffected.sort((a, b) => a.url.localeCompare(b.url));
+    if (itemsStore) {
+      const itemsMap = await itemsStore.readRuleItemsMap(severity, issueId);
+      const sortedPages = [...pagesAffected].sort((a, b) => (a.url || '').localeCompare(b.url || ''));
 
-    pagesAffected.forEach(affectedPage => {
-      const { url, items } = affectedPage;
-      items.forEach(item => {
-        const { html, message, xpath } = item;
-        const page = (item as any).page;
-        const howToFix = message.replace(/(\r\n|\n|\r)/g, '\\n'); // preserve newlines as \n
-        const violation = html || formatPageViolation(page); // page is a number, not a string
-        const context = violation.replace(/(\r\n|\n|\r)/g, ''); // remove newlines
+      for (const affectedPage of sortedPages) {
+        const key = affectedPage.pageIndex != null ? String(affectedPage.pageIndex) : affectedPage.url;
+        const entry = itemsMap.get(key);
+        if (!entry) continue;
 
-        results.push({
-          customFlowLabel: allIssues.customFlowLabel || '',
-          deviceChosen: allIssues.deviceChosen || '',
-          scanCompletedAt: allIssues.endTime ? allIssues.endTime.toISOString() : '',
-          severity: severity || '',
-          issueId: issueId || '',
-          issueDescription: a11yRuleShortDescriptionMap[issueId] || issueDescription || '',
-          wcagConformance: wcagConformance || '',
-          url: url || '',
-          pageTitle: affectedPage.pageTitle || 'No page title',
-          context: context || '',
-          howToFix: howToFix || '',
-          axeImpact: axeImpact || '',
-          xpath: xpath || '',
-          learnMore: learnMore || '',
-        });
-      });
-    });
-    if (results.length === 0) return {};
-    return results;
-  };
+        for (const item of entry.items) {
+          const { html, message, xpath } = item;
+          const page = (item as any).page;
+          const howToFix = (message || '').replace(/(\r\n|\n|\r)/g, '\\n');
+          const violation = html || formatPageViolation(page);
+          const context = violation.replace(/(\r\n|\n|\r)/g, '');
 
-  const opts: ParserOptions<any, any> = {
-    transforms: [getRulesByCategory, flattenRule],
-    fields: [
-      'customFlowLabel',
-      'deviceChosen',
-      'scanCompletedAt',
-      'severity',
-      'issueId',
-      'issueDescription',
-      'wcagConformance',
-      'url',
-      'pageTitle',
-      'context',
-      'howToFix',
-      'axeImpact',
-      'xpath',
-      'learnMore',
-    ],
-    includeEmptyRows: true,
-  };
+          const row = [
+            allIssues.customFlowLabel || '',
+            allIssues.deviceChosen || '',
+            allIssues.endTime ? allIssues.endTime.toISOString() : '',
+            severity || '',
+            issueId || '',
+            a11yRuleShortDescriptionMap[issueId] || issueDescription || '',
+            wcagConformance || '',
+            affectedPage.url || '',
+            affectedPage.pageTitle || 'No page title',
+            context || '',
+            howToFix || '',
+            axeImpact || '',
+            xpath || '',
+            learnMore || '',
+          ].map(escapeCsvField);
 
-  // Create the parse stream (it's asynchronous)
-  const parser = new AsyncParser(opts);
-  const parseStream = parser.parse(allIssues);
+          csvOutput.write(row.join(',') + '\n');
+        }
+      }
+    } else {
+      const sortedPages = [...pagesAffected].sort((a, b) => (a.url || '').localeCompare(b.url || ''));
 
-  // Pipe JSON2CSV output into the file, but don't end automatically
-  parseStream.pipe(csvOutput, { end: false });
+      for (const affectedPage of sortedPages) {
+        const items = (affectedPage as any).items || [];
+        for (const item of items) {
+          const { html, message, xpath } = item;
+          const page = (item as any).page;
+          const howToFix = (message || '').replace(/(\r\n|\n|\r)/g, '\\n');
+          const violation = html || formatPageViolation(page);
+          const context = violation.replace(/(\r\n|\n|\r)/g, '');
 
-  // Once JSON2CSV is done writing all normal rows, append any "pagesNotScanned"
-  parseStream.on('end', () => {
-    if (allIssues.pagesNotScanned && allIssues.pagesNotScanned.length > 0) {
-      csvOutput.write('\n');
-      allIssues.pagesNotScanned.forEach(page => {
-        const skippedPage = {
-          customFlowLabel: allIssues.customFlowLabel || '',
-          deviceChosen: allIssues.deviceChosen || '',
-          scanCompletedAt: allIssues.endTime ? allIssues.endTime.toISOString() : '',
-          severity: 'error',
-          issueId: 'error-pages-skipped',
-          issueDescription: page.metadata
-            ? page.metadata
-            : 'An unknown error caused the page to be skipped',
-          wcagConformance: '',
-          url: page.url || page || '',
-          pageTitle: 'Error',
-          context: '',
-          howToFix: '',
-          axeImpact: '',
-          xpath: '',
-          learnMore: '',
-        };
-        csvOutput.write(`${Object.values(skippedPage).join(',')}\n`);
-      });
+          const row = [
+            allIssues.customFlowLabel || '',
+            allIssues.deviceChosen || '',
+            allIssues.endTime ? allIssues.endTime.toISOString() : '',
+            severity || '',
+            issueId || '',
+            a11yRuleShortDescriptionMap[issueId] || issueDescription || '',
+            wcagConformance || '',
+            affectedPage.url || '',
+            affectedPage.pageTitle || 'No page title',
+            context || '',
+            howToFix || '',
+            axeImpact || '',
+            xpath || '',
+            learnMore || '',
+          ].map(escapeCsvField);
+
+          csvOutput.write(row.join(',') + '\n');
+        }
+      }
     }
+  }
 
-    // Now close the CSV file
-    csvOutput.end();
-  });
+  if (allIssues.pagesNotScanned && allIssues.pagesNotScanned.length > 0) {
+    allIssues.pagesNotScanned.forEach(page => {
+      const row = [
+        allIssues.customFlowLabel || '',
+        allIssues.deviceChosen || '',
+        allIssues.endTime ? allIssues.endTime.toISOString() : '',
+        'error',
+        'error-pages-skipped',
+        page.metadata ? page.metadata : 'An unknown error caused the page to be skipped',
+        '',
+        (page as any).url || page || '',
+        'Error',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ].map(escapeCsvField);
 
-  parseStream.on('error', (err: unknown) => {
-    console.error('Error parsing CSV:', err);
-    csvOutput.end();
+      csvOutput.write(row.join(',') + '\n');
+    });
+  }
+
+  csvOutput.end();
+  await new Promise<void>((resolve, reject) => {
+    csvOutput.on('finish', resolve);
+    csvOutput.on('error', reject);
   });
 };
 
