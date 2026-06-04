@@ -31,6 +31,7 @@ import { consoleLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 import { buildHtmlGroups, convertItemsToReferences } from './mergeAxeResults/itemReferences.js';
+import { ItemsStore } from './mergeAxeResults/itemsStore.js';
 import {
   compressJsonFileStreaming,
   writeJsonAndBase64Files,
@@ -418,7 +419,7 @@ const writeSummaryPdf = async (
 // Tracking WCAG occurrences
 const wcagOccurrencesMap = new Map<string, number>();
 
-const pushResults = async (pageResults, allIssues, isCustomFlow) => {
+const pushResults = async (pageResults, allIssues, isCustomFlow, itemsStore: ItemsStore) => {
   const { url, pageTitle, filePath } = pageResults;
 
   const totalIssuesInPage = new Set();
@@ -433,15 +434,15 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
     totalOccurrences: 0,
   });
 
-  ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
-    if (!pageResults[category]) return;
+  for (const category of ['mustFix', 'goodToFix', 'needsReview', 'passed'] as const) {
+    if (!pageResults[category]) continue;
 
     const { totalItems, rules } = pageResults[category];
     const currCategoryFromAllIssues = allIssues.items[category];
 
     currCategoryFromAllIssues.totalItems += totalItems;
 
-    Object.keys(rules).forEach(rule => {
+    for (const rule of Object.keys(rules)) {
       const {
         description,
         axeImpact,
@@ -457,7 +458,6 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
           helpUrl,
           conformance,
           totalItems: 0,
-          // numberOfPagesAffectedAfterRedirects: 0,
           pagesAffected: {},
         };
       }
@@ -470,7 +470,6 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
               allIssues.wcagViolations.push(c);
             }
 
-            // Track WCAG criteria occurrences for Sentry
             const currentCount = wcagOccurrencesMap.get(c) || 0;
             wcagOccurrencesMap.set(c, currentCount + count);
           });
@@ -480,9 +479,6 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
 
       currRuleFromAllIssues.totalItems += count;
 
-      // Build htmlGroups for pre-computed Group by HTML Element
-      buildHtmlGroups(currRuleFromAllIssues, items, url);
-
       if (isCustomFlow) {
         const { pageIndex, pageImagePath, metadata } = pageResults;
         currRuleFromAllIssues.pagesAffected[pageIndex] = {
@@ -490,17 +486,31 @@ const pushResults = async (pageResults, allIssues, isCustomFlow) => {
           pageTitle,
           pageImagePath,
           metadata,
-          items: [...items],
+          itemsCount: items.length,
         };
+        await itemsStore.appendPageItems(category, rule, {
+          url,
+          pageTitle,
+          items,
+          pageIndex,
+          pageImagePath,
+          metadata,
+        });
       } else if (!(url in currRuleFromAllIssues.pagesAffected)) {
         currRuleFromAllIssues.pagesAffected[url] = {
           pageTitle,
-          items: [...items],
+          itemsCount: items.length,
           ...(filePath && { filePath }),
         };
+        await itemsStore.appendPageItems(category, rule, {
+          url,
+          pageTitle,
+          items,
+          ...(filePath && { filePath }),
+        });
       }
-    });
-  });
+    }
+  }
 };
 
 const getTopTenIssues = allIssues => {
@@ -561,26 +571,26 @@ const flattenAndSortResults = (allIssues: AllIssues, isCustomFlow: boolean) => {
           .map(pageEntry => {
             if (isCustomFlow) {
               const [pageIndex, pageInfo] = pageEntry as unknown as [number, PageInfo];
-              // Only update the occurrences map if not passed.
               if (category !== 'passed') {
                 urlOccurrencesMap.set(
                   pageInfo.url!,
-                  (urlOccurrencesMap.get(pageInfo.url!) || 0) + pageInfo.items.length,
+                  (urlOccurrencesMap.get(pageInfo.url!) || 0) + (pageInfo.itemsCount || 0),
                 );
               }
               return { pageIndex, ...pageInfo };
             }
             const [url, pageInfo] = pageEntry as unknown as [string, PageInfo];
             if (category !== 'passed') {
-              urlOccurrencesMap.set(url, (urlOccurrencesMap.get(url) || 0) + pageInfo.items.length);
+              urlOccurrencesMap.set(
+                url,
+                (urlOccurrencesMap.get(url) || 0) + (pageInfo.itemsCount || 0),
+              );
             }
             return { url, ...pageInfo };
           })
-          // Sort pages so that those with the most items come first
-          .sort((page1, page2) => page2.items.length - page1.items.length);
+          .sort((page1, page2) => (page2.itemsCount || 0) - (page1.itemsCount || 0));
         return { rule, ...ruleInfo };
       })
-      // Sort the rules by totalItems (descending)
       .sort((rule1, rule2) => rule2.totalItems - rule1.totalItems);
   });
 
@@ -631,19 +641,24 @@ const extractRuleAiData = (
 };
 
 // This is for telemetry purposes called within mergeAxeResults.ts
-export const createRuleIdJson = allIssues => {
+export const createRuleIdJson = async (allIssues, itemsStore?: ItemsStore) => {
   const compiledRuleJson = {};
 
-  ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
-    allIssues.items[category].rules.forEach(rule => {
-      const allItems = rule.pagesAffected.flatMap(page => page.items || []);
-      compiledRuleJson[rule.rule] = extractRuleAiData(rule.rule, rule.totalItems, allItems, () => {
-        rule.pagesAffected.forEach(p => {
-          delete p.items;
-        });
-      });
-    });
-  });
+  for (const category of ['mustFix', 'goodToFix', 'needsReview'] as const) {
+    for (const rule of allIssues.items[category].rules) {
+      let allItems: any[] = [];
+
+      if (itemsStore) {
+        for await (const entry of itemsStore.readRuleItems(category, rule.rule)) {
+          allItems.push(...entry.items);
+        }
+      } else {
+        allItems = rule.pagesAffected.flatMap(page => page.items || []);
+      }
+
+      compiledRuleJson[rule.rule] = extractRuleAiData(rule.rule, rule.totalItems, allItems);
+    }
+  }
 
   return compiledRuleJson;
 };
@@ -815,20 +830,20 @@ const generateArtifacts = async (
   };
 
   const allFiles = await extractFileNames(intermediateDatasetsPath);
+  const itemsStore = new ItemsStore(storagePath);
 
-  const jsonArray = await Promise.all(
-    allFiles.map(async file => parseContentToJson(`${intermediateDatasetsPath}/${file}`)),
-  );
-
-  await Promise.all(
-    jsonArray.map(async pageResults => {
-      await pushResults(pageResults, allIssues, isCustomFlow);
-    }),
-  ).catch(flattenIssuesError => {
-    consoleLogger.error(
-      `[generateArtifacts] Error flattening issues: ${flattenIssuesError?.stack || flattenIssuesError}`,
-    );
-  });
+  for (const file of allFiles) {
+    try {
+      const pageResults = await parseContentToJson(`${intermediateDatasetsPath}/${file}`);
+      if (pageResults) {
+        await pushResults(pageResults, allIssues, isCustomFlow, itemsStore);
+      }
+    } catch (flattenIssuesError: any) {
+      consoleLogger.error(
+        `[generateArtifacts] Error processing ${file}: ${flattenIssuesError?.stack || flattenIssuesError}`,
+      );
+    }
+  }
 
   flattenAndSortResults(allIssues, isCustomFlow);
 
@@ -863,6 +878,15 @@ const generateArtifacts = async (
   }
 
   populateScanPagesDetail(allIssues);
+
+  // Build htmlGroups in a second pass from disk-backed items
+  for (const category of ['mustFix', 'goodToFix', 'needsReview', 'passed'] as const) {
+    for (const rule of allIssues.items[category].rules) {
+      for await (const entry of itemsStore.readRuleItems(category, rule.rule)) {
+        buildHtmlGroups(rule, entry.items, entry.url);
+      }
+    }
+  }
 
   allIssues.wcagPassPercentage = getWcagPassPercentage(
     allIssues.wcagViolations,
@@ -928,7 +952,7 @@ const generateArtifacts = async (
     rest.minor = axeImpactCount.minor;
   }
 
-  await writeCsv(allIssues, storagePath);
+  await writeCsv(allIssues, storagePath, itemsStore);
   await writeSitemap(pagesScanned, storagePath);
   const {
     scanDataJsonFilePath,
@@ -945,7 +969,7 @@ const generateArtifacts = async (
     scanPagesSummaryBase64FilePath,
     scanDataJsonFileSize,
     scanItemsJsonFileSize,
-  } = await writeJsonAndBase64Files(allIssues, storagePath);
+  } = await writeJsonAndBase64Files(allIssues, storagePath, itemsStore);
   // Removed BIG_RESULTS_THRESHOLD check - always use full scanItems
 
   await writeScanDetailsCsv(
@@ -1058,7 +1082,10 @@ const generateArtifacts = async (
   }
 
   // Generate scrubbed HTML Code Snippets
-  const ruleIdJson = createRuleIdJson(allIssues);
+  const ruleIdJson = await createRuleIdJson(allIssues, itemsStore);
+
+  // Clean up intermediate items files
+  await itemsStore.cleanup();
 
   // At the end of the function where results are generated, add:
   try {

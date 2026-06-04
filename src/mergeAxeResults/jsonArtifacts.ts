@@ -6,6 +6,7 @@ import { pipeline } from 'stream/promises';
 import { a11yRuleShortDescriptionMap } from '../constants/constants.js';
 import { consoleLogger } from '../logs.js';
 import type { AllIssues } from './types.js';
+import type { ItemsStore } from './itemsStore.js';
 
 function* serializeObject(obj: any, depth = 0, indent = '  ') {
   const currentIndent = indent.repeat(depth);
@@ -79,158 +80,151 @@ function writeLargeJsonToFile(obj: object, filePath: string) {
   });
 }
 
-const writeLargeScanItemsJsonToFile = async (obj: object, filePath: string) => {
-  return new Promise((resolve, reject) => {
-    const writeStream = fs.createWriteStream(filePath, { flags: 'a', encoding: 'utf8' });
-    const writeQueue: string[] = [];
-    let isWriting = false;
+const writeLargeScanItemsJsonToFile = async (
+  obj: object,
+  filePath: string,
+  itemsStore?: ItemsStore,
+) => {
+  const writeStream = fs.createWriteStream(filePath, { flags: 'a', encoding: 'utf8' });
 
-    const processNextWrite = async () => {
-      if (isWriting || writeQueue.length === 0) return;
+  const write = (data: string): Promise<void> => {
+    if (!writeStream.write(data)) {
+      return new Promise<void>(resolve => writeStream.once('drain', resolve));
+    }
+    return Promise.resolve();
+  };
 
-      isWriting = true;
-      const data = writeQueue.shift()!;
+  try {
+    await write('{\n');
+    const keys = Object.keys(obj);
 
-      try {
-        if (!writeStream.write(data)) {
-          await new Promise<void>(resolve => {
-            writeStream.once('drain', () => {
-              resolve();
-            });
-          });
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const value = obj[key];
+
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        await write(`  "${key}": ${JSON.stringify(value)}`);
+      } else {
+        await write(`  "${key}": {\n`);
+
+        const { rules, ...otherProperties } = value;
+        const otherKeys = Object.keys(otherProperties);
+
+        for (let j = 0; j < otherKeys.length; j++) {
+          const propKey = otherKeys[j];
+          const propValue = otherProperties[propKey];
+          const propValueString =
+            propValue === null ||
+            typeof propValue === 'function' ||
+            typeof propValue === 'undefined'
+              ? 'null'
+              : JSON.stringify(propValue);
+          await write(`    "${propKey}": ${propValueString}`);
+          if (j < otherKeys.length - 1 || (rules && rules.length >= 0)) {
+            await write(',\n');
+          } else {
+            await write('\n');
+          }
         }
-      } catch (error) {
-        writeStream.destroy(error as Error);
-        return;
+
+        if (rules && Array.isArray(rules)) {
+          await write('    "rules": [\n');
+
+          for (let j = 0; j < rules.length; j++) {
+            const rule = rules[j];
+            await write('      {\n');
+            const { pagesAffected, ...otherRuleProperties } = rule;
+            const ruleKeys = Object.keys(otherRuleProperties);
+
+            for (let k = 0; k < ruleKeys.length; k++) {
+              const ruleKey = ruleKeys[k];
+              const ruleValue = otherRuleProperties[ruleKey];
+              const ruleValueString =
+                ruleValue === null ||
+                typeof ruleValue === 'function' ||
+                typeof ruleValue === 'undefined'
+                  ? 'null'
+                  : JSON.stringify(ruleValue);
+              await write(`        "${ruleKey}": ${ruleValueString}`);
+              if (k < ruleKeys.length - 1 || pagesAffected) {
+                await write(',\n');
+              } else {
+                await write('\n');
+              }
+            }
+
+            if (pagesAffected && Array.isArray(pagesAffected)) {
+              // Load items from disk for this rule if itemsStore is available
+              let itemsMap: Map<string, any> | null = null;
+              if (itemsStore && rule.rule) {
+                itemsMap = await itemsStore.readRuleItemsMap(key, rule.rule);
+              }
+
+              await write('        "pagesAffected": [\n');
+
+              for (let p = 0; p < pagesAffected.length; p++) {
+                const page = pagesAffected[p];
+                let fullPage = page;
+
+                if (itemsMap) {
+                  const lookupKey =
+                    page.pageIndex != null ? String(page.pageIndex) : page.url;
+                  const entry = itemsMap.get(lookupKey);
+                  if (entry) {
+                    // Strip itemsCount to match original scanItems.json format
+                    const { itemsCount: _ic, ...pageWithoutCount } = page;
+                    fullPage = { ...pageWithoutCount, items: entry.items };
+                  }
+                }
+
+                const pageJson = JSON.stringify(fullPage, null, 2)
+                  .split('\n')
+                  .map(line => `          ${line}`)
+                  .join('\n');
+
+                await write(pageJson);
+
+                if (p < pagesAffected.length - 1) {
+                  await write(',\n');
+                } else {
+                  await write('\n');
+                }
+              }
+
+              await write('        ]');
+            }
+
+            await write('\n      }');
+            if (j < rules.length - 1) {
+              await write(',\n');
+            } else {
+              await write('\n');
+            }
+          }
+
+          await write('    ]');
+        }
+        await write('\n  }');
       }
 
-      isWriting = false;
-      processNextWrite();
-    };
-
-    const queueWrite = (data: string) => {
-      writeQueue.push(data);
-      processNextWrite();
-    };
-
-    writeStream.on('error', error => {
-      consoleLogger.error(`Error writing object to JSON file: ${error}`);
-      reject(error);
-    });
-
-    writeStream.on('finish', () => {
-      consoleLogger.info(`JSON file written successfully: ${filePath}`);
-      resolve(true);
-    });
-
-    try {
-      queueWrite('{\n');
-      const keys = Object.keys(obj);
-
-      keys.forEach((key, i) => {
-        const value = obj[key];
-
-        if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-          queueWrite(`  "${key}": ${JSON.stringify(value)}`);
-        } else {
-          queueWrite(`  "${key}": {\n`);
-
-          const { rules, ...otherProperties } = value;
-
-          Object.entries(otherProperties).forEach(([propKey, propValue], j) => {
-            const propValueString =
-              propValue === null ||
-              typeof propValue === 'function' ||
-              typeof propValue === 'undefined'
-                ? 'null'
-                : JSON.stringify(propValue);
-            queueWrite(`    "${propKey}": ${propValueString}`);
-            if (j < Object.keys(otherProperties).length - 1 || (rules && rules.length >= 0)) {
-              queueWrite(',\n');
-            } else {
-              queueWrite('\n');
-            }
-          });
-
-          if (rules && Array.isArray(rules)) {
-            queueWrite('    "rules": [\n');
-
-            rules.forEach((rule, j) => {
-              queueWrite('      {\n');
-              const { pagesAffected, ...otherRuleProperties } = rule;
-
-              Object.entries(otherRuleProperties).forEach(([ruleKey, ruleValue], k) => {
-                const ruleValueString =
-                  ruleValue === null ||
-                  typeof ruleValue === 'function' ||
-                  typeof ruleValue === 'undefined'
-                    ? 'null'
-                    : JSON.stringify(ruleValue);
-                queueWrite(`        "${ruleKey}": ${ruleValueString}`);
-                if (k < Object.keys(otherRuleProperties).length - 1 || pagesAffected) {
-                  queueWrite(',\n');
-                } else {
-                  queueWrite('\n');
-                }
-              });
-
-              if (pagesAffected && Array.isArray(pagesAffected)) {
-                queueWrite('        "pagesAffected": [\n');
-
-                pagesAffected.forEach((page, p) => {
-                  const pageJson = JSON.stringify(page, null, 2)
-                    .split('\n')
-                    .map(line => `          ${line}`)
-                    .join('\n');
-
-                  queueWrite(pageJson);
-
-                  if (p < pagesAffected.length - 1) {
-                    queueWrite(',\n');
-                  } else {
-                    queueWrite('\n');
-                  }
-                });
-
-                queueWrite('        ]');
-              }
-
-              queueWrite('\n      }');
-              if (j < rules.length - 1) {
-                queueWrite(',\n');
-              } else {
-                queueWrite('\n');
-              }
-            });
-
-            queueWrite('    ]');
-          }
-          queueWrite('\n  }');
-        }
-
-        if (i < keys.length - 1) {
-          queueWrite(',\n');
-        } else {
-          queueWrite('\n');
-        }
-      });
-
-      queueWrite('}\n');
-
-      const checkQueueAndEnd = () => {
-        if (writeQueue.length === 0 && !isWriting) {
-          writeStream.end();
-        } else {
-          setTimeout(checkQueueAndEnd, 100);
-        }
-      };
-
-      checkQueueAndEnd();
-    } catch (err) {
-      writeStream.destroy(err as Error);
-      reject(err);
+      if (i < keys.length - 1) {
+        await write(',\n');
+      } else {
+        await write('\n');
+      }
     }
-  });
+
+    await write('}\n');
+  } finally {
+    writeStream.end();
+    await new Promise<void>((resolve, reject) => {
+      writeStream.on('finish', () => {
+        consoleLogger.info(`JSON file written successfully: ${filePath}`);
+        resolve();
+      });
+      writeStream.on('error', reject);
+    });
+  }
 };
 
 async function compressJsonFileStreaming(inputPath: string, outputPath: string) {
@@ -247,12 +241,13 @@ const writeJsonFileAndCompressedJsonFile = async (
   data: object,
   storagePath: string,
   filename: string,
+  itemsStore?: ItemsStore,
 ): Promise<{ jsonFilePath: string; base64FilePath: string }> => {
   try {
     consoleLogger.info(`Writing JSON to ${filename}.json`);
     const jsonFilePath = path.join(storagePath, `${filename}.json`);
     if (filename === 'scanItems') {
-      await writeLargeScanItemsJsonToFile(data, jsonFilePath);
+      await writeLargeScanItemsJsonToFile(data, jsonFilePath, itemsStore);
     } else {
       await writeLargeJsonToFile(data, jsonFilePath);
     }
@@ -277,6 +272,7 @@ const writeJsonFileAndCompressedJsonFile = async (
 const writeJsonAndBase64Files = async (
   allIssues: AllIssues,
   storagePath: string,
+  itemsStore?: ItemsStore,
 ): Promise<{
   scanDataJsonFilePath: string;
   scanDataBase64FilePath: string;
@@ -301,6 +297,7 @@ const writeJsonAndBase64Files = async (
       { oobeeAppVersion: allIssues.oobeeAppVersion, ...items },
       storagePath,
       'scanItems',
+      itemsStore,
     );
 
   ['mustFix', 'goodToFix', 'needsReview', 'passed'].forEach(category => {
@@ -345,22 +342,22 @@ const writeJsonAndBase64Files = async (
 
   items.mustFix.rules.forEach(rule => {
     rule.pagesAffected.forEach(page => {
-      page.itemsCount = page.items.length;
+      page.itemsCount = page.itemsCount ?? (Array.isArray(page.items) ? page.items.length : 0);
     });
   });
   items.goodToFix.rules.forEach(rule => {
     rule.pagesAffected.forEach(page => {
-      page.itemsCount = page.items.length;
+      page.itemsCount = page.itemsCount ?? (Array.isArray(page.items) ? page.items.length : 0);
     });
   });
   items.needsReview.rules.forEach(rule => {
     rule.pagesAffected.forEach(page => {
-      page.itemsCount = page.items.length;
+      page.itemsCount = page.itemsCount ?? (Array.isArray(page.items) ? page.items.length : 0);
     });
   });
   items.passed.rules.forEach(rule => {
     rule.pagesAffected.forEach(page => {
-      page.itemsCount = page.items.length;
+      page.itemsCount = page.itemsCount ?? (Array.isArray(page.items) ? page.items.length : 0);
     });
   });
 

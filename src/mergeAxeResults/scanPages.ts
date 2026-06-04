@@ -40,8 +40,8 @@ export default function populateScanPagesDetail(allIssues: AllIssues): void {
       const { rule: ruleId, conformance = [] } = rule;
 
       rule.pagesAffected.forEach(p => {
-        const { url, pageTitle, items = [] } = p;
-        const itemsCount = items.length;
+        const { url, pageTitle, itemsCount: storedCount, items } = p as any;
+        const itemsCount: number = storedCount ?? (Array.isArray(items) ? items.length : 0);
 
         if (!pagesMap[url]) {
           pagesMap[url] = {
