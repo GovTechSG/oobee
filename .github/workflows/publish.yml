@@ -22,6 +22,17 @@ jobs:
       - run: npm run build
         continue-on-error: false
 
+      - name: Generate oobee-client-scanner.js
+        run: node dist/generateOobeeClientScanner.js
+
+      - name: Commit generated client scanner
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add oobee-client-scanner.js
+          git diff --cached --quiet || git commit -m "chore: regenerate oobee-client-scanner.js"
+          git push origin HEAD:${{ github.ref_name }}
+
       - name: Create and push git tags
         run: |
           VERSION=$(node -p "require('./package.json').version")
