@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY. Re-generate with: node dist/generateOobeeClientScanner.js
  *
  * Embedded at generation time:
- *   App version : 0.10.86
+ *   App version : 0.10.90
  *   Sentry DSN  : (from OOBEE_SENTRY_DSN env var or constants.ts default)
  *   Sentry SDK  : @sentry/browser 9.47.1 (loaded from CDN at runtime)
  *
@@ -34283,6 +34283,13 @@
     }
 };
       
+      function getReadabilityInterpretation(score) {
+        const num = parseFloat(score);
+        if (Number.isNaN(num)) return '';
+        if (num > 30) return 'It is targeted for junior college (JC) level comprehension and above.';
+        return 'It is targeted for university graduate level comprehension and above.';
+      }
+
       function getAxeConfiguration({
         enableWcagAaa = false,
         gradingReadabilityFlag = '',
@@ -34317,7 +34324,7 @@
                 return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
               },
             },
-            ...((enableWcagAaa && !disableOobee)
+            ...((enableWcagAaa && !disableOobee && gradingReadabilityFlag !== '')
               ? [
                   {
                     id: 'oobee-grading-text-contents',
@@ -34325,18 +34332,15 @@
                       impact: 'moderate',
                       messages: {
                         pass: 'The text content is easy to understand.',
-                        fail: 'The text content is potentially difficult to understand.',
-                        incomplete: `The text content is potentially difficult to read, with a Flesch-Kincaid Reading Ease score of ${gradingReadabilityFlag}.
-The target passing score is above 50, indicating content readable by university students and lower grade levels.
-A higher score reflects better readability.`,
+                        fail: `Text content is potentially difficult to read.
+  It scored ${gradingReadabilityFlag} out of 50 on the Flesch-Kincaid Readability Test.
+  ${getReadabilityInterpretation(gradingReadabilityFlag)}`,
+                        incomplete: `Text content is potentially difficult to read.
+  It scored ${gradingReadabilityFlag} out of 50 on the Flesch-Kincaid Readability Test.
+  ${getReadabilityInterpretation(gradingReadabilityFlag)}`,
                       },
                     },
-                    evaluate: (_node) => {
-                      if (gradingReadabilityFlag === '') {
-                        return true; // Pass if no readability issues
-                      }
-                      // Fail if readability issues are detected
-                    },
+                    evaluate: (_node) => false,
                   },
                 ]
               : []),
@@ -34367,7 +34371,7 @@ A higher score reflects better readability.`,
                 helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
               },
             },
-            ...((enableWcagAaa && !disableOobee)
+            ...((enableWcagAaa && !disableOobee && gradingReadabilityFlag !== '')
               ? [
                   {
                     id: 'oobee-grading-text-contents',
@@ -34723,7 +34727,7 @@ A higher score reflects better readability.`,
   // ── Sentry browser telemetry (Sentry JS SDK, loaded from CDN) ────────────
   
   var _oobeeSentryDsn          = "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168";
-  var _oobeeAppVersion         = "0.10.86";
+  var _oobeeAppVersion         = "0.10.90";
   var _oobeeSentryVersion      = "9.47.1";
   var _oobeeSentryInitialized  = false;
   var _oobeeSentryLoadPromise  = null;
