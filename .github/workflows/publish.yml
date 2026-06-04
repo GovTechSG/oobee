@@ -38,8 +38,8 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -af "v${VERSION}" -m "Version ${VERSION}"
-          git push origin "v${VERSION}" --force
+          git tag -af "${VERSION}" -m "Version ${VERSION}"
+          git push origin "${VERSION}" --force
           git tag -af "latest" -m "Latest release ${VERSION}"
           git push origin "latest" --force
 
