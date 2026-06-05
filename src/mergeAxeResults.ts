@@ -1020,13 +1020,36 @@ const generateArtifacts = async (
     1,
   );
 
-  // Brief delay to allow lingering async crawlee storage operations to flush
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  // Suppress uncaught EPERM errors from lingering Crawlee async lock-file operations
+  // (Windows holds mandatory file locks; Crawlee may still attempt mkdir on .json.lock
+  // files after the crawl has finished). Without this, Node crashes with uncaughtException.
+  const crawleeEpermHandler = (err: Error & { code?: string }) => {
+    if (err.code === 'EPERM' && err.message?.includes('crawlee')) {
+      consoleLogger.info(`Suppressed lingering Crawlee storage error: ${err.message}`);
+      return;
+    }
+    // Re-throw non-crawlee EPERM errors so they aren't silently swallowed
+    throw err;
+  };
+  process.on('uncaughtException', crawleeEpermHandler);
+  process.on('unhandledRejection', crawleeEpermHandler);
 
+  // Brief delay to allow lingering async crawlee storage operations to flush
+  await new Promise(resolve => setTimeout(resolve, process.platform === 'win32' ? 5000 : 3000));
+
+  const crawleePath = path.join(storagePath, 'crawlee');
   try {
-    await fs.promises.rm(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
+    await fs.promises.rm(crawleePath, { recursive: true, force: true });
   } catch (error) {
-    // Silently ignore — folder may already be gone or still locked
+    // On Windows, retry once after a delay if the folder is still locked
+    if (process.platform === 'win32') {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      try {
+        await fs.promises.rm(crawleePath, { recursive: true, force: true });
+      } catch {
+        // Best-effort cleanup — leave the folder; report generation continues
+      }
+    }
   }
 
   try {
@@ -1111,6 +1134,9 @@ const generateArtifacts = async (
 
   if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE)
     console.log('Report generated successfully');
+
+  process.removeListener('uncaughtException', crawleeEpermHandler);
+  process.removeListener('unhandledRejection', crawleeEpermHandler);
 
   return ruleIdJson;
 };
