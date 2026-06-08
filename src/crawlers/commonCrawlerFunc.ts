@@ -874,6 +874,13 @@ export const runAxeScript = async ({
   const browserContext: BrowserContext = page.context();
   const requestUrl = page.url();
 
+  let pageTitle: string | null = null;
+  try {
+    pageTitle = await page.evaluate(() => document.title);
+  } catch {
+    // Page may already be in a bad state; title will remain null
+  }
+
   try {
     // Checking for DOM mutations before proceeding to scan
     await page.evaluate(() => {
@@ -1084,19 +1091,6 @@ export const runAxeScript = async ({
   if (includeScreenshots) {
     results.violations = await takeScreenshotForHTMLElements(results.violations, page, randomToken);
     results.incomplete = await takeScreenshotForHTMLElements(results.incomplete, page, randomToken);
-  }
-
-  let pageTitle = null;
-  try {
-    pageTitle = await page.evaluate(() => document.title);
-  } catch (e) {
-    consoleLogger.info(`Error while getting page title: ${e}`);
-    if (page.isClosed()) {
-      consoleLogger.info(`Page was closed for ${requestUrl}, creating new page`);
-      page = await browserContext.newPage();
-      await page.goto(requestUrl, { waitUntil: 'domcontentloaded' });
-      pageTitle = await page.evaluate(() => document.title);
-    }
   }
 
   return filterAxeResults(results, pageTitle, customFlowDetails);
