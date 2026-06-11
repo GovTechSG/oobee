@@ -7,7 +7,7 @@ import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
 import { ViewportSettingsClass } from '../combine.js';
-import { getPlaywrightLaunchOptions, getSitemapsFromRobotsTxt } from '../constants/common.js';
+import { getPlaywrightLaunchOptions, getSitemapsFromRobotsTxt, initModifiedUserAgent } from '../constants/common.js';
 import { register } from '../utils.js';
 
 const crawlIntelligentSitemap = async (
@@ -40,6 +40,10 @@ const crawlIntelligentSitemap = async (
 
   ({ dataset } = await createCrawleeSubFolders(randomToken));
 
+  // Initialise modified User-Agent early so sitemap discovery requests
+  // don't expose "HeadlessChrome" (which triggers bot-blocking on some sites).
+  await initModifiedUserAgent(browser);
+
   function getHomeUrl(parsedUrl: string) {
     const urlObject = new URL(parsedUrl);
     return `${urlObject.protocol}//${urlObject.hostname}${urlObject.port ? `:${urlObject.port}` : ''}`;
@@ -62,6 +66,7 @@ const crawlIntelligentSitemap = async (
       context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
         ...launchOptions,
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
       register(context);
     } else {
@@ -70,6 +75,7 @@ const crawlIntelligentSitemap = async (
       register(browserInstance as unknown as { close: () => Promise<void> });
       context = await browserInstance.newContext({
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
     }
 
@@ -93,7 +99,7 @@ const crawlIntelligentSitemap = async (
   const checkUrlExists = async (page: Page, parsedUrl: string) => {
     try {
       const response = await page.goto(parsedUrl);
-      return response.ok();
+      return response?.ok() ?? false;
     } catch (e) {
       consoleLogger.error(e);
       return false;

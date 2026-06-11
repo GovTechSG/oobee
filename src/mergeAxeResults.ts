@@ -741,6 +741,7 @@ const generateArtifacts = async (
   },
   zip: string = undefined, // optional
   generateJsonFiles = false,
+  preferredBrowser?: string,
 ) => {
   consoleLogger.info('Generating report artifacts');
 
@@ -760,6 +761,8 @@ const generateArtifacts = async (
     endTime: scanDetails.endTime ? scanDetails.endTime : new Date(),
     urlScanned,
     scanType,
+    totalLinksFetchedFromSitemaps: constants.sitemapFetchedLinks?.totalLinksFetchedFromSitemaps ?? 0,
+    fetchedSitemaps: constants.sitemapFetchedLinks?.fetchedSitemaps ?? [],
     deviceChosen: scanDetails.deviceChosen || 'Desktop',
     formatAboutStartTime,
     isCustomFlow,
@@ -1005,7 +1008,11 @@ const generateArtifacts = async (
     ]);
   }
 
-  const browserChannel = getBrowserToRun(randomToken, BrowserTypes.CHROME, false).browserToRun;
+  const browserChannel = getBrowserToRun(
+    randomToken,
+    (preferredBrowser as BrowserTypes) || BrowserTypes.CHROME,
+    false,
+  ).browserToRun;
 
   // Should consider refactor constants.userDataDirectory to be a parameter in future
   await retryFunction(

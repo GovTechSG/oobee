@@ -888,6 +888,7 @@ const getRobotsTxtViaPlaywright = async (
       browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
         ...getPlaywrightLaunchOptions(browser),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
       register(browserContext);
     } else {
@@ -895,9 +896,10 @@ const getRobotsTxtViaPlaywright = async (
       const launchOptions = getPlaywrightLaunchOptions(browser);
       browserInstance = await constants.launcher.launch(launchOptions);
       register(browserInstance as unknown as { close: () => Promise<void> });
-      
+
       browserContext = await browserInstance.newContext({
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
     }
 
@@ -975,7 +977,7 @@ export const isDisallowedInRobotsTxt = (url: string): boolean => {
 
 export const getLinksFromSitemap = async (
   sitemapUrl: string,
-  maxLinksCount: number,
+  _maxLinksCount: number,
   browser: string,
   userDataDirectory: string,
   userUrlInput: string,
@@ -985,9 +987,8 @@ export const getLinksFromSitemap = async (
   userUrl: string = userUrlInput,
 ) => {
   const scannedSitemaps = new Set<string>();
-  const urls: Record<string, Request> = {}; // dictionary of requests to urls to be scanned
-
-  const isLimitReached = () => Object.keys(urls).length >= maxLinksCount;
+  const sitemapLinkCounts: Record<string, number> = {};
+  const allUrls = new Set<string>(); // all discovered URLs (lightweight strings)
 
   const addToUrlList = (url: string) => {
     if (!url) return;
@@ -995,17 +996,7 @@ export const getLinksFromSitemap = async (
     if (!isFilePath(userUrl) && !isFollowStrategy(url, userUrl, strategy)) return;
 
     url = convertPathToLocalFile(url);
-
-    let request;
-    try {
-      request = new Request({ url });
-    } catch (e) {
-      console.log('Error creating request', e);
-    }
-    if (isUrlPdf(url)) {
-      request.skipNavigation = true;
-    }
-    urls[url] = request;
+    allUrls.add(url);
   };
 
   const calculateCloseness = (sitemapUrl: string) => {
@@ -1058,16 +1049,15 @@ export const getLinksFromSitemap = async (
       });
     }
 
-    // Add the sorted URLs to the main URL list
-    for (const { url } of urlList.slice(0, maxLinksCount)) {
+    // Add all URLs to the discovered list (limit applied later at return time)
+    for (const { url } of urlList) {
       addToUrlList(url);
     }
   };
 
   const processNonStandardSitemap = (data: string) => {
     const urlsFromData = crawlee
-      .extractUrls({ string: data, urlRegExp: new RegExp('^(http|https):/{2}.+$', 'gmi') })
-      .slice(0, maxLinksCount);
+      .extractUrls({ string: data, urlRegExp: new RegExp('^(http|https):/{2}.+$', 'gmi') });
     urlsFromData.forEach(url => {
       addToUrlList(url);
     });
@@ -1118,6 +1108,7 @@ export const getLinksFromSitemap = async (
               // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
               ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
               ...(extraHTTPHeaders && { extraHTTPHeaders }),
+              ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
             },
           );
 
@@ -1127,9 +1118,10 @@ export const getLinksFromSitemap = async (
           const launchOptions = getPlaywrightLaunchOptions(browser);
           browserInstance = await constants.launcher.launch(launchOptions);
           register(browserInstance as unknown as { close: () => Promise<void> });
-          
+
           browserContext = await browserInstance.newContext({
             ...(extraHTTPHeaders && { extraHTTPHeaders }),
+            ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
           });
         }
 
@@ -1202,14 +1194,13 @@ export const getLinksFromSitemap = async (
       sitemapType = constants.xmlSitemapTypes.unknown;
     }
 
+    const countBefore = allUrls.size;
+
     switch (sitemapType) {
       case constants.xmlSitemapTypes.xmlIndex:
         consoleLogger.info(`This is a XML format sitemap index.`);
         for (const childSitemapUrl of $('loc')) {
           const childSitemapUrlText = $(childSitemapUrl).text();
-          if (isLimitReached()) {
-            break;
-          }
           if (childSitemapUrlText.endsWith('.xml') || childSitemapUrlText.endsWith('.txt')) {
             await fetchUrls(childSitemapUrlText, extraHTTPHeaders); // Recursive call for nested sitemaps
           } else {
@@ -1233,6 +1224,11 @@ export const getLinksFromSitemap = async (
         consoleLogger.info(`This is an unrecognised XML sitemap format.`);
         processNonStandardSitemap(data);
     }
+
+    const linksFromThisSitemap = allUrls.size - countBefore;
+    if (linksFromThisSitemap > 0) {
+      sitemapLinkCounts[url] = (sitemapLinkCounts[url] || 0) + linksFromThisSitemap;
+    }
   };
 
   try {
@@ -1241,7 +1237,41 @@ export const getLinksFromSitemap = async (
     consoleLogger.error(e);
   }
 
-  const requestList = Object.values(urls);
+  // Build Request objects for all discovered URLs; the crawler itself enforces
+  // maxRequestsPerCrawl by counting only successfully scanned pages.
+  const requestList: Request[] = [];
+  for (const url of allUrls) {
+    try {
+      const request = new Request({ url });
+      if (isUrlPdf(url)) {
+        request.skipNavigation = true;
+      }
+      requestList.push(request);
+    } catch (e) {
+      consoleLogger.info(`Error creating request for ${url}: ${e}`);
+    }
+  }
+
+  const totalLinksDiscovered = allUrls.size;
+  const fetchedSitemaps = Object.entries(sitemapLinkCounts).map(([url, fetchedLinks]) => ({
+    url,
+    fetchedLinks,
+  }));
+
+  const prev = constants.sitemapFetchedLinks;
+  constants.sitemapFetchedLinks = {
+    totalLinksFetchedFromSitemaps: (prev?.totalLinksFetchedFromSitemaps ?? 0) + totalLinksDiscovered,
+    fetchedSitemaps: [...(prev?.fetchedSitemaps ?? []), ...fetchedSitemaps],
+  };
+
+  if (totalLinksDiscovered > 0) {
+    const breakdown = fetchedSitemaps
+      .map(({ url, fetchedLinks }) => `${url} (${fetchedLinks})`)
+      .join(', ');
+    consoleLogger.info(
+      `There are a total of ${totalLinksDiscovered} links found across ${breakdown}.`,
+    );
+  }
 
   return requestList;
 };
