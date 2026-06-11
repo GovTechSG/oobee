@@ -987,6 +987,7 @@ export const getLinksFromSitemap = async (
   userUrl: string = userUrlInput,
 ) => {
   const scannedSitemaps = new Set<string>();
+  const sitemapLinkCounts: Record<string, number> = {};
   const urls: Record<string, Request> = {}; // dictionary of requests to urls to be scanned
 
   const isLimitReached = () => Object.keys(urls).length >= maxLinksCount;
@@ -1206,6 +1207,8 @@ export const getLinksFromSitemap = async (
       sitemapType = constants.xmlSitemapTypes.unknown;
     }
 
+    const countBefore = Object.keys(urls).length;
+
     switch (sitemapType) {
       case constants.xmlSitemapTypes.xmlIndex:
         consoleLogger.info(`This is a XML format sitemap index.`);
@@ -1237,6 +1240,11 @@ export const getLinksFromSitemap = async (
         consoleLogger.info(`This is an unrecognised XML sitemap format.`);
         processNonStandardSitemap(data);
     }
+
+    const linksFromThisSitemap = Object.keys(urls).length - countBefore;
+    if (linksFromThisSitemap > 0) {
+      sitemapLinkCounts[url] = (sitemapLinkCounts[url] || 0) + linksFromThisSitemap;
+    }
   };
 
   try {
@@ -1246,6 +1254,15 @@ export const getLinksFromSitemap = async (
   }
 
   const requestList = Object.values(urls);
+
+  if (requestList.length > 0) {
+    const breakdown = Object.entries(sitemapLinkCounts)
+      .map(([sitemapUrl, count]) => `${sitemapUrl} (${count})`)
+      .join(', ');
+    consoleLogger.info(
+      `There are a total of ${requestList.length} links found across ${breakdown}.`,
+    );
+  }
 
   return requestList;
 };
