@@ -946,6 +946,7 @@ export default {
   a11yRuleShortDescriptionMap,
   disabilityBadgesMap,
   robotsTxtUrls: null,
+  sitemapFetchedLinks: null as { totalLinksFetchedFromSitemaps: number; fetchedSitemaps: { url: string; fetchedLinks: number }[] } | null,
   userDataDirectory: null, // This will be set later in the code
   randomToken: null, // This will be set later in the code
   // Track all active Crawlee / Playwright resources for cleanup

@@ -1255,9 +1255,19 @@ export const getLinksFromSitemap = async (
 
   const requestList = Object.values(urls);
 
+  const fetchedSitemaps = Object.entries(sitemapLinkCounts).map(([url, fetchedLinks]) => ({
+    url,
+    fetchedLinks,
+  }));
+
+  constants.sitemapFetchedLinks = {
+    totalLinksFetchedFromSitemaps: requestList.length,
+    fetchedSitemaps,
+  };
+
   if (requestList.length > 0) {
-    const breakdown = Object.entries(sitemapLinkCounts)
-      .map(([sitemapUrl, count]) => `${sitemapUrl} (${count})`)
+    const breakdown = fetchedSitemaps
+      .map(({ url, fetchedLinks }) => `${url} (${fetchedLinks})`)
       .join(', ');
     consoleLogger.info(
       `There are a total of ${requestList.length} links found across ${breakdown}.`,

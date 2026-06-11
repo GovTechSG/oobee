@@ -761,6 +761,8 @@ const generateArtifacts = async (
     endTime: scanDetails.endTime ? scanDetails.endTime : new Date(),
     urlScanned,
     scanType,
+    totalLinksFetchedFromSitemaps: constants.sitemapFetchedLinks?.totalLinksFetchedFromSitemaps ?? 0,
+    fetchedSitemaps: constants.sitemapFetchedLinks?.fetchedSitemaps ?? [],
     deviceChosen: scanDetails.deviceChosen || 'Desktop',
     formatAboutStartTime,
     isCustomFlow,
