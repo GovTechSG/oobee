@@ -977,7 +977,7 @@ export const isDisallowedInRobotsTxt = (url: string): boolean => {
 
 export const getLinksFromSitemap = async (
   sitemapUrl: string,
-  maxLinksCount: number,
+  _maxLinksCount: number,
   browser: string,
   userDataDirectory: string,
   userUrlInput: string,
@@ -1237,10 +1237,10 @@ export const getLinksFromSitemap = async (
     consoleLogger.error(e);
   }
 
-  // Build Request objects only for the URLs that will actually be crawled
+  // Build Request objects for all discovered URLs; the crawler itself enforces
+  // maxRequestsPerCrawl by counting only successfully scanned pages.
   const requestList: Request[] = [];
   for (const url of allUrls) {
-    if (requestList.length >= maxLinksCount) break;
     try {
       const request = new Request({ url });
       if (isUrlPdf(url)) {
