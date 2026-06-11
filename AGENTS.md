@@ -246,6 +246,16 @@ When making changes, validate these areas which have well-established edge cases
 - The `-s` (strategy) flag must be passed through to `crawlSitemap` and `getLinksFromSitemap`. For sitemap-only scans the default is `'ignore'` (all URLs); for domain/intelligent crawls it's `'same-domain'`.
 - `scanDuration=0` means unlimited. Code that calculates `remainingDuration` must treat 0 as "no limit", not as "0 seconds remaining".
 
+### Rate Limiting & Circuit Breaker
+- Sites with WAFs (Cloudflare, Akamai, etc.) will start returning 403/503 after a certain number of concurrent requests — typically 200-300 pages in rapid succession.
+- Both `crawlSitemap` and `crawlDomain` have a consecutive-failure circuit breaker: if 100 consecutive requests fail with HTTP 4xx/5xx, the crawl aborts gracefully and proceeds to report generation with whatever pages were successfully scanned.
+- The threshold is configurable via `OOBEE_CONSECUTIVE_MAX_RETRIES` env var (default 100).
+- Only HTTP 4xx/5xx responses count toward the threshold — timeouts and network errors do not.
+- The counter resets to 0 on each successful page scan.
+- In intelligent crawl, each phase (sitemap then domain) has its own counter — transitioning from sitemap to domain crawl starts fresh.
+- Without this circuit breaker, a rate-limited crawl with thousands of enqueued URLs would run indefinitely (each URL retried 10× by Crawlee), never hit the success threshold, and never generate a report.
+- When enqueuing all sitemap URLs (which we do for accurate `totalLinksFetchedFromSitemaps` reporting), always ensure either a scan duration (`-d`) or the circuit breaker is in place as a safety net.
+
 ### Axe & Custom Checks
 - When axe reports color-contrast violations but cannot determine the actual colors, skip augmenting the message with contrast context (avoids crashes on null/undefined color values).
 - Violation messages are enriched with live DOM context (element text, computed styles, dimensions) via `page.evaluate()` during scan. Handle cases where elements are no longer in DOM at evaluation time.
