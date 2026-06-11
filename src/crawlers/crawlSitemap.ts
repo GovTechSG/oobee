@@ -81,6 +81,8 @@ const crawlSitemap = async ({
   let urlsCrawled: UrlsCrawled;
   let durationExceeded = false;
   let isAbortingScan = false;
+  let consecutiveFailures = 0;
+  const maxConsecutiveFailures = Number(process.env.OOBEE_CONSECUTIVE_MAX_RETRIES) || 100;
 
   if (fromCrawlIntelligentSitemap) {
     dataset = datasetFromIntelligent;
@@ -386,6 +388,7 @@ const crawlSitemap = async ({
               pageTitle: results.pageTitle,
               actualUrl, // i.e. actualUrl
             });
+            consecutiveFailures = 0;
 
             urlsCrawled.scannedRedirects.push({
               fromUrl: request.url,
@@ -431,12 +434,24 @@ const crawlSitemap = async ({
           return;
         }
 
+        const status = response?.status();
+        if (typeof status === 'number' && status >= 400) {
+          consecutiveFailures++;
+          if (consecutiveFailures >= maxConsecutiveFailures) {
+            console.log(
+              `Aborting crawl: ${maxConsecutiveFailures} consecutive HTTP ${status >= 500 ? '5xx' : '4xx'} failures detected (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
+            );
+            isAbortingScan = true;
+            crawler.autoscaledPool?.abort();
+            return;
+          }
+        }
+
         guiInfoLog(guiInfoStatusTypes.ERROR, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
 
-        const status = response?.status();
         const metadata =
           typeof status === 'number'
             ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
