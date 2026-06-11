@@ -1086,8 +1086,11 @@ export const isFollowStrategy = (link1: string, link2: string, rule: string): bo
   try {
     const parsedLink1 = new URL(link1);
     const parsedLink2 = new URL(link2);
+    const stripWww = (hostname: string) => hostname.replace(/^www\./, '');
     if (rule === 'same-origin') {
-      return parsedLink1.origin === parsedLink2.origin;
+      return parsedLink1.protocol === parsedLink2.protocol &&
+        stripWww(parsedLink1.hostname) === stripWww(parsedLink2.hostname) &&
+        parsedLink1.port === parsedLink2.port;
     }
     if (rule === 'same-domain') {
       const link1Domain = getDomain(parsedLink1.hostname, { allowPrivateDomains: true }) || parsedLink1.hostname;
@@ -1095,7 +1098,7 @@ export const isFollowStrategy = (link1: string, link2: string, rule: string): bo
       return link1Domain.toLowerCase() === link2Domain.toLowerCase();
     }
     // default: same-hostname
-    return parsedLink1.hostname === parsedLink2.hostname;
+    return stripWww(parsedLink1.hostname) === stripWww(parsedLink2.hostname);
   } catch {
     return false;
   }
