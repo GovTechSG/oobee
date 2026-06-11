@@ -741,6 +741,7 @@ const generateArtifacts = async (
   },
   zip: string = undefined, // optional
   generateJsonFiles = false,
+  preferredBrowser?: string,
 ) => {
   consoleLogger.info('Generating report artifacts');
 
@@ -1005,7 +1006,11 @@ const generateArtifacts = async (
     ]);
   }
 
-  const browserChannel = getBrowserToRun(randomToken, BrowserTypes.CHROME, false).browserToRun;
+  const browserChannel = getBrowserToRun(
+    randomToken,
+    (preferredBrowser as BrowserTypes) || BrowserTypes.CHROME,
+    false,
+  ).browserToRun;
 
   // Should consider refactor constants.userDataDirectory to be a parameter in future
   await retryFunction(

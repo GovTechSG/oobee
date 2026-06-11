@@ -274,6 +274,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         scanDetails,
         zip,
         generateJsonFiles,
+        browser,
       );
       const [name, email] = nameEmail.split(':');
 
