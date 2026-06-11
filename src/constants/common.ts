@@ -988,9 +988,7 @@ export const getLinksFromSitemap = async (
 ) => {
   const scannedSitemaps = new Set<string>();
   const sitemapLinkCounts: Record<string, number> = {};
-  const urls: Record<string, Request> = {}; // dictionary of requests to urls to be scanned
-
-  const isLimitReached = () => Object.keys(urls).length >= maxLinksCount;
+  const allUrls = new Set<string>(); // all discovered URLs (lightweight strings)
 
   const addToUrlList = (url: string) => {
     if (!url) return;
@@ -998,17 +996,7 @@ export const getLinksFromSitemap = async (
     if (!isFilePath(userUrl) && !isFollowStrategy(url, userUrl, strategy)) return;
 
     url = convertPathToLocalFile(url);
-
-    let request;
-    try {
-      request = new Request({ url });
-    } catch (e) {
-      console.log('Error creating request', e);
-    }
-    if (isUrlPdf(url)) {
-      request.skipNavigation = true;
-    }
-    urls[url] = request;
+    allUrls.add(url);
   };
 
   const calculateCloseness = (sitemapUrl: string) => {
@@ -1061,16 +1049,15 @@ export const getLinksFromSitemap = async (
       });
     }
 
-    // Add the sorted URLs to the main URL list
-    for (const { url } of urlList.slice(0, maxLinksCount)) {
+    // Add all URLs to the discovered list (limit applied later at return time)
+    for (const { url } of urlList) {
       addToUrlList(url);
     }
   };
 
   const processNonStandardSitemap = (data: string) => {
     const urlsFromData = crawlee
-      .extractUrls({ string: data, urlRegExp: new RegExp('^(http|https):/{2}.+$', 'gmi') })
-      .slice(0, maxLinksCount);
+      .extractUrls({ string: data, urlRegExp: new RegExp('^(http|https):/{2}.+$', 'gmi') });
     urlsFromData.forEach(url => {
       addToUrlList(url);
     });
@@ -1207,16 +1194,13 @@ export const getLinksFromSitemap = async (
       sitemapType = constants.xmlSitemapTypes.unknown;
     }
 
-    const countBefore = Object.keys(urls).length;
+    const countBefore = allUrls.size;
 
     switch (sitemapType) {
       case constants.xmlSitemapTypes.xmlIndex:
         consoleLogger.info(`This is a XML format sitemap index.`);
         for (const childSitemapUrl of $('loc')) {
           const childSitemapUrlText = $(childSitemapUrl).text();
-          if (isLimitReached()) {
-            break;
-          }
           if (childSitemapUrlText.endsWith('.xml') || childSitemapUrlText.endsWith('.txt')) {
             await fetchUrls(childSitemapUrlText, extraHTTPHeaders); // Recursive call for nested sitemaps
           } else {
@@ -1241,7 +1225,7 @@ export const getLinksFromSitemap = async (
         processNonStandardSitemap(data);
     }
 
-    const linksFromThisSitemap = Object.keys(urls).length - countBefore;
+    const linksFromThisSitemap = allUrls.size - countBefore;
     if (linksFromThisSitemap > 0) {
       sitemapLinkCounts[url] = (sitemapLinkCounts[url] || 0) + linksFromThisSitemap;
     }
@@ -1253,8 +1237,22 @@ export const getLinksFromSitemap = async (
     consoleLogger.error(e);
   }
 
-  const requestList = Object.values(urls);
+  // Build Request objects only for the URLs that will actually be crawled
+  const requestList: Request[] = [];
+  for (const url of allUrls) {
+    if (requestList.length >= maxLinksCount) break;
+    try {
+      const request = new Request({ url });
+      if (isUrlPdf(url)) {
+        request.skipNavigation = true;
+      }
+      requestList.push(request);
+    } catch (e) {
+      consoleLogger.info(`Error creating request for ${url}: ${e}`);
+    }
+  }
 
+  const totalLinksDiscovered = allUrls.size;
   const fetchedSitemaps = Object.entries(sitemapLinkCounts).map(([url, fetchedLinks]) => ({
     url,
     fetchedLinks,
@@ -1262,16 +1260,16 @@ export const getLinksFromSitemap = async (
 
   const prev = constants.sitemapFetchedLinks;
   constants.sitemapFetchedLinks = {
-    totalLinksFetchedFromSitemaps: (prev?.totalLinksFetchedFromSitemaps ?? 0) + requestList.length,
+    totalLinksFetchedFromSitemaps: (prev?.totalLinksFetchedFromSitemaps ?? 0) + totalLinksDiscovered,
     fetchedSitemaps: [...(prev?.fetchedSitemaps ?? []), ...fetchedSitemaps],
   };
 
-  if (requestList.length > 0) {
+  if (totalLinksDiscovered > 0) {
     const breakdown = fetchedSitemaps
       .map(({ url, fetchedLinks }) => `${url} (${fetchedLinks})`)
       .join(', ');
     consoleLogger.info(
-      `There are a total of ${requestList.length} links found across ${breakdown}.`,
+      `There are a total of ${totalLinksDiscovered} links found across ${breakdown}.`,
     );
   }
 
