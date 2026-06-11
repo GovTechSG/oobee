@@ -1120,6 +1120,7 @@ export const getLinksFromSitemap = async (
               // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
               ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
               ...(extraHTTPHeaders && { extraHTTPHeaders }),
+              ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
             },
           );
 
@@ -1129,9 +1130,10 @@ export const getLinksFromSitemap = async (
           const launchOptions = getPlaywrightLaunchOptions(browser);
           browserInstance = await constants.launcher.launch(launchOptions);
           register(browserInstance as unknown as { close: () => Promise<void> });
-          
+
           browserContext = await browserInstance.newContext({
             ...(extraHTTPHeaders && { extraHTTPHeaders }),
+            ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
           });
         }
 
