@@ -1081,15 +1081,19 @@ export const randomThreeDigitNumberString = () => {
 
 export const normUrl = (u: string): string => (u ? normalizeUrl(u) || u : '');
 
+export const stripWwwPrefix = (hostname: string): string => hostname.replace(/^www\./, '');
+
+export const isSameHostname = (hostname1: string, hostname2: string): boolean =>
+  stripWwwPrefix(hostname1) === stripWwwPrefix(hostname2);
+
 export const isFollowStrategy = (link1: string, link2: string, rule: string): boolean => {
   if (rule === 'all') return true;
   try {
     const parsedLink1 = new URL(link1);
     const parsedLink2 = new URL(link2);
-    const stripWww = (hostname: string) => hostname.replace(/^www\./, '');
     if (rule === 'same-origin') {
       return parsedLink1.protocol === parsedLink2.protocol &&
-        stripWww(parsedLink1.hostname) === stripWww(parsedLink2.hostname) &&
+        isSameHostname(parsedLink1.hostname, parsedLink2.hostname) &&
         parsedLink1.port === parsedLink2.port;
     }
     if (rule === 'same-domain') {
@@ -1098,7 +1102,7 @@ export const isFollowStrategy = (link1: string, link2: string, rule: string): bo
       return link1Domain.toLowerCase() === link2Domain.toLowerCase();
     }
     // default: same-hostname
-    return stripWww(parsedLink1.hostname) === stripWww(parsedLink2.hostname);
+    return isSameHostname(parsedLink1.hostname, parsedLink2.hostname);
   } catch {
     return false;
   }

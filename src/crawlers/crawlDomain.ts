@@ -29,7 +29,7 @@ import {
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
 } from '../constants/common.js';
-import { areLinksEqual, isFollowStrategy, normUrl, register } from '../utils.js';
+import { areLinksEqual, isFollowStrategy, isSameHostname, normUrl, register } from '../utils.js';
 import {
   handlePdfDownload,
   runPdfScan,
@@ -364,9 +364,7 @@ const crawlDomain = async ({
         // same-domain strategy) still contribute their <a> links above, but
         // clicking every interactive element on them is too slow and starves
         // the crawler of time to discover pages on the primary hostname.
-        const currentHostname = new URL(page.url()).hostname;
-        const seedHostname = new URL(url).hostname;
-        if (currentHostname === seedHostname) {
+        if (isSameHostname(new URL(page.url()).hostname, new URL(url).hostname)) {
           // Try catch is necessary as clicking links is best effort, it may result in new pages that cause browser load or navigation errors that PlaywrightCrawler does not handle
           try {
             await customEnqueueLinksByClickingElements(page, browserContext);
@@ -843,7 +841,7 @@ const crawlDomain = async ({
         .map(item => item.actualUrl || item.url)
         .filter(pageUrl => {
           try {
-            return new URL(pageUrl).hostname === seedHostname && !clickPassVisited.has(pageUrl);
+            return isSameHostname(new URL(pageUrl).hostname, seedHostname) && !clickPassVisited.has(pageUrl);
           } catch {
             return false;
           }

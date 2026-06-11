@@ -224,7 +224,7 @@ When making changes, validate these areas which have well-established edge cases
 
 ### URL & Redirect Handling
 - `https://example.com` and `https://example.com/` must be treated as the same page. Use `normUrl()` (wrapping `@apify/utilities normalizeUrl`) for all dedup sets.
-- `www.example.com` and `example.com` must be treated as the same host for follow-strategy checks. Sitemaps commonly list child URLs without the `www.` prefix even when the parent sitemap is served from the `www.` subdomain. `isFollowStrategy()` in `src/utils.ts` strips the `www.` prefix before comparing hostnames.
+- `www.example.com` and `example.com` must be treated as the same host. Never compare hostnames with `===` directly — use `isSameHostname()` from `src/utils.ts`, which strips the `www.` prefix. This applies to follow-strategy checks, click-discovery gating, and any other hostname comparison. Sitemaps commonly list child URLs without the `www.` prefix; browsers redirect between www/non-www variants freely.
 - Pages may redirect to external domains. The crawler detects this both pre-scan (via `response.url()` after goto) and post-scan (via `page.url()` after axe completes, since JS redirects can fire during scan). Results are discarded if the page leaves its queued hostname.
 - In custom flow, the entry URL should remain the user-provided URL, not the final redirected URL.
 
