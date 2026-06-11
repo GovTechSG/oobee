@@ -888,6 +888,7 @@ const getRobotsTxtViaPlaywright = async (
       browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
         ...getPlaywrightLaunchOptions(browser),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
       register(browserContext);
     } else {
@@ -895,9 +896,10 @@ const getRobotsTxtViaPlaywright = async (
       const launchOptions = getPlaywrightLaunchOptions(browser);
       browserInstance = await constants.launcher.launch(launchOptions);
       register(browserInstance as unknown as { close: () => Promise<void> });
-      
+
       browserContext = await browserInstance.newContext({
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
     }
 
