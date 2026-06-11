@@ -363,6 +363,7 @@ export const init = async ({
   const { mustFix: mustFixThreshold, goodToFix: goodToFixThreshold } = thresholds;
 
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
+  constants.sitemapFetchedLinks = null;
 
   const scanDetails = {
     startTime: new Date(),

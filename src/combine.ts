@@ -6,7 +6,7 @@ import crawlLocalFile from './crawlers/crawlLocalFile.js';
 import crawlIntelligentSitemap from './crawlers/crawlIntelligentSitemap.js';
 import generateArtifacts from './mergeAxeResults.js';
 import { getHost, createAndUpdateResultsFolders, cleanUpAndExit, getStoragePath } from './utils.js';
-import { ScannerTypes, UrlsCrawled } from './constants/constants.js';
+import constants, { ScannerTypes, UrlsCrawled } from './constants/constants.js';
 import { getBlackListedPatterns, submitForm } from './constants/common.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import runCustom from './crawlers/runCustom.js';
@@ -72,6 +72,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
+  constants.sitemapFetchedLinks = null;
 
   if (process.env.CRAWLEE_SYSTEM_INFO_V2 === undefined) {
     // Set the environment variable to enable system info v2

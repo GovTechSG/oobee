@@ -1260,9 +1260,10 @@ export const getLinksFromSitemap = async (
     fetchedLinks,
   }));
 
+  const prev = constants.sitemapFetchedLinks;
   constants.sitemapFetchedLinks = {
-    totalLinksFetchedFromSitemaps: requestList.length,
-    fetchedSitemaps,
+    totalLinksFetchedFromSitemaps: (prev?.totalLinksFetchedFromSitemaps ?? 0) + requestList.length,
+    fetchedSitemaps: [...(prev?.fetchedSitemaps ?? []), ...fetchedSitemaps],
   };
 
   if (requestList.length > 0) {
