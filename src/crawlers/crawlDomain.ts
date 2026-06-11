@@ -777,27 +777,20 @@ const crawlDomain = async ({
               });
             }
           } catch {
-            // Do nothing since the error will be pushed
+            // Recovery failed; Crawlee will retry the request automatically
           }
 
-          // when max pages have been scanned, scan will abort and all relevant pages still opened will close instantly.
-          // a browser close error will then be flagged. Since this is an intended behaviour, this error will be excluded.
-          if (!isAbortingScanNow) {
-            guiInfoLog(guiInfoStatusTypes.ERROR, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
-
-            urlsCrawled.error.push({
-              url: request.url,
-              pageTitle: request.url,
-              actualUrl: request.url,
-              metadata: STATUS_CODE_METADATA[2],
-            });
-          }
+          // Do not push to urlsCrawled.error here — Crawlee will retry the request
+          // (up to maxRequestRetries, default 3). If all retries are exhausted,
+          // failedRequestHandler will record the error. Pushing here causes
+          // duplicates and false positives for URLs that succeed on retry.
         }
       },
       failedRequestHandler: async ({ request, response }) => {
+        if (isAbortingScanNow) {
+          return;
+        }
+
         guiInfoLog(guiInfoStatusTypes.ERROR, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
