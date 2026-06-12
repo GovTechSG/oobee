@@ -530,11 +530,9 @@ const crawlDomain = async ({
           const hasExceededDuration =
             scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
 
-          if (!rateController.claimSlot() || hasExceededDuration) {
-            if (hasExceededDuration) {
-              console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting website crawl.`);
-              durationExceeded = true;
-            }
+          if (hasExceededDuration) {
+            console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting website crawl.`);
+            durationExceeded = true;
             isAbortingScanNow = true;
             activeCrawler.autoscaledPool.abort();
             return;
@@ -694,8 +692,7 @@ const crawlDomain = async ({
                 return;
               }
 
-              // One more check if scanned pages have reached limit due to multi-instances of handler running
-              if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
+              if (rateController.claimSlot()) {
                 guiInfoLog(guiInfoStatusTypes.SCANNED, {
                   numScanned: urlsCrawled.scanned.length,
                   urlScanned: request.url,
@@ -707,6 +704,10 @@ const crawlDomain = async ({
                   actualUrl, // i.e. actualUrl
                 });
                 rateController.onSuccess(crawler.autoscaledPool);
+                if (rateController.isLimitReached()) {
+                  isAbortingScanNow = true;
+                  activeCrawler.autoscaledPool.abort();
+                }
                 scannedUrlSet.add(normUrl(request.url));
                 scannedResolvedUrlSet.add(normUrl(actualUrl));
 
@@ -719,8 +720,7 @@ const crawlDomain = async ({
                 results.actualUrl = actualUrl;
                 await dataset.pushData(results);
               }
-            } else if (urlsCrawled.scanned.length < maxRequestsPerCrawl) {
-              // One more check if scanned pages have reached limit due to multi-instances of handler running
+            } else if (rateController.claimSlot()) {
               guiInfoLog(guiInfoStatusTypes.SCANNED, {
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
@@ -731,6 +731,10 @@ const crawlDomain = async ({
                 pageTitle: results.pageTitle,
               });
               rateController.onSuccess(crawler.autoscaledPool);
+              if (rateController.isLimitReached()) {
+                isAbortingScanNow = true;
+                activeCrawler.autoscaledPool.abort();
+              }
               scannedUrlSet.add(normUrl(request.url));
               scannedResolvedUrlSet.add(normUrl(request.url));
               await dataset.pushData(results);
