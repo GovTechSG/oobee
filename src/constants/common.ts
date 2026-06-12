@@ -2027,6 +2027,11 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
       !(browser === BrowserTypes.CHROME && arg === '--edge-skip-compat-layer-relaunch'),
   );
 
+  // Anti-bot-detection: hide navigator.webdriver and automation signals
+  if (!finalArgs.includes('--disable-blink-features=AutomationControlled')) {
+    finalArgs.push('--disable-blink-features=AutomationControlled');
+  }
+
   // Headless flags (unchanged)
   if (process.env.CRAWLEE_HEADLESS === '1') {
     if (!finalArgs.includes('--mute-audio')) finalArgs.push('--mute-audio');
@@ -2050,8 +2055,8 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const options: LaunchOptions = {
     ignoreDefaultArgs: shouldIgnoreMuteAudio
-      ? ['--use-mock-keychain', '--mute-audio']
-      : ['--use-mock-keychain'],
+      ? ['--use-mock-keychain', '--mute-audio', '--enable-automation']
+      : ['--use-mock-keychain', '--enable-automation'],
     args: finalArgs,
     headless: process.env.CRAWLEE_HEADLESS === '1',
     ...(channel && { channel }),
