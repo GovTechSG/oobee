@@ -1,7 +1,8 @@
 import { consoleLogger } from '../logs.js';
 
 export class CrawlRateController {
-  private remainingSlots: number;
+  private scannedCount = 0;
+  private readonly maxPages: number;
   private consecutiveFailures = 0;
   private consecutiveSuccesses = 0;
   private readonly maxConsecutiveFailures: number;
@@ -9,13 +10,17 @@ export class CrawlRateController {
   private static readonly RECOVERY_INTERVAL = 20;
 
   constructor(maxRequestsPerCrawl: number, maxConcurrency: number) {
-    this.remainingSlots = maxRequestsPerCrawl;
+    this.maxPages = maxRequestsPerCrawl;
     this.maxConsecutiveFailures = Number(process.env.OOBEE_CONSECUTIVE_MAX_RETRIES) || 100;
     this.originalMaxConcurrency = maxConcurrency;
   }
 
   claimSlot(): boolean {
-    return --this.remainingSlots >= 0;
+    if (this.scannedCount >= this.maxPages) {
+      return false;
+    }
+    this.scannedCount++;
+    return true;
   }
 
   onSuccess(pool?: { maxConcurrency: number }): void {
@@ -50,5 +55,9 @@ export class CrawlRateController {
     }
 
     return false;
+  }
+
+  isLimitReached(): boolean {
+    return this.scannedCount >= this.maxPages;
   }
 }

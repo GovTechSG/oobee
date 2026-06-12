@@ -264,12 +264,10 @@ const crawlSitemap = async ({
           const hasExceededDuration =
             scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
 
-          if (!rateController.claimSlot() || hasExceededDuration) {
+          if (hasExceededDuration) {
+            consoleLogger.info(`Crawl duration of ${scanDuration}s exceeded. Aborting sitemap crawl.`);
+            durationExceeded = true;
             isAbortingScan = true;
-            if (hasExceededDuration) {
-              console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting sitemap crawl.`);
-              durationExceeded = true;
-            }
             crawler.autoscaledPool.abort();
             return;
           }
@@ -381,27 +379,33 @@ const crawlSitemap = async ({
               // Page/context was destroyed during navigation — handled by outer catch
             }
 
-            guiInfoLog(guiInfoStatusTypes.SCANNED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
+            if (rateController.claimSlot()) {
+              guiInfoLog(guiInfoStatusTypes.SCANNED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
 
-            urlsCrawled.scanned.push({
-              url: request.url,
-              pageTitle: results.pageTitle,
-              actualUrl, // i.e. actualUrl
-            });
-            rateController.onSuccess(crawler.autoscaledPool);
+              urlsCrawled.scanned.push({
+                url: request.url,
+                pageTitle: results.pageTitle,
+                actualUrl, // i.e. actualUrl
+              });
+              rateController.onSuccess(crawler.autoscaledPool);
+              if (rateController.isLimitReached()) {
+                isAbortingScan = true;
+                crawler.autoscaledPool.abort();
+              }
 
-            urlsCrawled.scannedRedirects.push({
-              fromUrl: request.url,
-              toUrl: actualUrl,
-            });
+              urlsCrawled.scannedRedirects.push({
+                fromUrl: request.url,
+                toUrl: actualUrl,
+              });
 
-            results.url = request.url;
-            results.actualUrl = actualUrl;
+              results.url = request.url;
+              results.actualUrl = actualUrl;
 
-            await dataset.pushData(results);
+              await dataset.pushData(results);
+            }
           } else {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
