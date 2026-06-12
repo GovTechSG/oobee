@@ -402,37 +402,8 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
       consoleLogger.warn(`Unable to force remove pdfs folder: ${error.message}`);
     }
     
-    let deleteErrorLogFile = true;
-
-    if (isError) {
-      let logsPath = storagePath;
-
-      if (process.env.OOBEE_LOGS_PATH) {
-        logsPath = process.env.OOBEE_LOGS_PATH;
-      }
-
-      if (fs.existsSync(errorsTxtPath)) {
-        try {
-          const logFilePath = path.join(logsPath, `logs-${randomToken}.txt`);
-          fs.copyFileSync(errorsTxtPath, logFilePath);
-          console.log(`An error occured. Log file is located at: ${logFilePath}`);
-
-        } catch (copyError) {
-          consoleLogger.error(`Error copying errors file during cleanup: ${copyError.message}`);
-          console.log(`An error occured. Log file is located at: ${errorsTxtPath}`);
-          deleteErrorLogFile = false; // Do not delete the log file if copy failed
-        }
-    
-        if (deleteErrorLogFile && fs.existsSync(errorsTxtPath)) {
-          try {
-            fs.unlinkSync(errorsTxtPath);
-          } catch (error) {
-            consoleLogger.warn(`Unable to delete log file ${errorsTxtPath}: ${error.message}`);
-          }
-        }
-
-      }
-
+    if (isError && fs.existsSync(errorsTxtPath)) {
+      console.log(`An error occured. Log file is located at: ${errorsTxtPath}`);
     } 
     
     if (fs.existsSync(storagePath) && fs.readdirSync(storagePath).length === 0) {
