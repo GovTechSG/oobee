@@ -1,4 +1,5 @@
 import crawlee, { EnqueueStrategy } from 'crawlee';
+import { CrawlRateController } from './crawlRateController.js';
 import type { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
 import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
 import * as path from 'path';
@@ -29,7 +30,7 @@ import {
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
 } from '../constants/common.js';
-import { areLinksEqual, isFollowStrategy, normUrl, register } from '../utils.js';
+import { areLinksEqual, isFollowStrategy, isSameHostname, normUrl, register } from '../utils.js';
 import {
   handlePdfDownload,
   runPdfScan,
@@ -364,9 +365,7 @@ const crawlDomain = async ({
         // same-domain strategy) still contribute their <a> links above, but
         // clicking every interactive element on them is too slow and starves
         // the crawler of time to discover pages on the primary hostname.
-        const currentHostname = new URL(page.url()).hostname;
-        const seedHostname = new URL(url).hostname;
-        if (currentHostname === seedHostname) {
+        if (isSameHostname(new URL(page.url()).hostname, new URL(url).hostname)) {
           // Try catch is necessary as clicking links is best effort, it may result in new pages that cause browser load or navigation errors that PlaywrightCrawler does not handle
           try {
             await customEnqueueLinksByClickingElements(page, browserContext);
@@ -382,6 +381,10 @@ const crawlDomain = async ({
   };
 
   let isAbortingScanNow = false;
+  const rateController = new CrawlRateController(
+    maxRequestsPerCrawl,
+    specifiedMaxConcurrency || constants.maxConcurrency,
+  );
 
   const crawler = register(
     new crawlee.PlaywrightCrawler({
@@ -527,7 +530,7 @@ const crawlDomain = async ({
           const hasExceededDuration =
             scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
 
-          if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
+          if (!rateController.claimSlot() || hasExceededDuration) {
             if (hasExceededDuration) {
               console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting website crawl.`);
               durationExceeded = true;
@@ -703,6 +706,7 @@ const crawlDomain = async ({
                   pageTitle: results.pageTitle,
                   actualUrl, // i.e. actualUrl
                 });
+                rateController.onSuccess(crawler.autoscaledPool);
                 scannedUrlSet.add(normUrl(request.url));
                 scannedResolvedUrlSet.add(normUrl(actualUrl));
 
@@ -726,6 +730,7 @@ const crawlDomain = async ({
                 actualUrl: request.url,
                 pageTitle: results.pageTitle,
               });
+              rateController.onSuccess(crawler.autoscaledPool);
               scannedUrlSet.add(normUrl(request.url));
               scannedResolvedUrlSet.add(normUrl(request.url));
               await dataset.pushData(results);
@@ -791,12 +796,21 @@ const crawlDomain = async ({
           return;
         }
 
+        const status = response?.status();
+        if (rateController.onFailure(status, crawler.autoscaledPool)) {
+          consoleLogger.info(
+            `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
+          );
+          isAbortingScanNow = true;
+          crawler.autoscaledPool?.abort();
+          return;
+        }
+
         guiInfoLog(guiInfoStatusTypes.ERROR, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
 
-        const status = response?.status();
         const metadata =
           typeof status === 'number'
             ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
@@ -843,7 +857,7 @@ const crawlDomain = async ({
         .map(item => item.actualUrl || item.url)
         .filter(pageUrl => {
           try {
-            return new URL(pageUrl).hostname === seedHostname && !clickPassVisited.has(pageUrl);
+            return isSameHostname(new URL(pageUrl).hostname, seedHostname) && !clickPassVisited.has(pageUrl);
           } catch {
             return false;
           }

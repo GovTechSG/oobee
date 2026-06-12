@@ -224,6 +224,7 @@ When making changes, validate these areas which have well-established edge cases
 
 ### URL & Redirect Handling
 - `https://example.com` and `https://example.com/` must be treated as the same page. Use `normUrl()` (wrapping `@apify/utilities normalizeUrl`) for all dedup sets.
+- `www.example.com` and `example.com` must be treated as the same host. Never compare hostnames with `===` directly — use `isSameHostname()` from `src/utils.ts`, which strips the `www.` prefix. This applies to follow-strategy checks, click-discovery gating, and any other hostname comparison. Sitemaps commonly list child URLs without the `www.` prefix; browsers redirect between www/non-www variants freely.
 - Pages may redirect to external domains. The crawler detects this both pre-scan (via `response.url()` after goto) and post-scan (via `page.url()` after axe completes, since JS redirects can fire during scan). Results are discarded if the page leaves its queued hostname.
 - In custom flow, the entry URL should remain the user-provided URL, not the final redirected URL.
 
@@ -244,6 +245,17 @@ When making changes, validate these areas which have well-established edge cases
 ### Strategy & Filtering in Sitemap Crawls
 - The `-s` (strategy) flag must be passed through to `crawlSitemap` and `getLinksFromSitemap`. For sitemap-only scans the default is `'ignore'` (all URLs); for domain/intelligent crawls it's `'same-domain'`.
 - `scanDuration=0` means unlimited. Code that calculates `remainingDuration` must treat 0 as "no limit", not as "0 seconds remaining".
+
+### Rate Limiting, Adaptive Concurrency & CrawlRateController
+- Sites with WAFs (Cloudflare, Akamai, etc.) will start returning 403/503 after a certain number of concurrent requests — typically 200-300 pages in rapid succession.
+- Both crawlers use a shared `CrawlRateController` class (`src/crawlers/crawlRateController.ts`) that provides:
+  1. **Strict maxPages**: Atomic slot claiming (`claimSlot()`) prevents race conditions with concurrent handlers overshooting the page limit.
+  2. **Circuit breaker**: After 100 consecutive HTTP 4xx/5xx failures (configurable via `OOBEE_CONSECUTIVE_MAX_RETRIES`), the crawl aborts gracefully.
+  3. **Adaptive concurrency**: On each 4xx/5xx failure, concurrency is halved (floor 1). After every 20 consecutive successes, concurrency recovers by +1 toward the original value. This automatically finds the site's rate limit threshold without manual tuning.
+- Only HTTP 4xx/5xx responses trigger rate adaptation and count toward the circuit breaker — timeouts and network errors do not.
+- In intelligent crawl, each phase (sitemap then domain) creates its own `CrawlRateController` instance — transitioning from sitemap to domain crawl starts fresh.
+- Without the circuit breaker, a rate-limited crawl with thousands of enqueued URLs would run indefinitely, never hit the success threshold, and never generate a report.
+- When enqueuing all sitemap URLs (which we do for accurate `totalLinksFetchedFromSitemaps` reporting), always ensure either a scan duration (`-d`) or the circuit breaker is in place as a safety net.
 
 ### Axe & Custom Checks
 - When axe reports color-contrast violations but cannot determine the actual colors, skip augmenting the message with contrast context (avoids crashes on null/undefined color values).

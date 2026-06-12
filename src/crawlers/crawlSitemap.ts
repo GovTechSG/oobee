@@ -1,4 +1,5 @@
 import crawlee, { EnqueueStrategy, LaunchContext, Request, RequestList, Dataset } from 'crawlee';
+import { CrawlRateController } from './crawlRateController.js';
 import fs from 'fs';
 import * as path from 'path';
 import fsp from 'fs/promises';
@@ -30,7 +31,7 @@ import {
   mapPdfScanResults,
   doPdfScreenshots,
 } from './pdfScanFunc.js';
-import { guiInfoLog } from '../logs.js';
+import { consoleLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 
 const crawlSitemap = async ({
@@ -81,6 +82,10 @@ const crawlSitemap = async ({
   let urlsCrawled: UrlsCrawled;
   let durationExceeded = false;
   let isAbortingScan = false;
+  const rateController = new CrawlRateController(
+    maxRequestsPerCrawl,
+    specifiedMaxConcurrency || constants.maxConcurrency,
+  );
 
   if (fromCrawlIntelligentSitemap) {
     dataset = datasetFromIntelligent;
@@ -259,13 +264,13 @@ const crawlSitemap = async ({
           const hasExceededDuration =
             scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
 
-          if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
+          if (!rateController.claimSlot() || hasExceededDuration) {
             isAbortingScan = true;
             if (hasExceededDuration) {
               console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting sitemap crawl.`);
               durationExceeded = true;
             }
-            crawler.autoscaledPool.abort(); // stops new requests
+            crawler.autoscaledPool.abort();
             return;
           }
 
@@ -386,6 +391,7 @@ const crawlSitemap = async ({
               pageTitle: results.pageTitle,
               actualUrl, // i.e. actualUrl
             });
+            rateController.onSuccess(crawler.autoscaledPool);
 
             urlsCrawled.scannedRedirects.push({
               fromUrl: request.url,
@@ -431,12 +437,21 @@ const crawlSitemap = async ({
           return;
         }
 
+        const status = response?.status();
+        if (rateController.onFailure(status, crawler.autoscaledPool)) {
+          consoleLogger.info(
+            `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
+          );
+          isAbortingScan = true;
+          crawler.autoscaledPool?.abort();
+          return;
+        }
+
         guiInfoLog(guiInfoStatusTypes.ERROR, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
 
-        const status = response?.status();
         const metadata =
           typeof status === 'number'
             ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
