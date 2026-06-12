@@ -130,30 +130,16 @@ const crawlSitemap = async ({
       launchContext: {
         launcher: constants.launcher,
         launchOptions: getPlaywrightLaunchOptions(browser),
-        // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
-        ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
+        userDataDir: userDataDirectory,
       },
       retryOnBlocked: true,
       browserPoolOptions: {
         useFingerprints: false,
         preLaunchHooks: [
           async (_pageId, launchContext) => {
-            const baseDir = userDataDirectory; // e.g., /Users/young/.../Chrome/oobee-...
+            await fsp.mkdir(userDataDirectory, { recursive: true });
 
-            // Ensure base exists
-            await fsp.mkdir(baseDir, { recursive: true });
-
-            // Create a unique subdir per browser
-            const subProfileDir = path.join(
-              baseDir,
-              `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            );
-            await fsp.mkdir(subProfileDir, { recursive: true });
-
-            // Assign to Crawlee's launcher
-            launchContext.userDataDir = subProfileDir;
-
-            // Safely extend launchOptions
+            // eslint-disable-next-line no-param-reassign
             launchContext.launchOptions = {
               ...launchContext.launchOptions,
               ignoreHTTPSErrors: true,
@@ -161,9 +147,6 @@ const crawlSitemap = async ({
               ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
             };
-
-            // Optionally log for debugging
-            // console.log(`[HOOK] Using userDataDir: ${subProfileDir}`);
           },
         ],
       },
