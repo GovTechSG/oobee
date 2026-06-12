@@ -2,10 +2,9 @@ import crawlee, { EnqueueStrategy } from 'crawlee';
 import { CrawlRateController } from './crawlRateController.js';
 import type { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
 import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
-import * as path from 'path';
-import fsp from 'fs/promises';
 import {
   createCrawleeSubFolders,
+  getPreLaunchHook,
   runAxeScript,
   isUrlPdf,
   shouldSkipClickDueToDisallowedHref,
@@ -391,43 +390,22 @@ const crawlDomain = async ({
       launchContext: {
         launcher: constants.launcher,
         launchOptions: getPlaywrightLaunchOptions(browser),
-        // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
-        ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
       },
       retryOnBlocked: true,
       browserPoolOptions: {
         useFingerprints: false,
         preLaunchHooks: [
+          getPreLaunchHook(userDataDirectory),
           async (_pageId, launchContext) => {
-            const baseDir = userDataDirectory; // e.g., /Users/young/.../Chrome/oobee-...
-
-            // Ensure base exists
-            await fsp.mkdir(baseDir, { recursive: true });
-
-            // Create a unique subdir per browser
-            const subProfileDir = path.join(
-              baseDir,
-              `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            );
-            await fsp.mkdir(subProfileDir, { recursive: true });
-
-            // Assign to Crawlee's launcher
-            // Crawlee preLaunchHooks expects launchContext to be mutated in-place.
-            // eslint-disable-next-line no-param-reassign
-            launchContext.userDataDir = subProfileDir;
-
-            // Safely extend launchOptions
             // eslint-disable-next-line no-param-reassign
             launchContext.launchOptions = {
               ...launchContext.launchOptions,
               ignoreHTTPSErrors: true,
               ...playwrightDeviceDetailsObject,
+              ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
               ...(extraHTTPHeaders && { extraHTTPHeaders }),
             };
-
-            // Optionally log for debugging
-            // console.log(`[HOOK] Using userDataDir: ${subProfileDir}`);
           },
         ],
       },

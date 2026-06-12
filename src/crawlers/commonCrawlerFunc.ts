@@ -1159,6 +1159,16 @@ export const postNavigationHooks = [
   },
 ];
 
+export const getPreLaunchHook = (userDataDirectory: string) => {
+  return async (_pageId: string, launchContext: any) => {
+    const fsp = await import('fs/promises').then(m => m.default);
+    await fsp.mkdir(userDataDirectory, { recursive: true });
+    await fsp.rm(path.join(userDataDirectory, 'SingletonLock'), { force: true });
+    // eslint-disable-next-line no-param-reassign
+    launchContext.userDataDir = userDataDirectory;
+  };
+};
+
 export const failedRequestHandler = async ({ request }: { request: Request }) => {
   guiInfoLog(guiInfoStatusTypes.ERROR, { numScanned: 0, urlScanned: request.url });
   log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);

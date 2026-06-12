@@ -1,10 +1,9 @@
 import crawlee, { EnqueueStrategy, LaunchContext, Request, RequestList, Dataset } from 'crawlee';
 import { CrawlRateController } from './crawlRateController.js';
 import fs from 'fs';
-import * as path from 'path';
-import fsp from 'fs/promises';
 import {
   createCrawleeSubFolders,
+  getPreLaunchHook,
   preNavigationHooks,
   runAxeScript,
   isUrlPdf,
@@ -130,39 +129,20 @@ const crawlSitemap = async ({
       launchContext: {
         launcher: constants.launcher,
         launchOptions: getPlaywrightLaunchOptions(browser),
-        // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
-        ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
       },
       retryOnBlocked: true,
       browserPoolOptions: {
         useFingerprints: false,
         preLaunchHooks: [
+          getPreLaunchHook(userDataDirectory),
           async (_pageId, launchContext) => {
-            const baseDir = userDataDirectory; // e.g., /Users/young/.../Chrome/oobee-...
-
-            // Ensure base exists
-            await fsp.mkdir(baseDir, { recursive: true });
-
-            // Create a unique subdir per browser
-            const subProfileDir = path.join(
-              baseDir,
-              `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            );
-            await fsp.mkdir(subProfileDir, { recursive: true });
-
-            // Assign to Crawlee's launcher
-            launchContext.userDataDir = subProfileDir;
-
-            // Safely extend launchOptions
             launchContext.launchOptions = {
               ...launchContext.launchOptions,
               ignoreHTTPSErrors: true,
               ...playwrightDeviceDetailsObject,
+              ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
             };
-
-            // Optionally log for debugging
-            // console.log(`[HOOK] Using userDataDir: ${subProfileDir}`);
           },
         ],
       },
