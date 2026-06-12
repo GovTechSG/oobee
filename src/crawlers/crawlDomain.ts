@@ -399,6 +399,8 @@ const crawlDomain = async ({
         preLaunchHooks: [
           async (_pageId, launchContext) => {
             await fsp.mkdir(userDataDirectory, { recursive: true });
+            // Remove stale SingletonLock left by prior Oobee browser instances
+            await fsp.rm(path.join(userDataDirectory, 'SingletonLock'), { force: true });
 
             // eslint-disable-next-line no-param-reassign
             launchContext.launchOptions = {
