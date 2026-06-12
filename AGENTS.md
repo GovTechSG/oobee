@@ -87,7 +87,7 @@ Contexts that need `userAgent: process.env.OOBEE_USER_AGENT`:
 - `findSitemap()` in `crawlIntelligentSitemap.ts` — sitemap path probing
 - `getDataUsingPlaywright()` in `getLinksFromSitemap()` — sitemap XML content fetching
 - `checkUrl()` — main URL validation context (already handled)
-- Crawlee crawler contexts in `crawlDomain`/`crawlSitemap` handle UA via Crawlee's browser pool
+- Crawlee `PlaywrightCrawler` in `crawlDomain`/`crawlSitemap` — passed via `userAgent` in `preLaunchHooks` `launchOptions`
 
 ### Headless vs Headful
 
