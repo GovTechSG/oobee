@@ -2055,8 +2055,8 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const options: LaunchOptions = {
     ignoreDefaultArgs: shouldIgnoreMuteAudio
-      ? ['--use-mock-keychain', '--mute-audio', '--enable-automation']
-      : ['--use-mock-keychain', '--enable-automation'],
+      ? ['--use-mock-keychain', '--mute-audio']
+      : ['--use-mock-keychain'],
     args: finalArgs,
     headless: process.env.CRAWLEE_HEADLESS === '1',
     ...(channel && { channel }),
