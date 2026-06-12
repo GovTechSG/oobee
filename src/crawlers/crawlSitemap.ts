@@ -31,7 +31,7 @@ import {
   mapPdfScanResults,
   doPdfScreenshots,
 } from './pdfScanFunc.js';
-import { guiInfoLog } from '../logs.js';
+import { consoleLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 
 const crawlSitemap = async ({
@@ -439,7 +439,7 @@ const crawlSitemap = async ({
 
         const status = response?.status();
         if (rateController.onFailure(status, crawler.autoscaledPool)) {
-          console.log(
+          consoleLogger.info(
             `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
           );
           isAbortingScan = true;

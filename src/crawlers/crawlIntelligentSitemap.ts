@@ -111,7 +111,7 @@ const crawlIntelligentSitemap = async (
   try {
     sitemapUrls = await getSitemapsFromRobotsTxt(url, browser, userDataDirectory, extraHTTPHeaders);
     if (sitemapUrls.length > 0) {
-      console.log(`Found ${sitemapUrls.length} sitemap(s) in robots.txt: ${sitemapUrls.join(', ')}`);
+      consoleLogger.info(`Found ${sitemapUrls.length} sitemap(s) in robots.txt: ${sitemapUrls.join(', ')}`);
       sitemapExist = true;
     }
   } catch (error) {
@@ -131,7 +131,7 @@ const crawlIntelligentSitemap = async (
   }
 
   if (!sitemapExist) {
-    console.log('Unable to find sitemap. Commencing website crawl instead.');
+    consoleLogger.info('Unable to find sitemap. Commencing website crawl instead.');
     return await crawlDomain({
       url,
       randomToken,
@@ -163,7 +163,7 @@ const crawlIntelligentSitemap = async (
       break;
     }
 
-    console.log(`Processing sitemap: ${currentSitemapUrl}`);
+    consoleLogger.info(`Processing sitemap: ${currentSitemapUrl}`);
     urlsCrawledFinal = await crawlSitemap({
       sitemapUrl: currentSitemapUrl,
       randomToken,
@@ -193,7 +193,7 @@ const crawlIntelligentSitemap = async (
   const hasDurationRemaining = scanDuration === 0 || remainingScanDuration > 0;
 
   if (urlsCrawled.scanned.length < maxRequestsPerCrawl && hasDurationRemaining) {
-    console.log(
+    consoleLogger.info(
       `Continuing crawl from root website.${scanDuration > 0 ? ` Remaining scan time: ${remainingScanDuration.toFixed(1)}s` : ''}`,
     );
     urlsCrawledFinal = await crawlDomain({
@@ -218,7 +218,7 @@ const crawlIntelligentSitemap = async (
       scanDuration: remainingScanDuration,
     });
   } else if (!hasDurationRemaining) {
-    console.log(
+    consoleLogger.info(
       `Crawl duration exceeded before more pages could be found (limit: ${scanDuration}s).`,
     );
     durationExceeded = true;
