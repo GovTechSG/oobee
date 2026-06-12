@@ -260,6 +260,7 @@ When making changes, validate these areas which have well-established edge cases
 ### Axe & Custom Checks
 - When axe reports color-contrast violations but cannot determine the actual colors, skip augmenting the message with contrast context (avoids crashes on null/undefined color values).
 - Violation messages are enriched with live DOM context (element text, computed styles, dimensions) via `page.evaluate()` during scan. Handle cases where elements are no longer in DOM at evaluation time.
+- `aria-hidden-focus` violations are re-verified against the live DOM after axe completes, to handle race conditions with JS that sets `tabindex="-1"` after `aria-hidden="true"` (common in carousel/slider libraries). The re-verification yields to the event loop before re-checking, allowing pending timers to fire. If all focusable descendants now have `tabindex < 0`, the violation is filtered out as a false positive.
 
 ## Report Output Structure
 
