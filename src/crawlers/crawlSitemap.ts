@@ -1,4 +1,5 @@
 import crawlee, { EnqueueStrategy, LaunchContext, Request, RequestList, Dataset } from 'crawlee';
+import { CrawlRateController } from './crawlRateController.js';
 import fs from 'fs';
 import * as path from 'path';
 import fsp from 'fs/promises';
@@ -81,8 +82,10 @@ const crawlSitemap = async ({
   let urlsCrawled: UrlsCrawled;
   let durationExceeded = false;
   let isAbortingScan = false;
-  let consecutiveFailures = 0;
-  const maxConsecutiveFailures = Number(process.env.OOBEE_CONSECUTIVE_MAX_RETRIES) || 100;
+  const rateController = new CrawlRateController(
+    maxRequestsPerCrawl,
+    specifiedMaxConcurrency || constants.maxConcurrency,
+  );
 
   if (fromCrawlIntelligentSitemap) {
     dataset = datasetFromIntelligent;
@@ -261,13 +264,13 @@ const crawlSitemap = async ({
           const hasExceededDuration =
             scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
 
-          if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
+          if (!rateController.claimSlot() || hasExceededDuration) {
             isAbortingScan = true;
             if (hasExceededDuration) {
               console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting sitemap crawl.`);
               durationExceeded = true;
             }
-            crawler.autoscaledPool.abort(); // stops new requests
+            crawler.autoscaledPool.abort();
             return;
           }
 
@@ -388,7 +391,7 @@ const crawlSitemap = async ({
               pageTitle: results.pageTitle,
               actualUrl, // i.e. actualUrl
             });
-            consecutiveFailures = 0;
+            rateController.onSuccess(crawler.autoscaledPool);
 
             urlsCrawled.scannedRedirects.push({
               fromUrl: request.url,
@@ -435,16 +438,13 @@ const crawlSitemap = async ({
         }
 
         const status = response?.status();
-        if (typeof status === 'number' && status >= 400) {
-          consecutiveFailures++;
-          if (consecutiveFailures >= maxConsecutiveFailures) {
-            console.log(
-              `Aborting crawl: ${maxConsecutiveFailures} consecutive HTTP ${status >= 500 ? '5xx' : '4xx'} failures detected (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
-            );
-            isAbortingScan = true;
-            crawler.autoscaledPool?.abort();
-            return;
-          }
+        if (rateController.onFailure(status, crawler.autoscaledPool)) {
+          console.log(
+            `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
+          );
+          isAbortingScan = true;
+          crawler.autoscaledPool?.abort();
+          return;
         }
 
         guiInfoLog(guiInfoStatusTypes.ERROR, {

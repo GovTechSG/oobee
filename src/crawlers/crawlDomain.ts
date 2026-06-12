@@ -1,4 +1,5 @@
 import crawlee, { EnqueueStrategy } from 'crawlee';
+import { CrawlRateController } from './crawlRateController.js';
 import type { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
 import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
 import * as path from 'path';
@@ -380,8 +381,10 @@ const crawlDomain = async ({
   };
 
   let isAbortingScanNow = false;
-  let consecutiveFailures = 0;
-  const maxConsecutiveFailures = Number(process.env.OOBEE_CONSECUTIVE_MAX_RETRIES) || 100;
+  const rateController = new CrawlRateController(
+    maxRequestsPerCrawl,
+    specifiedMaxConcurrency || constants.maxConcurrency,
+  );
 
   const crawler = register(
     new crawlee.PlaywrightCrawler({
@@ -527,7 +530,7 @@ const crawlDomain = async ({
           const hasExceededDuration =
             scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
 
-          if (urlsCrawled.scanned.length >= maxRequestsPerCrawl || hasExceededDuration) {
+          if (!rateController.claimSlot() || hasExceededDuration) {
             if (hasExceededDuration) {
               console.log(`Crawl duration of ${scanDuration}s exceeded. Aborting website crawl.`);
               durationExceeded = true;
@@ -703,7 +706,7 @@ const crawlDomain = async ({
                   pageTitle: results.pageTitle,
                   actualUrl, // i.e. actualUrl
                 });
-                consecutiveFailures = 0;
+                rateController.onSuccess(crawler.autoscaledPool);
                 scannedUrlSet.add(normUrl(request.url));
                 scannedResolvedUrlSet.add(normUrl(actualUrl));
 
@@ -727,7 +730,7 @@ const crawlDomain = async ({
                 actualUrl: request.url,
                 pageTitle: results.pageTitle,
               });
-              consecutiveFailures = 0;
+              rateController.onSuccess(crawler.autoscaledPool);
               scannedUrlSet.add(normUrl(request.url));
               scannedResolvedUrlSet.add(normUrl(request.url));
               await dataset.pushData(results);
@@ -794,16 +797,13 @@ const crawlDomain = async ({
         }
 
         const status = response?.status();
-        if (typeof status === 'number' && status >= 400) {
-          consecutiveFailures++;
-          if (consecutiveFailures >= maxConsecutiveFailures) {
-            console.log(
-              `Aborting crawl: ${maxConsecutiveFailures} consecutive HTTP ${status >= 500 ? '5xx' : '4xx'} failures detected (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
-            );
-            isAbortingScanNow = true;
-            crawler.autoscaledPool?.abort();
-            return;
-          }
+        if (rateController.onFailure(status, crawler.autoscaledPool)) {
+          console.log(
+            `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
+          );
+          isAbortingScanNow = true;
+          crawler.autoscaledPool?.abort();
+          return;
         }
 
         guiInfoLog(guiInfoStatusTypes.ERROR, {

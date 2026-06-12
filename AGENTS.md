@@ -246,14 +246,15 @@ When making changes, validate these areas which have well-established edge cases
 - The `-s` (strategy) flag must be passed through to `crawlSitemap` and `getLinksFromSitemap`. For sitemap-only scans the default is `'ignore'` (all URLs); for domain/intelligent crawls it's `'same-domain'`.
 - `scanDuration=0` means unlimited. Code that calculates `remainingDuration` must treat 0 as "no limit", not as "0 seconds remaining".
 
-### Rate Limiting & Circuit Breaker
+### Rate Limiting, Adaptive Concurrency & CrawlRateController
 - Sites with WAFs (Cloudflare, Akamai, etc.) will start returning 403/503 after a certain number of concurrent requests — typically 200-300 pages in rapid succession.
-- Both `crawlSitemap` and `crawlDomain` have a consecutive-failure circuit breaker: if 100 consecutive requests fail with HTTP 4xx/5xx, the crawl aborts gracefully and proceeds to report generation with whatever pages were successfully scanned.
-- The threshold is configurable via `OOBEE_CONSECUTIVE_MAX_RETRIES` env var (default 100).
-- Only HTTP 4xx/5xx responses count toward the threshold — timeouts and network errors do not.
-- The counter resets to 0 on each successful page scan.
-- In intelligent crawl, each phase (sitemap then domain) has its own counter — transitioning from sitemap to domain crawl starts fresh.
-- Without this circuit breaker, a rate-limited crawl with thousands of enqueued URLs would run indefinitely (each URL retried 10× by Crawlee), never hit the success threshold, and never generate a report.
+- Both crawlers use a shared `CrawlRateController` class (`src/crawlers/crawlRateController.ts`) that provides:
+  1. **Strict maxPages**: Atomic slot claiming (`claimSlot()`) prevents race conditions with concurrent handlers overshooting the page limit.
+  2. **Circuit breaker**: After 100 consecutive HTTP 4xx/5xx failures (configurable via `OOBEE_CONSECUTIVE_MAX_RETRIES`), the crawl aborts gracefully.
+  3. **Adaptive concurrency**: On each 4xx/5xx failure, concurrency is halved (floor 1). After every 20 consecutive successes, concurrency recovers by +1 toward the original value. This automatically finds the site's rate limit threshold without manual tuning.
+- Only HTTP 4xx/5xx responses trigger rate adaptation and count toward the circuit breaker — timeouts and network errors do not.
+- In intelligent crawl, each phase (sitemap then domain) creates its own `CrawlRateController` instance — transitioning from sitemap to domain crawl starts fresh.
+- Without the circuit breaker, a rate-limited crawl with thousands of enqueued URLs would run indefinitely, never hit the success threshold, and never generate a report.
 - When enqueuing all sitemap URLs (which we do for accurate `totalLinksFetchedFromSitemaps` reporting), always ensure either a scan duration (`-d`) or the circuit breaker is in place as a safety net.
 
 ### Axe & Custom Checks
