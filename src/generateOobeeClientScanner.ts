@@ -461,6 +461,37 @@ const scanApiScript = (
       // Run axe-core + oobee custom checks
       var scanResult = await window.runA11yScan(elementsToScan, '');
 
+      // Re-verify aria-hidden-focus violations against the live DOM to handle
+      // race conditions with JS that sets tabindex="-1" after aria-hidden
+      var axeViolations = scanResult.axeScanResults.violations || [];
+      var ariaHiddenViolation = axeViolations.find(function(v) { return v.id === 'aria-hidden-focus'; });
+      if (ariaHiddenViolation) {
+        await new Promise(function(resolve) { setTimeout(resolve, 0); });
+        ariaHiddenViolation.nodes = ariaHiddenViolation.nodes.filter(function(node) {
+          var selector = node.target && node.target[0];
+          if (typeof selector !== 'string') return true;
+          try {
+            var el = document.querySelector(selector);
+            if (!el) return true;
+            var focusables = el.querySelectorAll(
+              'a[href], area[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]'
+            );
+            if (focusables.length === 0) return false;
+            return Array.from(focusables).some(function(child) {
+              var tabindex = child.getAttribute('tabindex');
+              if (tabindex === null) return true;
+              var parsed = parseInt(tabindex, 10);
+              return isNaN(parsed) || parsed >= 0;
+            });
+          } catch (e) { return true; }
+        });
+        if (ariaHiddenViolation.nodes.length === 0) {
+          scanResult.axeScanResults.violations = axeViolations.filter(function(v) {
+            return v.id !== 'aria-hidden-focus';
+          });
+        }
+      }
+
       // Convert raw axe results into oobee category structure
       var filtered = _oobeeFilterAxeResults(scanResult.axeScanResults, scanResult.pageTitle);
 

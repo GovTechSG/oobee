@@ -1019,7 +1019,42 @@ export const runAxeScript = async ({
           .run(selectors, {
             resultTypes: defaultResultTypes,
           })
-          .then(results => {
+          .then(async results => {
+            // Re-verify aria-hidden-focus violations against the live DOM to
+            // handle race conditions with JS that sets tabindex="-1" after
+            // aria-hidden (common in carousel/slider libraries like slick)
+            const ariaHiddenViolation = results.violations.find(
+              v => v.id === 'aria-hidden-focus',
+            );
+            if (ariaHiddenViolation) {
+              await new Promise(resolve => setTimeout(resolve, 0));
+              ariaHiddenViolation.nodes = ariaHiddenViolation.nodes.filter(node => {
+                const selector = node.target && node.target[0];
+                if (typeof selector !== 'string') return true;
+                try {
+                  const el = document.querySelector(selector);
+                  if (!el) return true;
+                  const focusables = el.querySelectorAll(
+                    'a[href], area[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]',
+                  );
+                  if (focusables.length === 0) return false;
+                  return Array.from(focusables).some(child => {
+                    const tabindex = child.getAttribute('tabindex');
+                    if (tabindex === null) return true;
+                    const parsed = parseInt(tabindex, 10);
+                    return isNaN(parsed) || parsed >= 0;
+                  });
+                } catch {
+                  return true;
+                }
+              });
+              if (ariaHiddenViolation.nodes.length === 0) {
+                results.violations = results.violations.filter(
+                  v => v.id !== 'aria-hidden-focus',
+                );
+              }
+            }
+
             if (disableOobee) {
               return results;
             }
