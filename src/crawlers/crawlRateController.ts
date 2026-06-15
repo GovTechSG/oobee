@@ -7,7 +7,7 @@ export class CrawlRateController {
   private consecutiveSuccesses = 0;
   private readonly maxConsecutiveFailures: number;
   private readonly originalMaxConcurrency: number;
-  private static readonly RECOVERY_INTERVAL = 20;
+  private static readonly RECOVERY_INTERVAL = 10;
 
   constructor(maxRequestsPerCrawl: number, maxConcurrency: number) {
     this.maxPages = maxRequestsPerCrawl;
@@ -29,7 +29,7 @@ export class CrawlRateController {
 
     if (pool && this.consecutiveSuccesses % CrawlRateController.RECOVERY_INTERVAL === 0) {
       if (pool.maxConcurrency < this.originalMaxConcurrency) {
-        pool.maxConcurrency = Math.min(pool.maxConcurrency + 1, this.originalMaxConcurrency);
+        pool.maxConcurrency = Math.min(pool.maxConcurrency + 2, this.originalMaxConcurrency);
         consoleLogger.info(`Recovering concurrency to ${pool.maxConcurrency}`);
       }
     }
