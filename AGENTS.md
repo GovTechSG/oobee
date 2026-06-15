@@ -200,6 +200,8 @@ docker run oobee node dist/cli.js ...
 
 3. **Browser profile isolation** — Each scan clones browser profiles with a `randomToken` suffix. Profiles must be cleaned up after scan (`deleteClonedProfiles()`).
 
+    - If Chrome/Edge profile cloning fails (for example `EBUSY` while copying locked cookie/state files on Windows), Oobee now falls back to an empty cloned profile directory for that scan. This keeps browser launch stable, but authenticated session cookies may not be available.
+
 4. **`constants.launcher` mutation** — When webkit is the fallback, `constants.launcher` is reassigned globally. This affects all subsequent browser launches in the same process.
 
 5. **Headful vs headless context creation** — Headful mode must NOT use `launchPersistentContext` with custom `userDataDir` (causes "Browser window not found" crash). Use `launch()` + `newContext()` instead.
@@ -207,6 +209,8 @@ docker run oobee node dist/cli.js ...
 6. **Sitemap fetch state** — `constants.sitemapFetchedLinks` accumulates across multiple `getLinksFromSitemap` calls. Must be reset to `null` at scan start.
 
 7. **PDF generation** — `writeSummaryPdf()` always runs headless regardless of scan mode. It loads a local `file://` URL so UA/network issues don't apply, but it needs a working browser binary.
+
+    - On Windows, summary PDF generation now retries with Edge (`msedge`) if the initial Chrome launch fails at runtime.
 
 8. **Crawlee dataset** — Results are stored as numbered JSON files in `{randomToken}/datasets/default/`. Each file is one page's axe results. `generateArtifacts()` reads all of them.
 

@@ -1659,6 +1659,17 @@ export const cloneChromeProfiles = (randomToken: string): string => {
     }
 
     consoleLogger.error('Failed to clone Chrome profiles. You may be logged out of your accounts.');
+
+    // Fall back to a clean profile directory to avoid launch failures from partial clones.
+    try {
+      fs.rmSync(destDir, { recursive: true, force: true });
+      fs.mkdirSync(destDir, { recursive: true });
+      consoleLogger.warn('Using an empty cloned Chrome profile directory due to clone failure.');
+    } catch (cleanupError) {
+      consoleLogger.error(
+        `Unable to reset cloned Chrome profile directory ${destDir}: ${cleanupError}`,
+      );
+    }
   }
   // For future reference, return a null instead to halt the scan
   return destDir;
@@ -1727,6 +1738,15 @@ export const cloneEdgeProfiles = (randomToken: string): string => {
     }
 
     consoleLogger.error('Failed to clone Edge profiles. You may be logged out of your accounts.');
+
+    // Fall back to a clean profile directory to avoid launch failures from partial clones.
+    try {
+      fs.rmSync(destDir, { recursive: true, force: true });
+      fs.mkdirSync(destDir, { recursive: true });
+      consoleLogger.warn('Using an empty cloned Edge profile directory due to clone failure.');
+    } catch (cleanupError) {
+      consoleLogger.error(`Unable to reset cloned Edge profile directory ${destDir}: ${cleanupError}`);
+    }
   }
 
   // For future reference, return a null instead to halt the scan
