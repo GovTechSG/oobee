@@ -681,6 +681,8 @@ export const createRuleIdJson = async (allIssues, itemsStore?: ItemsStore) => {
   const compiledRuleJson = {};
 
   for (const category of ['mustFix', 'goodToFix', 'needsReview'] as const) {
+    compiledRuleJson[category] = {};
+
     for (const rule of allIssues.items[category].rules) {
       let allItems: any[] = [];
 
@@ -692,7 +694,7 @@ export const createRuleIdJson = async (allIssues, itemsStore?: ItemsStore) => {
         allItems = rule.pagesAffected.flatMap(page => page.items || []);
       }
 
-      compiledRuleJson[rule.rule] = extractRuleAiData(rule.rule, rule.totalItems, allItems);
+      compiledRuleJson[category][rule.rule] = extractRuleAiData(rule.rule, rule.totalItems, allItems);
     }
   }
 
@@ -704,10 +706,12 @@ export const createBasicFormHTMLSnippet = filteredResults => {
   const compiledRuleJson = {};
 
   ['mustFix', 'goodToFix', 'needsReview'].forEach(category => {
+    compiledRuleJson[category] = {};
+
     if (filteredResults[category] && filteredResults[category].rules) {
       Object.entries(filteredResults[category].rules).forEach(
         ([ruleId, ruleVal]: [string, any]) => {
-          compiledRuleJson[ruleId] = extractRuleAiData(ruleId, ruleVal.totalItems, ruleVal.items);
+          compiledRuleJson[category][ruleId] = extractRuleAiData(ruleId, ruleVal.totalItems, ruleVal.items);
         },
       );
     }
