@@ -1100,6 +1100,31 @@ const generateArtifacts = async (
     consoleLogger.warn(`Unable to force remove pdfs folder: ${error.message}`);
   }
 
+  // Generate scrubbed HTML Code Snippets
+  const ruleIdJson = await createRuleIdJson(allIssues, itemsStore);
+
+  // Clean up intermediate items files before zipping
+  await itemsStore.cleanup();
+
+  try {
+    await sendWcagBreakdownToSentry(
+      oobeeAppVersion,
+      wcagOccurrencesMap,
+      ruleIdJson,
+      {
+        entryUrl: urlScanned,
+        scanType,
+        browser: scanDetails.deviceChosen,
+        email: scanDetails.nameEmail?.email,
+        name: scanDetails.nameEmail?.name,
+      },
+      allIssues,
+      pagesScanned.length,
+    );
+  } catch (error) {
+    console.error('Error sending WCAG data to Sentry:', error);
+  }
+
   // Take option if set
   if (typeof zip === 'string') {
     constants.cliZipFileName = zip;
@@ -1144,34 +1169,6 @@ const generateArtifacts = async (
     printMessage(messageToDisplay);
   } catch (error) {
     printMessage([`Error in zipping results: ${error}`]);
-  }
-
-  // Generate scrubbed HTML Code Snippets
-  const ruleIdJson = await createRuleIdJson(allIssues, itemsStore);
-
-  // Clean up intermediate items files
-  await itemsStore.cleanup();
-
-  // At the end of the function where results are generated, add:
-  try {
-    // Always send WCAG breakdown to Sentry, even if no violations were found
-    // This ensures that all criteria are reported, including those with 0 occurrences
-    await sendWcagBreakdownToSentry(
-      oobeeAppVersion,
-      wcagOccurrencesMap,
-      ruleIdJson,
-      {
-        entryUrl: urlScanned,
-        scanType,
-        browser: scanDetails.deviceChosen,
-        email: scanDetails.nameEmail?.email,
-        name: scanDetails.nameEmail?.name,
-      },
-      allIssues,
-      pagesScanned.length,
-    );
-  } catch (error) {
-    console.error('Error sending WCAG data to Sentry:', error);
   }
 
   if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE)
