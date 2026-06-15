@@ -400,6 +400,9 @@ Options:
                                      [string] [choices: "yes", "no"] [default: "no"]
   -l, --scanDuration                 Maximum scan duration in seconds (0 means u
                                      nlimited)             [number] [default: 0]
+  -z, --websiteTag                   Tag to identify the website in telemetry.
+                                     Overrides OOBEE_TAGGED_WEBSITE env var.
+                                                                       [string]
 
 Examples:
   To scan sitemap of website:', 'npm run cli -- -c [ 1 | sitemap ] -u <url_lin

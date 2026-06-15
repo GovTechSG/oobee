@@ -52,6 +52,7 @@ export type Answers = {
   ruleset: RuleFlags[];
   generateJsonFiles: boolean;
   scanDuration?: number;
+  websiteTag?: string;
 };
 
 export type Data = {

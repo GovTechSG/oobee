@@ -341,5 +341,12 @@ To obtain the JSON files, you need to base64-decode the file followed by gunzip.
     demandOption: false,
     coerce: val => Number(val),
   },
+  z: {
+    alias: 'websiteTag',
+    describe: 'Tag to identify the website in telemetry. Overrides OOBEE_TAGGED_WEBSITE env var.',
+    type: 'string',
+    requiresArg: true,
+    demandOption: false,
+  },
 };
 

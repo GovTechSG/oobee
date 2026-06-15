@@ -144,6 +144,9 @@ const sendWcagBreakdownToSentry = async (
         ...(process.env.OOBEE_SCAN_PRODUCT && {
           scanProduct: process.env.OOBEE_SCAN_PRODUCT,
         }),
+        ...(process.env.OOBEE_TAGGED_WEBSITE && {
+          websiteTag: process.env.OOBEE_TAGGED_WEBSITE,
+        }),
       },
       user: {
         ...(scanInfo.email && scanInfo.name
