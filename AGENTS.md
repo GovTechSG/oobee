@@ -226,7 +226,7 @@ When making changes, validate these areas which have well-established edge cases
 
 ### Crawlee Lifecycle & Cleanup
 - Crawlee's async lock-file operations (`.json.lock` mkdir) can fire after the crawl finishes. On Windows, this triggers uncaughtException EPERM during report generation. A scoped exception handler suppresses these. The cleanup delay is 5s on Windows, 3s on others.
-- The crawlee dataset folder must be deleted BEFORE zipping results. The deletion uses an awaited delay (not fire-and-forget setTimeout) to let lingering Crawlee I/O flush.
+- The crawlee dataset folder and `tmp-items` (intermediate JSONL store) must be deleted BEFORE zipping results. `zipResults` must be the last step in `generateArtifacts()` — any cleanup or processing that removes temp files from `storagePath` must happen earlier. The dataset deletion uses an awaited delay (not fire-and-forget setTimeout) to let lingering Crawlee I/O flush.
 - Errors must only be recorded in `failedRequestHandler` (after all retries exhausted), not in the `requestHandler` catch block. Crawlee retries up to 3 times, so recording in the catch block creates duplicates and false positives for URLs that succeed on retry.
 
 ### URL & Redirect Handling

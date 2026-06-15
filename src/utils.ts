@@ -6,6 +6,7 @@ import axe, { Rule } from 'axe-core';
 import { v4 as uuidv4 } from 'uuid';
 import { getDomain } from 'tldts';
 import { normalizeUrl } from '@apify/utilities';
+import { Dataset, RequestQueue, Configuration } from 'crawlee';
 import constants, {
   BrowserTypes,
   destinationPath,
@@ -390,6 +391,19 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
   if (randomToken !== undefined) {
     const storagePath = getStoragePath(randomToken);
 
+    try {
+      const storageClient = Configuration.getStorageClient();
+      if (storageClient.teardown) {
+        await storageClient.teardown();
+      }
+      const crawleeDir = path.join(storagePath, 'crawlee');
+      const dataset = await Dataset.open(crawleeDir);
+      await dataset.drop();
+      const requestQueue = await RequestQueue.open(crawleeDir);
+      await requestQueue.drop();
+    } catch (error) {
+      consoleLogger.info(`Crawlee storage drop in cleanUp: ${error.message}`);
+    }
     try {
       fs.rmSync(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
     } catch (error) {

@@ -5,6 +5,7 @@ import printMessage from 'print-message';
 import path from 'path';
 import ejs from 'ejs';
 import { fileURLToPath } from 'url';
+import { Dataset, RequestQueue, Configuration } from 'crawlee';
 import constants, {
   BrowserTypes,
   ScannerTypes,
@@ -1067,42 +1068,65 @@ const generateArtifacts = async (
     1,
   );
 
-  // Suppress uncaught EPERM errors from lingering Crawlee async lock-file operations
-  // (Windows holds mandatory file locks; Crawlee may still attempt mkdir on .json.lock
-  // files after the crawl has finished). Without this, Node crashes with uncaughtException.
-  const crawleeEpermHandler = (err: Error & { code?: string }) => {
-    if (err.code === 'EPERM' && err.message?.includes('crawlee')) {
-      consoleLogger.info(`Suppressed lingering Crawlee storage error: ${err.message}`);
-      return;
-    }
-    // Re-throw non-crawlee EPERM errors so they aren't silently swallowed
-    throw err;
-  };
-  process.on('uncaughtException', crawleeEpermHandler);
-  process.on('unhandledRejection', crawleeEpermHandler);
+  // Flush pending background storage operations (metadata writes, lock-file ops)
+  const storageClient = Configuration.getStorageClient();
+  if (storageClient.teardown) {
+    await storageClient.teardown();
+  }
 
-  // Brief delay to allow lingering async crawlee storage operations to flush
-  await new Promise(resolve => setTimeout(resolve, process.platform === 'win32' ? 5000 : 3000));
+  // Gracefully drop Dataset and RequestQueue — releases locks and removes files
+  const crawleeDir = path.join(storagePath, 'crawlee');
+  try {
+    const dataset = await Dataset.open(crawleeDir);
+    await dataset.drop();
+  } catch (error) {
+    consoleLogger.info(`Dataset drop: ${error.message}`);
+  }
 
+  try {
+    const requestQueue = await RequestQueue.open(crawleeDir);
+    await requestQueue.drop();
+  } catch (error) {
+    consoleLogger.info(`RequestQueue drop: ${error.message}`);
+  }
+
+  // Fallback rm for any leftover files not managed by Crawlee's storage API
   const crawleePath = path.join(storagePath, 'crawlee');
   try {
     await fs.promises.rm(crawleePath, { recursive: true, force: true });
-  } catch (error) {
-    // On Windows, retry once after a delay if the folder is still locked
-    if (process.platform === 'win32') {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      try {
-        await fs.promises.rm(crawleePath, { recursive: true, force: true });
-      } catch {
-        // Best-effort cleanup — leave the folder; report generation continues
-      }
-    }
+  } catch {
+    // Best-effort; storage was already dropped via API
   }
 
   try {
     await fs.promises.rm(path.join(storagePath, 'pdfs'), { recursive: true, force: true });
   } catch (error) {
     consoleLogger.warn(`Unable to force remove pdfs folder: ${error.message}`);
+  }
+
+  // Generate scrubbed HTML Code Snippets
+  const ruleIdJson = await createRuleIdJson(allIssues, itemsStore);
+
+  // Clean up intermediate items files before zipping
+  await itemsStore.cleanup();
+
+  try {
+    await sendWcagBreakdownToSentry(
+      oobeeAppVersion,
+      wcagOccurrencesMap,
+      ruleIdJson,
+      {
+        entryUrl: urlScanned,
+        scanType,
+        browser: scanDetails.deviceChosen,
+        email: scanDetails.nameEmail?.email,
+        name: scanDetails.nameEmail?.name,
+      },
+      allIssues,
+      pagesScanned.length,
+    );
+  } catch (error) {
+    console.error('Error sending WCAG data to Sentry:', error);
   }
 
   // Take option if set
@@ -1151,39 +1175,8 @@ const generateArtifacts = async (
     printMessage([`Error in zipping results: ${error}`]);
   }
 
-  // Generate scrubbed HTML Code Snippets
-  const ruleIdJson = await createRuleIdJson(allIssues, itemsStore);
-
-  // Clean up intermediate items files
-  await itemsStore.cleanup();
-
-  // At the end of the function where results are generated, add:
-  try {
-    // Always send WCAG breakdown to Sentry, even if no violations were found
-    // This ensures that all criteria are reported, including those with 0 occurrences
-    await sendWcagBreakdownToSentry(
-      oobeeAppVersion,
-      wcagOccurrencesMap,
-      ruleIdJson,
-      {
-        entryUrl: urlScanned,
-        scanType,
-        browser: scanDetails.deviceChosen,
-        email: scanDetails.nameEmail?.email,
-        name: scanDetails.nameEmail?.name,
-      },
-      allIssues,
-      pagesScanned.length,
-    );
-  } catch (error) {
-    console.error('Error sending WCAG data to Sentry:', error);
-  }
-
   if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE)
     console.log('Report generated successfully');
-
-  process.removeListener('uncaughtException', crawleeEpermHandler);
-  process.removeListener('unhandledRejection', crawleeEpermHandler);
 
   return ruleIdJson;
 };
