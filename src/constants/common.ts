@@ -1436,6 +1436,36 @@ export const getEdgeData = (randomToken: string) => {
  * @param {*} destDir destination directory
  * @returns boolean indicating whether the operation was successful
  */
+// Helper to copy a file with retry logic for transient EBUSY errors
+const copyFileWithRetry = (src: string, dest: string, maxRetries: number = 3): boolean => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      fs.copyFileSync(src, dest);
+      if (attempt > 1) {
+        consoleLogger.info(`File copy succeeded on attempt ${attempt}: ${dest}`);
+      }
+      return true;
+    } catch (err: any) {
+      if (err.code === 'EBUSY' && attempt < maxRetries) {
+        // Transient lock — wait and retry
+        const delayMs = Math.min(100 * Math.pow(2, attempt - 1), 1000); // Exponential backoff: 100ms, 200ms, 400ms, capped at 1s
+        consoleLogger.warn(
+          `File copy attempt ${attempt}/${maxRetries} failed with EBUSY. Retrying after ${delayMs}ms: ${dest}`,
+        );
+        // Synchronous sleep via busy-wait (not ideal but avoids promise complications in sync context)
+        const endTime = Date.now() + delayMs;
+        while (Date.now() < endTime) {
+          // Busy wait
+        }
+        continue; // Retry
+      }
+      // Non-transient error or max retries reached
+      return false;
+    }
+  }
+  return false;
+};
+
 const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, destDir: string) => {
   let profileCookiesDir;
   // Cookies file per profile is located in .../User Data/<profile name>/Network/Cookies for windows
@@ -1475,23 +1505,9 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
 
         // Prevents duplicate cookies file if the cookies already exist
         if (!fs.existsSync(path.join(destProfileDir, 'Cookies'))) {
-          try {
-            fs.copyFileSync(dir, path.join(destProfileDir, 'Cookies'));
-          } catch (err) {
-            consoleLogger.error(err);
-            if (err.code === 'EBUSY') {
-              console.log(
-                `Unable to copy the file for ${profileName} because it is currently in use.`,
-              );
-              console.log(
-                'Please close any applications that might be using this file and try again.',
-              );
-            } else {
-              console.log(
-                `An unexpected error occurred for ${profileName} while copying the file: ${err.message}`,
-              );
-            }
-            // printMessage([err], messageOptions);
+          const destCookiesPath = path.join(destProfileDir, 'Cookies');
+          if (!copyFileWithRetry(dir, destCookiesPath)) {
+            consoleLogger.error(`Failed to copy Chrome profile cookies for ${profileName} after retries.`);
             success = false;
           }
         }
@@ -1505,12 +1521,6 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
   return false;
 };
 
-/**
- * Clone the Chrome profile cookie files to the destination directory
- * @param {*} options glob options object
- * @param {*} destDir destination directory
- * @returns boolean indicating whether the operation was successful
- */
 const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, destDir: string) => {
   let profileCookiesDir;
   // Cookies file per profile is located in .../User Data/<profile name>/Network/Cookies for windows
@@ -1551,21 +1561,9 @@ const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, des
 
         // Prevents duplicate cookies file if the cookies already exist
         if (!fs.existsSync(path.join(destProfileDir, 'Cookies'))) {
-          try {
-            fs.copyFileSync(dir, path.join(destProfileDir, 'Cookies'));
-          } catch (err) {
-            consoleLogger.error(err);
-            if (err.code === 'EBUSY') {
-              console.log(
-                `Unable to copy the file for ${profileName} because it is currently in use.`,
-              );
-              console.log(
-                'Please close any applications that might be using this file and try again.',
-              );
-            } else {
-              console.log(`An unexpected error occurred while copying the file: ${err.message}`);
-            }
-            // printMessage([err], messageOptions);
+          const destCookiesPath = path.join(destProfileDir, 'Cookies');
+          if (!copyFileWithRetry(dir, destCookiesPath)) {
+            consoleLogger.error(`Failed to copy Edge profile cookies for ${profileName} after retries.`);
             success = false;
           }
         }
@@ -1596,19 +1594,9 @@ const cloneLocalStateFile = (options: GlobOptionsWithFileTypesFalse, destDir: st
 
     localState.forEach(dir => {
       const profileName = dir.match(profileNamesRegex)[1];
-      try {
-        fs.copyFileSync(dir, path.join(destDir, 'Local State'));
-      } catch (err) {
-        consoleLogger.error(err);
-        if (err.code === 'EBUSY') {
-          console.log(`Unable to copy the file because it is currently in use.`);
-          console.log('Please close any applications that might be using this file and try again.');
-        } else {
-          console.log(
-            `An unexpected error occurred for ${profileName} while copying the file: ${err.message}`,
-          );
-        }
-        printMessage([err], messageOptions);
+      const destPath = path.join(destDir, 'Local State');
+      if (!copyFileWithRetry(dir, destPath)) {
+        consoleLogger.error(`Failed to copy Local State file for ${profileName} after retries.`);
         success = false;
       }
     });

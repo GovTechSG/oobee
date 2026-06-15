@@ -1164,9 +1164,7 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
     const fsp = await import('fs/promises').then(m => m.default);
     await fsp.mkdir(userDataDirectory, { recursive: true });
 
-    // Remove all Chrome lock files that prevent re-launching into the same profile directory.
-    // Chrome creates these on Windows and may not release them immediately when the previous
-    // browser instance is retired by Crawlee's browser pool.
+    // Clean any stale lock files that may block browser launches on Windows
     const lockFiles = [
       path.join(userDataDirectory, 'SingletonLock'),
       path.join(userDataDirectory, 'SingletonSocket'),
