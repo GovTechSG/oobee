@@ -228,6 +228,10 @@ if (!options.strategy) {
   options.strategy = options.scanner === ScannerTypes.SITEMAP ? 'ignore' : 'same-domain';
 }
 
+if (options.websiteTag) {
+  process.env.OOBEE_TAGGED_WEBSITE = options.websiteTag;
+}
+
 const scanInit = async (argvs: Answers): Promise<string> => {
   const updatedArgvs = { ...argvs };
 
