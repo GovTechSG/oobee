@@ -89,7 +89,7 @@ Contexts that need `userAgent: process.env.OOBEE_USER_AGENT`:
 - `findSitemap()` in `crawlIntelligentSitemap.ts` — sitemap path probing
 - `getDataUsingPlaywright()` in `getLinksFromSitemap()` — sitemap XML content fetching
 - `checkUrl()` — main URL validation context (already handled)
-- Crawlee crawler contexts in `crawlDomain`/`crawlSitemap` handle UA via Crawlee's browser pool
+- Crawlee crawler contexts in `crawlDomain`/`crawlSitemap` — UA set via `preLaunchHooks` in `getPreLaunchHook()`
 
 ### Headless vs Headful
 
@@ -201,6 +201,7 @@ docker run oobee node dist/cli.js ...
 3. **Browser profile isolation** — Each scan clones browser profiles with a `randomToken` suffix. Profiles must be cleaned up after scan (`deleteClonedProfiles()`).
 
     - If Chrome/Edge profile cloning fails (for example `EBUSY` while copying locked cookie/state files on Windows), Oobee now falls back to an empty cloned profile directory for that scan. This keeps browser launch stable, but authenticated session cookies may not be available.
+    - Crawlee's browser pool retires and re-launches browser instances after ~4 minutes. On Windows, reusing the same `--user-data-dir` causes Chrome exit code 21 (stale lock contention). `getPreLaunchHook()` in `commonCrawlerFunc.ts` assigns unique `_pool{N}` directories for each re-launch and performs a best-effort async clone of the base profile. Cleanup must glob `_pool*` directories alongside the base `oobee-{token}` dir.
 
 4. **`constants.launcher` mutation** — When webkit is the fallback, `constants.launcher` is reassigned globally. This affects all subsequent browser launches in the same process.
 
@@ -257,7 +258,7 @@ When making changes, validate these areas which have well-established edge cases
 - Both crawlers use a shared `CrawlRateController` class (`src/crawlers/crawlRateController.ts`) that provides:
   1. **Strict maxPages**: `claimSlot()` is called at the moment of success (synchronously right before `urlsCrawled.scanned.push()`), not at the top of the request handler. `abort()` is called only after claiming the last slot (`isLimitReached()` becomes true post-claim). Never abort from the top of the handler — doing so kills in-flight pages that other handlers are scanning, causing undershoot.
   2. **Circuit breaker**: After 100 consecutive HTTP 4xx/5xx failures (configurable via `OOBEE_CONSECUTIVE_MAX_RETRIES`), the crawl aborts gracefully.
-  3. **Adaptive concurrency**: On each 4xx/5xx failure, concurrency is halved (floor 1). After every 20 consecutive successes, concurrency recovers by +1 toward the original value. This automatically finds the site's rate limit threshold without manual tuning.
+  3. **Adaptive concurrency**: On each 4xx/5xx failure, concurrency is halved (floor 1). After every 10 consecutive successes, concurrency recovers by +2 toward the original value. This automatically finds the site's rate limit threshold without manual tuning.
 - **Critical placement of `claimSlot()` and `abort()`**: `claimSlot()` must be synchronously right before `push()` — never at the top of the handler. `abort()` must be called only after the last slot is claimed — never from an early-exit check. Pages can be discarded mid-handler (redirect, dedup, robots.txt block), and aborting prematurely kills in-flight handlers that would have succeeded.
 - Only HTTP 4xx/5xx responses trigger rate adaptation and count toward the circuit breaker — timeouts and network errors do not.
 - In intelligent crawl, each phase (sitemap then domain) creates its own `CrawlRateController` instance — transitioning from sitemap to domain crawl starts fresh.
