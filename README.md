@@ -92,6 +92,10 @@ verapdf --version
 | WARN_LEVEL | Only used in tests. |  |
 | OOBEE_DISABLE_BROWSER_DOWNLOAD | Experimental flag to disable file downloads on Chrome/Chromium/Edge.  Does not affect Local File scan | |
 | OOBEE_SLOWMO | Experimental flag to slow down web browser behaviour by specified duration (in miliseconds) | |
+| OOBEE_TAGGED_WEBSITE | Tag to identify the website in telemetry. Can also be set via `-z, --websiteTag` CLI flag (CLI flag takes precedence). | |
+| OOBEE_SCAN_METADATA | Overrides the `entryUrl` tag sent to telemetry. | |
+| OOBEE_SCAN_PRODUCT | Adds a `scanProduct` tag to telemetry events. | |
+| OOBEE_CONSECUTIVE_MAX_RETRIES | Max consecutive HTTP failures before the circuit breaker aborts the crawl. | `100` |
 | HTTP_PROXY | URL of the proxy server to be used for HTTP requests (e.g. `http://proxy.example.com:8080`). | |
 | HTTPS_PROXY | URL of the proxy server to be used for HTTPS requests (e.g. `https://proxy.example.com:8080`). | |
 | ALL_PROXY | URL of the proxy server to be used for all requests, typically used for SOCKS5 proxies (e.g. `socks5://proxy.example.com:1080`. Note: IPv6 direct connections may still continue even though socks5 proxy is specified due to a known issue with Chrome/Chromium. (Recommended workaround is to turn off IPv6 at host-level). | |

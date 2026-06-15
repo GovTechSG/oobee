@@ -134,6 +134,11 @@ The `constants` default export object holds runtime state:
 | `OOBEE_SLOWMO` | Browser slowmo in ms |
 | `OOBEE_FAST_CRAWLER` | Experimental high-concurrency mode |
 | `OOBEE_DISABLE_BROWSER_DOWNLOAD` | Block browser file downloads |
+| `OOBEE_TAGGED_WEBSITE` | Tag to identify the website in Sentry telemetry (overridden by `--websiteTag` CLI flag) |
+| `OOBEE_SCAN_METADATA` | Overrides `entryUrl` tag in Sentry events |
+| `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
+| `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl (default 100) |
+| `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | Proxy configuration |
 | `NO_PROXY` / `INCLUDE_PROXY` | Proxy bypass/include lists |
 
