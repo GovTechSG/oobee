@@ -1159,6 +1159,66 @@ export const postNavigationHooks = [
   },
 ];
 
+export const getPreLaunchHook = (userDataDirectory: string) => {
+  let launchCount = 0;
+
+  return async (_pageId: string, launchContext: any) => {
+    const fsp = await import('fs/promises').then(m => m.default);
+    launchCount += 1;
+
+    // First launch uses the base directory; subsequent launches get a unique
+    // directory so that lingering file handles from a retired browser don't
+    // cause Chrome exit code 21 on Windows.
+    const effectiveDir =
+      launchCount === 1
+        ? userDataDirectory
+        : `${userDataDirectory}_pool${launchCount}`;
+
+    await fsp.mkdir(effectiveDir, { recursive: true });
+
+    // For pool re-launches, best-effort clone profile data from base directory
+    // so authenticated sessions are preserved across browser pool retirements.
+    if (launchCount > 1) {
+      try {
+        const copyRecursive = async (src: string, dest: string) => {
+          const stat = await fsp.stat(src).catch(() => null);
+          if (!stat) return;
+          if (stat.isDirectory()) {
+            await fsp.mkdir(dest, { recursive: true }).catch(() => {});
+            const entries = await fsp.readdir(src).catch(() => []);
+            await Promise.all(
+              entries
+                .filter(entry => !entry.startsWith('Singleton') && entry !== 'lockfile' && entry !== 'LOCK')
+                .map(entry =>
+                  copyRecursive(path.join(src, entry), path.join(dest, entry)).catch(() => {}),
+                ),
+            );
+          } else {
+            await fsp.copyFile(src, dest).catch(() => {});
+          }
+        };
+        await copyRecursive(userDataDirectory, effectiveDir).catch(() => {});
+      } catch {
+        // Silent fallback: use empty profile if clone fails
+      }
+    }
+
+    // Clean any stale lock files that may block browser launches on Windows
+    const lockFiles = [
+      path.join(effectiveDir, 'SingletonLock'),
+      path.join(effectiveDir, 'SingletonSocket'),
+      path.join(effectiveDir, 'SingletonCookie'),
+      path.join(effectiveDir, 'lockfile'),
+      path.join(effectiveDir, 'Default', 'LOCK'),
+      path.join(effectiveDir, 'Default', 'Network', 'LOCK'),
+    ];
+    await Promise.all(lockFiles.map(f => fsp.rm(f, { force: true }).catch(() => {})));
+
+    // eslint-disable-next-line no-param-reassign
+    launchContext.userDataDir = effectiveDir;
+  };
+};
+
 export const failedRequestHandler = async ({ request }: { request: Request }) => {
   guiInfoLog(guiInfoStatusTypes.ERROR, { numScanned: 0, urlScanned: request.url });
   log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);

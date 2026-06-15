@@ -358,61 +358,97 @@ const writeSummaryPdf = async (
   browser: string,
   _userDataDirectory: string,
 ) => {
-  let browserInstance;
-  let context;
-  let page;
+  const renderPdfWithBrowser = async (browserToUse: string) => {
+    let browserInstance;
+    let context;
+    let page;
 
-  try {
-    const htmlFilePath = path.join(storagePath, `${filename}.html`);
-    const fileDestinationPath = path.join(storagePath, `${filename}.pdf`);
-    const htmlFileUrl = `file://${htmlFilePath}`;
+    try {
+      const htmlFilePath = path.join(storagePath, `${filename}.html`);
+      const fileDestinationPath = path.join(storagePath, `${filename}.pdf`);
+      const htmlFileUrl = `file://${htmlFilePath}`;
 
-    const launchOptions = getPlaywrightLaunchOptions(browser);
+      const launchOptions = getPlaywrightLaunchOptions(browserToUse);
 
-    browserInstance = await constants.launcher.launch({
-      ...launchOptions,
-      headless: true,
-    });
+      browserInstance = await constants.launcher.launch({
+        ...launchOptions,
+        headless: true,
+      });
 
-    register(browserInstance as unknown as { close: () => Promise<void> });
+      register(browserInstance as unknown as { close: () => Promise<void> });
 
-    context = await browserInstance.newContext();
-    page = await context.newPage();
+      context = await browserInstance.newContext();
+      page = await context.newPage();
 
-    await page.goto(htmlFileUrl, {
-      waitUntil: 'domcontentloaded',
-      timeout: 120000,
-    });
+      await page.goto(htmlFileUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 120000,
+      });
 
-    await page.emulateMedia({ media: 'print' });
+      await page.emulateMedia({ media: 'print' });
 
-    await page.pdf({
-      margin: { bottom: '32px' },
-      path: fileDestinationPath,
-      format: 'A4',
-      displayHeaderFooter: true,
-      footerTemplate: `
+      await page.pdf({
+        margin: { bottom: '32px' },
+        path: fileDestinationPath,
+        format: 'A4',
+        displayHeaderFooter: true,
+        footerTemplate: `
     <div style="margin-top:50px;color:#26241b;font-family:Open Sans;text-align: center;width: 100%;font-weight:400">
       <span style="color:#26241b;font-size: 14px;font-weight:400">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
     </div>
   `,
-    });
+      });
 
-    if (pagesScanned < 2000) {
       fs.unlinkSync(htmlFilePath);
+    } finally {
+      try {
+        await page?.close();
+      } catch (err) {
+        consoleLogger.info(`Error at page close writeSummaryPDF ${err}`);
+      }
+      try {
+        await context?.close();
+      } catch (err) {
+        consoleLogger.info(`Error at context close writeSummaryPDF ${err}`);
+      }
+      try {
+        await browserInstance?.close();
+      } catch (err) {
+        consoleLogger.info(`Error at browserInstance close writeSummaryPDF ${err}`);
+      }
     }
-  } catch (err) {
-    consoleLogger.info(`Error at writeSummaryPDF ${err instanceof Error ? err.stack : err}`);
-  } finally {
-    await page?.close().catch(err => {
-      consoleLogger.info(`Error at page close writeSummaryPDF ${err}`);
-    });
-    await context?.close().catch(err => {
-      consoleLogger.info(`Error at context close writeSummaryPDF ${err}`);
-    });
-    await browserInstance?.close().catch(err => {
-      consoleLogger.info(`Error at browserInstance close writeSummaryPDF ${err}`);
-    });
+  };
+
+  const browserAttempts = [browser];
+
+  // Runtime fallback: if Chrome launch fails on Windows, try Edge once for PDF generation.
+  if (process.platform === 'win32' && browser === BrowserTypes.CHROME) {
+    browserAttempts.push(BrowserTypes.EDGE);
+  }
+
+  for (let i = 0; i < browserAttempts.length; i++) {
+    const currentBrowser = browserAttempts[i];
+    try {
+      await renderPdfWithBrowser(currentBrowser);
+      if (i > 0) {
+        consoleLogger.warn(
+          `writeSummaryPDF succeeded with fallback browser '${currentBrowser}' after '${browser}' failed.`,
+        );
+      }
+      return;
+    } catch (err) {
+      const isLastAttempt = i === browserAttempts.length - 1;
+      consoleLogger.info(
+        `Error at writeSummaryPDF using browser '${currentBrowser}': ${err instanceof Error ? err.stack : err}`,
+      );
+      if (isLastAttempt) {
+        return;
+      }
+      const nextBrowser = browserAttempts[i + 1];
+      consoleLogger.warn(
+        `writeSummaryPDF failed using browser '${currentBrowser}', retrying with '${nextBrowser}'.`,
+      );
+    }
   }
 };
 
