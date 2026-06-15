@@ -1163,7 +1163,20 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
   return async (_pageId: string, launchContext: any) => {
     const fsp = await import('fs/promises').then(m => m.default);
     await fsp.mkdir(userDataDirectory, { recursive: true });
-    await fsp.rm(path.join(userDataDirectory, 'SingletonLock'), { force: true });
+
+    // Remove all Chrome lock files that prevent re-launching into the same profile directory.
+    // Chrome creates these on Windows and may not release them immediately when the previous
+    // browser instance is retired by Crawlee's browser pool.
+    const lockFiles = [
+      path.join(userDataDirectory, 'SingletonLock'),
+      path.join(userDataDirectory, 'SingletonSocket'),
+      path.join(userDataDirectory, 'SingletonCookie'),
+      path.join(userDataDirectory, 'lockfile'),
+      path.join(userDataDirectory, 'Default', 'LOCK'),
+      path.join(userDataDirectory, 'Default', 'Network', 'LOCK'),
+    ];
+    await Promise.all(lockFiles.map(f => fsp.rm(f, { force: true }).catch(() => {})));
+
     // eslint-disable-next-line no-param-reassign
     launchContext.userDataDir = userDataDirectory;
   };
