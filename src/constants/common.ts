@@ -1763,7 +1763,14 @@ export const deleteClonedChromeProfiles = (randomToken?: string): void => {
   }
   let destDir: string[];
   if (randomToken) {
-    destDir = [`${baseDir}/oobee-${randomToken}`];
+    // Also match _pool* directories created by browser pool re-launches
+    destDir = globSync(`oobee-${randomToken}*`, {
+      cwd: baseDir,
+      absolute: true,
+    });
+    if (destDir.length === 0) {
+      destDir = [`${baseDir}/oobee-${randomToken}`];
+    }
   } else {
     // Find all the oobee directories in the Chrome data directory
     destDir = globSync('**/oobee*', {
@@ -1804,9 +1811,16 @@ export const deleteClonedEdgeProfiles = (randomToken?: string): void => {
   }
   let destDir: string[];
   if (randomToken) {
-    destDir = [`${baseDir}/oobee-${randomToken}`];
+    // Also match _pool* directories created by browser pool re-launches
+    destDir = globSync(`oobee-${randomToken}*`, {
+      cwd: baseDir,
+      absolute: true,
+    });
+    if (destDir.length === 0) {
+      destDir = [`${baseDir}/oobee-${randomToken}`];
+    }
   } else {
-    // Find all the oobee directories in the Chrome data directory
+    // Find all the oobee directories in the Edge data directory
     destDir = globSync('**/oobee*', {
       cwd: baseDir,
       absolute: true,

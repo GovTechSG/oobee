@@ -80,6 +80,18 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     process.env.CRAWLEE_SYSTEM_INFO_V2 = '1';
   }
 
+  // Suppress non-fatal Crawlee ps-tree errors on Windows with non-English locales.
+  // The system info module tries to parse process listing headers and crashes when
+  // headers are in a different language (e.g. "Wo" instead of "PID").
+  const psTreeHandler = (err: Error) => {
+    if (err.message?.includes('Unknown process listing header')) {
+      consoleLogger.info(`Suppressed Crawlee ps-tree locale error: ${err.message}`);
+      return;
+    }
+    throw err;
+  };
+  process.on('uncaughtException', psTreeHandler);
+
   const host = type === ScannerTypes.SITEMAP || type === ScannerTypes.LOCALFILE ? '' : getHost(url);
 
   let blacklistedPatterns: string[] | null = null;
