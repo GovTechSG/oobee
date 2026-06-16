@@ -112,6 +112,10 @@ Important behaviors:
 - The crawler itself enforces `maxRequestsPerCrawl` by counting only successfully scanned pages
 - `constants.sitemapFetchedLinks` stores the total discovered count for `scanData.json` reporting
 - For sitemap indexes, child sitemaps are processed recursively
+- Some sitemap XMLs include `<?xml-stylesheet ...?>` (XSL). In `getDataUsingPlaywright()`:
+  - Use `waitUntil: 'domcontentloaded'` (not `networkidle`) to avoid 60s timeouts caused by stylesheet/resource loading
+  - Prefer `response.text()` to capture raw XML before browser XSL transformation (preserves `<sitemapindex>` / `<urlset>` structure)
+  - Only fall back to DOM extraction when raw response text is unavailable
 
 ## Shared Mutable State
 
