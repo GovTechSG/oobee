@@ -1236,7 +1236,7 @@ export const getLinksFromSitemap = async (
 
     switch (sitemapType) {
       case constants.xmlSitemapTypes.xmlIndex:
-        consoleLogger.info(`This is a XML format sitemap index.`);
+        consoleLogger.info(`This is a XML format sitemap index: ${url}`);
         for (const childSitemapUrl of $('loc')) {
           const childSitemapUrlText = $(childSitemapUrl).text();
           if (childSitemapUrlText.endsWith('.xml') || childSitemapUrlText.endsWith('.txt')) {
@@ -1247,19 +1247,19 @@ export const getLinksFromSitemap = async (
         }
         break;
       case constants.xmlSitemapTypes.xml:
-        consoleLogger.info(`This is a XML format sitemap.`);
+        consoleLogger.info(`This is a XML format sitemap: ${url}`);
         await processXmlSitemap($, sitemapType, 'loc', 'lastmod', 'url');
         break;
       case constants.xmlSitemapTypes.rss:
-        consoleLogger.info(`This is a RSS format sitemap.`);
+        consoleLogger.info(`This is a RSS format sitemap: ${url}`);
         await processXmlSitemap($, sitemapType, 'link', 'pubDate', 'item');
         break;
       case constants.xmlSitemapTypes.atom:
-        consoleLogger.info(`This is a Atom format sitemap.`);
+        consoleLogger.info(`This is a Atom format sitemap: ${url}`);
         await processXmlSitemap($, sitemapType, 'link', 'published', 'entry');
         break;
       default:
-        consoleLogger.info(`This is an unrecognised XML sitemap format.`);
+        consoleLogger.info(`This is an unrecognised XML sitemap format: ${url}`);
         processNonStandardSitemap(data);
     }
 
