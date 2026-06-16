@@ -154,6 +154,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         blacklistedPatterns,
         includeScreenshots,
         customFlowLabel && customFlowLabel !== 'None' ? customFlowLabel : '',
+        extraHTTPHeaders,
       );
 
       urlsCrawledObj = res.urlsCrawled;

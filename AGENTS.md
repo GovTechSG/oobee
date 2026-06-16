@@ -220,6 +220,12 @@ docker run oobee node dist/cli.js ...
 
 8. **Crawlee dataset** — Results are stored as numbered JSON files in `{randomToken}/datasets/default/`. Each file is one page's axe results. `generateArtifacts()` reads all of them.
 
+9. **Auth headers and CORS** — Never set `Authorization` in `extraHTTPHeaders` globally on a browser context. Playwright sends `extraHTTPHeaders` to ALL requests (including cross-origin CDNs), which triggers CORS preflight failures. Instead use `splitAuthHeaders()` from `commonCrawlerFunc.ts` to separate auth from non-auth headers:
+    - Non-auth headers → safe to set globally via `extraHTTPHeaders` on context/launch options
+    - Basic auth → set `httpCredentials` on context (Playwright auto-responds to 401 challenges, origin-aware)
+    - Any Authorization header → send only to same-origin requests via `addAuthRouteHandler()` (route interception) or Crawlee's `preNavigationHooks` (navigation-only)
+    - Credentials come from URL-embedded `user:pass@host` or `-m "Authorization Basic ..."` — both produce the same `extraHTTPHeaders.Authorization` value in `prepareData()`
+
 ## Testing Considerations
 
 When making changes, validate these areas which have well-established edge cases:

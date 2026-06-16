@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { chromium, Page } from 'playwright';
 import { EnqueueStrategy } from 'crawlee';
-import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
+import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler } from './commonCrawlerFunc.js';
 import constants, { FileTypes, guiInfoStatusTypes, sitemapPaths } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
@@ -58,6 +58,7 @@ const crawlIntelligentSitemap = async (
     let sitemapLink = '';
 
     const launchOptions = getPlaywrightLaunchOptions(browser);
+    const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
     let context;
     let browserInstance;
 
@@ -65,18 +66,23 @@ const crawlIntelligentSitemap = async (
       const effectiveUserDataDirectory = userDataDirectory || '';
       context = await constants.launcher.launchPersistentContext(effectiveUserDataDirectory, {
         ...launchOptions,
-        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+        ...(httpCredentials && { httpCredentials }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
       register(context);
     } else {
-      // In headful mode, avoid launchPersistentContext to prevent "Browser window not found"
       browserInstance = await constants.launcher.launch(launchOptions);
       register(browserInstance as unknown as { close: () => Promise<void> });
       context = await browserInstance.newContext({
-        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+        ...(httpCredentials && { httpCredentials }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
+    }
+
+    if (authHeader) {
+      await addAuthRouteHandler(context, link, authHeader);
     }
 
     const page = await context.newPage();

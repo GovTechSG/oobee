@@ -1153,6 +1153,45 @@ export const preNavigationHooks = (extraHTTPHeaders: Record<string, string>) => 
   ];
 };
 
+/**
+ * Splits extraHTTPHeaders into auth and non-auth parts.
+ * Auth headers (Authorization) must only be sent to same-origin requests to avoid CORS preflight failures.
+ * Non-auth headers are safe to set globally on the browser context.
+ */
+export const splitAuthHeaders = (extraHTTPHeaders?: Record<string, string>) => {
+  const { Authorization, ...nonAuthHeaders } = extraHTTPHeaders || {};
+  return {
+    authHeader: Authorization || null,
+    nonAuthHeaders: Object.keys(nonAuthHeaders).length > 0 ? nonAuthHeaders : null,
+    httpCredentials: (() => {
+      if (!Authorization?.startsWith('Basic ')) return null;
+      const decoded = Buffer.from(Authorization.slice(6), 'base64').toString();
+      const colonIdx = decoded.indexOf(':');
+      if (colonIdx <= 0) return null;
+      return { username: decoded.slice(0, colonIdx), password: decoded.slice(colonIdx + 1) };
+    })(),
+  };
+};
+
+/**
+ * Adds a route handler to a BrowserContext that sends the Authorization header
+ * only to same-origin requests, preventing CORS preflight failures on cross-origin CDN resources.
+ */
+export const addAuthRouteHandler = async (context: BrowserContext, entryUrl: string, authHeader: string) => {
+  const entryOrigin = new URL(entryUrl).origin;
+  await context.route('**/*', async (route, request) => {
+    try {
+      if (new URL(request.url()).origin === entryOrigin) {
+        await route.continue({ headers: { ...request.headers(), Authorization: authHeader } });
+      } else {
+        await route.continue();
+      }
+    } catch {
+      await route.continue();
+    }
+  });
+};
+
 export const postNavigationHooks = [
   async (_crawlingContext: CrawlingContext) => {
     guiInfoLog(guiInfoStatusTypes.COMPLETED, {});
