@@ -60,7 +60,7 @@ const SENTRY_NODE_VERSION: string = (() => {
   try {
     return _require('@sentry/node/package.json').version as string;
   } catch {
-    return '9.47.1';   // safe fallback matching currently installed version
+    return '10.58.0';   // safe fallback matching currently installed version
   }
 })();
 

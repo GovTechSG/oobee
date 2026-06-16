@@ -11,7 +11,7 @@
     "@aws-sdk/client-s3": "^3.1049.0",
     "@json2csv/node": "^7.0.3",
     "@napi-rs/canvas": "^0.1.53",
-    "@sentry/node": "^9.13.0",
+    "@sentry/node": "^10.58.0",
     "@types/aws-sdk": "^0.0.42",
     "axe-core": "^4.11.4",
     "axios": "^1.8.2",
