@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import readline from 'readline';
+import { consoleLogger } from '../logs.js';
 import type { ItemsInfo } from './types.js';
 
 export interface ItemsStoreEntry {
@@ -16,6 +17,7 @@ export interface ItemsStoreEntry {
 export class ItemsStore {
   private basePath: string;
   private ensuredDirs = new Set<string>();
+  private fileWriteQueues = new Map<string, Promise<void>>();
 
   constructor(storagePath: string) {
     this.basePath = path.join(storagePath, 'tmp-items');
@@ -40,8 +42,25 @@ export class ItemsStore {
   async appendPageItems(category: string, ruleId: string, entry: ItemsStoreEntry): Promise<void> {
     await this.ensureDir(category);
     const filePath = this.getRuleFilePath(category, ruleId);
-    const line = JSON.stringify(entry) + '\n';
-    await fs.appendFile(filePath, line, 'utf8');
+    let line = JSON.stringify(entry);
+
+    // JSON.stringify should never produce literal newlines inside strings, but HTML content
+    // from page evaluation may contain edge-case characters (e.g. unescaped control chars in
+    // non-spec-compliant innerHTML). Strip any embedded \r or \n that would break JSONL format.
+    line = line.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    line += '\n';
+
+    // Serialize writes per rule file to avoid concurrent append interleaving/truncation.
+    const previous = this.fileWriteQueues.get(filePath) ?? Promise.resolve();
+    const next = previous.then(() => fs.appendFile(filePath, line, 'utf8'));
+    this.fileWriteQueues.set(
+      filePath,
+      next.catch(() => {
+        // Keep queue alive for subsequent writes.
+      }),
+    );
+
+    await next;
   }
 
   async *readRuleItems(category: string, ruleId: string): AsyncGenerator<ItemsStoreEntry> {
@@ -51,9 +70,19 @@ export class ItemsStore {
     const fileStream = fs.createReadStream(filePath, { encoding: 'utf8' });
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
+    let lineNumber = 0;
     for await (const line of rl) {
-      if (line.trim()) {
+      lineNumber += 1;
+      if (!line.trim()) continue;
+
+      try {
         yield JSON.parse(line) as ItemsStoreEntry;
+      } catch (error) {
+        // Tolerate malformed/truncated JSONL lines (e.g. interrupted append) so report generation can continue.
+        const preview = line.slice(0, 200);
+        consoleLogger.warn(
+          `Skipping malformed itemsStore JSONL line ${lineNumber} in ${filePath}: ${(error as Error).message}. Content preview: ${preview}`,
+        );
       }
     }
   }
@@ -68,6 +97,7 @@ export class ItemsStore {
   }
 
   async cleanup(): Promise<void> {
+    await Promise.all(this.fileWriteQueues.values());
     await fs.rm(this.basePath, { recursive: true, force: true });
   }
 }

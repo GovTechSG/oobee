@@ -79,6 +79,7 @@ All crawlers use Crawlee's `PlaywrightCrawler` with:
 - Docker detection (`/.dockerenv`): adds `--disable-gpu`, `--no-sandbox`, `--disable-dev-shm-usage`
 - Proxy support (manual, PAC, or none) via `getProxyInfo()`
 - Channel set from browser name (undefined for chromium = bundled)
+- `--mute-audio` is added by default in both headless and headful modes, but must be disabled for `customFlow` by calling `getPlaywrightLaunchOptions(browser, { includeMuteAudio: false })`
 
 ### User-Agent
 
@@ -225,6 +226,8 @@ docker run oobee node dist/cli.js ...
     - Basic auth → set `httpCredentials` on context (Playwright auto-responds to 401 challenges, origin-aware)
     - Any Authorization header → send only to same-origin requests via `addAuthRouteHandler()` (route interception) or Crawlee's `preNavigationHooks` (navigation-only)
     - Credentials come from URL-embedded `user:pass@host` or `-m "Authorization Basic ..."` — both produce the same `extraHTTPHeaders.Authorization` value in `prepareData()`
+
+10. **Intermediate JSONL write safety + corruption tolerance** — `ItemsStore.appendPageItems()` now serializes writes per rule file using an in-memory per-file queue to prevent concurrent append interleaving/truncation. `ItemsStore.readRuleItems()` also tolerates malformed/truncated JSONL lines (for example historical interrupted writes) by logging a warning and skipping only the bad line. Report generation continues with remaining valid entries instead of aborting the entire scan artifact phase.
 
 ## Testing Considerations
 
