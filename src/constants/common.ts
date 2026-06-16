@@ -377,9 +377,21 @@ const checkUrlConnectivityWithBrowser = async (
   } = rawDevice;
 
   const launchOptions = getPlaywrightLaunchOptions(browserToRun);
+  
+  const { Authorization, ...nonAuthHeaders } = extraHTTPHeaders || {};
+  let httpCredentials = undefined;
+  if (Authorization?.startsWith('Basic ')) {
+    const decoded = Buffer.from(Authorization.slice(6), 'base64').toString();
+    const colonIdx = decoded.indexOf(':');
+    if (colonIdx > 0) {
+      httpCredentials = { username: decoded.slice(0, colonIdx), password: decoded.slice(colonIdx + 1) };
+    }
+  }
+
   const contextOptions: Record<string, unknown> = {
     ...restDevice,
-    ...(extraHTTPHeaders && { extraHTTPHeaders }),
+    ...(Object.keys(nonAuthHeaders).length > 0 && { extraHTTPHeaders: nonAuthHeaders }),
+    ...(httpCredentials && { httpCredentials }),
     ignoreHTTPSErrors: true,
     ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
   };
@@ -421,6 +433,24 @@ const checkUrlConnectivityWithBrowser = async (
   }
 
   try {
+    // Only enable generic Authorization header routing interception broadly if 
+    // a non-Basic Bearer auth string is heavily relied upon, thereby bypassing 
+    // performance warnings inside the check checkUrl phase for typical public scans
+    if (Authorization && !httpCredentials) {
+      const entryOrigin = new URL(url).origin;
+      await browserContext.route('**/*', async (route: any, request: any) => {
+        try {
+          if (new URL(request.url()).origin === entryOrigin) {
+            await route.continue({ headers: { ...request.headers(), Authorization } });
+          } else {
+            await route.continue();
+          }
+        } catch {
+          await route.continue();
+        }
+      });
+    }
+
     const page = await browserContext.newPage();
 
     // Block native Chrome download UI
@@ -430,16 +460,6 @@ const checkUrlConnectivityWithBrowser = async (
     } catch (e) {
       consoleLogger.info(`Unable to set download deny: ${(e as Error).message}`);
     }
-
-    // OPTIMIZATION: Block heavy visual resources (Images/Fonts/CSS)
-    // This allows the "Connectivity Check" to pass as soon as HTML is ready
-    await page.route('**/*', (route) => {
-      const type = route.request().resourceType();
-      if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
-        return route.abort(); 
-      }
-      return route.continue();
-    });
 
     // STEP 2: Navigate (follows server-side redirects)
     page.once('download', () => {
