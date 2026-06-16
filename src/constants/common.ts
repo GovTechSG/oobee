@@ -1147,11 +1147,28 @@ export const getLinksFromSitemap = async (
 
         const page = await browserContext.newPage();
 
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+        // Use 'domcontentloaded' instead of 'networkidle' — sitemap XMLs with
+        // XSL stylesheet references (e.g. <?xml-stylesheet ...?>) cause the browser
+        // to fetch and apply the stylesheet, which may load additional resources
+        // (fonts, CSS, images) that prevent 'networkidle' from ever being reached.
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-        if ((await page.locator('body').count()) > 0) {
-          data = await page.locator('body').innerText();
-        } else {
+        // Prefer the raw response body — this gives us the original XML before
+        // the browser applies any XSL transformation (which would turn the XML
+        // into rendered HTML, losing the sitemap structure).
+        if (response) {
+          try {
+            data = await response.text();
+          } catch {
+            // response.text() can fail if the body was already consumed or
+            // if a redirect occurred; fall through to DOM extraction below.
+          }
+        }
+
+        if (!data) {
+          if ((await page.locator('body').count()) > 0) {
+            data = await page.locator('body').innerText();
+          } else {
           const urlSet = page.locator('urlset');
           const sitemapIndex = page.locator('sitemapindex');
           const rss = page.locator('rss');
@@ -1166,6 +1183,7 @@ export const getLinksFromSitemap = async (
             data = await rss.evaluate(elem => elem.outerHTML);
           } else if (await isRoot(feed)) {
             data = await feed.evaluate(elem => elem.outerHTML);
+            }
           }
         }
       } finally {
@@ -1218,7 +1236,7 @@ export const getLinksFromSitemap = async (
 
     switch (sitemapType) {
       case constants.xmlSitemapTypes.xmlIndex:
-        consoleLogger.info(`This is a XML format sitemap index.`);
+        consoleLogger.info(`This is a XML format sitemap index: ${url}`);
         for (const childSitemapUrl of $('loc')) {
           const childSitemapUrlText = $(childSitemapUrl).text();
           if (childSitemapUrlText.endsWith('.xml') || childSitemapUrlText.endsWith('.txt')) {
@@ -1229,19 +1247,19 @@ export const getLinksFromSitemap = async (
         }
         break;
       case constants.xmlSitemapTypes.xml:
-        consoleLogger.info(`This is a XML format sitemap.`);
+        consoleLogger.info(`This is a XML format sitemap: ${url}`);
         await processXmlSitemap($, sitemapType, 'loc', 'lastmod', 'url');
         break;
       case constants.xmlSitemapTypes.rss:
-        consoleLogger.info(`This is a RSS format sitemap.`);
+        consoleLogger.info(`This is a RSS format sitemap: ${url}`);
         await processXmlSitemap($, sitemapType, 'link', 'pubDate', 'item');
         break;
       case constants.xmlSitemapTypes.atom:
-        consoleLogger.info(`This is a Atom format sitemap.`);
+        consoleLogger.info(`This is a Atom format sitemap: ${url}`);
         await processXmlSitemap($, sitemapType, 'link', 'published', 'entry');
         break;
       default:
-        consoleLogger.info(`This is an unrecognised XML sitemap format.`);
+        consoleLogger.info(`This is an unrecognised XML sitemap format: ${url}`);
         processNonStandardSitemap(data);
     }
 
