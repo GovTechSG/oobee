@@ -1177,7 +1177,13 @@ export const splitAuthHeaders = (extraHTTPHeaders?: Record<string, string>) => {
  * Adds a route handler to a BrowserContext that sends the Authorization header
  * only to same-origin requests, preventing CORS preflight failures on cross-origin CDN resources.
  */
-export const addAuthRouteHandler = async (context: BrowserContext, entryUrl: string, authHeader: string) => {
+export const addAuthRouteHandler = async (
+  context: BrowserContext,
+  entryUrl: string,
+  authHeader: string | null
+) => {
+  if (!authHeader) return;
+
   const entryOrigin = new URL(entryUrl).origin;
   await context.route('**/*', async (route, request) => {
     try {
