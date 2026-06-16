@@ -58,7 +58,16 @@ All crawlers use Crawlee's `PlaywrightCrawler` with:
 
 - **`src/mergeAxeResults.ts`** — Main `generateArtifacts()` function, reads Crawlee dataset, builds `allIssues` object, generates all output formats
 - **`src/mergeAxeResults/`** — Sub-modules: `jsonArtifacts.ts` (JSON+base64), `writeCsv.ts`, `writeSitemap.ts`, `scanPages.ts`, `itemsStore.ts`, `types.ts`
+- **`src/mergeAxeResults/sentryTelemetry.ts`** — Sends scan telemetry to Sentry including WCAG breakdown and `additionalScanMetadata`
 - **`src/static/ejs/`** — EJS templates for HTML report and PDF summary
+
+### Sentry Telemetry (`additionalScanMetadata`)
+
+`createRuleIdJson()` and `createBasicFormHTMLSnippet()` produce a JSON object grouped by category (`mustFix`, `goodToFix`, `needsReview`). Each rule entry includes:
+- `snippets` — ETL-processed HTML snippets (only for rules in `oobeeAiRules`)
+- `occurrences` — total item count
+- `htmlGroupHashes` — truncated SHA-256 hashes of each unique `html\x00xpath` group, stable across scans for remediation tracking
+- `htmlGroupHashesCount` — count of unique HTML groups
 
 ## Browser Handling
 

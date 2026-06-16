@@ -5,6 +5,7 @@ import printMessage from 'print-message';
 import path from 'path';
 import ejs from 'ejs';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
 import { Dataset, RequestQueue, Configuration } from 'crawlee';
 import constants, {
   BrowserTypes,
@@ -695,7 +696,17 @@ export const createRuleIdJson = async (allIssues, itemsStore?: ItemsStore) => {
         allItems = rule.pagesAffected.flatMap(page => page.items || []);
       }
 
-      compiledRuleJson[category][rule.rule] = extractRuleAiData(rule.rule, rule.totalItems, allItems);
+      const ruleData = extractRuleAiData(rule.rule, rule.totalItems, allItems);
+
+      // Stable hashes of html+xpath groups for tracking remediation across scans in Sentry
+      const htmlGroupHashes: string[] = [];
+      if (rule.htmlGroups) {
+        for (const key of Object.keys(rule.htmlGroups)) {
+          htmlGroupHashes.push(createHash('sha256').update(key).digest('hex').slice(0, 12));
+        }
+      }
+
+      compiledRuleJson[category][rule.rule] = { ...ruleData, htmlGroupHashes, htmlGroupHashesCount: htmlGroupHashes.length };
     }
   }
 
@@ -712,7 +723,19 @@ export const createBasicFormHTMLSnippet = filteredResults => {
     if (filteredResults[category] && filteredResults[category].rules) {
       Object.entries(filteredResults[category].rules).forEach(
         ([ruleId, ruleVal]: [string, any]) => {
-          compiledRuleJson[category][ruleId] = extractRuleAiData(ruleId, ruleVal.totalItems, ruleVal.items);
+          const ruleData = extractRuleAiData(ruleId, ruleVal.totalItems, ruleVal.items);
+
+          // Stable hashes of html+xpath groups for tracking remediation across scans in Sentry
+          const htmlGroupSet = new Set<string>();
+          if (ruleVal.items) {
+            ruleVal.items.forEach((item: any) => {
+              const key = `${item.html || 'No HTML element'}\x00${item.xpath || ''}`;
+              htmlGroupSet.add(createHash('sha256').update(key).digest('hex').slice(0, 12));
+            });
+          }
+
+          const htmlGroupHashes = [...htmlGroupSet];
+          compiledRuleJson[category][ruleId] = { ...ruleData, htmlGroupHashes, htmlGroupHashesCount: htmlGroupHashes.length };
         },
       );
     }
