@@ -46,8 +46,12 @@ export class ItemsStore {
 
     // JSON.stringify should never produce literal newlines inside strings, but HTML content
     // from page evaluation may contain edge-case characters (e.g. unescaped control chars in
-    // non-spec-compliant innerHTML). Strip any embedded \r or \n that would break JSONL format.
-    line = line.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    // non-spec-compliant innerHTML). Strip any embedded \r or \n that would break JSONL format readline parsing.
+    line = line.replace(/[\n\r]/g, (match) => {
+      if (match === '\n') return '\\n';
+      if (match === '\r') return '\\r';
+      return match;
+    });
     line += '\n';
 
     // Serialize writes per rule file to avoid concurrent append interleaving/truncation.

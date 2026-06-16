@@ -227,7 +227,7 @@ docker run oobee node dist/cli.js ...
     - Any Authorization header → send only to same-origin requests via `addAuthRouteHandler()` (route interception) or Crawlee's `preNavigationHooks` (navigation-only)
     - Credentials come from URL-embedded `user:pass@host` or `-m "Authorization Basic ..."` — both produce the same `extraHTTPHeaders.Authorization` value in `prepareData()`
 
-10. **Intermediate JSONL write safety + corruption tolerance** — `ItemsStore.appendPageItems()` now serializes writes per rule file using an in-memory per-file queue to prevent concurrent append interleaving/truncation. `ItemsStore.readRuleItems()` also tolerates malformed/truncated JSONL lines (for example historical interrupted writes) by logging a warning and skipping only the bad line. Report generation continues with remaining valid entries instead of aborting the entire scan artifact phase.
+10. **Intermediate JSONL write safety + corruption tolerance** — `ItemsStore.appendPageItems()` requires strict serialization of writes per rule file to prevent interleaved corruption. It also enforces a strict text sanitization regex to filter out literal `\n` and `\r` control characters from website HTML inputs immediately after `JSON.stringify()`. This ensures no single JSON issue accidentally injects illegal implicit newline boundaries when writing to JSONL format. Maintain backward-compatible `fs.appendFile` queues over buffered WriteStreams to guarantee pipeline sync visibility. `ItemsStore.readRuleItems()` tolerates historical malformed lines via fallback skip logic.
 
 ## Testing Considerations
 
