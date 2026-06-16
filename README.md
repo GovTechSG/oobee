@@ -417,6 +417,21 @@ Examples:
   > [ -d <device> | -w <viewport_width> ]
 
 ```
+
+### Basic Auth
+
+For sites behind HTTP Basic Authentication, you can provide credentials in two ways:
+
+1. **Embed in URL**: `npm run cli -- -u 'https://user:password@example.com' -c 3`
+2. **Use `-m` flag**: `npm run cli -- -u 'https://example.com' -c 3 -m "Authorization Basic dXNlcjpwYXNzd29yZA=="`
+
+Both methods work across all scan types (sitemap, website, custom flow). For multiple headers, separate with `, `:
+```
+-m "Authorization Basic dXNlcjpwYXNz, X-Custom-Header myvalue"
+```
+
+> **Note:** Authorization headers are only sent to same-origin requests to avoid CORS preflight failures on cross-origin resources (e.g., CDN fonts, analytics scripts).
+
 ### Note on Windows PowerShell:
 You need to run the command as `npm run cli -- --` (with the extra set of `--`) as PowerShell interprets arguments differently.
 

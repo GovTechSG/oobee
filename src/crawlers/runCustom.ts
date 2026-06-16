@@ -1,5 +1,5 @@
 /* eslint-env browser */
-import { createCrawleeSubFolders } from './commonCrawlerFunc.js';
+import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler } from './commonCrawlerFunc.js';
 import { cleanUpAndExit, register, registerSoftClose } from '../utils.js';
 import constants, {
   getIntermediateScreenshotsPath,
@@ -60,6 +60,7 @@ const runCustom = async (
   blacklistedPatterns: string[] | null,
   includeScreenshots: boolean,
   initialCustomFlowLabel?: string,
+  extraHTTPHeaders?: Record<string, string>,
 ) => {
   // checks and delete datasets path if it already exists
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
@@ -109,6 +110,8 @@ const runCustom = async (
       ...customArgs,
     ];
 
+    const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
+
     const context = await constants.launcher.launchPersistentContext(userDataDirectory, {
       ...baseLaunchOptions,
       args: mergedArgs,
@@ -118,7 +121,13 @@ const runCustom = async (
       viewport: null,
       ...(hasCustomViewport ? contextDeviceOptions : {}),
       userAgent: process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined),
+      ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+      ...(httpCredentials && { httpCredentials }),
     });
+
+    if (authHeader) {
+      await addAuthRouteHandler(context, url, authHeader);
+    }
 
     register(context);
 

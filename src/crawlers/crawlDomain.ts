@@ -9,6 +9,7 @@ import {
   isUrlPdf,
   shouldSkipClickDueToDisallowedHref,
   shouldSkipDueToUnsupportedContent,
+  splitAuthHeaders,
 } from './commonCrawlerFunc.js';
 import constants, {
   UrlsCrawled,
@@ -385,6 +386,8 @@ const crawlDomain = async ({
     specifiedMaxConcurrency || constants.maxConcurrency,
   );
 
+  const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
+
   const crawler = register(
     new crawlee.PlaywrightCrawler({
       launchContext: {
@@ -404,12 +407,20 @@ const crawlDomain = async ({
               ...playwrightDeviceDetailsObject,
               ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
-              ...(extraHTTPHeaders && { extraHTTPHeaders }),
+              ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+              ...(httpCredentials && { httpCredentials }),
             };
           },
         ],
       },
       requestQueue,
+      preNavigationHooks: [
+        async (crawlingContext) => {
+          if (extraHTTPHeaders) {
+            crawlingContext.request.headers = extraHTTPHeaders;
+          }
+        },
+      ],
       postNavigationHooks: [
         async crawlingContext => {
           const { page, request } = crawlingContext;
