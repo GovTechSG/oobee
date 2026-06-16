@@ -3,9 +3,9 @@
  * DO NOT EDIT MANUALLY. Re-generate with: node dist/generateOobeeClientScanner.js
  *
  * Embedded at generation time:
- *   App version : 0.10.92
+ *   App version : 0.10.93
  *   Sentry DSN  : (from OOBEE_SENTRY_DSN env var or constants.ts default)
- *   Sentry SDK  : @sentry/browser 9.47.1 (loaded from CDN at runtime)
+ *   Sentry SDK  : @sentry/browser 10.58.0 (loaded from CDN at runtime)
  *
  * Usage:
  *   <script src="oobee-client-scanner.js"></script>
@@ -34883,8 +34883,8 @@
   // ── Sentry browser telemetry (Sentry JS SDK, loaded from CDN) ────────────
   
   var _oobeeSentryDsn          = "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168";
-  var _oobeeAppVersion         = "0.10.92";
-  var _oobeeSentryVersion      = "9.47.1";
+  var _oobeeAppVersion         = "0.10.93";
+  var _oobeeSentryVersion      = "10.58.0";
   var _oobeeSentryInitialized  = false;
   var _oobeeSentryLoadPromise  = null;
 
@@ -35090,6 +35090,37 @@
 
       // Run axe-core + oobee custom checks
       var scanResult = await window.runA11yScan(elementsToScan, '');
+
+      // Re-verify aria-hidden-focus violations against the live DOM to handle
+      // race conditions with JS that sets tabindex="-1" after aria-hidden
+      var axeViolations = scanResult.axeScanResults.violations || [];
+      var ariaHiddenViolation = axeViolations.find(function(v) { return v.id === 'aria-hidden-focus'; });
+      if (ariaHiddenViolation) {
+        await new Promise(function(resolve) { setTimeout(resolve, 0); });
+        ariaHiddenViolation.nodes = ariaHiddenViolation.nodes.filter(function(node) {
+          var selector = node.target && node.target[0];
+          if (typeof selector !== 'string') return true;
+          try {
+            var el = document.querySelector(selector);
+            if (!el) return true;
+            var focusables = el.querySelectorAll(
+              'a[href], area[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]'
+            );
+            if (focusables.length === 0) return false;
+            return Array.from(focusables).some(function(child) {
+              var tabindex = child.getAttribute('tabindex');
+              if (tabindex === null) return true;
+              var parsed = parseInt(tabindex, 10);
+              return isNaN(parsed) || parsed >= 0;
+            });
+          } catch (e) { return true; }
+        });
+        if (ariaHiddenViolation.nodes.length === 0) {
+          scanResult.axeScanResults.violations = axeViolations.filter(function(v) {
+            return v.id !== 'aria-hidden-focus';
+          });
+        }
+      }
 
       // Convert raw axe results into oobee category structure
       var filtered = _oobeeFilterAxeResults(scanResult.axeScanResults, scanResult.pageTitle);
