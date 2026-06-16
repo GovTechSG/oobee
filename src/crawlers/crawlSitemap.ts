@@ -4,7 +4,7 @@ import fs from 'fs';
 import {
   createCrawleeSubFolders,
   getPreLaunchHook,
-  preNavigationHooks,
+  splitAuthHeaders,
   runAxeScript,
   isUrlPdf,
 } from './commonCrawlerFunc.js';
@@ -86,6 +86,8 @@ const crawlSitemap = async ({
     specifiedMaxConcurrency || constants.maxConcurrency,
   );
 
+  const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
+
   if (fromCrawlIntelligentSitemap) {
     dataset = datasetFromIntelligent;
     urlsCrawled = urlsCrawledFromIntelligent;
@@ -142,6 +144,8 @@ const crawlSitemap = async ({
               ...playwrightDeviceDetailsObject,
               ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
+              ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+              ...(httpCredentials && { httpCredentials }),
             };
           },
         ],
@@ -197,7 +201,8 @@ const crawlSitemap = async ({
         },
       ],
       preNavigationHooks: [
-        async ({ request, page }, gotoOptions) => {
+        async (crawlingContext) => {
+          const { request } = crawlingContext;
           const url = request.url.toLowerCase();
 
           const isNotSupportedDocument = disallowedListOfPatterns.some(pattern =>
@@ -214,7 +219,9 @@ const crawlSitemap = async ({
             return;
           }
 
-          preNavigationHooks(extraHTTPHeaders);
+          if (extraHTTPHeaders) {
+            request.headers = extraHTTPHeaders;
+          }
         },
       ],
       requestHandlerTimeoutSecs: 90,
