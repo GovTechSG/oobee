@@ -197,6 +197,7 @@ const crawlSitemap = async ({
         },
       ],
       preNavigationHooks: [
+        ...preNavigationHooks(extraHTTPHeaders),
         async ({ request, page }, gotoOptions) => {
           const url = request.url.toLowerCase();
 
@@ -213,8 +214,6 @@ const crawlSitemap = async ({
 
             return;
           }
-
-          preNavigationHooks(extraHTTPHeaders);
         },
       ],
       requestHandlerTimeoutSecs: 90,
