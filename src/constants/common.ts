@@ -569,7 +569,7 @@ export const isSitemapContent = (content: string) => {
   }
 
   const regexForHtml = new RegExp('<(?:!doctype html|html|head|body)+?>', 'gmi');
-  const regexForXmlSitemap = new RegExp('<(?:urlset|feed|rss)+?.*>', 'gmi');
+  const regexForXmlSitemap = new RegExp('<(?:urlset|sitemapindex|feed|rss)+?.*>', 'gmi');
   if (content.match(regexForHtml) && content.match(regexForXmlSitemap)) {
     // is an XML sitemap wrapped in a HTML document
     return true;
@@ -1009,6 +1009,8 @@ export const getLinksFromSitemap = async (
   const scannedSitemaps = new Set<string>();
   const sitemapLinkCounts: Record<string, number> = {};
   const allUrls = new Set<string>(); // all discovered URLs (lightweight strings)
+  const isImageSitemapUrl = (candidateUrl: string) =>
+    /(^|\/)image-sitemap(?:-index)?(?:-\d+)?\.xml(?:$|[?#])/i.test(candidateUrl);
 
   const addToUrlList = (url: string) => {
     if (!url) return;
@@ -1091,6 +1093,11 @@ export const getLinksFromSitemap = async (
   const fetchUrls = async (url: string, extraHTTPHeaders: Record<string, string>) => {
     let data;
     let sitemapType;
+
+    if (isImageSitemapUrl(url)) {
+      consoleLogger.info(`Skipping image sitemap: ${url}`);
+      return;
+    }
 
     if (scannedSitemaps.has(url)) {
       // Skip processing if the sitemap has already been scanned
@@ -1216,18 +1223,31 @@ export const getLinksFromSitemap = async (
 
     // Root element
     const root = $(':root')[0];
+    const hasImageNamespace = Object.values(root?.attribs ?? {}).some(
+      attribVal => typeof attribVal === 'string' && attribVal.toLowerCase().includes('sitemap-image'),
+    );
 
-    const { xmlns } = root.attribs;
+    if (hasImageNamespace) {
+      consoleLogger.info(`Skipping image sitemap: ${url}`);
+      return;
+    }
 
-    const xmlFormatNamespace = '/schemas/sitemap';
-    if (root.name === 'urlset' && xmlns.includes(xmlFormatNamespace)) {
+    const rootName = root?.name?.toLowerCase().split(':').pop() ?? '';
+    const hasXmlSitemapIndexTag = /<\s*(?:[a-z0-9_-]+:)?sitemapindex\b/i.test(data);
+    const hasXmlUrlsetTag = /<\s*(?:[a-z0-9_-]+:)?urlset\b/i.test(data);
+
+    if (rootName === 'urlset') {
       sitemapType = constants.xmlSitemapTypes.xml;
-    } else if (root.name === 'sitemapindex' && xmlns.includes(xmlFormatNamespace)) {
+    } else if (rootName === 'sitemapindex') {
       sitemapType = constants.xmlSitemapTypes.xmlIndex;
-    } else if (root.name === 'rss') {
+    } else if (rootName === 'rss') {
       sitemapType = constants.xmlSitemapTypes.rss;
-    } else if (root.name === 'feed') {
+    } else if (rootName === 'feed') {
       sitemapType = constants.xmlSitemapTypes.atom;
+    } else if (hasXmlSitemapIndexTag) {
+      sitemapType = constants.xmlSitemapTypes.xmlIndex;
+    } else if (hasXmlUrlsetTag) {
+      sitemapType = constants.xmlSitemapTypes.xml;
     } else {
       sitemapType = constants.xmlSitemapTypes.unknown;
     }
@@ -1238,8 +1258,17 @@ export const getLinksFromSitemap = async (
       case constants.xmlSitemapTypes.xmlIndex:
         consoleLogger.info(`This is a XML format sitemap index: ${url}`);
         for (const childSitemapUrl of $('loc')) {
-          const childSitemapUrlText = $(childSitemapUrl).text();
-          if (childSitemapUrlText.endsWith('.xml') || childSitemapUrlText.endsWith('.txt')) {
+          const childSitemapUrlText = $(childSitemapUrl).text().trim();
+          if (!childSitemapUrlText) {
+            continue;
+          }
+
+          const childSitemapPath = childSitemapUrlText.split(/[?#]/)[0].toLowerCase();
+          if (childSitemapPath.endsWith('.xml') || childSitemapPath.endsWith('.txt')) {
+            if (isImageSitemapUrl(childSitemapUrlText)) {
+              consoleLogger.info(`Skipping image sitemap: ${childSitemapUrlText}`);
+              continue;
+            }
             await fetchUrls(childSitemapUrlText, extraHTTPHeaders); // Recursive call for nested sitemaps
           } else {
             addToUrlList(childSitemapUrlText); // Add regular URLs to the list
