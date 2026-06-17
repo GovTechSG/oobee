@@ -5,6 +5,7 @@ import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
 import {
   createCrawleeSubFolders,
   getPreLaunchHook,
+  preNavigationHooks,
   runAxeScript,
   isUrlPdf,
   shouldSkipClickDueToDisallowedHref,
@@ -415,11 +416,7 @@ const crawlDomain = async ({
       },
       requestQueue,
       preNavigationHooks: [
-        async (crawlingContext) => {
-          if (extraHTTPHeaders) {
-            crawlingContext.request.headers = extraHTTPHeaders;
-          }
-        },
+        ...preNavigationHooks(extraHTTPHeaders),
       ],
       postNavigationHooks: [
         async crawlingContext => {
