@@ -120,15 +120,36 @@
 
   .priority-issue-item {
     padding: 0.75rem;
-    cursor: pointer;
     position: relative;
     padding-left: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .priority-issue-action {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    line-height: 1.5;
+  }
+
+  .priority-issue-action > .w-90 {
+    width: 100% !important;
   }
 
   .priority-issue-item::before {
     counter-increment: issue-counter;
     content: counter(issue-counter) '.';
     line-height: 1.5;
+    margin-right: 0.5rem;
+    flex-shrink: 0;
   }
 
   .priority-issue-item:hover:not(.active) {
