@@ -1145,7 +1145,7 @@ export const createCrawleeSubFolders = async (
 export const preNavigationHooks = (extraHTTPHeaders: Record<string, string>) => {
   return [
     async (crawlingContext: CrawlingContext, gotoOptions: PlaywrightGotoOptions) => {
-      if (extraHTTPHeaders) {
+      if (extraHTTPHeaders && Object.keys(extraHTTPHeaders).length > 0) {
         crawlingContext.request.headers = extraHTTPHeaders;
       }
       gotoOptions = { waitUntil: 'networkidle', timeout: 30000 };
