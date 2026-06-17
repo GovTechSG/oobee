@@ -7,6 +7,7 @@ import {
   preNavigationHooks,
   runAxeScript,
   isUrlPdf,
+  splitAuthHeaders,
 } from './commonCrawlerFunc.js';
 
 import constants, {
@@ -119,6 +120,7 @@ const crawlSitemap = async ({
   const isScanPdfs = [FileTypes.All, FileTypes.PdfOnly].includes(fileTypes as FileTypes);
   const { playwrightDeviceDetailsObject } = viewportSettings;
   const { maxConcurrency } = constants;
+  const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
 
   const requestList = await RequestList.open({
     sources: linksFromSitemap,
@@ -142,6 +144,8 @@ const crawlSitemap = async ({
               ...playwrightDeviceDetailsObject,
               ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
+              ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+              ...(httpCredentials && { httpCredentials }),
             };
           },
         ],
