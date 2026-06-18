@@ -86,6 +86,7 @@ const crawlSitemap = async ({
     maxRequestsPerCrawl,
     specifiedMaxConcurrency || constants.maxConcurrency,
   );
+  const initialNoSuccessFailureAbortThreshold = Math.max(5, Math.min(maxRequestsPerCrawl, 25));
 
   if (fromCrawlIntelligentSitemap) {
     dataset = datasetFromIntelligent;
@@ -151,6 +152,8 @@ const crawlSitemap = async ({
         ],
       },
       requestList,
+      maxRequestRetries: 3,
+      maxSessionRotations: 1,
       postNavigationHooks: [
         async ({ page }) => {
           try {
@@ -452,6 +455,17 @@ const crawlSitemap = async ({
           httpStatusCode: typeof status === 'number' ? status : 0,
         });
         crawlee.log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
+
+        if (
+          urlsCrawled.scanned.length === 0 &&
+          urlsCrawled.error.length >= initialNoSuccessFailureAbortThreshold
+        ) {
+          consoleLogger.info(
+            `Aborting sitemap crawl: ${urlsCrawled.error.length} failed pages with 0 successful scans.`,
+          );
+          isAbortingScan = true;
+          crawler.autoscaledPool?.abort();
+        }
       },
       maxRequestsPerCrawl: Infinity,
       maxConcurrency: specifiedMaxConcurrency || maxConcurrency,

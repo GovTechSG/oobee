@@ -597,8 +597,22 @@ export const checkUrl = async (
   extraHTTPHeaders: Record<string, string>,
   fileTypes: FileTypes,
 ) => {
+  let urlToCheck = url;
+
+  if (scanner === ScannerTypes.LOCALFILE) {
+    if (!isFilePath(url)) {
+      const res = new RES();
+      res.status = constants.urlCheckStatuses.notALocalFile.code;
+      return res;
+    }
+
+    if (!url.toLowerCase().startsWith('file://')) {
+      urlToCheck = pathToFileURL(path.resolve(url)).toString();
+    }
+  }
+
   const res = await checkUrlConnectivityWithBrowser(
-    url,
+    urlToCheck,
     browser,
     clonedDataDir,
     playwrightDeviceDetailsObject,
@@ -686,6 +700,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     ruleset,
     generateJsonFiles,
     scanDuration,
+    finalUrl,
   } = argv;
 
   const extraHTTPHeaders = parseHeaders(header);
@@ -718,6 +733,10 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     temp.password = '';
     url = temp.toString();
   }
+
+  // Keep browser-resolved URL (if provided by pre-check flow) as canonical entry URL.
+  // For local file paths, keep using the normalized `url` value below.
+  const resolvedEntryUrl = finalUrl && !isFilePath(finalUrl) ? finalUrl : url;
 
   // construct filename for scan results
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
@@ -763,7 +782,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   return {
     type: scanner,
     url,
-    entryUrl: url,
+    entryUrl: resolvedEntryUrl,
     isHeadless: headless,
     deviceChosen,
     customDevice,
@@ -1219,10 +1238,16 @@ export const getLinksFromSitemap = async (
     }
 
     const $ = cheerio.load(data, { xml: true });
+    const countBefore = allUrls.size;
 
     // This case is when the document is not an XML format document
     if ($(':root').length === 0) {
       processNonStandardSitemap(data);
+
+      const linksFromThisSitemap = allUrls.size - countBefore;
+      if (linksFromThisSitemap > 0) {
+        sitemapLinkCounts[url] = (sitemapLinkCounts[url] || 0) + linksFromThisSitemap;
+      }
       return;
     }
 
@@ -1256,8 +1281,6 @@ export const getLinksFromSitemap = async (
     } else {
       sitemapType = constants.xmlSitemapTypes.unknown;
     }
-
-    const countBefore = allUrls.size;
 
     switch (sitemapType) {
       case constants.xmlSitemapTypes.xmlIndex:
@@ -2243,6 +2266,7 @@ export const isFilePath = (url: string): boolean => {
   const driveLetterPattern = /^[A-Z]:/i;
   const backslashPattern = /\\/;
   return (
+    url.toLowerCase().startsWith('file://') ||
     url.startsWith('/') ||
     driveLetterPattern.test(url) ||
     backslashPattern.test(url) ||

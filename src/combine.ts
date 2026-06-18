@@ -45,6 +45,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   const {
     type,
     url,
+    entryUrl,
     nameEmail,
     randomToken,
     deviceChosen,
@@ -104,8 +105,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
   // remove basic-auth credentials from URL
   const finalUrl = !(type === ScannerTypes.SITEMAP || type === ScannerTypes.LOCALFILE)
-    ? new URL(url)
-    : new URL(pathToFileURL(url));
+    ? new URL(entryUrl)
+    : new URL(pathToFileURL(entryUrl));
 
   // Use the string version of finalUrl to reduce logic at submitForm
   const finalUrlString = finalUrl.toString();
