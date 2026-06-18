@@ -415,6 +415,8 @@ const crawlDomain = async ({
         ],
       },
       requestQueue,
+      maxRequestRetries: 3,
+      maxSessionRotations: 1,
       preNavigationHooks: [
         ...preNavigationHooks(extraHTTPHeaders),
       ],

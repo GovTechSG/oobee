@@ -151,6 +151,8 @@ const crawlSitemap = async ({
         ],
       },
       requestList,
+      maxRequestRetries: 3,
+      maxSessionRotations: 1,
       postNavigationHooks: [
         async ({ page }) => {
           try {
