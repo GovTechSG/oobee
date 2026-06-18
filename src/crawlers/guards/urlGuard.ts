@@ -35,8 +35,18 @@ export function addUrlGuardScript(context, opts = {}) {
       });
 
     const restoreToSafeUrl = async (page, attemptedUrl) => {
+      const safeUrl = lastAllowedUrlByPage.get(page) || fallbackUrl || 'about:blank';
+      // Only redirect if the safe URL is itself an allowed (http/https) URL.
+      // If the entry URL is file:// (e.g. scanning a local HTML file), the
+      // fallback is also file://, and redirecting would create an infinite loop:
+      //   file:// → restoreToSafeUrl → file:// → framenavigated → restoreToSafeUrl → …
       try {
-        const safeUrl = lastAllowedUrlByPage.get(page) || fallbackUrl || 'about:blank';
+        const safeObj = new URL(safeUrl);
+        if (!ALLOWED_PROTOCOLS.has(safeObj.protocol)) return;
+      } catch {
+        return;
+      }
+      try {
         await page.goto(safeUrl, { waitUntil: 'domcontentloaded' });
       } catch {
         // page might be closing; ignore
@@ -58,6 +68,13 @@ export function addUrlGuardScript(context, opts = {}) {
         lastAllowedUrlByPage.set(page, urlObj.toString());
         return;
       }
+
+      // Skip browser-internal transitional states (about:blank, about:srcdoc, etc.).
+      // page.goto() navigates through about:blank before loading the target URL.
+      // Redirecting from about: creates an infinite loop:
+      //   restoreToSafeUrl → page.goto(safeUrl) → about:blank → restoreToSafeUrl → …
+      if (urlObj.protocol === 'about:') return;
+
       await restoreToSafeUrl(page, urlStr);
     });
   };
