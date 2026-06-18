@@ -6,18 +6,32 @@
   const lightboxContent = document.getElementsByClassName('lightbox-content')[0];
   const lightboxImg = document.getElementById('lightbox-image');
 
-  var customFlowScreenshots = document.getElementsByClassName('custom-flow-screenshot');
-  Array.from(customFlowScreenshots).forEach(screenshot => {
-    screenshot.onerror = function (event) {
-      screenshot.onerror = null;
-      screenshot.remove();
-    };
-    screenshot.onclick = event => {
-      event.preventDefault();
-      const pageTitle = screenshot.parentNode.getElementsByTagName('a')[0].textContent;
-      const pageUrl = screenshot.parentNode.getElementsByTagName('a')[0].href;
-      openLightbox(screenshot.src, pageTitle, pageUrl);
-    };
+  // Handle dynamically inserted custom-flow screenshots (about scan modal content is rendered later)
+  document.addEventListener(
+    'error',
+    event => {
+      const target = event.target;
+      if (target && target.classList && target.classList.contains('custom-flow-screenshot')) {
+        target.onerror = null;
+        target.remove();
+      }
+    },
+    true,
+  );
+
+  document.addEventListener('click', event => {
+    const screenshot = event.target.closest('.custom-flow-screenshot');
+    if (!screenshot) return;
+
+    event.preventDefault();
+
+    const container = screenshot.closest('.custom-flow-screenshot-container');
+    const link = container ? container.querySelector('.display-url-container a') : null;
+
+    const pageTitle = link?.textContent?.trim() || screenshot.getAttribute('alt') || 'Screenshot';
+    const pageUrl = link?.href || '';
+
+    openLightbox(screenshot.src, pageTitle, pageUrl);
   });
 
   lightbox.addEventListener('click', event => {

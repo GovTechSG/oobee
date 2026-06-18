@@ -6,6 +6,7 @@
   #scan-about > ul {
     padding-left: 0;
     padding-top: 0;
+    padding-bottom: 1rem;
     margin-top: 0;
     margin-bottom: 0;
   }
@@ -90,10 +91,14 @@
   }
 
   .about-scan-toggle .about-us-type-of-scan-text {
-    color: var(--a11y-majorelle-blue);
+    color: var(--a11y-majorelle-blue) !important;
     display: inline;
     text-decoration: underline;
     cursor: pointer;
+  }
+
+  #pagesScannedModalToggleTxt {
+    color: var(--a11y-majorelle-blue) !important;
   }
   .about-scan-toggle:hover .about-us-type-of-scan-text,
   .about-scan-toggle .about-us-type-of-scan-text:focus-visible {

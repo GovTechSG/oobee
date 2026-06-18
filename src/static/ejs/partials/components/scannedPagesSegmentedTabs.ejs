@@ -1,9 +1,12 @@
 <div class="segmented-tabs" role="tablist" aria-label="Crawl views">
   <button
     type="button"
+    id="seg-scanned"
     class="seg-pill"
+    role="tab"
     aria-controls="pages-scanned"
     aria-selected="true"
+    tabindex="0"
     data-tab-target="#pages-scanned"
   >
     <span id="totalPagesScannedLabel">
@@ -18,8 +21,10 @@
     type="button"
     id="seg-not-scanned"
     class="seg-pill"
+    role="tab"
     aria-controls="pages-not-scanned"
     aria-selected="false"
+    tabindex="-1"
     data-tab-target="#pages-not-scanned"
   >
     <span id="totalPagesNotScannedLabel">
@@ -34,8 +39,10 @@
     type="button"
     id="seg-unsupported"
     class="seg-pill"
+    role="tab"
     aria-controls="pages-unsupported"
     aria-selected="false"
+    tabindex="-1"
     data-tab-target="#pages-unsupported"
   >
     <span id="totalUnsupportedDocsLabel">

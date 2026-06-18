@@ -5,17 +5,17 @@
     </h2>
     <%- include('../../scannedPagesSegmentedTabs') %>
     <div class="seg-panels">
-      <div id="pages-scanned" role="tabpanel">
+      <div id="pages-scanned" role="tabpanel" aria-labelledby="seg-scanned">
         <ul id="pagesScannedList" class="unbulleted-list">
           <!-- dynamically populated -->
         </ul>
       </div>
-      <div id="pages-not-scanned" role="tabpanel" hidden>
+      <div id="pages-not-scanned" role="tabpanel" aria-labelledby="seg-not-scanned" hidden>
         <ul id="pagesNotScannedList" class="unbulleted-list">
           <!-- dynamically populated -->
         </ul>
       </div>
-      <div id="pages-unsupported" role="tabpanel" hidden>
+      <div id="pages-unsupported" role="tabpanel" aria-labelledby="seg-unsupported" hidden>
         <ul id="unsupportedDocsList" class="unbulleted-list">
           <!-- dynamically populated -->
         </ul>
