@@ -1148,7 +1148,10 @@ export const preNavigationHooks = (extraHTTPHeaders: Record<string, string>) => 
       if (extraHTTPHeaders && Object.keys(extraHTTPHeaders).length > 0) {
         crawlingContext.request.headers = extraHTTPHeaders;
       }
-      gotoOptions = { waitUntil: 'networkidle', timeout: 30000 };
+      if (gotoOptions) {
+        gotoOptions.waitUntil = 'networkidle';
+        gotoOptions.timeout = 30000;
+      }
     },
   ];
 };
