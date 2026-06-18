@@ -597,6 +597,12 @@ export const checkUrl = async (
   extraHTTPHeaders: Record<string, string>,
   fileTypes: FileTypes,
 ) => {
+  if (scanner === ScannerTypes.LOCALFILE && !url.toLowerCase().startsWith('file://')) {
+    const res = new RES();
+    res.status = constants.urlCheckStatuses.notALocalFile.code;
+    return res;
+  }
+
   const res = await checkUrlConnectivityWithBrowser(
     url,
     browser,
@@ -686,6 +692,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     ruleset,
     generateJsonFiles,
     scanDuration,
+    finalUrl,
   } = argv;
 
   const extraHTTPHeaders = parseHeaders(header);
@@ -718,6 +725,10 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     temp.password = '';
     url = temp.toString();
   }
+
+  // Keep browser-resolved URL (if provided by pre-check flow) as canonical entry URL.
+  // For local file paths, keep using the normalized `url` value below.
+  const resolvedEntryUrl = finalUrl && !isFilePath(finalUrl) ? finalUrl : url;
 
   // construct filename for scan results
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
@@ -763,7 +774,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   return {
     type: scanner,
     url,
-    entryUrl: url,
+    entryUrl: resolvedEntryUrl,
     isHeadless: headless,
     deviceChosen,
     customDevice,
