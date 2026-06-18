@@ -1228,19 +1228,32 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
 
         if (!allowed) {
-          await Promise.race([
-            removeOverlayMenu(page),
-            new Promise((_, reject) => {
-              setTimeout(() => {
-                reject(
-                  new Error(
-                    `removeOverlayMenu timed out after ${OVERLAY_OPERATION_TIMEOUT_MS}ms`,
-                  ),
-                );
-              }, OVERLAY_OPERATION_TIMEOUT_MS);
-            }),
-          ]);
-          return;
+          // On macOS and Windows the custom flow always runs headful.
+          // The URL guard (urlGuard.ts) intercepts non-http/https navigations
+          // and calls page.goto(safeUrl). Do NOT remove the overlay here —
+          // removing it causes it to stay permanently disabled if the redirect
+          // races ahead of the next reconcile cycle.
+          // Instead, fall through to the hasOverlay / addOverlayMenu block so
+          // the overlay is (re-)injected even on transient non-http/https URLs
+          // (e.g. file://, about:blank) and again after the guard's redirect.
+          const isDesktopHost = process.platform === 'darwin' || process.platform === 'win32';
+          if (!isDesktopHost) {
+            // On Linux / Docker: remove overlay for non-http/https URLs and stop.
+            await Promise.race([
+              removeOverlayMenu(page),
+              new Promise((_, reject) => {
+                setTimeout(() => {
+                  reject(
+                    new Error(
+                      `removeOverlayMenu timed out after ${OVERLAY_OPERATION_TIMEOUT_MS}ms`,
+                    ),
+                  );
+                }, OVERLAY_OPERATION_TIMEOUT_MS);
+              }),
+            ]);
+            return;
+          }
+          // Desktop hosts: skip removal and fall through to re-add overlay.
         }
 
         const hasOverlay = await page.evaluate(() =>
