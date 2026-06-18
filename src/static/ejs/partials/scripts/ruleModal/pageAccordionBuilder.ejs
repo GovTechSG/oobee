@@ -451,7 +451,7 @@
             <div id="${accordionId}-content" class="accordion-collapse collapse" aria-labelledby="${accordionId}-title">
               <div class="accordion-body p-3">
                 ${isCustomFlow
-                  ? createCustomFlowContent(page)
+                  ? createCustomFlowContent(page, ruleInCategory)
                   :
                   `<div class="d-flex align-items-center gap-1 accordion-link" style="    word-wrap: break-word; word-break: break-word;">
                     <a href="${page.url}" target="_blank">${page.url}
@@ -486,16 +486,46 @@
     return accordion;
   }
 
-  function createCustomFlowContent(page) {
+  function getCustomFlowPageScreenshot(page, ruleInCategory) {
+    if (page && page.pageImagePath) return page.pageImagePath;
+
+    // Use same source-of-truth as scanAboutModal.
+    const scannedPages =
+      typeof scanData !== 'undefined' &&
+      scanData &&
+      Array.isArray(scanData.pagesScanned)
+        ? scanData.pagesScanned
+        : [];
+
+    if (page) {
+      const matchByUrl = scannedPages.find((p) => p && p.url === page.url && p.pageImagePath);
+      if (matchByUrl) return matchByUrl.pageImagePath;
+
+      const matchByTitle = scannedPages.find(
+        (p) => p && p.pageTitle === page.pageTitle && p.pageImagePath,
+      );
+      if (matchByTitle) return matchByTitle.pageImagePath;
+    }
+
+    return '';
+  }
+
+  function createCustomFlowContent(page, ruleInCategory) {
+    const pageScreenshot = getCustomFlowPageScreenshot(page, ruleInCategory);
+
     return `
       <div class="custom-flow-screenshot-container">
           <div class="custom-flow-thumb">
-            <img
-              src="${page.pageImagePath}"
-              alt="Screenshot of ${page.url}"
-              class="custom-flow-screenshot"
-              onerror="this.onerror = null; this.remove();"
-            >
+            ${
+              pageScreenshot
+                ? `<img
+                    src="${pageScreenshot}"
+                    alt="Screenshot of ${page.url}"
+                    class="custom-flow-screenshot"
+                    onerror="this.onerror = null; this.remove();"
+                  >`
+                : ''
+            }
           </div>
           <div class="display-url-container">
             <div><a href="${page.url}" target="_blank">${page.url}</a></div>
@@ -538,6 +568,7 @@
 
   function setupCustomFlowScreenshot(accordion, page) {
     const customScreenshotElem = accordion.getElementsByClassName('custom-flow-screenshot')[0];
+    if (!customScreenshotElem) return;
 
     customScreenshotElem.onerror = function(event) {
       this.onerror = null;
