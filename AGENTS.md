@@ -264,6 +264,16 @@ When making changes, validate these areas which have well-established edge cases
 - `document.title` must be captured at the START of `runAxeScript()`, before axe scanning or screenshot capture. Pages can close during these operations (timeout, navigation, crash). Never create a new page just to re-navigate for the title — this leaks pages.
 - The URL guard script in custom flow must be defensive against pages that close unexpectedly. All page event handlers should handle closed contexts gracefully.
 
+### URL Guard & Overlay Management in Custom Flow
+
+`src/crawlers/guards/urlGuard.ts` — attached via `addUrlGuardScript()` in `runCustom.ts`:
+
+- **`restoreToSafeUrl` must validate the safe URL before calling `page.goto()`**. If the entry URL is `file://` (e.g. `-u '/path/to/report.html'`), `fallbackUrl` is also `file://`. Redirecting to it fires another `framenavigated` for `file://`, which re-triggers `restoreToSafeUrl` → infinite reload loop. Always check `ALLOWED_PROTOCOLS.has(safeObj.protocol)` before navigating; if the fallback is not http/https, return without redirecting.
+
+- **`about:` protocol must be skipped in `framenavigated`**. Chromium fires `framenavigated` for `about:blank` as a transient intermediate state during every `page.goto()` call. Intercepting it and calling `restoreToSafeUrl` → `page.goto(safeUrl)` → `about:blank` → `restoreToSafeUrl` → … creates a second infinite loop. Always `return` early when `urlObj.protocol === 'about:'`.
+
+- **`reconcileOverlayMenu` must not remove the overlay on macOS/Windows**. On `darwin`/`win32` the custom flow runs headful. When `isOverlayAllowed` returns `false` (e.g. transient `file://` or `about:blank` URL), do **not** call `removeOverlayMenu` — the URL guard will redirect back to the safe URL momentarily. Instead, fall through to the `hasOverlay` / `addOverlayMenu` block so the overlay is (re-)injected regardless of the current URL protocol. On Linux/Docker (headless) the removal behaviour is unchanged.
+
 ### Proxy & Network
 - Proxy detection must handle `ALL_PROXY` on Windows. The proxy resolution logic should be tested on all platforms.
 
