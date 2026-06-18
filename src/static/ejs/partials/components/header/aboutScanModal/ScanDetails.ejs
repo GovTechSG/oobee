@@ -1,5 +1,5 @@
 <aside id="scan-about" class="about-scan-details-left">
-  <h1>About this scan</h1>
+  <h1 id="aboutScanModalLabel">About this scan</h1>
   <ul>
     <li>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -33,7 +33,9 @@
       </span>
     </li>
 
-    <hr class="about-scan-divider" />
+    <li class="about-scan-divider-item" aria-hidden="true">
+      <hr class="about-scan-divider" />
+    </li>
 
     <% if (viewport !== null) { %>
       <li>
@@ -64,7 +66,7 @@
         type="button"
         class="js-view-btn about-scan-toggle"
         aria-controls="view-crawl"
-        aria-selected="true"
+        aria-expanded="true"
       >
         <div class="d-flex">
           <div class="about-scan-link-row">
@@ -82,30 +84,33 @@
         <path d="M13.2346 8.78333C13.2668 8.53333 13.2828 8.275 13.2828 8C13.2828 7.73333 13.2668 7.46667 13.2266 7.21667L14.857 5.9C15.0016 5.78333 15.0418 5.55833 14.9534 5.39167L13.4113 2.625C13.315 2.44167 13.1142 2.38333 12.9375 2.44167L11.0179 3.24167C10.6163 2.925 10.1906 2.65833 9.71675 2.45833L9.42761 0.341667C9.39548 0.141667 9.23485 0 9.04209 0H5.95791C5.76515 0 5.61255 0.141667 5.58042 0.341667L5.29128 2.45833C4.81741 2.65833 4.3837 2.93333 3.99015 3.24167L2.07057 2.44167C1.89387 2.375 1.69308 2.44167 1.5967 2.625L0.0626475 5.39167C-0.0337329 5.56667 -0.00160615 5.78333 0.159028 5.9L1.78946 7.21667C1.7493 7.46667 1.71718 7.74167 1.71718 8C1.71718 8.25833 1.73324 8.53333 1.7734 8.78333L0.142964 10.1C-0.00160614 10.2167 -0.0417645 10.4417 0.0465841 10.6083L1.58867 13.375C1.68505 13.5583 1.88584 13.6167 2.06254 13.5583L3.98212 12.7583C4.3837 13.075 4.80938 13.3417 5.28325 13.5417L5.57239 15.6583C5.61255 15.8583 5.76515 16 5.95791 16H9.04209C9.23485 16 9.39548 15.8583 9.41958 15.6583L9.70872 13.5417C10.1826 13.3417 10.6163 13.075 11.0099 12.7583L12.9294 13.5583C13.1061 13.625 13.3069 13.5583 13.4033 13.375L14.9454 10.6083C15.0418 10.425 15.0016 10.2167 14.849 10.1L13.2346 8.78333ZM7.5 11C5.90972 11 4.60859 9.65 4.60859 8C4.60859 6.35 5.90972 5 7.5 5C9.09028 5 10.3914 6.35 10.3914 8C10.3914 9.65 9.09028 11 7.5 11Z" fill="#686868"/>
       </svg>
 
-      <div>
-        Advanced scan options enabled
+      <div class="advanced-group-content">
+        <div>
+          Advanced scan options enabled
+        </div>
+
+        <ul class="advanced-sublist">
+          <% if (advancedScanOptionsSummaryItems.showIncludeScreenshots) { %>
+            <li class="advanced-sublist-li">Include screenshots</li>
+          <% } %>
+          <% if (advancedScanOptionsSummaryItems.showAllowSubdomains) { %>
+            <li class="advanced-sublist-li">Allow subdomains for scans</li>
+          <% } %>
+          <% if (advancedScanOptionsSummaryItems.showEnableCustomChecks) { %>
+            <li class="advanced-sublist-li">Enable custom checks</li>
+          <% } %>
+          <% if (advancedScanOptionsSummaryItems.showEnableWcagAaa) { %>
+            <li class="advanced-sublist-li">Enable WCAG AAA checks</li>
+          <% } %>
+          <% if (advancedScanOptionsSummaryItems.showSlowScanMode) { %>
+            <li class="advanced-sublist-li">Slow scan mode</li>
+          <% } %>
+          <% if (advancedScanOptionsSummaryItems.showAdhereRobots) { %>
+            <li class="advanced-sublist-li">Adhere to robots.txt</li>
+          <% } %>
+        </ul>
       </div>
     </li>
-    <ul class="advanced-sublist">
-      <% if (advancedScanOptionsSummaryItems.showIncludeScreenshots) { %>
-        <li class="advanced-sublist-li">Include screenshots</li>
-      <% } %>
-      <% if (advancedScanOptionsSummaryItems.showAllowSubdomains) { %>
-        <li class="advanced-sublist-li">Allow subdomains for scans</li>
-      <% } %>
-      <% if (advancedScanOptionsSummaryItems.showEnableCustomChecks) { %>
-        <li class="advanced-sublist-li">Enable custom checks</li>
-      <% } %>
-      <% if (advancedScanOptionsSummaryItems.showEnableWcagAaa) { %>
-        <li class="advanced-sublist-li">Enable WCAG AAA checks</li>
-      <% } %>
-      <% if (advancedScanOptionsSummaryItems.showSlowScanMode) { %>
-        <li class="advanced-sublist-li">Slow scan mode</li>
-      <% } %>
-      <% if (advancedScanOptionsSummaryItems.showAdhereRobots) { %>
-        <li class="advanced-sublist-li">Adhere to robots.txt</li>
-      <% } %>
-    </ul>
 
     <li>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -115,7 +120,7 @@
         type="button"
         class="js-view-btn about-scan-toggle"
         aria-controls="view-wcag"
-        aria-selected="false"
+        aria-expanded="false"
       >
         <span class="wcag-criteria-label">
           WCAG Automated Testing
@@ -131,7 +136,9 @@
       </button>
     </li>
 
-    <hr class="about-scan-divider" />
+    <li class="about-scan-divider-item" aria-hidden="true">
+      <hr class="about-scan-divider" />
+    </li>
 
     <li>
       <span id="oobeeAppVersion" class="oobee-version-text">N/A</span>

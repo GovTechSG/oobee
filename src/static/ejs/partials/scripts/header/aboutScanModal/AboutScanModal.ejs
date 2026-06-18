@@ -6,8 +6,8 @@
     function showPane(targetId) {
       // hide all panes
       panes.forEach(p => p.hidden = true);
-      // deselect all buttons
-      btns.forEach(b => b.setAttribute('aria-selected', 'false'));
+      // collapse all buttons
+      btns.forEach(b => b.setAttribute('aria-expanded', 'false'));
 
       // show the requested pane
       const pane = document.getElementById(targetId);
@@ -16,7 +16,7 @@
 
         // mark the controlling button active
         const btn = btns.find(b => b.getAttribute('aria-controls') === targetId);
-        if (btn) btn.setAttribute('aria-selected', 'true');
+        if (btn) btn.setAttribute('aria-expanded', 'true');
 
         // move focus to the pane heading for screen readers/keyboard users
         const h = pane.querySelector('h4, h3, h2, [role="heading"]');
