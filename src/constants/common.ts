@@ -359,8 +359,11 @@ const checkUrlConnectivityWithBrowser = async (
     }
   }
 
-  // Ensure Accept header for non-html content fallback
-  extraHTTPHeaders.Accept ||= 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
+  // Ensure Accept header for non-html content fallback — use a local copy to avoid
+  // mutating the caller's extraHTTPHeaders object (which is later checked by crawlers
+  // to decide whether to enable preNavigationHooks header rewriting).
+  const localHeaders = { ...extraHTTPHeaders };
+  localHeaders.Accept ||= 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
 
   await initModifiedUserAgent(browserToRun, playwrightDeviceDetailsObject, clonedDataDir);
 
@@ -378,7 +381,7 @@ const checkUrlConnectivityWithBrowser = async (
 
   const launchOptions = getPlaywrightLaunchOptions(browserToRun);
   
-  const { Authorization, ...nonAuthHeaders } = extraHTTPHeaders || {};
+  const { Authorization, ...nonAuthHeaders } = localHeaders || {};
   let httpCredentials = undefined;
   if (Authorization?.startsWith('Basic ')) {
     const decoded = Buffer.from(Authorization.slice(6), 'base64').toString();
@@ -436,19 +439,21 @@ const checkUrlConnectivityWithBrowser = async (
     // Only enable generic Authorization header routing interception broadly if 
     // a non-Basic Bearer auth string is heavily relied upon, thereby bypassing 
     // performance warnings inside the check checkUrl phase for typical public scans
-    if (Authorization && !httpCredentials) {
-      const entryOrigin = new URL(url).origin;
-      await browserContext.route('**/*', async (route: any, request: any) => {
-        try {
-          if (new URL(request.url()).origin === entryOrigin) {
-            await route.continue({ headers: { ...request.headers(), Authorization } });
-          } else {
+    if (Object.keys(localHeaders).length > 0) {
+      if (Authorization && !httpCredentials) {
+        const entryOrigin = new URL(url).origin;
+        await browserContext.route('**/*', async (route: any, request: any) => {
+          try {
+            if (new URL(request.url()).origin === entryOrigin) {
+              await route.continue({ headers: { ...request.headers(), Authorization } });
+            } else {
+              await route.continue();
+            }
+          } catch {
             await route.continue();
           }
-        } catch {
-          await route.continue();
-        }
-      });
+        });
+      }
     }
 
     const page = await browserContext.newPage();

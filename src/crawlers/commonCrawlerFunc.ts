@@ -1145,10 +1145,19 @@ export const createCrawleeSubFolders = async (
 export const preNavigationHooks = (extraHTTPHeaders: Record<string, string>) => {
   return [
     async (crawlingContext: CrawlingContext, gotoOptions: PlaywrightGotoOptions) => {
-      if (extraHTTPHeaders) {
+      if (extraHTTPHeaders && Object.keys(extraHTTPHeaders).length > 0) {
         crawlingContext.request.headers = extraHTTPHeaders;
       }
-      gotoOptions = { waitUntil: 'networkidle', timeout: 30000 };
+      // Use domcontentloaded — fires as soon as the DOM is parsed, before
+      // images/stylesheets/network requests settle. This avoids indefinite
+      // hangs on sites with WebSockets, analytics polling, or infinite-scroll
+      // beacons that never reach networkidle. Further page stability is
+      // handled by waitForPageLoaded() in each crawler's requestHandler and
+      // by the DOM mutation observer in postNavigationHooks.
+      if (gotoOptions) {
+        gotoOptions.waitUntil = 'domcontentloaded';
+        gotoOptions.timeout = 30000;
+      }
     },
   ];
 };
