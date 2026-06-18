@@ -45,8 +45,9 @@
   });
 
   const offcanvasElem = document.getElementsByClassName('offcanvas')[0];
+  let offcanvasItem = null;
   if (offcanvasElem) {
-    const offcanvasItem = new bootstrap.Offcanvas(offcanvasElem);
+    offcanvasItem = new bootstrap.Offcanvas(offcanvasElem);
     offcanvasItem._config.keyboard = false; // Disable default keyboard handling
   }
 
@@ -57,27 +58,30 @@
     pagesScannedModalItem._config.keyboard = false;
   }
 
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') {
-      if (offcanvasItem._isShown) {
-        if (lightbox.style.display === 'block') {
-          event.preventDefault(); // Prevent default bootstrap behaviour
-          closeLightbox();
-        } else {
-          offcanvasItem.hide();
-        }
+  // Use capture phase so lightbox handles Escape before Bootstrap modal/offcanvas handlers.
+  document.addEventListener(
+    'keydown',
+    event => {
+      if (event.key !== 'Escape') return;
+
+      if (lightbox.style.display === 'block') {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        closeLightbox();
+        return;
       }
 
-      if (pagesScannedModalItem._isShown) {
-        if (lightbox.style.display === 'block') {
-          event.preventDefault(); // Prevent default bootstrap behaviour
-          closeLightbox();
-        } else {
-          pagesScannedModalItem.hide();
-        }
+      if (offcanvasItem && offcanvasItem._isShown) {
+        offcanvasItem.hide();
       }
-    }
-  });
+
+      if (pagesScannedModalItem && pagesScannedModalItem._isShown) {
+        pagesScannedModalItem.hide();
+      }
+    },
+    true,
+  );
 
   function openLightbox(imgSrc, pageTitle, pageUrl) {
     lightbox.style.display = 'block';
