@@ -89,6 +89,13 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       consoleLogger.info(`Suppressed Crawlee ps-tree locale error: ${err.message}`);
       return;
     }
+    // Suppress stale Playwright in-process connection errors that fire asynchronously
+    // after the browser is closed in writeSummaryPdf. The deferred IPC message arrives
+    // via setImmediate after the browser instance has already been disposed.
+    if (err.message?.includes('was not bound in the connection')) {
+      consoleLogger.info(`Suppressed Playwright post-close connection error: ${err.message}`);
+      return;
+    }
     throw err;
   };
   process.on('uncaughtException', psTreeHandler);
