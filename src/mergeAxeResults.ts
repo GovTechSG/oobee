@@ -525,26 +525,40 @@ const pushResults = async (pageResults, allIssues, isCustomFlow, itemsStore: Ite
           metadata,
           itemsCount: items.length,
         };
-        await itemsStore.appendPageItems(category, rule, {
-          url,
-          pageTitle,
-          items,
-          pageIndex,
-          pageImagePath,
-          metadata,
-        });
+        // Disk space: skip storing passed items in itemsStore.
+        // To revert, remove the `if` guard and use the original call directly:
+        // await itemsStore.appendPageItems(category, rule, {
+        //   url, pageTitle, items, pageIndex, pageImagePath, metadata,
+        // });
+        if (category !== 'passed') {
+          await itemsStore.appendPageItems(category, rule, {
+            url,
+            pageTitle,
+            items,
+            pageIndex,
+            pageImagePath,
+            metadata,
+          });
+        }
       } else if (!(url in currRuleFromAllIssues.pagesAffected)) {
         currRuleFromAllIssues.pagesAffected[url] = {
           pageTitle,
           itemsCount: items.length,
           ...(filePath && { filePath }),
         };
-        await itemsStore.appendPageItems(category, rule, {
-          url,
-          pageTitle,
-          items,
-          ...(filePath && { filePath }),
-        });
+        // Disk space: skip storing passed items in itemsStore.
+        // To revert, remove the `if` guard and use the original call directly:
+        // await itemsStore.appendPageItems(category, rule, {
+        //   url, pageTitle, items, ...(filePath && { filePath }),
+        // });
+        if (category !== 'passed') {
+          await itemsStore.appendPageItems(category, rule, {
+            url,
+            pageTitle,
+            items,
+            ...(filePath && { filePath }),
+          });
+        }
       }
     }
   }
@@ -924,7 +938,9 @@ const generateArtifacts = async (
   populateScanPagesDetail(allIssues);
 
   // Build htmlGroups in a second pass from disk-backed items
-  for (const category of ['mustFix', 'goodToFix', 'needsReview', 'passed'] as const) {
+  // Disk space: 'passed' removed from this loop (no items stored in itemsStore for passed).
+  // To revert, restore: ['mustFix', 'goodToFix', 'needsReview', 'passed']
+  for (const category of ['mustFix', 'goodToFix', 'needsReview'] as const) {
     for (const rule of allIssues.items[category].rules) {
       for await (const entry of itemsStore.readRuleItems(category, rule.rule)) {
         buildHtmlGroups(rule, entry.items, entry.url);

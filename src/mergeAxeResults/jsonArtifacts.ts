@@ -292,9 +292,14 @@ const writeJsonAndBase64Files = async (
   const { items, ...rest } = allIssues;
   const { jsonFilePath: scanDataJsonFilePath, base64FilePath: scanDataBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(rest, storagePath, 'scanData');
+  // Disk space: passed items excluded from scanItems.json to reduce disk usage.
+  // Passed counts are still in scanData.json and the embedded report payload (scanItems-light).
+  // To revert, remove the destructure line and restore the original argument:
+  // { oobeeAppVersion: allIssues.oobeeAppVersion, ...items }
+  const { passed: _passedItems, ...itemsWithoutPassed } = items;
   const { jsonFilePath: scanItemsJsonFilePath, base64FilePath: scanItemsBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(
-      { oobeeAppVersion: allIssues.oobeeAppVersion, ...items },
+      { oobeeAppVersion: allIssues.oobeeAppVersion, ...itemsWithoutPassed },
       storagePath,
       'scanItems',
       itemsStore,

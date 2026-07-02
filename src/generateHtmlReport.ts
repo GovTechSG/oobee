@@ -126,6 +126,18 @@ export const generateHtmlReport = async (
     const scanData = JSON.parse(await fs.readFile(scanDataJsonPath, 'utf8'));
     const scanItemsAll = JSON.parse(await fs.readFile(scanItemsJsonPath, 'utf8'));
 
+    // Disk space: passed may be absent from scanItems.json (excluded to reduce disk usage).
+    // Provide an empty-category fallback so convertItemsToReferences does not crash.
+    // To revert (when passed is restored in scanItems.json), remove this block.
+    if (!scanItemsAll.passed) {
+      scanItemsAll.passed = {
+        description: itemTypeDescription.passed,
+        totalItems: 0,
+        totalRuleIssues: 0,
+        rules: [],
+      };
+    }
+
     // Build the lighter scanItems payload used by the HTML report.
     const lightScanItemsPayload = convertItemsToReferences({
       items: scanItemsAll,
@@ -141,7 +153,7 @@ export const generateHtmlReport = async (
       mustFix: ensureCategory(mustFix, 'mustFix'),
       goodToFix: ensureCategory(goodToFix, 'goodToFix'),
       needsReview: ensureCategory(needsReview, 'needsReview'),
-      passed: ensureCategory(scanItemsAll.passed || {}, 'passed'),
+      passed: ensureCategory(scanItemsAll.passed, 'passed'),
     };
 
     const pagesScanned = Array.isArray(scanData.pagesScanned) ? scanData.pagesScanned : [];
