@@ -359,6 +359,11 @@ const writeSummaryPdf = async (
   browser: string,
   _userDataDirectory: string,
 ) => {
+  // Flush stale browser temp files before launching PDF browser
+  if (process.env.TMPDIR) {
+    fs.emptyDirSync(process.env.TMPDIR);
+  }
+
   const renderPdfWithBrowser = async (browserToUse: string) => {
     let browserInstance;
     let context;

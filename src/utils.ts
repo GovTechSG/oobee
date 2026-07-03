@@ -388,6 +388,12 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
     consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
   }
 
+  if (process.env.TMPDIR) try {
+    fs.rmSync(process.env.TMPDIR, { recursive: true, force: true });
+  } catch (error) {
+    consoleLogger.warn(`Unable to force remove browser tmp dir: ${error.message}`);
+  }
+
   if (randomToken !== undefined) {
     const storagePath = getStoragePath(randomToken);
 
