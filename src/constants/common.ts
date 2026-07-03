@@ -1497,11 +1497,13 @@ export const getBrowserToRun = (
  * after checkingUrl and unable to utilise same cookie for scan
  * */
 export const getClonedProfilesWithRandomToken = (browser: string, randomToken: string): string => {
-  // In Docker, redirect browser temp files into the scan's user data directory to avoid /tmp ENOSPC
+  // In Docker, redirect browser temp files away from /tmp to avoid ENOSPC.
+  // Keep the path short — Chrome creates Unix sockets inside TMPDIR-based paths,
+  // and socket paths are limited to 107 bytes on Linux.
   if (fs.existsSync('/.dockerenv')) {
     const baseDir = getDefaultChromiumDataDir();
     if (baseDir) {
-      const scanTmpDir = path.join(baseDir, `oobee-${randomToken}`, 'tmp');
+      const scanTmpDir = path.join(baseDir, 'tmp');
       fs.mkdirSync(scanTmpDir, { recursive: true });
       process.env.TMPDIR = scanTmpDir;
     }
