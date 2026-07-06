@@ -39,6 +39,10 @@ export const errorsTxtPath = path.join(basePath, `${uuid}.txt`);
 
 const consoleLogger = createLogger({
   silent: !(process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE),
+  // exitOnError: false — Winston logs uncaught exceptions but does not call process.exit().
+  // Process lifecycle is controlled by psTreeHandler in combine.ts, which suppresses known
+  // benign errors (e.g. Playwright post-close connection errors) and rethrows real ones.
+  exitOnError: false,
   format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
   transports: [
     new transports.Console({ level: 'info' }),
@@ -54,6 +58,8 @@ const consoleLogger = createLogger({
 // Also used in common functions to not link internal information
 // if running from mass scanner, log out errors in console
 const silentLogger = createLogger({
+  // exitOnError: false — see consoleLogger comment above.
+  exitOnError: false,
   format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
   transports: [
     new transports.File({ 
