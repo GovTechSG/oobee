@@ -1500,10 +1500,11 @@ export const getClonedProfilesWithRandomToken = (browser: string, randomToken: s
   // In Docker, redirect browser temp files away from /tmp to avoid ENOSPC.
   // Keep the path short — Chrome creates Unix sockets inside TMPDIR-based paths,
   // and socket paths are limited to 107 bytes on Linux.
+  // Use process.pid to isolate concurrent scan instances.
   if (fs.existsSync('/.dockerenv')) {
     const baseDir = getDefaultChromiumDataDir();
     if (baseDir) {
-      const scanTmpDir = path.join(baseDir, 'tmp');
+      const scanTmpDir = path.join(baseDir, 'tmp', String(process.pid));
       fs.mkdirSync(scanTmpDir, { recursive: true });
       process.env.TMPDIR = scanTmpDir;
     }

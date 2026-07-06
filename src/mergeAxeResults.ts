@@ -359,9 +359,14 @@ const writeSummaryPdf = async (
   browser: string,
   _userDataDirectory: string,
 ) => {
-  // Flush stale browser temp files before launching PDF browser
-  if (process.env.TMPDIR) {
-    fs.emptyDirSync(process.env.TMPDIR);
+  // Flush stale browser temp files before launching PDF browser (Docker only,
+  // where TMPDIR is a per-scan subdirectory we control).
+  if (process.env.TMPDIR && fs.existsSync('/.dockerenv')) {
+    try {
+      fs.emptyDirSync(process.env.TMPDIR);
+    } catch {
+      // Best-effort; locked files from prior browser sessions are non-fatal.
+    }
   }
 
   const renderPdfWithBrowser = async (browserToUse: string) => {
