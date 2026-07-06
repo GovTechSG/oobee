@@ -14,7 +14,7 @@ Oobee (CLI) allows software engineers to run Oobee as part of their software dev
 - Google Chrome browser is [installed](https://www.google.com/chrome).
 - One-time Internet access is needed to download and install Oobee (CLI).
 - You are recommended to be logged on to an admin user to run Oobee (CLI).
-* Note that Apple has discontinued support for developing Intel-based apps in [future macOS versions](https://support.apple.com/en-us/102527).  Oobee will discontinue supporting on Intel-based Mac when that happens.
+- Note that Apple has discontinued support for developing Intel-based apps in [future macOS versions](https://support.apple.com/en-us/102527).  Oobee will discontinue support on Intel-based Mac when that happens.
 
 ## Windows
 
