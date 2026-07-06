@@ -41,6 +41,7 @@ import {
 } from './pdfScanFunc.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
+import { capturePageData } from './pageCapture.js';
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
@@ -660,6 +661,8 @@ const crawlDomain = async ({
             }
 
             const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
+
+            await capturePageData(page, actualUrl, randomToken);
 
             // Detect JS redirects that fire during/after axe scan.
             // Listen for navigation, then give a brief window for pending redirects to complete.

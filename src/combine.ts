@@ -18,6 +18,7 @@ import {
   getS3UploadPrefix,
   uploadFolderToS3,
 } from './services/s3Uploader.js';
+import { writeManifest, resetCaptureEntries } from './crawlers/pageCapture.js';
 
 // Class exports
 export class ViewportSettingsClass {
@@ -285,6 +286,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   if (scanDetails.urlsCrawled) {
     if (scanDetails.urlsCrawled.scanned.length > 0) {
       await createAndUpdateResultsFolders(randomToken);
+      await writeManifest(randomToken);
+      resetCaptureEntries();
       const pagesNotScanned = [
         ...urlsCrawledObj.error,
         ...urlsCrawledObj.invalid,

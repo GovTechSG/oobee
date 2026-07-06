@@ -1,0 +1,172 @@
+import fs from 'fs-extra';
+import path from 'path';
+import crypto from 'crypto';
+import { Page, devices } from 'playwright';
+import { getStoragePath } from '../utils.js';
+
+const MOBILE_VIEWPORT_WIDTH = devices['iPhone 11'].viewport.width;
+const MOBILE_VIEWPORT_HEIGHT = devices['iPhone 11'].viewport.height;
+
+export interface PageCaptureEntry {
+  url: string;
+  hash: string;
+  domFile?: string;
+  desktopScreenshot?: string;
+  mobileScreenshot?: string;
+  errors: string[];
+}
+
+const captureEntries: Map<string, PageCaptureEntry> = new Map();
+
+export function getUrlHash(url: string): string {
+  return crypto.createHash('sha256').update(url).digest('hex').slice(0, 7);
+}
+
+function getTruncatedPath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    let pathStr = parsed.pathname + (parsed.search || '');
+    pathStr = pathStr.replace(/^\//, '').replace(/\//g, '_').replace(/[^a-zA-Z0-9\-_.]/g, '_');
+    if (pathStr.length > 80) {
+      pathStr = pathStr.slice(0, 80);
+    }
+    return pathStr || 'index';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function getPageDomsDir(randomToken: string): string {
+  const storagePath = getStoragePath(randomToken);
+  return path.join(storagePath, 'page-doms');
+}
+
+async function getUniqueFilePath(dir: string, baseName: string, ext: string): Promise<string> {
+  let candidate = path.join(dir, `${baseName}${ext}`);
+  if (!await fs.pathExists(candidate)) return candidate;
+
+  let counter = 2;
+  while (await fs.pathExists(candidate)) {
+    candidate = path.join(dir, `${baseName}-${counter}${ext}`);
+    counter++;
+  }
+  return candidate;
+}
+
+function getRelativeName(filePath: string, baseDir: string): string {
+  return path.relative(baseDir, filePath).replace(/\\/g, '/');
+}
+
+export function isSaveDomEnabled(): boolean {
+  return process.env.OOBEE_SAVE_DOM === '1' || process.env.OOBEE_SAVE_DOM === 'true';
+}
+
+export function isSavePageScreenshotEnabled(): boolean {
+  return (
+    process.env.OOBEE_SAVE_PAGE_SCREENSHOT === '1' ||
+    process.env.OOBEE_SAVE_PAGE_SCREENSHOT === 'true'
+  );
+}
+
+export function isPageCaptureEnabled(): boolean {
+  return isSaveDomEnabled() || isSavePageScreenshotEnabled();
+}
+
+export async function capturePageData(
+  page: Page,
+  url: string,
+  randomToken: string,
+): Promise<void> {
+  if (!isPageCaptureEnabled()) return;
+
+  const hash = getUrlHash(url);
+  const truncatedPath = getTruncatedPath(url);
+  const fileName = `${hash}-${truncatedPath}`;
+  const pageDomsDir = getPageDomsDir(randomToken);
+
+  const entry: PageCaptureEntry = {
+    url,
+    hash,
+    errors: [],
+  };
+
+  if (isSaveDomEnabled()) {
+    try {
+      await fs.ensureDir(pageDomsDir);
+      const domContent = await page.content();
+      const domFilePath = await getUniqueFilePath(pageDomsDir, fileName, '.html');
+      await fs.writeFile(domFilePath, domContent, 'utf-8');
+      entry.domFile = `page-doms/${getRelativeName(domFilePath, pageDomsDir)}`;
+    } catch (err) {
+      entry.errors.push(`DOM save failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  if (isSavePageScreenshotEnabled()) {
+    const desktopDir = path.join(pageDomsDir, 'desktop-page-screenshots');
+    const mobileDir = path.join(pageDomsDir, 'mobile-page-screenshots');
+
+    try {
+      await fs.ensureDir(desktopDir);
+      const desktopPath = await getUniqueFilePath(desktopDir, fileName, '.png');
+      await page.screenshot({ path: desktopPath, fullPage: true });
+      entry.desktopScreenshot = `page-doms/desktop-page-screenshots/${getRelativeName(desktopPath, desktopDir)}`;
+    } catch (err) {
+      entry.errors.push(
+        `Desktop screenshot failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    try {
+      await fs.ensureDir(mobileDir);
+      const currentViewport = page.viewportSize();
+
+      await page.setViewportSize({
+        width: MOBILE_VIEWPORT_WIDTH,
+        height: MOBILE_VIEWPORT_HEIGHT,
+      });
+      await page.waitForTimeout(500);
+
+      const mobilePath = await getUniqueFilePath(mobileDir, fileName, '.png');
+      await page.screenshot({ path: mobilePath, fullPage: true });
+      entry.mobileScreenshot = `page-doms/mobile-page-screenshots/${getRelativeName(mobilePath, mobileDir)}`;
+
+      if (currentViewport) {
+        await page.setViewportSize(currentViewport);
+      }
+    } catch (err) {
+      entry.errors.push(
+        `Mobile screenshot failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  captureEntries.set(url, entry);
+}
+
+export async function writeManifest(randomToken: string): Promise<void> {
+  if (!isPageCaptureEnabled()) return;
+  if (captureEntries.size === 0) return;
+
+  const pageDomsDir = getPageDomsDir(randomToken);
+  await fs.ensureDir(pageDomsDir);
+
+  const manifest = {
+    generatedAt: new Date().toISOString(),
+    pages: Array.from(captureEntries.values()).map(entry => ({
+      url: entry.url,
+      hash: entry.hash,
+      ...(entry.domFile && { domFile: entry.domFile }),
+      ...(entry.desktopScreenshot && { desktopScreenshot: entry.desktopScreenshot }),
+      ...(entry.mobileScreenshot && { mobileScreenshot: entry.mobileScreenshot }),
+      errors: entry.errors,
+    })),
+  };
+
+  const manifestPath = path.join(pageDomsDir, 'dom-manifest.json');
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+}
+
+export function resetCaptureEntries(): void {
+  captureEntries.clear();
+}
