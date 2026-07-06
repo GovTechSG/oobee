@@ -388,7 +388,7 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
     consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
   }
 
-  if (process.env.TMPDIR) try {
+  if (process.env.TMPDIR && fs.existsSync('/.dockerenv')) try {
     fs.rmSync(process.env.TMPDIR, { recursive: true, force: true });
   } catch (error) {
     consoleLogger.warn(`Unable to force remove browser tmp dir: ${error.message}`);
