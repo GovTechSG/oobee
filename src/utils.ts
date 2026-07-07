@@ -2,6 +2,7 @@ import { execSync, spawnSync } from 'child_process';
 import path from 'path';
 import os from 'os';
 import fs from 'fs-extra';
+import { globSync } from 'glob';
 import axe, { Rule } from 'axe-core';
 import { v4 as uuidv4 } from 'uuid';
 import { getDomain } from 'tldts';
@@ -382,10 +383,22 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
     randomToken = constants.randomToken;
   }
 
-  if (constants.userDataDirectory) try {
-    fs.rmSync(constants.userDataDirectory, { recursive: true, force: true });
-  } catch (error) {
-    consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
+  if (constants.userDataDirectory) {
+    try {
+      fs.rmSync(constants.userDataDirectory, { recursive: true, force: true });
+    } catch (error) {
+      consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
+    }
+
+    // Also remove _pool* sibling directories created by browser pool re-launches
+    const poolDirs = globSync(`${constants.userDataDirectory}_pool*`);
+    for (const dir of poolDirs) {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch (error) {
+        consoleLogger.warn(`Unable to force remove pool directory ${dir}: ${error.message}`);
+      }
+    }
   }
 
   if (process.env.TMPDIR && fs.existsSync('/.dockerenv')) try {
