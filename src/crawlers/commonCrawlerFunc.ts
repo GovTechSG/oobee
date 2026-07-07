@@ -1233,6 +1233,13 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
     // For pool re-launches, best-effort clone profile data from base directory
     // so authenticated sessions are preserved across browser pool retirements.
     if (launchCount > 1) {
+      const skipDirs = new Set([
+        'Singleton', 'lockfile', 'LOCK',
+        'Cache', 'Code Cache', 'GPUCache', 'DawnGraphiteCache', 'DawnWebGPUCache',
+        'Service Worker', 'ScriptCache', 'ShaderCache', 'GrShaderCache',
+        'component_crx_cache', 'optimization_guide_model_store',
+        'BrowserMetrics', 'Crashpad', 'FileTypePolicies',
+      ]);
       try {
         const copyRecursive = async (src: string, dest: string) => {
           const stat = await fsp.stat(src).catch(() => null);
@@ -1242,7 +1249,7 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
             const entries = await fsp.readdir(src).catch(() => []);
             await Promise.all(
               entries
-                .filter(entry => !entry.startsWith('Singleton') && entry !== 'lockfile' && entry !== 'LOCK')
+                .filter(entry => !entry.startsWith('Singleton') && !skipDirs.has(entry))
                 .map(entry =>
                   copyRecursive(path.join(src, entry), path.join(dest, entry)).catch(() => {}),
                 ),
