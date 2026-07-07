@@ -391,13 +391,13 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
     }
 
     // Also remove _pool* sibling directories created by browser pool re-launches
-    const poolDirs = globSync(`${constants.userDataDirectory}_pool*`);
-    for (const dir of poolDirs) {
-      try {
+    try {
+      const poolDirs = globSync(`${constants.userDataDirectory}_pool*`);
+      for (const dir of poolDirs) {
         fs.rmSync(dir, { recursive: true, force: true });
-      } catch (error) {
-        consoleLogger.warn(`Unable to force remove pool directory ${dir}: ${error.message}`);
       }
+    } catch (error) {
+      consoleLogger.warn(`Unable to remove pool directories: ${error.message}`);
     }
   }
 
