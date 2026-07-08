@@ -458,9 +458,8 @@ function hasPointerCursor(node: Node): boolean {
     // Get the bounding rectangle of the element
     const rect = element.getBoundingClientRect();
 
-    // If either dimension is 0 and the element has no children or text, it's non-perceivable
-    if ((rect.width === 0 || rect.height === 0) &&
-        element.children.length === 0 && getTextContent(element).trim().length === 0) {
+    // If either dimension is 0, the element is non-perceivable
+    if (rect.width === 0 || rect.height === 0) {
         return true;
     }
 
