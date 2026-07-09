@@ -107,7 +107,8 @@ apt-get purge -y xvfb && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 SEEDSCRIPT
 RUN if [ "$(dpkg --print-architecture)" = "amd64" ] && command -v google-chrome >/dev/null 2>&1; then \
       bash /tmp/seed-safe-browsing.sh; \
-    fi && rm -f /tmp/seed-safe-browsing.sh
+    fi && rm -f /tmp/seed-safe-browsing.sh && \
+    chmod -R a+rX /opt/oobee-safe-browsing 2>/dev/null || true
 
 # Add non-privileged user
 # Create a group named "purple"
