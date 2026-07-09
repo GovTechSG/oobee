@@ -36,14 +36,10 @@ export class CrawlRateController {
   }
 
   onFailure(httpStatus: number | undefined, pool?: { maxConcurrency: number }): boolean {
-    if (typeof httpStatus !== 'number' || httpStatus < 400) {
-      return false;
-    }
-
     this.consecutiveSuccesses = 0;
     this.consecutiveFailures++;
 
-    if (pool && pool.maxConcurrency > 1) {
+    if (typeof httpStatus === 'number' && httpStatus >= 400 && pool && pool.maxConcurrency > 1) {
       pool.maxConcurrency = Math.max(1, Math.floor(pool.maxConcurrency / 2));
       consoleLogger.info(
         `Rate limited (HTTP ${httpStatus}) — reducing concurrency to ${pool.maxConcurrency}`,
