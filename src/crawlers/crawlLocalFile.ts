@@ -127,6 +127,7 @@ export const crawlLocalFile = async ({
       datasetFromIntelligent,
       urlsCrawledFromIntelligent,
       crawledFromLocalFile: true,
+      ruleset,
     });
 
     urlsCrawled = { ...urlsCrawled, ...updatedUrlsCrawled };

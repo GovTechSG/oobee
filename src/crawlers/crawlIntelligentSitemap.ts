@@ -2,7 +2,7 @@ import fs from 'fs';
 import { chromium, Page } from 'playwright';
 import { EnqueueStrategy } from 'crawlee';
 import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler } from './commonCrawlerFunc.js';
-import constants, { FileTypes, guiInfoStatusTypes, sitemapPaths } from '../constants/constants.js';
+import constants, { FileTypes, guiInfoStatusTypes, RuleFlags, sitemapPaths } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
@@ -27,6 +27,7 @@ const crawlIntelligentSitemap = async (
   extraHTTPHeaders: Record<string, string>,
   safeMode: boolean,
   scanDuration: number,
+  ruleset: RuleFlags[] = [],
 ) => {
   const startTime = Date.now(); // Track start time
 
@@ -191,6 +192,7 @@ const crawlIntelligentSitemap = async (
       urlsCrawledFromIntelligent: urlsCrawled,
       crawledFromLocalFile: false,
       scanDuration: scanDuration > 0 ? remainingDuration : 0,
+      ruleset,
     });
   }
 
@@ -222,6 +224,7 @@ const crawlIntelligentSitemap = async (
       datasetFromIntelligent: dataset,
       urlsCrawledFromIntelligent: urlsCrawled,
       scanDuration: remainingScanDuration,
+      ruleset,
     });
   } else if (!hasDurationRemaining) {
     consoleLogger.info(

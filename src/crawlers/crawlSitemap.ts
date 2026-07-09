@@ -16,6 +16,7 @@ import constants, {
   UrlsCrawled,
   disallowedListOfPatterns,
   FileTypes,
+  RuleFlags,
 } from '../constants/constants.js';
 import {
   getLinksFromSitemap,
@@ -55,6 +56,7 @@ const crawlSitemap = async ({
   datasetFromIntelligent = null,
   urlsCrawledFromIntelligent = null,
   crawledFromLocalFile = false,
+  ruleset = [],
 }: {
   sitemapUrl: string;
   randomToken: string;
@@ -76,6 +78,7 @@ const crawlSitemap = async ({
   datasetFromIntelligent?: Dataset;
   urlsCrawledFromIntelligent?: UrlsCrawled;
   crawledFromLocalFile?: boolean;
+  ruleset?: RuleFlags[];
 }) => {
   const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
@@ -193,6 +196,8 @@ const crawlSitemap = async ({
                 const root = document.documentElement || document.body || document;
                 if (!root || typeof observer.observe !== 'function') {
                   resolve('No root node to observe.');
+                } else {
+                  observer.observe(root, { childList: true, subtree: true });
                 }
               });
             });
@@ -336,7 +341,7 @@ const crawlSitemap = async ({
               return;
             }
 
-            const results = await runAxeScript({ includeScreenshots, page, randomToken });
+            const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
             // Detect JS redirects that fire during/after axe scan.
             // Listen for navigation, then give a brief window for pending redirects to complete.

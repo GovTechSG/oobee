@@ -426,44 +426,51 @@ const crawlDomain = async ({
         async crawlingContext => {
           const { page, request } = crawlingContext;
 
-          await page.evaluate(() => {
-            return new Promise(resolve => {
-              let timeout;
-              let mutationCount = 0;
-              const MAX_MUTATIONS = 500; // stop if things never quiet down
-              const OBSERVER_TIMEOUT = 5000; // hard cap on total wait
+          try {
+            await page.evaluate(() => {
+              return new Promise(resolve => {
+                let timeout;
+                let mutationCount = 0;
+                const MAX_MUTATIONS = 500; // stop if things never quiet down
+                const OBSERVER_TIMEOUT = 5000; // hard cap on total wait
 
-              const observer = new MutationObserver(() => {
-                clearTimeout(timeout);
+                const observer = new MutationObserver(() => {
+                  clearTimeout(timeout);
 
-                mutationCount += 1;
-                if (mutationCount > MAX_MUTATIONS) {
-                  observer.disconnect();
-                  resolve('Too many mutations, exiting.');
-                  return;
-                }
+                  mutationCount += 1;
+                  if (mutationCount > MAX_MUTATIONS) {
+                    observer.disconnect();
+                    resolve('Too many mutations, exiting.');
+                    return;
+                  }
 
-                // restart quiet‑period timer
+                  // restart quiet‑period timer
+                  timeout = setTimeout(() => {
+                    observer.disconnect();
+                    resolve('DOM stabilized.');
+                  }, 1000);
+                });
+
+                // overall timeout in case the page never settles
                 timeout = setTimeout(() => {
                   observer.disconnect();
-                  resolve('DOM stabilized.');
-                }, 1000);
+                  resolve('Observer timeout reached.');
+                }, OBSERVER_TIMEOUT);
+
+                const root = document.documentElement || document.body || document;
+                if (!root || typeof observer.observe !== 'function') {
+                  resolve('No root node to observe.');
+                } else {
+                  observer.observe(root, { childList: true, subtree: true });
+                }
               });
-
-              // overall timeout in case the page never settles
-              timeout = setTimeout(() => {
-                observer.disconnect();
-                resolve('Observer timeout reached.');
-              }, OBSERVER_TIMEOUT);
-
-              const root = document.documentElement || document.body || document;
-              if (!root || typeof observer.observe !== 'function') {
-                resolve('No root node to observe.');
-              } else {
-                observer.observe(root, { childList: true, subtree: true });
-              }
             });
-          });
+          } catch (err) {
+            if (err.message?.includes('was destroyed')) {
+              return;
+            }
+            throw err;
+          }
 
           let finalUrl = page.url();
           const requestLabelUrl = request.label;
