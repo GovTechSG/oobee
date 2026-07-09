@@ -2242,6 +2242,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     ? ['--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking']
     : [];
 
+  if (safeBrowsingEnabled) {
+    finalArgs.push('--enable-features=SafeBrowsingEnhancedProtection');
+  }
+
   // Safe Browsing requires headful mode (Chrome doesn't enforce interstitials in headless).
   // On Linux without a display, we start Xvfb to provide a virtual framebuffer.
   let headless = process.env.CRAWLEE_HEADLESS === '1';
