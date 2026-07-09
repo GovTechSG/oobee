@@ -522,6 +522,22 @@ const crawlDomain = async ({
             actualUrl = page.url();
           }
 
+          if (actualUrl.startsWith('chrome-error:')) {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: request.url,
+              metadata: STATUS_CODE_METADATA[3],
+              httpStatusCode: 3,
+            });
+            await enqueueProcess(page, enqueueLinks, browserContext);
+            return;
+          }
+
           // Second-pass requests: only do click-discovery, skip scanning
           if (request.label?.startsWith('__clickpass__')) {
             await enqueueProcess(page, enqueueLinks, browserContext);

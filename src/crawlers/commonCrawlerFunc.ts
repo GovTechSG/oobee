@@ -23,6 +23,7 @@ import xPathToCss from './custom/xPathToCss.js';
 import type { Response as PlaywrightResponse } from 'playwright';
 import fs from 'fs';
 import { getStoragePath } from '../utils.js';
+import { injectSafeBrowsingDb } from '../safeBrowsingProfile.js';
 import path from 'path';
 
 // types
@@ -1246,6 +1247,10 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
     const effectiveDir = `${userDataDirectory}_pool${launchCount}`;
 
     await fsp.mkdir(effectiveDir, { recursive: true });
+
+    if (process.env.GOOGLE_SAFE_BROWSING) {
+      injectSafeBrowsingDb(effectiveDir);
+    }
 
     // Copy auth-relevant files from the pristine base directory so
     // authenticated sessions are preserved across pool rotations.

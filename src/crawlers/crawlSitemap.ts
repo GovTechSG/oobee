@@ -275,6 +275,21 @@ const crawlSitemap = async ({
 
           const actualUrl = page.url() || request.loadedUrl || request.url;
 
+          if (actualUrl.startsWith('chrome-error:')) {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: request.url,
+              metadata: STATUS_CODE_METADATA[3],
+              httpStatusCode: 3,
+            });
+            return;
+          }
+
           const hasExceededDuration =
             scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
 

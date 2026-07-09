@@ -1020,6 +1020,7 @@ export const STATUS_CODE_METADATA: Record<number, string> = {
   0: 'Page Excluded',
   1: 'Not A Supported Document',
   2: 'Web Crawler Errored',
+  3: 'Blocked by Safe Browsing',
 
   // 599 is set because Crawlee returns response status 100, 102, 103 as 599
   599: 'Uncommon Response Status Code Received',
