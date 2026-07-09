@@ -457,8 +457,13 @@ function hasPointerCursor(node: Node): boolean {
   function isElementTooSmall(element: Element) {
     // Get the bounding rectangle of the element
     const rect = element.getBoundingClientRect();
-    
-    // Check if the element has a valid width or height
+
+    // If either dimension is 0, the element is non-perceivable
+    if (rect.width === 0 || rect.height === 0) {
+        return true;
+    }
+
+    // Check if the element has a valid width and height
     if (rect.width > 0 || rect.height > 0) {
         return false; // Element is not too small
     }
