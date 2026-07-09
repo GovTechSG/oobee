@@ -382,8 +382,11 @@ const crawlDomain = async ({
   };
 
   let isAbortingScanNow = false;
+  const remainingBudget = fromCrawlIntelligentSitemap
+    ? Math.max(0, maxRequestsPerCrawl - urlsCrawledFromIntelligent.scanned.length)
+    : maxRequestsPerCrawl;
   const rateController = new CrawlRateController(
-    maxRequestsPerCrawl,
+    remainingBudget,
     specifiedMaxConcurrency || constants.maxConcurrency,
   );
 

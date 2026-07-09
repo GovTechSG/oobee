@@ -85,8 +85,11 @@ const crawlSitemap = async ({
   let urlsCrawled: UrlsCrawled;
   let durationExceeded = false;
   let isAbortingScan = false;
+  const remainingBudget = fromCrawlIntelligentSitemap
+    ? Math.max(0, maxRequestsPerCrawl - urlsCrawledFromIntelligent.scanned.length)
+    : maxRequestsPerCrawl;
   const rateController = new CrawlRateController(
-    maxRequestsPerCrawl,
+    remainingBudget,
     specifiedMaxConcurrency || constants.maxConcurrency,
   );
   const initialNoSuccessFailureAbortThreshold = Math.max(5, Math.min(maxRequestsPerCrawl, 25));
