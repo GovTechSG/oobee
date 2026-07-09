@@ -141,7 +141,7 @@ const runCustom = async (
     // For handling closing playwright browser and continue generate artifacts etc
     registerSoftClose(processPageParams.stopAll);
 
-    addUrlGuardScript(context, { fallbackUrl: url });
+    addUrlGuardScript(context, { fallbackUrl: url, allowChromeErrors: !!process.env.GOOGLE_SAFE_BROWSING });
 
     const page = context.pages().find(existingPage => !existingPage.isClosed()) || (await context.newPage());
     await initNewPage(page, pageClosePromises, processPageParams, pagesDict);

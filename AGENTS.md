@@ -189,52 +189,57 @@ The `constants` default export object holds runtime state:
 
 ### Overview
 
-Google Safe Browsing protects users by checking URLs against Google's threat database. Modern Chrome (v128+) uses the **v5 hash-real-time protocol** — it does NOT download a local threat database. Instead, URLs are checked in real-time via OHTTP (Oblivious HTTP) on every navigation.
+Google Safe Browsing protects users by blocking navigation to phishing/malware URLs. It requires the local hash-prefix threat database (`UrlSoceng.store.*`, `UrlMalware.store.*`) to be present in the browser profile. Chrome uses this local DB as a first-pass filter and shows interstitial warning pages when a match is found.
 
 ### Requirements
 
-1. **Google Chrome** (not Chromium) — Safe Browsing requires Google's proprietary API keys baked into the Chrome build. Chromium does not include them.
-2. **`GOOGLE_SAFE_BROWSING=1`** environment variable — gates the feature.
-3. **Network access** to `safebrowsing.googleapis.com` and `safebrowsingohttpgateway.googleapis.com`.
+1. **Google Chrome** (not Chromium) — Safe Browsing requires Google's proprietary API keys. Chromium does not include them.
+2. **`GOOGLE_SAFE_BROWSING`** environment variable set to any value.
+3. **macOS or Linux only** — Windows is not yet supported (prints a warning and skips).
 
 ### How It Works
 
-When `GOOGLE_SAFE_BROWSING=1` is set:
+When `GOOGLE_SAFE_BROWSING` is set:
 
-1. `getPlaywrightLaunchOptions()` in `src/constants/common.ts` adds three Playwright default args to `ignoreDefaultArgs`:
-   - `--safebrowsing-disable-auto-update` (allows SB updater to run)
-   - `--disable-background-networking` (allows hash lookups)
-   - `--disable-client-side-phishing-detection` (allows phishing detection)
+1. `ensureAndInjectSafeBrowsing()` in `src/safeBrowsingProfile.ts` runs before each browser launch:
+   - **Fast path**: Copies the threat DB from your system Chrome profile (`~/Library/Application Support/Google/Chrome/Safe Browsing` on macOS, `~/.config/google-chrome/Safe Browsing` on Linux). This is instant.
+   - **Slow path**: If no system profile exists, spawns a real Chrome process for up to 120s to download the DB. On Linux without DISPLAY, tries Xvfb first, falls back to `--headless=old`.
+   - Writes `safebrowsing: { enabled: true }` into the profile's Preferences.
+   - Uses a file lock (`~/.oobee/safe-browsing-profile/.warmup-lock`) to prevent concurrent processes from corrupting the DB.
 
-2. `ensureSafeBrowsingPreferences()` writes `{ safebrowsing: { enabled: true, enhanced: false } }` into the Chrome profile's `Default/Preferences` before launch. Called from:
-   - `launchPersistentContextWithSafeBrowsing()` wrapper (used by all direct `launchPersistentContext` call sites)
-   - `getPreLaunchHook()` in `commonCrawlerFunc.ts` (Crawlee-managed browser pool)
+2. `getPlaywrightLaunchOptions()` in `src/constants/common.ts` adds three Playwright default args to `ignoreDefaultArgs`:
+   - `--safebrowsing-disable-auto-update`
+   - `--disable-background-networking`
+   - `--disable-client-side-phishing-detection`
 
-3. Chrome performs real-time hash-prefix lookups on every navigation. No warmup or pre-seeding is needed.
+3. `urlGuard.ts` allows `chrome-error://` protocol when Safe Browsing is active, so the interstitial warning page is not redirected away.
 
 ### Docker / Architecture Constraints
 
 - **amd64 (x86_64)**: Google Chrome .deb is installed in Dockerfile. Safe Browsing works fully.
-- **arm64 (aarch64)**: Google Chrome is NOT available for ARM64 Linux (as of July 2026). The Dockerfile skips Chrome installation. Safe Browsing is unavailable; only Chromium is present.
+- **arm64 (aarch64)**: Chrome is NOT available for ARM64 Linux. Safe Browsing is unavailable.
 - Build the image with `docker build --platform linux/amd64` to ensure Chrome is available.
+- On first run in Docker, the slow path (spawning Chrome) is used since there's no system profile.
 
 ### Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
-| `GOOGLE_SAFE_BROWSING` | `1` = enable Safe Browsing (requires Chrome) |
-| `GOOGLE_SAFE_BROWSING_DEBUG` | `1` = enable verbose Chrome Safe Browsing logging |
+| `GOOGLE_SAFE_BROWSING` | Enable Safe Browsing (any value; requires Chrome) |
+| `GOOGLE_SAFE_BROWSING_DEBUG` | Enable verbose Chrome Safe Browsing logging |
 
 ### Key Files
 
-- `src/constants/common.ts` — `getPlaywrightLaunchOptions()`, `ensureSafeBrowsingPreferences()`, `launchPersistentContextWithSafeBrowsing()`
-- `src/crawlers/commonCrawlerFunc.ts` — `getPreLaunchHook()` calls `ensureSafeBrowsingPreferences()`
+- `src/safeBrowsingProfile.ts` — DB warmup, injection, and seeding logic
+- `src/constants/common.ts` — `getPlaywrightLaunchOptions()` (ignoreDefaultArgs), `launchPersistentSafeContext()` wrapper
+- `src/crawlers/guards/urlGuard.ts` — `allowChromeErrors` for interstitial pages
+- `src/crawlers/runCustom.ts` — passes `allowChromeErrors` to urlGuard
 - `Dockerfile` — Conditional Chrome installation for amd64
 
 ### What Does NOT Work
 
 - Chromium (Playwright's bundled browser) — lacks Safe Browsing entirely
-- `--headless=old` or `--headless=new` for DB warmup — the old v4 local database approach is obsolete as of Chrome 128+
+- Windows — not yet supported (prints warning)
 - ARM64 Linux Docker — Chrome .deb not published for arm64
 
 ## Testing

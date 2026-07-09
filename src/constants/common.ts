@@ -37,6 +37,7 @@ import { cleanUpAndExit, isFollowStrategy, randomThreeDigitNumberString, registe
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
+import { ensureAndInjectSafeBrowsing } from '../safeBrowsingProfile.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -2137,41 +2138,11 @@ export async function initModifiedUserAgent(
 
 const cacheProxyInfo = getProxyInfo();
 
-export function ensureSafeBrowsingPreferences(userDataDir: string): void {
-  if (!process.env.GOOGLE_SAFE_BROWSING || !userDataDir) return;
-  const defaultDir = path.join(userDataDir, 'Default');
-  fs.mkdirSync(defaultDir, { recursive: true });
-  const prefsPath = path.join(defaultDir, 'Preferences');
-  let prefs: Record<string, unknown> = {};
-  if (fs.existsSync(prefsPath)) {
-    try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')); } catch {}
-  }
-  if (!(prefs.safebrowsing as Record<string, unknown>)?.enabled) {
-    prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: false };
-    fs.writeFileSync(prefsPath, JSON.stringify(prefs));
-  }
-}
-
-let safeBrowsingLoggedOnce = false;
-
 export async function launchPersistentSafeContext(
   userDataDir: string,
   options: Parameters<typeof constants.launcher.launchPersistentContext>[1],
 ) {
-  ensureSafeBrowsingPreferences(userDataDir);
-
-  if (!safeBrowsingLoggedOnce && process.env.GOOGLE_SAFE_BROWSING) {
-    safeBrowsingLoggedOnce = true;
-    const chromeExists = fs.existsSync('/usr/bin/google-chrome') ||
-      fs.existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome') ||
-      fs.existsSync('C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
-    if (chromeExists) {
-      consoleLogger.info('Google Safe Browsing enabled (real-time URL protection active)');
-    } else {
-      consoleLogger.warn('GOOGLE_SAFE_BROWSING is set but Google Chrome was not found. Safe Browsing requires Chrome, not Chromium.');
-    }
-  }
-
+  await ensureAndInjectSafeBrowsing(userDataDir);
   return constants.launcher.launchPersistentContext(userDataDir, options);
 }
 
