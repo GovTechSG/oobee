@@ -40,6 +40,7 @@ function findSystemSafeBrowsingDir(): string | null {
     process.platform === 'darwin'
       ? [path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'Safe Browsing')]
       : [
+          '/opt/oobee-safe-browsing/Safe Browsing',
           path.join(os.homedir(), '.config', 'google-chrome', 'Safe Browsing'),
           path.join(os.homedir(), '.config', 'chromium', 'Safe Browsing'),
         ];

@@ -64,14 +64,50 @@ RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
       echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $(dpkg --print-architecture))"; \
     fi
 
-# Pre-configure Safe Browsing preferences for Chrome profiles.
-# When GOOGLE_SAFE_BROWSING=1, oobee's getPlaywrightLaunchOptions() will:
-#   1. Stop ignoring --safebrowsing-disable-auto-update (lets SB updater run)
-#   2. Stop ignoring --disable-background-networking (lets hash lookups work)
-#   3. Stop ignoring --disable-client-side-phishing-detection
-# The Preferences file below seeds any new Chrome profile with SB enabled.
-RUN mkdir -p /tmp/oobee-sb-defaults/Default && \
-    echo '{"safebrowsing":{"enabled":true,"enhanced":false}}' > /tmp/oobee-sb-defaults/Default/Preferences
+# Pre-seed Safe Browsing threat database into the image.
+# Chrome needs to run non-headless to download the hash-prefix DB (UrlSoceng.store.*).
+# We use Xvfb to provide a virtual display, then wait up to 180s for the DB to appear.
+# The seeded DB at /opt/oobee-safe-browsing/ is copied into browser profiles at runtime.
+COPY <<'SEEDSCRIPT' /tmp/seed-safe-browsing.sh
+#!/bin/bash
+set -e
+apt-get update && apt-get install -y --no-install-recommends xvfb && rm -rf /var/lib/apt/lists/*
+mkdir -p /opt/oobee-safe-browsing/Default
+echo '{"safebrowsing":{"enabled":true,"enhanced":false}}' > /opt/oobee-safe-browsing/Default/Preferences
+export DISPLAY=:99
+Xvfb :99 -screen 0 1024x768x24 &
+XVFB_PID=$!
+sleep 2
+google-chrome \
+  --user-data-dir=/opt/oobee-safe-browsing \
+  --no-first-run --no-default-browser-check --disable-extensions \
+  --no-sandbox --disable-setuid-sandbox \
+  --window-position=-10000,-10000 --window-size=1,1 \
+  about:blank &
+CHROME_PID=$!
+echo "Waiting for Safe Browsing DB to download..."
+WAITED=0
+while [ $WAITED -lt 180 ]; do
+  if ls /opt/oobee-safe-browsing/Safe\ Browsing/UrlSoceng.store.* >/dev/null 2>&1 || \
+     ls /opt/oobee-safe-browsing/Safe\ Browsing/UrlMalware.store.* >/dev/null 2>&1; then
+    echo "Safe Browsing DB downloaded successfully (${WAITED}s)"
+    break
+  fi
+  sleep 5
+  WAITED=$((WAITED + 5))
+done
+kill $CHROME_PID 2>/dev/null || true
+kill $XVFB_PID 2>/dev/null || true
+if ls /opt/oobee-safe-browsing/Safe\ Browsing/UrlSoceng.store.* >/dev/null 2>&1; then
+  echo "Safe Browsing DB baked into image"
+else
+  echo "WARNING: Safe Browsing DB did not populate - will attempt at runtime"
+fi
+apt-get purge -y xvfb && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+SEEDSCRIPT
+RUN if [ "$(dpkg --print-architecture)" = "amd64" ] && command -v google-chrome >/dev/null 2>&1; then \
+      bash /tmp/seed-safe-browsing.sh; \
+    fi && rm -f /tmp/seed-safe-browsing.sh
 
 # Add non-privileged user
 # Create a group named "purple"
