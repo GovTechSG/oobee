@@ -1593,6 +1593,8 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
       ignore: 'oobee*/**',
     });
     profileNamesRegex = /Chrome\/(.*?)\/Cookies/;
+  } else {
+    return true;
   }
 
   if (profileCookiesDir.length > 0) {
