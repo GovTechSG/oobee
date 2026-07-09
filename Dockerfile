@@ -21,19 +21,14 @@ RUN npx playwright install chromium
 #      This is a Chrome-only feature — Chromium does NOT include it because it
 #      requires Google's proprietary API keys baked into the Chrome build.
 #
-# HOW IT WORKS (modern Chrome 128+):
-#   Chrome no longer downloads a local threat database (UrlSoceng.store.* files).
-#   Instead, it performs real-time hash-prefix lookups via the Safe Browsing v5
-#   API using OHTTP (Oblivious HTTP) for privacy. This means:
-#     - No warmup/pre-seeding of a threat database is needed
-#     - Safe Browsing activates immediately on first navigation
-#     - The only requirements are: (1) Chrome (not Chromium), (2) safebrowsing
-#       enabled in Preferences, (3) network flags not suppressed
+# HOW IT WORKS:
+#   Chrome needs a local hash-prefix database (UrlSoceng.store.*) to know which
+#   URLs require a real-time lookup via the v5 API. Without this DB, Chrome skips
+#   the check entirely. The DB is downloaded by Chrome when Safe Browsing is
+#   enabled and the browser runs with network access.
 #
 # ARCHITECTURE LIMITATION:
 #   Google Chrome .deb packages are only available for amd64 (x86_64).
-#   As of July 2026, Google has announced ARM64 Linux Chrome but has not yet
-#   published it to their apt repository or direct download URL.
 #   On arm64 builds, this step is skipped and Safe Browsing will not be available.
 #
 # TO ENABLE: Set env var GOOGLE_SAFE_BROWSING=1 when running the container.
@@ -46,7 +41,52 @@ RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
       echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $(dpkg --print-architecture))"; \
     fi
 
-# --- App code (changes here don't invalidate Chrome layer above) ---
+# Pre-seed Safe Browsing hash-prefix database into the image.
+# Chrome needs Xvfb (virtual display) to run non-headless and download the DB.
+# Under emulation this can take several minutes; timeout is set to 1800s.
+COPY <<'SEEDSCRIPT' /tmp/seed-safe-browsing.sh
+#!/bin/bash
+set -e
+mkdir -p /opt/oobee-safe-browsing/Default
+echo '{"safebrowsing":{"enabled":true,"enhanced":true}}' > /opt/oobee-safe-browsing/Default/Preferences
+export DISPLAY=:99
+Xvfb :99 -screen 0 1024x768x24 &
+XVFB_PID=$!
+sleep 2
+google-chrome \
+  --user-data-dir=/opt/oobee-safe-browsing \
+  --no-first-run --no-default-browser-check --disable-extensions \
+  --no-sandbox --disable-setuid-sandbox \
+  --enable-features=SafeBrowsingEnhancedProtection \
+  --window-position=-10000,-10000 --window-size=1,1 \
+  about:blank &
+CHROME_PID=$!
+echo "Waiting for Safe Browsing DB to download (up to 1800s)..."
+WAITED=0
+while [ $WAITED -lt 1800 ]; do
+  if ls /opt/oobee-safe-browsing/Safe\ Browsing/UrlSoceng.store.* >/dev/null 2>&1 || \
+     ls /opt/oobee-safe-browsing/Safe\ Browsing/UrlMalware.store.* >/dev/null 2>&1; then
+    echo "Safe Browsing DB downloaded successfully (${WAITED}s)"
+    break
+  fi
+  sleep 10
+  WAITED=$((WAITED + 10))
+  echo "[${WAITED}s] Still waiting... $(ls /opt/oobee-safe-browsing/Safe\ Browsing/ 2>/dev/null | wc -l) files in Safe Browsing dir"
+done
+kill $CHROME_PID 2>/dev/null || true
+kill $XVFB_PID 2>/dev/null || true
+if ls /opt/oobee-safe-browsing/Safe\ Browsing/UrlSoceng.store.* >/dev/null 2>&1; then
+  echo "Safe Browsing DB baked into image"
+else
+  echo "WARNING: Safe Browsing DB did not populate - will attempt at runtime"
+fi
+SEEDSCRIPT
+RUN if [ "$(dpkg --print-architecture)" = "amd64" ] && command -v google-chrome >/dev/null 2>&1; then \
+      bash /tmp/seed-safe-browsing.sh; \
+    fi && rm -f /tmp/seed-safe-browsing.sh && \
+    chmod -R a+rX /opt/oobee-safe-browsing 2>/dev/null || true
+
+# --- App code (changes here don't invalidate Chrome/seed layers above) ---
 
 WORKDIR /app/oobee
 
@@ -63,21 +103,15 @@ COPY . .
 RUN npm run build || true # true exits with code 0 - workaround for TS errors
 
 # Add non-privileged user
-# Create a group named "purple"
-RUN groupadd -r purple
-
-# Create a user named "purple" and assign it to the group "purple"
-RUN useradd -r -g purple purple
-
-# Create a dedicated directory for the "purple" user and set permissions
-RUN mkdir -p /home/purple && chown -R purple:purple /home/purple
+RUN groupadd -r purple && useradd -r -g purple purple && \
+    mkdir -p /home/purple && chown -R purple:purple /home/purple
 
 WORKDIR /app
 
 # Set the ownership of the oobee directory to the user "purple"
 RUN chown -R purple:purple /app
 
-# For oobee to be run from present working directory, comment out as necessary
+# For oobee to be run from present working directory
 WORKDIR /app/oobee
 
 # Run everything after as non-privileged user.
