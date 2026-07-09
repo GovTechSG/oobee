@@ -144,8 +144,13 @@ The `constants` default export object holds runtime state:
 | `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
 | `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl (default 100) |
 | `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
+<<<<<<< HEAD
 | `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML to `pageDOMs/` in results directory. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
 | `OOBEE_SAVE_PAGE_SCREENSHOT` | `1` or `true` = save full-page desktop + mobile viewport screenshots to `pageDOMs/desktopPageScreenshots/` and `pageDOMs/mobilePageScreenshots/`. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
+=======
+| `GOOGLE_SAFE_BROWSING` | `1` = enable Google Safe Browsing (requires Chrome, not Chromium) |
+| `GOOGLE_SAFE_BROWSING_DEBUG` | `1` = enable verbose Safe Browsing debug logging |
+>>>>>>> 86d9da36 (feat: add Google Safe Browsing support via Chrome real-time URL protection)
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | Proxy configuration |
 | `NO_PROXY` / `INCLUDE_PROXY` | Proxy bypass/include lists |
 
@@ -179,6 +184,58 @@ The `constants` default export object holds runtime state:
 - File locks require longer cleanup delays (5s vs 3s)
 - Path separator differences in cookie profile regex
 - `CRAWLEE_SYSTEM_INFO_V2=1` needed (wmic deprecation)
+
+## Safe Browsing
+
+### Overview
+
+Google Safe Browsing protects users by checking URLs against Google's threat database. Modern Chrome (v128+) uses the **v5 hash-real-time protocol** — it does NOT download a local threat database. Instead, URLs are checked in real-time via OHTTP (Oblivious HTTP) on every navigation.
+
+### Requirements
+
+1. **Google Chrome** (not Chromium) — Safe Browsing requires Google's proprietary API keys baked into the Chrome build. Chromium does not include them.
+2. **`GOOGLE_SAFE_BROWSING=1`** environment variable — gates the feature.
+3. **Network access** to `safebrowsing.googleapis.com` and `safebrowsingohttpgateway.googleapis.com`.
+
+### How It Works
+
+When `GOOGLE_SAFE_BROWSING=1` is set:
+
+1. `getPlaywrightLaunchOptions()` in `src/constants/common.ts` adds three Playwright default args to `ignoreDefaultArgs`:
+   - `--safebrowsing-disable-auto-update` (allows SB updater to run)
+   - `--disable-background-networking` (allows hash lookups)
+   - `--disable-client-side-phishing-detection` (allows phishing detection)
+
+2. `ensureSafeBrowsingPreferences()` writes `{ safebrowsing: { enabled: true, enhanced: false } }` into the Chrome profile's `Default/Preferences` before launch. Called from:
+   - `launchPersistentContextWithSafeBrowsing()` wrapper (used by all direct `launchPersistentContext` call sites)
+   - `getPreLaunchHook()` in `commonCrawlerFunc.ts` (Crawlee-managed browser pool)
+
+3. Chrome performs real-time hash-prefix lookups on every navigation. No warmup or pre-seeding is needed.
+
+### Docker / Architecture Constraints
+
+- **amd64 (x86_64)**: Google Chrome .deb is installed in Dockerfile. Safe Browsing works fully.
+- **arm64 (aarch64)**: Google Chrome is NOT available for ARM64 Linux (as of July 2026). The Dockerfile skips Chrome installation. Safe Browsing is unavailable; only Chromium is present.
+- Build the image with `docker build --platform linux/amd64` to ensure Chrome is available.
+
+### Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_SAFE_BROWSING` | `1` = enable Safe Browsing (requires Chrome) |
+| `GOOGLE_SAFE_BROWSING_DEBUG` | `1` = enable verbose Chrome Safe Browsing logging |
+
+### Key Files
+
+- `src/constants/common.ts` — `getPlaywrightLaunchOptions()`, `ensureSafeBrowsingPreferences()`, `launchPersistentContextWithSafeBrowsing()`
+- `src/crawlers/commonCrawlerFunc.ts` — `getPreLaunchHook()` calls `ensureSafeBrowsingPreferences()`
+- `Dockerfile` — Conditional Chrome installation for amd64
+
+### What Does NOT Work
+
+- Chromium (Playwright's bundled browser) — lacks Safe Browsing entirely
+- `--headless=old` or `--headless=new` for DB warmup — the old v4 local database approach is obsolete as of Chrome 128+
+- ARM64 Linux Docker — Chrome .deb not published for arm64
 
 ## Testing
 

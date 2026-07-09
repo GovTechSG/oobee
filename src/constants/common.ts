@@ -404,7 +404,7 @@ const checkUrlConnectivityWithBrowser = async (
 
   try {
     const launchPersistent = async () => {
-      browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
+      browserContext = await launchPersistentSafeContext(clonedDataDir, {
         ...launchOptions,
         ...contextOptions,
       });
@@ -929,7 +929,7 @@ const getRobotsTxtViaPlaywright = async (
 
   try {
     if (process.env.CRAWLEE_HEADLESS === '1') {
-      browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
+      browserContext = await launchPersistentSafeContext(robotsDataDir, {
         ...getPlaywrightLaunchOptions(browser),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
@@ -1151,7 +1151,7 @@ export const getLinksFromSitemap = async (
 
       try {
         if (process.env.CRAWLEE_HEADLESS === '1') {
-          browserContext = await constants.launcher.launchPersistentContext(
+          browserContext = await launchPersistentSafeContext(
             finalUserDataDirectory,
             {
               ...getPlaywrightLaunchOptions(browser),
@@ -2034,7 +2034,7 @@ export const submitFormViaPlaywright = async (
   userDataDirectory: string,
   finalUrl: string,
 ) => {
-  const browserContext = await constants.launcher.launchPersistentContext(userDataDirectory, {
+  const browserContext = await launchPersistentSafeContext(userDataDirectory, {
     ...getPlaywrightLaunchOptions(browserToRun),
   });
 
@@ -2137,6 +2137,44 @@ export async function initModifiedUserAgent(
 
 const cacheProxyInfo = getProxyInfo();
 
+export function ensureSafeBrowsingPreferences(userDataDir: string): void {
+  if (!process.env.GOOGLE_SAFE_BROWSING || !userDataDir) return;
+  const defaultDir = path.join(userDataDir, 'Default');
+  fs.mkdirSync(defaultDir, { recursive: true });
+  const prefsPath = path.join(defaultDir, 'Preferences');
+  let prefs: Record<string, unknown> = {};
+  if (fs.existsSync(prefsPath)) {
+    try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')); } catch {}
+  }
+  if (!(prefs.safebrowsing as Record<string, unknown>)?.enabled) {
+    prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: false };
+    fs.writeFileSync(prefsPath, JSON.stringify(prefs));
+  }
+}
+
+let safeBrowsingLoggedOnce = false;
+
+export async function launchPersistentSafeContext(
+  userDataDir: string,
+  options: Parameters<typeof constants.launcher.launchPersistentContext>[1],
+) {
+  ensureSafeBrowsingPreferences(userDataDir);
+
+  if (!safeBrowsingLoggedOnce && process.env.GOOGLE_SAFE_BROWSING) {
+    safeBrowsingLoggedOnce = true;
+    const chromeExists = fs.existsSync('/usr/bin/google-chrome') ||
+      fs.existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome') ||
+      fs.existsSync('C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
+    if (chromeExists) {
+      consoleLogger.info('Google Safe Browsing enabled (real-time URL protection active)');
+    } else {
+      consoleLogger.warn('GOOGLE_SAFE_BROWSING is set but Google Chrome was not found. Safe Browsing requires Chrome, not Chromium.');
+    }
+  }
+
+  return constants.launcher.launchPersistentContext(userDataDir, options);
+}
+
 /**
  * @param {string} browser browser name ("chrome" or "edge", null for chromium, the default Playwright browser)
  * @returns playwright launch options object. For more details: https://playwright.dev/docs/api/class-browsertype#browser-type-launch
@@ -2187,10 +2225,18 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
       break;
   }
 
+  const safeBrowsingEnabled = !!process.env.GOOGLE_SAFE_BROWSING;
+
+  const baseIgnoredArgs = shouldIgnoreMuteAudio
+    ? ['--use-mock-keychain', '--mute-audio']
+    : ['--use-mock-keychain'];
+
+  const safeBrowsingIgnoredArgs = safeBrowsingEnabled
+    ? ['--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking']
+    : [];
+
   const options: LaunchOptions = {
-    ignoreDefaultArgs: shouldIgnoreMuteAudio
-      ? ['--use-mock-keychain', '--mute-audio']
-      : ['--use-mock-keychain'],
+    ignoreDefaultArgs: [...baseIgnoredArgs, ...safeBrowsingIgnoredArgs],
     args: finalArgs,
     headless: process.env.CRAWLEE_HEADLESS === '1',
     ...(channel && { channel }),
@@ -2201,6 +2247,16 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
+  }
+
+  if (safeBrowsingEnabled && !!process.env.GOOGLE_SAFE_BROWSING_DEBUG) {
+    options.args = [
+      ...(options.args ?? []),
+      '--enable-logging=stderr',
+      '--log-level=0',
+      '--vmodule=safe_browsing*=2,*phishing*=2',
+    ];
+    consoleLogger.info('Safe Browsing debug logging enabled');
   }
 
   return options;

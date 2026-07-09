@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     zip && \
     rm -rf /var/lib/apt/lists/*
- 
+
 WORKDIR /app/oobee
 
 # Clone oobee repository
@@ -30,6 +30,48 @@ RUN npm run build || true # true exits with code 0 - workaround for TS errors
 
 # Install Playwright browsers
 RUN npx playwright install chromium
+
+# =============================================================================
+# Google Chrome installation for Safe Browsing support
+# =============================================================================
+# WHY: Chrome's Safe Browsing (v5, hash-real-time protocol) protects users by
+#      checking URLs against Google's threat database in real-time via OHTTP.
+#      This is a Chrome-only feature — Chromium does NOT include it because it
+#      requires Google's proprietary API keys baked into the Chrome build.
+#
+# HOW IT WORKS (modern Chrome 128+):
+#   Chrome no longer downloads a local threat database (UrlSoceng.store.* files).
+#   Instead, it performs real-time hash-prefix lookups via the Safe Browsing v5
+#   API using OHTTP (Oblivious HTTP) for privacy. This means:
+#     - No warmup/pre-seeding of a threat database is needed
+#     - Safe Browsing activates immediately on first navigation
+#     - The only requirements are: (1) Chrome (not Chromium), (2) safebrowsing
+#       enabled in Preferences, (3) network flags not suppressed
+#
+# ARCHITECTURE LIMITATION:
+#   Google Chrome .deb packages are only available for amd64 (x86_64).
+#   As of July 2026, Google has announced ARM64 Linux Chrome but has not yet
+#   published it to their apt repository or direct download URL.
+#   On arm64 builds, this step is skipped and Safe Browsing will not be available.
+#
+# TO ENABLE: Set env var GOOGLE_SAFE_BROWSING=1 when running the container.
+# =============================================================================
+RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+      wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+      apt-get update && apt-get install -y --no-install-recommends /tmp/chrome.deb && \
+      rm -f /tmp/chrome.deb && rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $(dpkg --print-architecture))"; \
+    fi
+
+# Pre-configure Safe Browsing preferences for Chrome profiles.
+# When GOOGLE_SAFE_BROWSING=1, oobee's getPlaywrightLaunchOptions() will:
+#   1. Stop ignoring --safebrowsing-disable-auto-update (lets SB updater run)
+#   2. Stop ignoring --disable-background-networking (lets hash lookups work)
+#   3. Stop ignoring --disable-client-side-phishing-detection
+# The Preferences file below seeds any new Chrome profile with SB enabled.
+RUN mkdir -p /tmp/oobee-sb-defaults/Default && \
+    echo '{"safebrowsing":{"enabled":true,"enhanced":false}}' > /tmp/oobee-sb-defaults/Default/Preferences
 
 # Add non-privileged user
 # Create a group named "purple"

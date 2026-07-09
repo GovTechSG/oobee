@@ -10,6 +10,7 @@ import {
   deleteClonedProfiles,
   getBrowserToRun,
   getPlaywrightLaunchOptions,
+  launchPersistentSafeContext,
   submitForm,
 } from './constants/common.js';
 import { createCrawleeSubFolders, enrichViolationMessages, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
@@ -433,7 +434,7 @@ export const init = async ({
         browserToRun = browserData.browserToRun;
         clonedBrowserDataDir = browserData.clonedBrowserDataDir;
 
-        browserContext = await constants.launcher.launchPersistentContext(clonedBrowserDataDir, {
+        browserContext = await launchPersistentSafeContext(clonedBrowserDataDir, {
           viewport: viewportSettings,
           ...getPlaywrightLaunchOptions(browserToRun),
         });

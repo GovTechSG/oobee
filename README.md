@@ -107,6 +107,7 @@ verapdf --version
 | ALL_PROXY | URL of the proxy server to be used for all requests, typically used for SOCKS5 proxies (e.g. `socks5://proxy.example.com:1080`. Note: IPv6 direct connections may still continue even though socks5 proxy is specified due to a known issue with Chrome/Chromium. (Recommended workaround is to turn off IPv6 at host-level). | |
 | NO_PROXY | Comma-separated list of domains that should bypass the proxy (e.g. `localhost,127.0.0.1,.example.com`). | |
 | INCLUDE_PROXY | Comma-separated list of domains that should specifically be routed through the proxy. | |
+| GOOGLE_SAFE_BROWSING | When set, enables Google Safe Browsing real-time URL protection. Requires Google Chrome (not Chromium). See [Safe Browsing](#safe-browsing) below. | |
 
 #### Environment variables used internally (Do not set)
 Do not set these environment variables or behaviour might change unexpectedly.
@@ -580,6 +581,36 @@ For example, to conduct a website scan to the URL "http://localhost:8000" and wr
 ```shell
 npm run cli -- -c 2 -o oobee-scan-results.zip -u "http://localhost:8000" -w 360
 ```
+
+## Safe Browsing
+
+Oobee can optionally enable Google Safe Browsing to protect against scanning malicious or phishing URLs. When enabled, Chrome checks every URL in real-time against Google's threat database before the page loads.
+
+### Requirements
+
+- **Google Chrome** (not Chromium) must be installed. Chromium does not include Safe Browsing.
+- Set the `GOOGLE_SAFE_BROWSING` environment variable to any value.
+
+### Usage
+
+```bash
+# macOS/Linux
+GOOGLE_SAFE_BROWSING=1 node dist/cli.js -u https://example.com -b chrome
+
+# Docker (must be amd64 image — Chrome is not available for arm64 Linux)
+docker run --platform linux/amd64 -e GOOGLE_SAFE_BROWSING=1 oobee node dist/cli.js -u https://example.com -b chrome
+```
+
+### How it works
+
+Modern Chrome (v128+) uses the Safe Browsing v5 protocol with real-time hash-prefix lookups via OHTTP. No local threat database is downloaded — URLs are checked on-the-fly during navigation. Oobee configures Chrome by:
+
+1. Enabling `safebrowsing` in the browser profile preferences
+2. Removing Playwright's default flags that suppress Safe Browsing (`--safebrowsing-disable-auto-update`, `--disable-background-networking`, `--disable-client-side-phishing-detection`)
+
+### Docker architecture note
+
+Google Chrome `.deb` packages are only available for amd64 (x86_64). The Dockerfile conditionally installs Chrome on amd64 only. Build with `docker build --platform linux/amd64` to include Chrome and Safe Browsing support.
 
 ## Report
 

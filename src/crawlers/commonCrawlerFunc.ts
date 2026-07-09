@@ -10,7 +10,7 @@ import {
 } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import { enrichColorContrastDOMContext, takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
-import { isFilePath } from '../constants/common.js';
+import { ensureSafeBrowsingPreferences, isFilePath } from '../constants/common.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
 import { evaluateAltText } from './custom/evaluateAltText.js';
@@ -1299,6 +1299,8 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
     } catch {
       // Silent fallback: use empty profile if clone fails
     }
+
+    ensureSafeBrowsingPreferences(effectiveDir);
 
     // Clean any stale lock files that may block browser launches on Windows
     const lockFiles = [
