@@ -87,12 +87,16 @@ export const getDefaultChromeDataDir = (): string => {
       return defaultChromeDataDir;
     }
 
-    // Linux: check if Chrome is installed (data dir may not exist yet — create it)
+    // Linux: check if Chrome is installed; use same scratch dir pattern as Chromium
     if (os.platform() === 'linux') {
       const chromeExists = fs.existsSync('/usr/bin/google-chrome') || fs.existsSync('/usr/bin/google-chrome-stable');
       if (chromeExists) {
-        const linuxChromeDataDir = path.join(os.homedir(), '.config', 'google-chrome');
-        fs.mkdirSync(linuxChromeDataDir, { recursive: true });
+        let linuxChromeDataDir = path.join(process.cwd(), 'Chromium Support');
+        try {
+          fs.mkdirSync(linuxChromeDataDir, { recursive: true });
+        } catch {
+          linuxChromeDataDir = '/tmp';
+        }
         return linuxChromeDataDir;
       }
     }
