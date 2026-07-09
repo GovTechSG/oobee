@@ -6,27 +6,9 @@ FROM mcr.microsoft.com/playwright:v1.61.1-noble
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
-    zip && \
+    zip \
+    xvfb && \
     rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app/oobee
-
-# Clone oobee repository
-# RUN git clone --branch master https://github.com/GovTechSG/oobee.git /app/oobee
-
-# OR Copy oobee files from local directory
-COPY . .
-
-# Environment variables for node and Playwright
-ENV NODE_ENV=production
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
-
-# Install oobee dependencies
-# TODO: Move back to npm ci --omit=dev once module package-lock issue vs MacOS is resolved
-RUN npm install --omit=dev
-
-# Compile TypeScript for oobee
-RUN npm run build || true # true exits with code 0 - workaround for TS errors
 
 # Install Playwright browsers
 RUN npx playwright install chromium
@@ -64,51 +46,21 @@ RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
       echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $(dpkg --print-architecture))"; \
     fi
 
-# Pre-seed Safe Browsing threat database into the image.
-# Chrome needs to run non-headless to download the hash-prefix DB (UrlSoceng.store.*).
-# We use Xvfb to provide a virtual display, then wait up to 180s for the DB to appear.
-# The seeded DB at /opt/oobee-safe-browsing/ is copied into browser profiles at runtime.
-COPY <<'SEEDSCRIPT' /tmp/seed-safe-browsing.sh
-#!/bin/bash
-set -e
-apt-get update && apt-get install -y --no-install-recommends xvfb && rm -rf /var/lib/apt/lists/*
-mkdir -p /opt/oobee-safe-browsing/Default
-echo '{"safebrowsing":{"enabled":true,"enhanced":true}}' > /opt/oobee-safe-browsing/Default/Preferences
-export DISPLAY=:99
-Xvfb :99 -screen 0 1024x768x24 &
-XVFB_PID=$!
-sleep 2
-google-chrome \
-  --user-data-dir=/opt/oobee-safe-browsing \
-  --no-first-run --no-default-browser-check --disable-extensions \
-  --no-sandbox --disable-setuid-sandbox \
-  --window-position=-10000,-10000 --window-size=1,1 \
-  about:blank &
-CHROME_PID=$!
-echo "Waiting for Safe Browsing DB to download..."
-WAITED=0
-while [ $WAITED -lt 180 ]; do
-  if ls /opt/oobee-safe-browsing/Safe\ Browsing/UrlSoceng.store.* >/dev/null 2>&1 || \
-     ls /opt/oobee-safe-browsing/Safe\ Browsing/UrlMalware.store.* >/dev/null 2>&1; then
-    echo "Safe Browsing DB downloaded successfully (${WAITED}s)"
-    break
-  fi
-  sleep 5
-  WAITED=$((WAITED + 5))
-done
-kill $CHROME_PID 2>/dev/null || true
-kill $XVFB_PID 2>/dev/null || true
-if ls /opt/oobee-safe-browsing/Safe\ Browsing/UrlSoceng.store.* >/dev/null 2>&1; then
-  echo "Safe Browsing DB baked into image"
-else
-  echo "WARNING: Safe Browsing DB did not populate - will attempt at runtime"
-fi
-apt-get purge -y xvfb && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-SEEDSCRIPT
-RUN if [ "$(dpkg --print-architecture)" = "amd64" ] && command -v google-chrome >/dev/null 2>&1; then \
-      bash /tmp/seed-safe-browsing.sh; \
-    fi && rm -f /tmp/seed-safe-browsing.sh && \
-    chmod -R a+rX /opt/oobee-safe-browsing 2>/dev/null || true
+# --- App code (changes here don't invalidate Chrome layer above) ---
+
+WORKDIR /app/oobee
+
+# Environment variables for node and Playwright
+ENV NODE_ENV=production
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
+
+# Install dependencies first (cached unless package.json/package-lock.json change)
+COPY package.json package-lock.json ./
+RUN npm install --omit=dev
+
+# Copy source and compile TypeScript
+COPY . .
+RUN npm run build || true # true exits with code 0 - workaround for TS errors
 
 # Add non-privileged user
 # Create a group named "purple"
@@ -124,12 +76,6 @@ WORKDIR /app
 
 # Set the ownership of the oobee directory to the user "purple"
 RUN chown -R purple:purple /app
-
-# Copy any application and support files
-# COPY . .
-
-# Install any app dependencies for your application
-# RUN npm ci --omit=dev
 
 # For oobee to be run from present working directory, comment out as necessary
 WORKDIR /app/oobee

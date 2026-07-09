@@ -14,6 +14,7 @@ import url, { fileURLToPath, pathToFileURL } from 'url';
 import safe from 'safe-regex';
 import * as https from 'https';
 import os from 'os';
+import { execSync as execSyncFn } from 'child_process';
 import mime from 'mime';
 import { minimatch } from 'minimatch';
 import { globSync, GlobOptionsWithFileTypesFalse } from 'glob';
@@ -471,8 +472,10 @@ const checkUrlConnectivityWithBrowser = async (
     // On fresh Docker containers, Chrome needs a few seconds to connect to
     // Google's OHTTP relay and establish the v5 hash-prefix lookup service.
     if (process.env.GOOGLE_SAFE_BROWSING) {
+      consoleLogger.info('[SafeBrowsing] Warming up Chrome Safe Browsing service (10s)...');
       await page.goto('about:blank');
       await new Promise(resolve => setTimeout(resolve, 10000));
+      consoleLogger.info('[SafeBrowsing] Warm-up complete, navigating to target URL...');
     }
 
     // STEP 2: Navigate (follows server-side redirects)
@@ -480,14 +483,37 @@ const checkUrlConnectivityWithBrowser = async (
       res.status = constants.urlCheckStatuses.notASupportedDocument.code;
       return res;
     });
-    
+
     // OPTIMIZATION: Wait for 'domcontentloaded' only
-    const response = await page.goto(url, {
-      timeout: 15000,
-      waitUntil: 'domcontentloaded', // enough to get status + allow potential client redirects to kick in
-    });
+    let response;
+    try {
+      response = await page.goto(url, {
+        timeout: 15000,
+        waitUntil: 'domcontentloaded',
+      });
+    } catch (navError) {
+      if (process.env.GOOGLE_SAFE_BROWSING) {
+        const errMsg = (navError as Error).message || '';
+        consoleLogger.info(`[SafeBrowsing] Navigation error: ${errMsg}`);
+        if (errMsg.includes('ERR_BLOCKED_BY_CLIENT') || errMsg.includes('ERR_ABORTED')) {
+          consoleLogger.info('[SafeBrowsing] Page blocked by Chrome Safe Browsing!');
+          const currentUrl = page.url();
+          consoleLogger.info(`[SafeBrowsing] Current page URL after block: ${currentUrl}`);
+        }
+      }
+      throw navError;
+    }
 
     if (!response) throw new Error('No response from navigation');
+
+    if (process.env.GOOGLE_SAFE_BROWSING) {
+      const navUrl = page.url();
+      const navStatus = response.status();
+      consoleLogger.info(`[SafeBrowsing] Navigation completed - status: ${navStatus}, url: ${navUrl}`);
+      if (navUrl.startsWith('chrome-error:') || navUrl.includes('interstitial')) {
+        consoleLogger.info('[SafeBrowsing] Interstitial/error page detected!');
+      }
+    }
 
     // Wait briefly for JS/meta-refresh redirects to settle before reading the final URL.
     // Server-side redirects are already reflected after goto(), but client-side redirects
@@ -2216,10 +2242,29 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     ? ['--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking']
     : [];
 
+  // Safe Browsing requires headful mode (Chrome doesn't enforce interstitials in headless).
+  // On Linux without a display, we start Xvfb to provide a virtual framebuffer.
+  let headless = process.env.CRAWLEE_HEADLESS === '1';
+  if (safeBrowsingEnabled && headless) {
+    if (process.platform === 'linux' && !process.env.DISPLAY) {
+      try {
+        execSyncFn('pgrep -x Xvfb || (Xvfb :99 -screen 0 1024x768x24 &)', { stdio: 'ignore' });
+        process.env.DISPLAY = ':99';
+        consoleLogger.info('[SafeBrowsing] Started Xvfb on :99 for headful Safe Browsing');
+      } catch {
+        consoleLogger.info('[SafeBrowsing] Failed to start Xvfb, falling back to headless');
+      }
+    }
+    if (process.env.DISPLAY) {
+      headless = false;
+      consoleLogger.info(`[SafeBrowsing] Forcing headful mode (DISPLAY=${process.env.DISPLAY})`);
+    }
+  }
+
   const options: LaunchOptions = {
     ignoreDefaultArgs: [...baseIgnoredArgs, ...safeBrowsingIgnoredArgs],
     args: finalArgs,
-    headless: process.env.CRAWLEE_HEADLESS === '1',
+    headless,
     ...(channel && { channel }),
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
@@ -2228,6 +2273,12 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
+  }
+
+  if (safeBrowsingEnabled) {
+    consoleLogger.info(`[SafeBrowsing] Launch options - ignoreDefaultArgs: ${JSON.stringify(options.ignoreDefaultArgs)}`);
+    consoleLogger.info(`[SafeBrowsing] Launch options - headless: ${options.headless}, channel: ${channel || 'bundled-chromium'}`);
+    consoleLogger.info(`[SafeBrowsing] Launch options - args: ${JSON.stringify(options.args)}`);
   }
 
   if (safeBrowsingEnabled && !!process.env.GOOGLE_SAFE_BROWSING_DEBUG) {

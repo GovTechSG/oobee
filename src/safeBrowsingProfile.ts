@@ -164,12 +164,22 @@ async function spawnChromeForWarmup(): Promise<void> {
 }
 
 export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
-  if (isDbDir(SB_DIR)) return;
+  consoleLogger.info(`[SafeBrowsing] BASE_PROFILE_DIR: ${BASE_PROFILE_DIR}`);
+  consoleLogger.info(`[SafeBrowsing] SB_DIR: ${SB_DIR}`);
+  consoleLogger.info(`[SafeBrowsing] isDbDir(SB_DIR): ${isDbDir(SB_DIR)}`);
+  if (isDbDir(SB_DIR)) {
+    consoleLogger.info('[SafeBrowsing] DB already exists in base profile, skipping warmup');
+    return;
+  }
 
   fs.mkdirSync(BASE_PROFILE_DIR, { recursive: true });
 
   const systemSbDir = findSystemSafeBrowsingDir();
+  consoleLogger.info(`[SafeBrowsing] findSystemSafeBrowsingDir() = ${systemSbDir}`);
   if (systemSbDir) {
+    consoleLogger.info(`[SafeBrowsing] Found system DB at: ${systemSbDir}`);
+    const files = fs.readdirSync(systemSbDir);
+    consoleLogger.info(`[SafeBrowsing] Files in system DB: ${files.join(', ')}`);
     printMessage(['Copying Safe Browsing threat database from system Chrome profile...'], messageOptions);
     copyDirectory(systemSbDir, SB_DIR);
     printMessage(['Google Safe Browsing enabled (real-time URL protection active)'], messageOptions);
@@ -178,10 +188,18 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
 
   const exe = getChromeExecutable();
   const chromeFound = fs.existsSync(exe);
+  consoleLogger.info(`[SafeBrowsing] Chrome executable: ${exe}, found: ${chromeFound}`);
   if (!chromeFound) {
     printMessage(['WARNING: Google Chrome not found. Safe Browsing requires Chrome (not Chromium). On Linux Docker, build with --platform linux/amd64.'], messageOptions);
     return;
   }
+
+  // Chrome 128+ uses real-time v5 hash-prefix lookups via OHTTP and no longer
+  // downloads local UrlSoceng.store.* files. Skip the legacy DB download and
+  // rely on real-time API with preferences set by injectSafeBrowsingDb().
+  consoleLogger.info('[SafeBrowsing] Skipping legacy DB download (Chrome 128+ uses real-time v5 API)');
+  printMessage(['Google Safe Browsing enabled (real-time URL protection via Chrome)'], messageOptions);
+  return;
 
   if (!acquireLock()) {
     consoleLogger.info('Another process is downloading Safe Browsing DB; waiting...');
@@ -206,9 +224,28 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
 }
 
 export function injectSafeBrowsingDb(targetDir: string): void {
-  if (!isDbDir(SB_DIR)) return;
-  if (fs.existsSync(path.join(targetDir, SEEDED_MARKER))) return;
+  consoleLogger.info(`[SafeBrowsing] injectSafeBrowsingDb(${targetDir})`);
+  consoleLogger.info(`[SafeBrowsing] isDbDir(SB_DIR=${SB_DIR}): ${isDbDir(SB_DIR)}`);
+  if (!isDbDir(SB_DIR)) {
+    consoleLogger.info('[SafeBrowsing] No DB to inject — setting preferences only');
+    const defaultDir = path.join(targetDir, 'Default');
+    fs.mkdirSync(defaultDir, { recursive: true });
+    const prefsPath = path.join(defaultDir, 'Preferences');
+    let prefs: Record<string, unknown> = {};
+    if (fs.existsSync(prefsPath)) {
+      try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')); } catch {}
+    }
+    prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: true };
+    fs.writeFileSync(prefsPath, JSON.stringify(prefs));
+    consoleLogger.info(`[SafeBrowsing] Wrote preferences to ${prefsPath}: ${JSON.stringify(prefs.safebrowsing)}`);
+    return;
+  }
+  if (fs.existsSync(path.join(targetDir, SEEDED_MARKER))) {
+    consoleLogger.info('[SafeBrowsing] Already seeded (marker exists), skipping');
+    return;
+  }
 
+  consoleLogger.info('[SafeBrowsing] Copying DB + setting preferences');
   copyDirectory(SB_DIR, path.join(targetDir, 'Safe Browsing'));
 
   const defaultDir = path.join(targetDir, 'Default');
@@ -220,12 +257,15 @@ export function injectSafeBrowsingDb(targetDir: string): void {
   }
   prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: true };
   fs.writeFileSync(prefsPath, JSON.stringify(prefs));
+  consoleLogger.info(`[SafeBrowsing] Wrote preferences to ${prefsPath}: ${JSON.stringify(prefs.safebrowsing)}`);
 
   fs.writeFileSync(path.join(targetDir, SEEDED_MARKER), new Date().toISOString());
+  consoleLogger.info('[SafeBrowsing] Injection complete');
 }
 
 export async function ensureAndInjectSafeBrowsing(targetDir: string): Promise<void> {
   if (!process.env.GOOGLE_SAFE_BROWSING) return;
+  consoleLogger.info(`[SafeBrowsing] ensureAndInjectSafeBrowsing(${targetDir})`);
 
   if (process.platform === 'win32') {
     printMessage(['Google Safe Browsing is not yet supported on Windows.'], messageOptions);
@@ -234,4 +274,5 @@ export async function ensureAndInjectSafeBrowsing(targetDir: string): Promise<vo
 
   await warmupSafeBrowsingBaseProfile();
   injectSafeBrowsingDb(targetDir);
+  consoleLogger.info('[SafeBrowsing] ensureAndInjectSafeBrowsing complete');
 }
