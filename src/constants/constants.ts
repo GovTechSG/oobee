@@ -86,6 +86,17 @@ export const getDefaultChromeDataDir = (): string => {
     if (defaultChromeDataDir && fs.existsSync(defaultChromeDataDir)) {
       return defaultChromeDataDir;
     }
+
+    // Linux: check if Chrome is installed (data dir may not exist yet — create it)
+    if (os.platform() === 'linux') {
+      const chromeExists = fs.existsSync('/usr/bin/google-chrome') || fs.existsSync('/usr/bin/google-chrome-stable');
+      if (chromeExists) {
+        const linuxChromeDataDir = path.join(os.homedir(), '.config', 'google-chrome');
+        fs.mkdirSync(linuxChromeDataDir, { recursive: true });
+        return linuxChromeDataDir;
+      }
+    }
+
     return null;
   } catch (error) {
     console.error(`Error in getDefaultChromeDataDir(): ${error}`);
