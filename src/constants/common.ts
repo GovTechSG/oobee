@@ -467,6 +467,14 @@ const checkUrlConnectivityWithBrowser = async (
       consoleLogger.info(`Unable to set download deny: ${(e as Error).message}`);
     }
 
+    // Give Chrome's Safe Browsing real-time service time to initialize.
+    // On fresh Docker containers, Chrome needs a few seconds to connect to
+    // Google's OHTTP relay and establish the v5 hash-prefix lookup service.
+    if (process.env.GOOGLE_SAFE_BROWSING) {
+      await page.goto('about:blank');
+      await new Promise(resolve => setTimeout(resolve, 10000));
+    }
+
     // STEP 2: Navigate (follows server-side redirects)
     page.once('download', () => {
       res.status = constants.urlCheckStatuses.notASupportedDocument.code;

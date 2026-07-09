@@ -99,7 +99,7 @@ async function spawnChromeForWarmup(): Promise<void> {
   fs.mkdirSync(path.join(BASE_PROFILE_DIR, 'Default'), { recursive: true });
   fs.writeFileSync(
     path.join(BASE_PROFILE_DIR, 'Default', 'Preferences'),
-    JSON.stringify({ safebrowsing: { enabled: true, enhanced: false } }),
+    JSON.stringify({ safebrowsing: { enabled: true, enhanced: true } }),
   );
 
   const exe = getChromeExecutable();
@@ -218,7 +218,7 @@ export function injectSafeBrowsingDb(targetDir: string): void {
   if (fs.existsSync(prefsPath)) {
     try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')); } catch {}
   }
-  prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: false };
+  prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: true };
   fs.writeFileSync(prefsPath, JSON.stringify(prefs));
 
   fs.writeFileSync(path.join(targetDir, SEEDED_MARKER), new Date().toISOString());

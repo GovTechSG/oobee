@@ -73,7 +73,7 @@ COPY <<'SEEDSCRIPT' /tmp/seed-safe-browsing.sh
 set -e
 apt-get update && apt-get install -y --no-install-recommends xvfb && rm -rf /var/lib/apt/lists/*
 mkdir -p /opt/oobee-safe-browsing/Default
-echo '{"safebrowsing":{"enabled":true,"enhanced":false}}' > /opt/oobee-safe-browsing/Default/Preferences
+echo '{"safebrowsing":{"enabled":true,"enhanced":true}}' > /opt/oobee-safe-browsing/Default/Preferences
 export DISPLAY=:99
 Xvfb :99 -screen 0 1024x768x24 &
 XVFB_PID=$!
