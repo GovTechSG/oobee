@@ -398,6 +398,8 @@ const crawlDomain = async ({
       retryOnBlocked: true,
       browserPoolOptions: {
         useFingerprints: false,
+        retireBrowserAfterPageCount: 500,
+        closeInactiveBrowserAfterSecs: 30,
         preLaunchHooks: [
           getPreLaunchHook(userDataDirectory),
           async (_pageId, launchContext) => {

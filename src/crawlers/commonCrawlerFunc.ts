@@ -1230,35 +1230,59 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
 
     await fsp.mkdir(effectiveDir, { recursive: true });
 
-    // For pool re-launches, best-effort clone profile data from base directory
-    // so authenticated sessions are preserved across browser pool retirements.
+    // For pool re-launches, copy only auth-relevant files from the base
+    // directory so authenticated sessions are preserved without cloning the
+    // entire profile (which grows with caches, IndexedDB, etc. during the crawl).
     if (launchCount > 1) {
-      const skipDirs = new Set([
-        'Singleton', 'lockfile', 'LOCK',
-        'Cache', 'Code Cache', 'GPUCache', 'DawnGraphiteCache', 'DawnWebGPUCache',
-        'Service Worker', 'ScriptCache', 'ShaderCache', 'GrShaderCache',
-        'component_crx_cache', 'optimization_guide_model_store',
-        'BrowserMetrics', 'Crashpad', 'FileTypePolicies',
-      ]);
       try {
-        const copyRecursive = async (src: string, dest: string) => {
-          const stat = await fsp.stat(src).catch(() => null);
-          if (!stat) return;
-          if (stat.isDirectory()) {
-            await fsp.mkdir(dest, { recursive: true }).catch(() => {});
-            const entries = await fsp.readdir(src).catch(() => []);
-            await Promise.all(
-              entries
-                .filter(entry => !entry.startsWith('Singleton') && !skipDirs.has(entry))
-                .map(entry =>
-                  copyRecursive(path.join(src, entry), path.join(dest, entry)).catch(() => {}),
-                ),
-            );
-          } else {
-            await fsp.copyFile(src, dest).catch(() => {});
+        // Copy top-level Local State (cookie encryption keys on Windows)
+        const localStateSrc = path.join(userDataDirectory, 'Local State');
+        if (await fsp.stat(localStateSrc).catch(() => null)) {
+          await fsp.copyFile(localStateSrc, path.join(effectiveDir, 'Local State')).catch(() => {});
+        }
+
+        // Find profile directories (Default, Profile 1, Profile 2, etc.)
+        const entries = await fsp.readdir(userDataDirectory, { withFileTypes: true }).catch(() => []);
+        const profileDirs = (entries as any[]).filter(
+          (e: any) => e.isDirectory() && /^(Default|Profile \d+)$/i.test(e.name),
+        );
+
+        for (const profile of profileDirs) {
+          const srcProfile = path.join(userDataDirectory, profile.name);
+          const destProfile = path.join(effectiveDir, profile.name);
+          await fsp.mkdir(destProfile, { recursive: true }).catch(() => {});
+
+          // Cookies (macOS layout: <Profile>/Cookies)
+          const cookiesSrc = path.join(srcProfile, 'Cookies');
+          if (await fsp.stat(cookiesSrc).catch(() => null)) {
+            await fsp.copyFile(cookiesSrc, path.join(destProfile, 'Cookies')).catch(() => {});
           }
-        };
-        await copyRecursive(userDataDirectory, effectiveDir).catch(() => {});
+
+          // Cookies (Windows layout: <Profile>/Network/Cookies)
+          const networkCookiesSrc = path.join(srcProfile, 'Network', 'Cookies');
+          if (await fsp.stat(networkCookiesSrc).catch(() => null)) {
+            const destNetwork = path.join(destProfile, 'Network');
+            await fsp.mkdir(destNetwork, { recursive: true }).catch(() => {});
+            await fsp.copyFile(networkCookiesSrc, path.join(destNetwork, 'Cookies')).catch(() => {});
+          }
+
+          // Local Storage (auth tokens, session data)
+          const localStorageSrc = path.join(srcProfile, 'Local Storage');
+          const localStorageStat = await fsp.stat(localStorageSrc).catch(() => null);
+          if (localStorageStat && localStorageStat.isDirectory()) {
+            const destLocalStorage = path.join(destProfile, 'Local Storage');
+            await fsp.mkdir(destLocalStorage, { recursive: true }).catch(() => {});
+            const lsFiles = await fsp.readdir(localStorageSrc).catch(() => []);
+            await Promise.all(
+              lsFiles.map(f =>
+                fsp.copyFile(
+                  path.join(localStorageSrc, f),
+                  path.join(destLocalStorage, f),
+                ).catch(() => {}),
+              ),
+            );
+          }
+        }
       } catch {
         // Silent fallback: use empty profile if clone fails
       }
