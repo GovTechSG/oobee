@@ -97,6 +97,11 @@ export const getDefaultChromeDataDir = (): string => {
         } catch {
           linuxChromeDataDir = '/tmp';
         }
+        // Create minimal Local State file so cloneChromeProfiles succeeds
+        const localStatePath = path.join(linuxChromeDataDir, 'Local State');
+        if (!fs.existsSync(localStatePath)) {
+          fs.writeFileSync(localStatePath, JSON.stringify({ profile: { info_cache: {} } }));
+        }
         return linuxChromeDataDir;
       }
     }
