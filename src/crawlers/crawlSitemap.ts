@@ -196,6 +196,8 @@ const crawlSitemap = async ({
                 const root = document.documentElement || document.body || document;
                 if (!root || typeof observer.observe !== 'function') {
                   resolve('No root node to observe.');
+                } else {
+                  observer.observe(root, { childList: true, subtree: true });
                 }
               });
             });
