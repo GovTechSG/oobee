@@ -299,6 +299,14 @@ When making changes, validate these areas which have well-established edge cases
 - Without the circuit breaker, a rate-limited crawl with thousands of enqueued URLs would run indefinitely, never hit the success threshold, and never generate a report.
 - When enqueuing all sitemap URLs (which we do for accurate `totalLinksFetchedFromSitemaps` reporting), always ensure either a scan duration (`-d`) or the circuit breaker is in place as a safety net.
 
+### Scan Consistency Between crawlDomain and crawlSitemap
+- Both crawlers must produce equivalent axe scan results for the same page. Any difference in how the page is observed/stabilized before `runAxeScript()` will cause inconsistent accessibility findings between scan types.
+- **postNavigationHook DOM observer must be identical**: Both crawlers use a MutationObserver in `postNavigationHooks` to wait for DOM stabilization before proceeding to the request handler. The observer must call `observer.observe(root, { childList: true, subtree: true })` — without this call, the hook degrades to a fixed 5-second timeout (the `OBSERVER_TIMEOUT` fallback) and the DOM may be in a different state when scanning begins.
+- **`runAxeScript()` has its own secondary DOM observer** (in `commonCrawlerFunc.ts`) that additionally watches `attributes: true`. This is a second stabilization gate shared by all crawlers — it ensures attribute animations settle before axe runs.
+- **`waitForPageLoaded(page, 10000)` in the requestHandler** is the third stabilization check (waits for `load` event or 10s timeout). All crawlers call this at the top of their request handler.
+- **Parameters passed to `runAxeScript()` must match**: both must pass `ruleset` (controls `DISABLE_OOBEE` / `ENABLE_WCAG_AAA`). Any new parameter added to `runAxeScript()` must be propagated to all crawlers via `combine.ts`.
+- **Error handling in postNavigationHook**: wrap `page.evaluate()` in try/catch to handle pages destroyed during the DOM observer (navigation, timeout, crash). Without this, the error propagates and may affect Crawlee's retry logic differently between crawlers.
+
 ### Axe & Custom Checks
 - When axe reports color-contrast violations but cannot determine the actual colors, skip augmenting the message with contrast context (avoids crashes on null/undefined color values).
 - Violation messages are enriched with live DOM context (element text, computed styles, dimensions) via `page.evaluate()` during scan. Handle cases where elements are no longer in DOM at evaluation time.
