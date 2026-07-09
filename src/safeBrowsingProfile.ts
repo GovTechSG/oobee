@@ -176,6 +176,13 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
     return;
   }
 
+  const exe = getChromeExecutable();
+  const chromeFound = fs.existsSync(exe);
+  if (!chromeFound) {
+    printMessage(['WARNING: Google Chrome not found. Safe Browsing requires Chrome (not Chromium). On Linux Docker, build with --platform linux/amd64.'], messageOptions);
+    return;
+  }
+
   if (!acquireLock()) {
     consoleLogger.info('Another process is downloading Safe Browsing DB; waiting...');
     const waitStart = Date.now();
