@@ -38,7 +38,7 @@ function getTruncatedPath(url: string): string {
 
 function getPageDomsDir(randomToken: string): string {
   const storagePath = getStoragePath(randomToken);
-  return path.join(storagePath, 'page-doms');
+  return path.join(storagePath, 'pageDOMs');
 }
 
 async function getUniqueFilePath(dir: string, baseName: string, ext: string): Promise<string> {
@@ -96,21 +96,21 @@ export async function capturePageData(
       const domContent = await page.content();
       const domFilePath = await getUniqueFilePath(pageDomsDir, fileName, '.html');
       await fs.writeFile(domFilePath, domContent, 'utf-8');
-      entry.domFile = `page-doms/${getRelativeName(domFilePath, pageDomsDir)}`;
+      entry.domFile = `pageDOMs/${getRelativeName(domFilePath, pageDomsDir)}`;
     } catch (err) {
       entry.errors.push(`DOM save failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
   if (isSavePageScreenshotEnabled()) {
-    const desktopDir = path.join(pageDomsDir, 'desktop-page-screenshots');
-    const mobileDir = path.join(pageDomsDir, 'mobile-page-screenshots');
+    const desktopDir = path.join(pageDomsDir, 'desktopPageScreenshots');
+    const mobileDir = path.join(pageDomsDir, 'mobilePageScreenshots');
 
     try {
       await fs.ensureDir(desktopDir);
       const desktopPath = await getUniqueFilePath(desktopDir, fileName, '.png');
       await page.screenshot({ path: desktopPath, fullPage: true });
-      entry.desktopScreenshot = `page-doms/desktop-page-screenshots/${getRelativeName(desktopPath, desktopDir)}`;
+      entry.desktopScreenshot = `pageDOMs/desktopPageScreenshots/${getRelativeName(desktopPath, desktopDir)}`;
     } catch (err) {
       entry.errors.push(
         `Desktop screenshot failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -129,7 +129,7 @@ export async function capturePageData(
 
       const mobilePath = await getUniqueFilePath(mobileDir, fileName, '.png');
       await page.screenshot({ path: mobilePath, fullPage: true });
-      entry.mobileScreenshot = `page-doms/mobile-page-screenshots/${getRelativeName(mobilePath, mobileDir)}`;
+      entry.mobileScreenshot = `pageDOMs/mobilePageScreenshots/${getRelativeName(mobilePath, mobileDir)}`;
 
       if (currentViewport) {
         await page.setViewportSize(currentViewport);
@@ -163,7 +163,7 @@ export async function writeManifest(randomToken: string): Promise<void> {
     })),
   };
 
-  const manifestPath = path.join(pageDomsDir, 'dom-manifest.json');
+  const manifestPath = path.join(pageDomsDir, 'domManifest.json');
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
 }
 
