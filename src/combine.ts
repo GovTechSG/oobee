@@ -186,6 +186,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         strategy,
         userUrl: url,
         scanDuration,
+        ruleset,
       });
       urlsCrawledObj = sitemapResult.urlsCrawled;
       durationExceeded = sitemapResult.durationExceeded;
@@ -236,6 +237,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         extraHTTPHeaders,
         safeMode,
         scanDuration,
+        ruleset,
       );
       urlsCrawledObj = intelligentResult.urlsCrawled;
       durationExceeded = intelligentResult.durationExceeded;
