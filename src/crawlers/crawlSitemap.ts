@@ -492,6 +492,10 @@ const crawlSitemap = async ({
               });
             } catch {}
           } else {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
             urlsCrawled.userExcluded.push({
               url: request.url,
               pageTitle: request.url,
@@ -506,8 +510,9 @@ const crawlSitemap = async ({
         const status = response?.status();
 
         // Re-enqueue rate-limited (403) URLs once for a retry after concurrency recovers.
+        // Don't call onFailure here — the re-enqueued request gets a fresh attempt.
+        // If it fails again (rateLimitRetried=true), it falls through to the normal path.
         if (status === 403 && !request.userData?.rateLimitRetried && requestQueue) {
-          rateController.onFailure(status, crawler.autoscaledPool);
           try {
             await requestQueue.addRequest({
               url: request.url,
