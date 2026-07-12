@@ -802,7 +802,53 @@ const crawlDomain = async ({
           return;
         }
 
+        // Handle download-triggered navigation errors: Playwright throws
+        // "Download is starting" when page.goto() hits a file download URL.
+        // Crawlee retries 3 times (all fail) then lands here.
+        const isDownloadError = request.errorMessages?.some(
+          (msg: string) => msg.includes('Download is starting'),
+        );
+        if (isDownloadError) {
+          if (isScanPdfs) {
+            // Re-enqueue with skipNavigation so the requestHandler's PDF download path handles it
+            try {
+              await requestQueue.addRequest({
+                url: request.url,
+                skipNavigation: true,
+                label: request.url,
+                uniqueKey: `download_${request.url}`,
+              });
+            } catch {}
+          } else {
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: request.url,
+              metadata: STATUS_CODE_METADATA[1],
+              httpStatusCode: 0,
+            });
+          }
+          return;
+        }
+
         const status = response?.status();
+
+        // Re-enqueue rate-limited (403) URLs once for a retry after concurrency recovers.
+        // Without this, URLs that fail during a rate-limit burst are permanently lost
+        // even though the site is accessible at lower concurrency.
+        if (status === 403 && !request.userData?.rateLimitRetried) {
+          rateController.onFailure(status, crawler.autoscaledPool);
+          try {
+            await requestQueue.addRequest({
+              url: request.url,
+              label: request.url,
+              uniqueKey: `ratelimit_${request.url}`,
+              userData: { rateLimitRetried: true },
+            });
+          } catch {}
+          return;
+        }
+
         if (rateController.onFailure(status, crawler.autoscaledPool)) {
           consoleLogger.info(
             `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
