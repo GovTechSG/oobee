@@ -1214,10 +1214,31 @@ export const postNavigationHooks = [
 
 export const getPreLaunchHook = (userDataDirectory: string) => {
   let launchCount = 0;
+  let previousPoolDir: string | null = null;
 
   return async (_pageId: string, launchContext: any) => {
     const fsp = await import('fs/promises').then(m => m.default);
     launchCount += 1;
+
+    // Clean up the previous pool directory. When preLaunchHooks fires, the
+    // previous browser has been retired and is finishing its last pages.
+    // Schedule cleanup with enough delay for Chrome to fully exit —
+    // closeInactiveBrowserAfterSecs (30s) + Windows file-lock grace.
+    if (previousPoolDir) {
+      const dirToClean = previousPoolDir;
+      const isWin = process.platform === 'win32';
+      const delay = isWin ? 40000 : 35000;
+      setTimeout(async () => {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            await fsp.rm(dirToClean, { recursive: true, force: true });
+            return;
+          } catch {
+            await new Promise(r => setTimeout(r, 5000));
+          }
+        }
+      }, delay);
+    }
 
     // Every browser gets its own directory. The base userDataDirectory is
     // treated as a read-only cookie source (the pristine clone of the user's
@@ -1290,6 +1311,7 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
     ];
     await Promise.all(lockFiles.map(f => fsp.rm(f, { force: true }).catch(() => {})));
 
+    previousPoolDir = effectiveDir;
     // eslint-disable-next-line no-param-reassign
     launchContext.userDataDir = effectiveDir;
   };
