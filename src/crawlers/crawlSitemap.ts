@@ -136,12 +136,11 @@ const crawlSitemap = async ({
     sources: linksFromSitemap,
   });
 
-  // When called from intelligent sitemap, also use a request queue so that
-  // enqueueLinks can discover pages linked from sitemap pages but not in the
-  // sitemap itself — eliminating the need for a separate crawlDomain phase.
-  const { requestQueue } = fromCrawlIntelligentSitemap
-    ? await createCrawleeSubFolders(randomToken)
-    : { requestQueue: undefined };
+  // Always create a request queue alongside the request list. An empty queue
+  // has zero impact on crawl behavior (Crawlee processes RequestList first).
+  // Having it available enables: download re-enqueue for PDF scanning,
+  // 403 rate-limit retry, and enqueueLinks for intelligent sitemap discovery.
+  const { requestQueue } = await createCrawleeSubFolders(randomToken);
 
   const crawler = register(
     new crawlee.PlaywrightCrawler({
@@ -171,7 +170,7 @@ const crawlSitemap = async ({
         postPageCloseHooks: [getPostPageCloseHook(userDataDirectory)],
       },
       requestList,
-      ...(requestQueue && { requestQueue }),
+      requestQueue,
       maxRequestRetries: 3,
       maxSessionRotations: 1,
       postNavigationHooks: [
@@ -417,7 +416,7 @@ const crawlSitemap = async ({
               // Discover <a> links from this page for the intelligent sitemap flow.
               // This eliminates the need for a separate crawlDomain supplement phase
               // that would re-visit all these pages just to extract links.
-              if (fromCrawlIntelligentSitemap && requestQueue) {
+              if (fromCrawlIntelligentSitemap) {
                 try {
                   await enqueueLinks({
                     selector: `a:not(${disallowedSelectorPatterns})`,
@@ -481,7 +480,7 @@ const crawlSitemap = async ({
           (msg: string) => msg.includes('Download is starting'),
         );
         if (isDownloadError) {
-          if (isScanPdfs && requestQueue) {
+          if (isScanPdfs) {
             // Re-enqueue with skipNavigation so the requestHandler's PDF download path handles it
             try {
               await requestQueue.addRequest({
@@ -512,7 +511,7 @@ const crawlSitemap = async ({
         // Re-enqueue rate-limited (403) URLs once for a retry after concurrency recovers.
         // Don't call onFailure here — the re-enqueued request gets a fresh attempt.
         // If it fails again (rateLimitRetried=true), it falls through to the normal path.
-        if (status === 403 && !request.userData?.rateLimitRetried && requestQueue) {
+        if (status === 403 && !request.userData?.rateLimitRetried) {
           try {
             await requestQueue.addRequest({
               url: request.url,
