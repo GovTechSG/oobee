@@ -2157,6 +2157,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
       !(browser === BrowserTypes.CHROME && arg === '--edge-skip-compat-layer-relaunch'),
   );
 
+  // Cap browser disk cache to 10MB per instance to prevent storage bloat
+  // during long crawls with multiple pool rotations
+  finalArgs.push('--disk-cache-size=10485760');
+
   // Headless flags (unchanged)
   if (process.env.CRAWLEE_HEADLESS === '1') {
     if (!finalArgs.includes('--mute-audio')) finalArgs.push('--mute-audio');
