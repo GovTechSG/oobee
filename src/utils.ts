@@ -418,7 +418,7 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
       const crawleeDir = path.join(storagePath, 'crawlee');
       const dataset = await Dataset.open(crawleeDir);
       await dataset.drop();
-      const requestQueue = await RequestQueue.open(crawleeDir);
+      const requestQueue = await RequestQueue.open(`${crawleeDir}_rq`);
       await requestQueue.drop();
     } catch (error) {
       consoleLogger.info(`Crawlee storage drop in cleanUp: ${error.message}`);
@@ -427,6 +427,11 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
       fs.rmSync(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
     } catch (error) {
       consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
+    }
+    try {
+      fs.rmSync(path.join(storagePath, 'crawlee_rq'), { recursive: true, force: true });
+    } catch (error) {
+      consoleLogger.warn(`Unable to force remove crawlee_rq folder: ${error.message}`);
     }
 
     try {
