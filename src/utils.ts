@@ -1027,9 +1027,10 @@ export const zipResults = async (zipName: string, resultsPath: string): Promise<
   if (!stats.isDirectory()) {
     throw new Error(`resultsPath is not a directory: ${resultsPath}`);
   }
-  async function addFolderToZip(folderPath: string, zipFolder: JSZip): Promise<void> {
+  async function addFolderToZip(folderPath: string, zipFolder: JSZip, isRoot = false): Promise<void> {
     const items = await fs.readdir(folderPath);
     for (const item of items) {
+      if (isRoot && item.startsWith('crawlee')) continue;
       const fullPath = path.join(folderPath, item);
       const stats = await fs.stat(fullPath);
       if (stats.isDirectory()) {
@@ -1043,7 +1044,7 @@ export const zipResults = async (zipName: string, resultsPath: string): Promise<
   }
 
   const zip = new JSZip();
-  await addFolderToZip(resultsPath, zip);
+  await addFolderToZip(resultsPath, zip, true);
 
   const zipStream = zip.generateNodeStream({
     type: 'nodebuffer',
