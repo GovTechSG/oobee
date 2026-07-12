@@ -96,6 +96,13 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       consoleLogger.info(`Suppressed Playwright post-close connection error: ${err.message}`);
       return;
     }
+    // Suppress EPERM errors from Crawlee's async lock-file operations that fire
+    // after a crawl phase finishes. On Windows, the sitemap phase's async lock
+    // cleanup can race with the domain phase starting in the same directory.
+    if (err.message?.includes('EPERM') && err.message?.includes('.json.lock')) {
+      consoleLogger.info(`Suppressed Crawlee lock-file EPERM (stale async cleanup): ${err.message}`);
+      return;
+    }
     throw err;
   };
   process.on('uncaughtException', psTreeHandler);

@@ -1135,10 +1135,9 @@ export const createCrawleeSubFolders = async (
   randomToken: string,
 ): Promise<{ dataset: Dataset; requestQueue: RequestQueue }> => {
 
-  const crawleeDir = path.join(getStoragePath(randomToken),"crawlee");
-
-  const dataset = await Dataset.open(crawleeDir);
-  const requestQueue = await RequestQueue.open(crawleeDir);
+  const baseDir = path.join(getStoragePath(randomToken), "crawlee");
+  const dataset = await Dataset.open(baseDir);
+  const requestQueue = await RequestQueue.open(`${baseDir}_rq`);
   return { dataset, requestQueue };
 };
 

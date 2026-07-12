@@ -1110,7 +1110,7 @@ const generateArtifacts = async (
   }
 
   try {
-    const requestQueue = await RequestQueue.open(crawleeDir);
+    const requestQueue = await RequestQueue.open(`${crawleeDir}_rq`);
     await requestQueue.drop();
   } catch (error) {
     consoleLogger.info(`RequestQueue drop: ${error.message}`);
@@ -1120,6 +1120,7 @@ const generateArtifacts = async (
   const crawleePath = path.join(storagePath, 'crawlee');
   try {
     await fs.promises.rm(crawleePath, { recursive: true, force: true });
+    await fs.promises.rm(`${crawleePath}_rq`, { recursive: true, force: true });
   } catch {
     // Best-effort; storage was already dropped via API
   }
