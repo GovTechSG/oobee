@@ -299,6 +299,21 @@ When making changes, validate these areas which have well-established edge cases
 - In intelligent crawl, each phase (sitemap then domain) creates its own `CrawlRateController` instance — transitioning from sitemap to domain crawl starts fresh.
 - Without the circuit breaker, a rate-limited crawl with thousands of enqueued URLs would run indefinitely, never hit the success threshold, and never generate a report.
 - When enqueuing all sitemap URLs (which we do for accurate `totalLinksFetchedFromSitemaps` reporting), always ensure either a scan duration (`-d`) or the circuit breaker is in place as a safety net.
+- **WAF behavior differs by source IP**: Datacenter/cloud IPs (Linux servers) are often rate-limited more aggressively by WAFs than residential/ISP IPs (Windows desktops). This means the circuit breaker (100 consecutive failures) fires on Linux but NOT on Windows for the same site — Windows successfully recovers concurrency between rate-limit bursts, keeping the consecutive failure counter below 100. This difference affects whether `isAbortingScanNow` is set, which gates the second-pass click-discovery loop.
+
+### Click-Discovery Second Pass in crawlDomain
+- After `crawler.run()` completes, `crawlDomain` has a second-pass loop that re-visits all scanned same-hostname pages for `customEnqueueLinksByClickingElements` — a sequential loop that clicks every interactive element with 1s delay between clicks.
+- **This loop is skipped when `fromCrawlIntelligentSitemap` is true** — the domain phase of intelligent crawl is only meant to discover new pages via `<a>` link extraction, not exhaustively click 3000+ already-scanned pages.
+- **This loop is skipped when `isAbortingScanNow` is true** — if the circuit breaker fired or the rate controller hit its page limit, the second pass is skipped. This is why Linux scans (where the circuit breaker fires due to stricter WAF) don't get stuck, but Windows scans (where recovery succeeds) enter the loop.
+- Without `scanDuration` or the `fromCrawlIntelligentSitemap` guard, the second pass on a 3000+ page site can take 10+ hours (each page × 90s `requestHandlerTimeoutSecs` at concurrency 1).
+- The second pass produces no log output — `__clickpass__` handlers call `enqueueProcess` and return without `guiInfoLog` or rate controller interaction, making it appear as if the scan is hung.
+
+### Intelligent Sitemap Link Discovery Optimization
+- In intelligent crawl mode, `crawlSitemap` now performs `enqueueLinks` on each successfully scanned page (gated by `fromCrawlIntelligentSitemap && requestQueue`). This discovers `<a>` links from sitemap pages without any additional page loads — just a DOM query on the already-loaded page.
+- Discovered URLs go into a `RequestQueue`. Crawlee processes `RequestList` (sitemap URLs) first, then `RequestQueue` items after. So discovered links are scanned after all sitemap URLs complete, within the same crawlSitemap phase.
+- This eliminates most of the work the subsequent `crawlDomain` supplement phase would otherwise do. The domain phase still runs (to discover pages reachable only from the entry URL), but finds almost everything already in `scannedUrlSet` and finishes quickly.
+- **No behavior change for standalone scans**: The `enqueueLinks` block is gated by `fromCrawlIntelligentSitemap` — standalone sitemap scans (`-s sitemap`) and standalone website scans (`-s website`) are unaffected.
+- The `transformRequestFunction` in sitemap `enqueueLinks` filters robots.txt-disallowed URLs and marks PDFs for `skipNavigation`, matching `crawlDomain`'s behavior.
 
 ### Scan Consistency Between crawlDomain and crawlSitemap
 - Both crawlers must produce equivalent axe scan results for the same page. Any difference in how the page is observed/stabilized before `runAxeScript()` will cause inconsistent accessibility findings between scan types.

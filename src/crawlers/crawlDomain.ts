@@ -846,7 +846,9 @@ const crawlDomain = async ({
 
   // Additional passes: keep re-visiting scanned seed-hostname pages for
   // click-discovery until no new pages are found or limits are reached.
-  if (!safeMode && !isAbortingScanNow && !durationExceeded) {
+  // Skip when called from intelligent sitemap — the domain phase is only meant
+  // to discover new pages via <a> links, not re-click 3000+ already-scanned pages.
+  if (!safeMode && !isAbortingScanNow && !durationExceeded && !fromCrawlIntelligentSitemap) {
     const seedHostname = new URL(url).hostname;
     const clickPassVisited = new Set<string>();
     let prevScannedCount: number;

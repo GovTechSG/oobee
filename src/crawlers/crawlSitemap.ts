@@ -16,12 +16,14 @@ import constants, {
   guiInfoStatusTypes,
   UrlsCrawled,
   disallowedListOfPatterns,
+  disallowedSelectorPatterns,
   FileTypes,
   RuleFlags,
 } from '../constants/constants.js';
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
+  isDisallowedInRobotsTxt,
   isSkippedUrl,
   waitForPageLoaded,
   isFilePath,
@@ -134,6 +136,13 @@ const crawlSitemap = async ({
     sources: linksFromSitemap,
   });
 
+  // When called from intelligent sitemap, also use a request queue so that
+  // enqueueLinks can discover pages linked from sitemap pages but not in the
+  // sitemap itself — eliminating the need for a separate crawlDomain phase.
+  const { requestQueue } = fromCrawlIntelligentSitemap
+    ? await createCrawleeSubFolders(randomToken)
+    : { requestQueue: undefined };
+
   const crawler = register(
     new crawlee.PlaywrightCrawler({
       launchContext: {
@@ -162,6 +171,7 @@ const crawlSitemap = async ({
         postPageCloseHooks: [getPostPageCloseHook(userDataDirectory)],
       },
       requestList,
+      ...(requestQueue && { requestQueue }),
       maxRequestRetries: 3,
       maxSessionRotations: 1,
       postNavigationHooks: [
@@ -236,7 +246,7 @@ const crawlSitemap = async ({
         },
       ],
       requestHandlerTimeoutSecs: 90,
-      requestHandler: async ({ page, request, response, sendRequest }) => {
+      requestHandler: async ({ page, request, response, sendRequest, enqueueLinks }) => {
         // Log documents that are not supported
         if (request.userData?.isNotSupportedDocument) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
@@ -403,6 +413,32 @@ const crawlSitemap = async ({
               results.actualUrl = actualUrl;
 
               await dataset.pushData(results);
+
+              // Discover <a> links from this page for the intelligent sitemap flow.
+              // This eliminates the need for a separate crawlDomain supplement phase
+              // that would re-visit all these pages just to extract links.
+              if (fromCrawlIntelligentSitemap && requestQueue) {
+                try {
+                  await enqueueLinks({
+                    selector: `a:not(${disallowedSelectorPatterns})`,
+                    strategy,
+                    requestQueue,
+                    transformRequestFunction: (req) => {
+                      try {
+                        req.url = req.url.replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
+                      } catch {}
+                      if (isDisallowedInRobotsTxt(req.url)) return null;
+                      if (isUrlPdf(req.url)) {
+                        req.skipNavigation = true;
+                      }
+                      req.label = req.url;
+                      return req;
+                    },
+                  });
+                } catch {
+                  // Best-effort link discovery; don't fail the scan
+                }
+              }
             }
           } else {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
