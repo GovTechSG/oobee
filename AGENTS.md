@@ -253,6 +253,8 @@ When making changes, validate these areas which have well-established edge cases
 - Crawlee's async lock-file operations (`.json.lock` mkdir) can fire after the crawl finishes. On Windows, this triggers uncaughtException EPERM during report generation. A scoped exception handler suppresses these. The cleanup delay is 5s on Windows, 3s on others.
 - The crawlee dataset folder and `tmp-items` (intermediate JSONL store) must be deleted BEFORE zipping results. `zipResults` must be the last step in `generateArtifacts()` — any cleanup or processing that removes temp files from `storagePath` must happen earlier. The dataset deletion uses an awaited delay (not fire-and-forget setTimeout) to let lingering Crawlee I/O flush.
 - Errors must only be recorded in `failedRequestHandler` (after all retries exhausted), not in the `requestHandler` catch block. Crawlee retries up to 3 times, so recording in the catch block creates duplicates and false positives for URLs that succeed on retry.
+- **"Download is starting" navigation errors**: URLs that trigger file downloads (e.g. Salesforce `/download/` endpoints without `.pdf` extension) cause `page.goto()` to throw. Crawlee retries 3 times (all fail the same way). In `failedRequestHandler`, detect via `request.errorMessages.includes('Download is starting')`. If `isScanPdfs`: re-enqueue with `skipNavigation: true` and unique key `download_${url}` so the requestHandler's PDF download path handles it via `sendRequest`. If not scanning PDFs: classify as `STATUS_CODE_METADATA[1]` ("Not A Supported Document").
+- **403 rate-limit retry**: In `failedRequestHandler`, 403 URLs are re-enqueued once with `userData.rateLimitRetried = true` and unique key `ratelimit_${url}`. This gives them a fresh attempt cycle after adaptive concurrency recovers from the rate-limit burst. Do NOT call `rateController.onFailure()` on the first pass — this avoids double-counting toward the circuit breaker. If the retry also fails, it falls through to the normal `onFailure` + circuit breaker path.
 
 ### URL & Redirect Handling
 - `https://example.com` and `https://example.com/` must be treated as the same page. Use `normUrl()` (wrapping `@apify/utilities normalizeUrl`) for all dedup sets.
@@ -309,11 +311,12 @@ When making changes, validate these areas which have well-established edge cases
 - The second pass produces no log output — `__clickpass__` handlers call `enqueueProcess` and return without `guiInfoLog` or rate controller interaction, making it appear as if the scan is hung.
 
 ### Intelligent Sitemap Link Discovery Optimization
-- In intelligent crawl mode, `crawlSitemap` now performs `enqueueLinks` on each successfully scanned page (gated by `fromCrawlIntelligentSitemap && requestQueue`). This discovers `<a>` links from sitemap pages without any additional page loads — just a DOM query on the already-loaded page.
+- In intelligent crawl mode, `crawlSitemap` now performs `enqueueLinks` on each successfully scanned page (gated by `fromCrawlIntelligentSitemap`). This discovers `<a>` links from sitemap pages without any additional page loads — just a DOM query on the already-loaded page.
 - Discovered URLs go into a `RequestQueue`. Crawlee processes `RequestList` (sitemap URLs) first, then `RequestQueue` items after. So discovered links are scanned after all sitemap URLs complete, within the same crawlSitemap phase.
 - This eliminates most of the work the subsequent `crawlDomain` supplement phase would otherwise do. The domain phase still runs (to discover pages reachable only from the entry URL), but finds almost everything already in `scannedUrlSet` and finishes quickly.
 - **No behavior change for standalone scans**: The `enqueueLinks` block is gated by `fromCrawlIntelligentSitemap` — standalone sitemap scans (`-s sitemap`) and standalone website scans (`-s website`) are unaffected.
 - The `transformRequestFunction` in sitemap `enqueueLinks` filters robots.txt-disallowed URLs and marks PDFs for `skipNavigation`, matching `crawlDomain`'s behavior.
+- `crawlSitemap` always creates a `RequestQueue` (even in standalone mode) to enable download re-enqueue and 403 retry handling. An empty queue has zero impact on crawl behavior.
 
 ### Scan Consistency Between crawlDomain and crawlSitemap
 - Both crawlers must produce equivalent axe scan results for the same page. Any difference in how the page is observed/stabilized before `runAxeScript()` will cause inconsistent accessibility findings between scan types.
