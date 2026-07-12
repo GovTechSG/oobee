@@ -2161,6 +2161,11 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   // during long crawls with multiple pool rotations
   finalArgs.push('--disk-cache-size=10485760');
 
+  // Prevent Windows from throttling background Chromium processes
+  if (os.platform() === 'win32') {
+    finalArgs.push('--disable-features=UseEcoQoSForBackgroundProcess');
+  }
+
   // Headless flags (unchanged)
   if (process.env.CRAWLEE_HEADLESS === '1') {
     if (!finalArgs.includes('--mute-audio')) finalArgs.push('--mute-audio');
