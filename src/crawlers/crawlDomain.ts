@@ -5,6 +5,7 @@ import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
 import {
   createCrawleeSubFolders,
   getPreLaunchHook,
+  getPostPageCloseHook,
   preNavigationHooks,
   runAxeScript,
   isUrlPdf,
@@ -418,6 +419,7 @@ const crawlDomain = async ({
             };
           },
         ],
+        postPageCloseHooks: [getPostPageCloseHook(userDataDirectory)],
       },
       requestQueue,
       maxRequestRetries: 3,

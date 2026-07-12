@@ -1219,72 +1219,64 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
     const fsp = await import('fs/promises').then(m => m.default);
     launchCount += 1;
 
-    // First launch uses the base directory; subsequent launches get a unique
-    // directory so that lingering file handles from a retired browser don't
-    // cause Chrome exit code 21 on Windows.
-    const effectiveDir =
-      launchCount === 1
-        ? userDataDirectory
-        : `${userDataDirectory}_pool${launchCount}`;
+    // Every browser gets its own directory. The base userDataDirectory is
+    // treated as a read-only cookie source (the pristine clone of the user's
+    // profile) and is never used directly by a running browser.
+    const effectiveDir = `${userDataDirectory}_pool${launchCount}`;
 
     await fsp.mkdir(effectiveDir, { recursive: true });
 
-    // For pool re-launches, copy only auth-relevant files from the base
-    // directory so authenticated sessions are preserved without cloning the
-    // entire profile (which grows with caches, IndexedDB, etc. during the crawl).
-    if (launchCount > 1) {
-      try {
-        // Copy top-level Local State (cookie encryption keys on Windows)
-        const localStateSrc = path.join(userDataDirectory, 'Local State');
-        if (await fsp.stat(localStateSrc).catch(() => null)) {
-          await fsp.copyFile(localStateSrc, path.join(effectiveDir, 'Local State')).catch(() => {});
-        }
-
-        // Find profile directories (Default, Profile 1, Profile 2, etc.)
-        const entries = await fsp.readdir(userDataDirectory, { withFileTypes: true }).catch(() => []);
-        const profileDirs = (entries as any[]).filter(
-          (e: any) => e.isDirectory() && /^(Default|Profile \d+)$/i.test(e.name),
-        );
-
-        for (const profile of profileDirs) {
-          const srcProfile = path.join(userDataDirectory, profile.name);
-          const destProfile = path.join(effectiveDir, profile.name);
-          await fsp.mkdir(destProfile, { recursive: true }).catch(() => {});
-
-          // Cookies (macOS layout: <Profile>/Cookies)
-          const cookiesSrc = path.join(srcProfile, 'Cookies');
-          if (await fsp.stat(cookiesSrc).catch(() => null)) {
-            await fsp.copyFile(cookiesSrc, path.join(destProfile, 'Cookies')).catch(() => {});
-          }
-
-          // Cookies (Windows layout: <Profile>/Network/Cookies)
-          const networkCookiesSrc = path.join(srcProfile, 'Network', 'Cookies');
-          if (await fsp.stat(networkCookiesSrc).catch(() => null)) {
-            const destNetwork = path.join(destProfile, 'Network');
-            await fsp.mkdir(destNetwork, { recursive: true }).catch(() => {});
-            await fsp.copyFile(networkCookiesSrc, path.join(destNetwork, 'Cookies')).catch(() => {});
-          }
-
-          // Local Storage (auth tokens, session data)
-          const localStorageSrc = path.join(srcProfile, 'Local Storage');
-          const localStorageStat = await fsp.stat(localStorageSrc).catch(() => null);
-          if (localStorageStat && localStorageStat.isDirectory()) {
-            const destLocalStorage = path.join(destProfile, 'Local Storage');
-            await fsp.mkdir(destLocalStorage, { recursive: true }).catch(() => {});
-            const lsFiles = await fsp.readdir(localStorageSrc).catch(() => []);
-            await Promise.all(
-              lsFiles.map(f =>
-                fsp.copyFile(
-                  path.join(localStorageSrc, f),
-                  path.join(destLocalStorage, f),
-                ).catch(() => {}),
-              ),
-            );
-          }
-        }
-      } catch {
-        // Silent fallback: use empty profile if clone fails
+    // Copy auth-relevant files from the pristine base directory so
+    // authenticated sessions are preserved across pool rotations.
+    try {
+      const localStateSrc = path.join(userDataDirectory, 'Local State');
+      if (await fsp.stat(localStateSrc).catch(() => null)) {
+        await fsp.copyFile(localStateSrc, path.join(effectiveDir, 'Local State')).catch(() => {});
       }
+
+      const entries = await fsp.readdir(userDataDirectory, { withFileTypes: true }).catch(() => []);
+      const profileDirs = (entries as any[]).filter(
+        (e: any) => e.isDirectory() && /^(Default|Profile \d+)$/i.test(e.name),
+      );
+
+      for (const profile of profileDirs) {
+        const srcProfile = path.join(userDataDirectory, profile.name);
+        const destProfile = path.join(effectiveDir, profile.name);
+        await fsp.mkdir(destProfile, { recursive: true }).catch(() => {});
+
+        // Cookies (macOS layout: <Profile>/Cookies)
+        const cookiesSrc = path.join(srcProfile, 'Cookies');
+        if (await fsp.stat(cookiesSrc).catch(() => null)) {
+          await fsp.copyFile(cookiesSrc, path.join(destProfile, 'Cookies')).catch(() => {});
+        }
+
+        // Cookies (Windows layout: <Profile>/Network/Cookies)
+        const networkCookiesSrc = path.join(srcProfile, 'Network', 'Cookies');
+        if (await fsp.stat(networkCookiesSrc).catch(() => null)) {
+          const destNetwork = path.join(destProfile, 'Network');
+          await fsp.mkdir(destNetwork, { recursive: true }).catch(() => {});
+          await fsp.copyFile(networkCookiesSrc, path.join(destNetwork, 'Cookies')).catch(() => {});
+        }
+
+        // Local Storage (auth tokens, session data)
+        const localStorageSrc = path.join(srcProfile, 'Local Storage');
+        const localStorageStat = await fsp.stat(localStorageSrc).catch(() => null);
+        if (localStorageStat && localStorageStat.isDirectory()) {
+          const destLocalStorage = path.join(destProfile, 'Local Storage');
+          await fsp.mkdir(destLocalStorage, { recursive: true }).catch(() => {});
+          const lsFiles = await fsp.readdir(localStorageSrc).catch(() => []);
+          await Promise.all(
+            lsFiles.map(f =>
+              fsp.copyFile(
+                path.join(localStorageSrc, f),
+                path.join(destLocalStorage, f),
+              ).catch(() => {}),
+            ),
+          );
+        }
+      }
+    } catch {
+      // Silent fallback: use empty profile if clone fails
     }
 
     // Clean any stale lock files that may block browser launches on Windows
@@ -1300,6 +1292,21 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
 
     // eslint-disable-next-line no-param-reassign
     launchContext.userDataDir = effectiveDir;
+  };
+};
+
+export const getPostPageCloseHook = (userDataDirectory: string) => {
+  return async (_pageId: string, browserController: any) => {
+    if (browserController.activePages === 0) {
+      const dir = browserController.launchContext?.userDataDir;
+      if (dir && dir !== userDataDirectory && dir.includes('_pool')) {
+        const fsp = await import('fs/promises').then(m => m.default);
+        // Small delay to allow the browser process to fully release file handles
+        setTimeout(() => {
+          fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+        }, 2000);
+      }
+    }
   };
 };
 

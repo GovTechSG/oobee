@@ -4,6 +4,7 @@ import fs from 'fs';
 import {
   createCrawleeSubFolders,
   getPreLaunchHook,
+  getPostPageCloseHook,
   preNavigationHooks,
   runAxeScript,
   isUrlPdf,
@@ -158,6 +159,7 @@ const crawlSitemap = async ({
             };
           },
         ],
+        postPageCloseHooks: [getPostPageCloseHook(userDataDirectory)],
       },
       requestList,
       maxRequestRetries: 3,
