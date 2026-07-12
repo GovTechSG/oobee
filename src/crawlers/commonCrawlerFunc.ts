@@ -1301,10 +1301,21 @@ export const getPostPageCloseHook = (userDataDirectory: string) => {
       const dir = browserController.launchContext?.userDataDir;
       if (dir && dir !== userDataDirectory && dir.includes('_pool')) {
         const fsp = await import('fs/promises').then(m => m.default);
-        // Small delay to allow the browser process to fully release file handles
-        setTimeout(() => {
-          fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
-        }, 2000);
+        // Chrome on Windows writes optimization/segmentation data during shutdown;
+        // wait longer (5s) for the process to fully release file handles.
+        const isWin = process.platform === 'win32';
+        const initialDelay = isWin ? 5000 : 2000;
+        setTimeout(async () => {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await fsp.rm(dir, { recursive: true, force: true });
+              return;
+            } catch {
+              // Retry after a short back-off (Windows file locks)
+              await new Promise(r => setTimeout(r, 2000));
+            }
+          }
+        }, initialDelay);
       }
     }
   };

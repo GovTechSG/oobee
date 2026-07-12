@@ -390,14 +390,28 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
       consoleLogger.warn(`Unable to force remove userDataDirectory: ${error.message}`);
     }
 
-    // Also remove _pool* sibling directories created by browser pool re-launches
-    try {
+    // Also remove _pool* sibling directories created by browser pool re-launches.
+    // On Windows, Chrome writes files (optimization_guide_model_store,
+    // segmentation_platform, first_party_sets.db, etc.) during its shutdown
+    // sequence and may still hold file locks. Retry up to 10 times at 5s intervals.
+    const removePoolDirs = (): number => {
       const poolDirs = globSync(`${constants.userDataDirectory}_pool*`);
       for (const dir of poolDirs) {
         fs.rmSync(dir, { recursive: true, force: true });
       }
-    } catch (error) {
-      consoleLogger.warn(`Unable to remove pool directories: ${error.message}`);
+      return poolDirs.length;
+    };
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try {
+        if (removePoolDirs() === 0) break; // nothing left to clean
+        break; // rmSync succeeded for all dirs
+      } catch {
+        if (attempt < 9) {
+          await new Promise(r => setTimeout(r, 5000));
+        } else {
+          consoleLogger.warn('Unable to remove pool directories after 10 attempts');
+        }
+      }
     }
   }
 

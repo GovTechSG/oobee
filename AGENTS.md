@@ -212,6 +212,7 @@ docker run oobee node dist/cli.js ...
 
     - If Chrome/Edge profile cloning fails (for example `EBUSY` while copying locked cookie/state files on Windows), Oobee now falls back to an empty cloned profile directory for that scan. This keeps browser launch stable, but authenticated session cookies may not be available.
     - Crawlee's browser pool retires and re-launches browser instances after ~4 minutes. On Windows, reusing the same `--user-data-dir` causes Chrome exit code 21 (stale lock contention). `getPreLaunchHook()` in `commonCrawlerFunc.ts` assigns unique `_pool{N}` directories for each re-launch and performs a best-effort async clone of the base profile. Cleanup must glob `_pool*` directories alongside the base `oobee-{token}` dir.
+    - On Windows, Chrome writes files asynchronously during its shutdown sequence (`first_party_sets.db`, `optimization_guide_model_store/`, `segmentation_platform/`, `Local State`, `Profile N/`). Pool directory cleanup uses a 5s initial delay (vs 2s on other platforms) and retries up to 3 times in `getPostPageCloseHook()`. The final sweep in `cleanUp()` also retries after a 3s delay on Windows.
 
 4. **`constants.launcher` mutation** — When webkit is the fallback, `constants.launcher` is reassigned globally. This affects all subsequent browser launches in the same process.
 
