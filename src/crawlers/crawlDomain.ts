@@ -820,6 +820,10 @@ const crawlDomain = async ({
               });
             } catch {}
           } else {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
             urlsCrawled.userExcluded.push({
               url: request.url,
               pageTitle: request.url,
@@ -836,8 +840,10 @@ const crawlDomain = async ({
         // Re-enqueue rate-limited (403) URLs once for a retry after concurrency recovers.
         // Without this, URLs that fail during a rate-limit burst are permanently lost
         // even though the site is accessible at lower concurrency.
+        // Don't call onFailure here — the re-enqueued request will get a fresh attempt.
+        // If it fails again (rateLimitRetried=true), it falls through to the normal
+        // onFailure + circuit breaker path below.
         if (status === 403 && !request.userData?.rateLimitRetried) {
-          rateController.onFailure(status, crawler.autoscaledPool);
           try {
             await requestQueue.addRequest({
               url: request.url,
