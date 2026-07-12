@@ -425,9 +425,13 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
     }
     try {
       fs.rmSync(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
-      fs.rmSync(path.join(storagePath, 'crawlee_rq'), { recursive: true, force: true });
     } catch (error) {
       consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
+    }
+    try {
+      fs.rmSync(path.join(storagePath, 'crawlee_rq'), { recursive: true, force: true });
+    } catch (error) {
+      consoleLogger.warn(`Unable to force remove crawlee_rq folder: ${error.message}`);
     }
 
     try {
