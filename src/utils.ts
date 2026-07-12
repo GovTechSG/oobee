@@ -395,7 +395,10 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
     // segmentation_platform, first_party_sets.db, etc.) during its shutdown
     // sequence and may still hold file locks. Retry up to 10 times at 5s intervals.
     const removePoolDirs = (): number => {
-      const poolDirs = globSync(`${constants.userDataDirectory}_pool*`);
+      // On Windows, glob interprets backslashes as escape characters, not path
+      // separators. Normalize to forward slashes so the pattern actually matches.
+      const globPattern = `${constants.userDataDirectory}_pool*`.replace(/\\/g, '/');
+      const poolDirs = globSync(globPattern);
       for (const dir of poolDirs) {
         fs.rmSync(dir, { recursive: true, force: true });
       }
