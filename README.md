@@ -18,6 +18,10 @@ For the **user-friendly desktop application**, check out [Oobee](https://go.gov.
 6. [Corretto](https://aws.amazon.com/corretto)
 7. [VeraPDF](https://github.com/veraPDF/veraPDF-apps)
 
+## How Scanning Works
+
+For a detailed explanation of how Oobee scans websites, what affects result accuracy, recommended hardware specs, and tips for getting the best coverage, see [CRAWL.md](./CRAWL.md). Recommended reading before running large scans.
+
 ## Using Oobee as a NodeJS module
 
 If you wish to use Oobee as a NodeJS module that can be integrated with end-to-end testing frameworks, refer to the [integration guide](./INTEGRATION.md) on how you can do so.

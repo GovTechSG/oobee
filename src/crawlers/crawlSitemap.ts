@@ -4,6 +4,7 @@ import fs from 'fs';
 import {
   createCrawleeSubFolders,
   getPreLaunchHook,
+  getPostPageCloseHook,
   preNavigationHooks,
   runAxeScript,
   isUrlPdf,
@@ -14,13 +15,16 @@ import constants, {
   STATUS_CODE_METADATA,
   guiInfoStatusTypes,
   UrlsCrawled,
+  blackListedFileExtensions,
   disallowedListOfPatterns,
+  disallowedSelectorPatterns,
   FileTypes,
   RuleFlags,
 } from '../constants/constants.js';
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
+  isDisallowedInRobotsTxt,
   isSkippedUrl,
   waitForPageLoaded,
   isFilePath,
@@ -133,6 +137,12 @@ const crawlSitemap = async ({
     sources: linksFromSitemap,
   });
 
+  // Always create a request queue alongside the request list. An empty queue
+  // has zero impact on crawl behavior (Crawlee processes RequestList first).
+  // Having it available enables: download re-enqueue for PDF scanning,
+  // 403 rate-limit retry, and enqueueLinks for intelligent sitemap discovery.
+  const { requestQueue } = await createCrawleeSubFolders(randomToken);
+
   const crawler = register(
     new crawlee.PlaywrightCrawler({
       launchContext: {
@@ -158,8 +168,10 @@ const crawlSitemap = async ({
             };
           },
         ],
+        postPageCloseHooks: [getPostPageCloseHook(userDataDirectory)],
       },
       requestList,
+      requestQueue,
       maxRequestRetries: 3,
       maxSessionRotations: 1,
       postNavigationHooks: [
@@ -225,16 +237,22 @@ const crawlSitemap = async ({
           if (isNotSupportedDocument) {
             request.skipNavigation = true;
             request.userData.isNotSupportedDocument = true;
-
-            // Log for verification (optional, but not required for correctness)
-            // console.log(`[SKIP] Not supported: ${request.url}`);
-
             return;
           }
+
+          try {
+            const pathname = new URL(url).pathname;
+            const ext = pathname.split('.').pop();
+            if (ext && blackListedFileExtensions.includes(ext)) {
+              request.skipNavigation = true;
+              request.userData.isNotSupportedDocument = true;
+              return;
+            }
+          } catch {}
         },
       ],
       requestHandlerTimeoutSecs: 90,
-      requestHandler: async ({ page, request, response, sendRequest }) => {
+      requestHandler: async ({ page, request, response, sendRequest, enqueueLinks }) => {
         // Log documents that are not supported
         if (request.userData?.isNotSupportedDocument) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
@@ -401,6 +419,32 @@ const crawlSitemap = async ({
               results.actualUrl = actualUrl;
 
               await dataset.pushData(results);
+
+              // Discover <a> links from this page for the intelligent sitemap flow.
+              // This eliminates the need for a separate crawlDomain supplement phase
+              // that would re-visit all these pages just to extract links.
+              if (fromCrawlIntelligentSitemap) {
+                try {
+                  await enqueueLinks({
+                    selector: `a:not(${disallowedSelectorPatterns})`,
+                    strategy,
+                    requestQueue,
+                    transformRequestFunction: (req) => {
+                      try {
+                        req.url = req.url.replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
+                      } catch {}
+                      if (isDisallowedInRobotsTxt(req.url)) return null;
+                      if (isUrlPdf(req.url)) {
+                        req.skipNavigation = true;
+                      }
+                      req.label = req.url;
+                      return req;
+                    },
+                  });
+                } catch {
+                  // Best-effort link discovery; don't fail the scan
+                }
+              }
             }
           } else {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
@@ -409,20 +453,37 @@ const crawlSitemap = async ({
             });
 
             if (isScanHtml) {
-              // carry through the HTTP status metadata
-              const status = response?.status();
-              const metadata =
-                typeof status === 'number'
-                  ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
-                  : STATUS_CODE_METADATA[2];
+              // Non-HTML content types (images, PDFs, binary files) and URLs
+              // that redirect to non-HTML resources should be classified as
+              // unsupported documents, not generic page errors.
+              const isNonHtmlContent =
+                contentType &&
+                !contentType.startsWith('text/html') &&
+                !contentType.includes('html');
 
-              urlsCrawled.invalid.push({
-                actualUrl,
-                url: request.url,
-                pageTitle: request.url,
-                metadata,
-                httpStatusCode: typeof status === 'number' ? status : 0,
-              });
+              if (isNonHtmlContent && status !== 0) {
+                urlsCrawled.userExcluded.push({
+                  actualUrl,
+                  url: request.url,
+                  pageTitle: request.url,
+                  metadata: STATUS_CODE_METADATA[1],
+                  httpStatusCode: 1,
+                });
+              } else {
+                const httpStatus = response?.status();
+                const metadata =
+                  typeof httpStatus === 'number'
+                    ? STATUS_CODE_METADATA[httpStatus] || STATUS_CODE_METADATA[599]
+                    : STATUS_CODE_METADATA[2];
+
+                urlsCrawled.invalid.push({
+                  actualUrl,
+                  url: request.url,
+                  pageTitle: request.url,
+                  metadata,
+                  httpStatusCode: typeof httpStatus === 'number' ? httpStatus : 0,
+                });
+              }
             }
           }
         } catch (e) {
@@ -437,7 +498,55 @@ const crawlSitemap = async ({
           return;
         }
 
+        // Handle download-triggered navigation errors: Playwright throws
+        // "Download is starting" when page.goto() hits a file download URL.
+        const isDownloadError = request.errorMessages?.some(
+          (msg: string) => msg.includes('Download is starting'),
+        );
+        if (isDownloadError) {
+          if (isScanPdfs) {
+            // Re-enqueue with skipNavigation so the requestHandler's PDF download path handles it
+            try {
+              await requestQueue.addRequest({
+                url: request.url,
+                skipNavigation: true,
+                label: request.url,
+                uniqueKey: `download_${request.url}`,
+              });
+            } catch {}
+          } else {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: request.url,
+              metadata: STATUS_CODE_METADATA[1],
+              httpStatusCode: 1,
+            });
+          }
+          return;
+        }
+
         const status = response?.status();
+
+        // Re-enqueue rate-limited (403) URLs once for a retry after concurrency recovers.
+        // Don't call onFailure here — the re-enqueued request gets a fresh attempt.
+        // If it fails again (rateLimitRetried=true), it falls through to the normal path.
+        if (status === 403 && !request.userData?.rateLimitRetried) {
+          try {
+            await requestQueue.addRequest({
+              url: request.url,
+              label: request.url,
+              uniqueKey: `ratelimit_${request.url}`,
+              userData: { rateLimitRetried: true },
+            });
+          } catch {}
+          return;
+        }
+
         if (rateController.onFailure(status, crawler.autoscaledPool)) {
           consoleLogger.info(
             `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,

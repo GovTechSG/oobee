@@ -5,6 +5,7 @@ import type { PlaywrightCrawlingContext, RequestOptions } from 'crawlee';
 import {
   createCrawleeSubFolders,
   getPreLaunchHook,
+  getPostPageCloseHook,
   preNavigationHooks,
   runAxeScript,
   isUrlPdf,
@@ -418,12 +419,23 @@ const crawlDomain = async ({
             };
           },
         ],
+        postPageCloseHooks: [getPostPageCloseHook(userDataDirectory)],
       },
       requestQueue,
       maxRequestRetries: 3,
       maxSessionRotations: 1,
       preNavigationHooks: [
         ...preNavigationHooks(extraHTTPHeaders),
+        async ({ request }) => {
+          const url = request.url.toLowerCase();
+          try {
+            const pathname = new URL(url).pathname;
+            const ext = pathname.split('.').pop();
+            if (ext && blackListedFileExtensions.includes(ext)) {
+              request.skipNavigation = true;
+            }
+          } catch {}
+        },
       ],
       postNavigationHooks: [
         async crawlingContext => {
@@ -555,21 +567,17 @@ const crawlDomain = async ({
             (request.skipNavigation && actualUrl === 'about:blank')
           ) {
             if (!isScanPdfs) {
-              // Don't inform the user it is skipped since web crawler is best-effort.
-              /*
-            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
-            urlsCrawled.userExcluded.push({
-              url: request.url,
-              pageTitle: request.url,
-              actualUrl: request.url, // because about:blank is not useful
-              metadata: STATUS_CODE_METADATA[1],
-              httpStatusCode: 0,
-            });
-            */
-
+              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              urlsCrawled.userExcluded.push({
+                url: request.url,
+                pageTitle: request.url,
+                actualUrl: request.url,
+                metadata: STATUS_CODE_METADATA[1],
+                httpStatusCode: 1,
+              });
               return;
             }
             const { pdfFileName, url: downloadedPdfUrl } = handlePdfDownload(
@@ -585,20 +593,17 @@ const crawlDomain = async ({
           }
 
           if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
-            // Don't inform the user it is skipped since web crawler is best-effort.
-            /*
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.userExcluded.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl, // because about:blank is not useful
-            metadata: STATUS_CODE_METADATA[1],
-            httpStatusCode: 0,
-          });
-          */
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl,
+              metadata: STATUS_CODE_METADATA[1],
+              httpStatusCode: 1,
+            });
             return;
           }
 
@@ -800,7 +805,59 @@ const crawlDomain = async ({
           return;
         }
 
+        // Handle download-triggered navigation errors: Playwright throws
+        // "Download is starting" when page.goto() hits a file download URL.
+        // Crawlee retries 3 times (all fail) then lands here.
+        const isDownloadError = request.errorMessages?.some(
+          (msg: string) => msg.includes('Download is starting'),
+        );
+        if (isDownloadError) {
+          if (isScanPdfs) {
+            // Re-enqueue with skipNavigation so the requestHandler's PDF download path handles it
+            try {
+              await requestQueue.addRequest({
+                url: request.url,
+                skipNavigation: true,
+                label: request.url,
+                uniqueKey: `download_${request.url}`,
+              });
+            } catch {}
+          } else {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: request.url,
+              metadata: STATUS_CODE_METADATA[1],
+              httpStatusCode: 1,
+            });
+          }
+          return;
+        }
+
         const status = response?.status();
+
+        // Re-enqueue rate-limited (403) URLs once for a retry after concurrency recovers.
+        // Without this, URLs that fail during a rate-limit burst are permanently lost
+        // even though the site is accessible at lower concurrency.
+        // Don't call onFailure here — the re-enqueued request will get a fresh attempt.
+        // If it fails again (rateLimitRetried=true), it falls through to the normal
+        // onFailure + circuit breaker path below.
+        if (status === 403 && !request.userData?.rateLimitRetried) {
+          try {
+            await requestQueue.addRequest({
+              url: request.url,
+              label: request.url,
+              uniqueKey: `ratelimit_${request.url}`,
+              userData: { rateLimitRetried: true },
+            });
+          } catch {}
+          return;
+        }
+
         if (rateController.onFailure(status, crawler.autoscaledPool)) {
           consoleLogger.info(
             `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
@@ -844,7 +901,9 @@ const crawlDomain = async ({
 
   // Additional passes: keep re-visiting scanned seed-hostname pages for
   // click-discovery until no new pages are found or limits are reached.
-  if (!safeMode && !isAbortingScanNow && !durationExceeded) {
+  // Skip when called from intelligent sitemap — the domain phase is only meant
+  // to discover new pages via <a> links, not re-click 3000+ already-scanned pages.
+  if (!safeMode && !isAbortingScanNow && !durationExceeded && !fromCrawlIntelligentSitemap) {
     const seedHostname = new URL(url).hostname;
     const clickPassVisited = new Set<string>();
     let prevScannedCount: number;
