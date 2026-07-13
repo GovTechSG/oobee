@@ -114,12 +114,12 @@ A representative scan means enough pages have been checked that the issues found
 
 ### Recommended Hardware
 
-Scanning is CPU and memory intensive — each page runs in a real browser with full JavaScript execution.
+Scanning is CPU and memory intensive — each page runs in a real browser with full JavaScript execution.  The time estimates illustrated below for scans that do not include screenshots.
 
 | Scan Size | Hardware | Max Concurrency | Expected Duration |
 |-----------|----------|-----------------|-------------------|
 | 1,000 pages | ECS Fargate, 2 vCPU / 4 GB RAM | 10 (`-t 10`) | 2-3 hours |
-| 5,000 pages | Laptop/desktop, 8 cores / 12 threads, 24 GB RAM | 25 (`-t 25`) | 2-3 hours |
+| 5,000 pages | Recent Core Ultra or Snapdragon X Series Laptop/Desktop, 8 cores / 12 threads, 24 GB RAM | 25 (`-t 25`) | 2-3 hours |
 
 **Oobee Desktop** runs with `OOBEE_FAST_CRAWLER=true`, which means concurrency scales up aggressively to the maximum (25) as fast as possible. This is suitable for desktop machines with adequate CPU and RAM, but may cause stability issues on low-powered devices.
 
