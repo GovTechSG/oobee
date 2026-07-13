@@ -18,6 +18,7 @@ import {
   getS3UploadPrefix,
   uploadFolderToS3,
 } from './services/s3Uploader.js';
+import { writeManifest, resetCaptureEntries, isPageCaptureEnabled } from './crawlers/pageCapture.js';
 
 // Class exports
 export class ViewportSettingsClass {
@@ -74,6 +75,10 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
   constants.sitemapFetchedLinks = null;
+
+  if (isPageCaptureEnabled() && !process.env.OOBEE_SCAN_PRODUCT) {
+    process.env.OOBEE_SCAN_PRODUCT = 'U&A';
+  }
 
   if (process.env.CRAWLEE_SYSTEM_INFO_V2 === undefined) {
     // Set the environment variable to enable system info v2
@@ -285,6 +290,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   if (scanDetails.urlsCrawled) {
     if (scanDetails.urlsCrawled.scanned.length > 0) {
       await createAndUpdateResultsFolders(randomToken);
+      await writeManifest(randomToken);
+      resetCaptureEntries();
       const pagesNotScanned = [
         ...urlsCrawledObj.error,
         ...urlsCrawledObj.invalid,

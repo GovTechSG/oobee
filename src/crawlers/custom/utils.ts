@@ -4,6 +4,7 @@
 import path from 'path';
 import { getDomain } from 'tldts';
 import { runAxeScript } from '../commonCrawlerFunc.js';
+import { capturePageData } from '../pageCapture.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
 import { guiInfoStatusTypes } from '../../constants/constants.js';
 import { isSkippedUrl, validateCustomFlowLabel } from '../../constants/common.js';
@@ -158,6 +159,8 @@ export const runAxeScan = async (
   urlsCrawled,
 ) => {
   const result = await runAxeScript({ includeScreenshots, page, randomToken, customFlowDetails });
+
+  await capturePageData(page, page.url(), randomToken);
 
   await dataset.pushData(result);
 

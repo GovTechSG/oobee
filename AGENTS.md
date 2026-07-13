@@ -144,6 +144,8 @@ The `constants` default export object holds runtime state:
 | `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
 | `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl (default 100) |
 | `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
+| `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML to `pageDOMs/` in results directory. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
+| `OOBEE_SAVE_PAGE_SCREENSHOT` | `1` or `true` = save full-page desktop + mobile viewport screenshots to `pageDOMs/desktopPageScreenshots/` and `pageDOMs/mobilePageScreenshots/`. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | Proxy configuration |
 | `NO_PROXY` / `INCLUDE_PROXY` | Proxy bypass/include lists |
 
@@ -352,5 +354,17 @@ When making changes, validate these areas which have well-established edge cases
 ├── scanPagesDetail.json    # Per-page breakdown
 ├── scanPagesSummary.json   # Page-level summary
 ├── sitemap.xml             # Discovered URLs
-└── screenshots/            # Violation screenshots (if enabled)
+├── screenshots/            # Violation screenshots (if enabled)
+└── pageDOMs/              # Page capture (if OOBEE_SAVE_DOM or OOBEE_SAVE_PAGE_SCREENSHOT)
+    ├── {hash}-{truncated_path}.html          # Full DOM (OOBEE_SAVE_DOM)
+    ├── domManifest.json                     # Maps URLs → hash, file paths, errors
+    ├── desktopPageScreenshots/             # Desktop viewport PNGs (OOBEE_SAVE_PAGE_SCREENSHOT)
+    │   └── {hash}-{truncated_path}.png
+    └── mobilePageScreenshots/              # Mobile viewport PNGs (OOBEE_SAVE_PAGE_SCREENSHOT)
+        └── {hash}-{truncated_path}.png
 ```
+
+- `{hash}` is a 7-character SHA-256 of the page URL (consistent per URL, like git short hashes)
+- `{truncated_path}` is the URL path with `/` replaced by `_`, max 80 characters
+- If filename collisions occur, a `-2`, `-3` etc. suffix is added before the extension
+- `domManifest.json` is written when either env var is enabled, containing URL-to-file mappings

@@ -41,6 +41,7 @@ import {
 } from './pdfScanFunc.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
+import { capturePageData } from './pageCapture.js';
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
@@ -399,7 +400,7 @@ const crawlDomain = async ({
         launcher: constants.launcher,
         launchOptions: getPlaywrightLaunchOptions(browser),
       },
-      retryOnBlocked: true,
+      retryOnBlocked: false,
       browserPoolOptions: {
         useFingerprints: false,
         retireBrowserAfterPageCount: 500,
@@ -423,7 +424,6 @@ const crawlDomain = async ({
       },
       requestQueue,
       maxRequestRetries: 3,
-      maxSessionRotations: 1,
       preNavigationHooks: [
         ...preNavigationHooks(extraHTTPHeaders),
         async ({ request }) => {
@@ -644,6 +644,21 @@ const crawlDomain = async ({
             }
 
             const responseStatus = response?.status();
+            if (responseStatus === 403) {
+              rateController.onFailure(responseStatus, activeCrawler.autoscaledPool);
+              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              urlsCrawled.userExcluded.push({
+                url: request.url,
+                pageTitle: request.url,
+                actualUrl,
+                metadata: STATUS_CODE_METADATA[403] || STATUS_CODE_METADATA[599],
+                httpStatusCode: 403,
+              });
+              return;
+            }
             if (responseStatus && responseStatus >= 300) {
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 numScanned: urlsCrawled.scanned.length,
@@ -660,6 +675,8 @@ const crawlDomain = async ({
             }
 
             const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
+
+            await capturePageData(page, actualUrl, randomToken);
 
             // Detect JS redirects that fire during/after axe scan.
             // Listen for navigation, then give a brief window for pending redirects to complete.
@@ -841,12 +858,9 @@ const crawlDomain = async ({
         const status = response?.status();
 
         // Re-enqueue rate-limited (403) URLs once for a retry after concurrency recovers.
-        // Without this, URLs that fail during a rate-limit burst are permanently lost
-        // even though the site is accessible at lower concurrency.
-        // Don't call onFailure here — the re-enqueued request will get a fresh attempt.
-        // If it fails again (rateLimitRetried=true), it falls through to the normal
-        // onFailure + circuit breaker path below.
+        // Call onFailure to reduce concurrency immediately on rate-limit detection.
         if (status === 403 && !request.userData?.rateLimitRetried) {
+          rateController.onFailure(status, crawler.autoscaledPool);
           try {
             await requestQueue.addRequest({
               url: request.url,

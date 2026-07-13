@@ -21,6 +21,7 @@ import { runPdfScan, mapPdfScanResults, doPdfScreenshots } from './pdfScanFunc.j
 import { guiInfoLog } from '../logs.js';
 import crawlSitemap from './crawlSitemap.js';
 import { getPdfStoragePath, getStoragePath, register } from '../utils.js';
+import { capturePageData } from './pageCapture.js';
 
 export const crawlLocalFile = async ({
   url,
@@ -185,6 +186,8 @@ export const crawlLocalFile = async ({
     const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
     const actualUrl = page.url() || request.loadedUrl || url;
+
+    await capturePageData(page, actualUrl, randomToken);
 
     guiInfoLog(guiInfoStatusTypes.SCANNED, {
       numScanned: urlsCrawled.scanned.length,
