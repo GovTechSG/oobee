@@ -1,5 +1,30 @@
 # How Oobee Scanning Works
 
+## Table of Contents
+
+**Part 1: How Scanning Affects Accessibility Results**
+- [What Oobee Does](#what-oobee-does)
+- [What Gets Scanned](#what-gets-scanned)
+- [Scan Strategy](#scan-strategy)
+- [Why Some Pages Are Not Scanned](#why-some-pages-are-not-scanned)
+- [What Affects Result Accuracy](#what-affects-result-accuracy)
+- [Understanding the Report](#understanding-the-report)
+- [Choosing a Page Budget](#choosing-a-page-budget)
+- [Tips for Better Scan Results](#tips-for-better-scan-results)
+- [Recommended Hardware](#recommended-hardware)
+
+**Part 2: Technical Details**
+- [Scan Modes](#scan-modes)
+- [Page Discovery Mechanics](#page-discovery-mechanics)
+- [Concurrency and Ordering](#concurrency-and-ordering)
+- [Adaptive Concurrency and Rate Limiting](#adaptive-concurrency-and-rate-limiting)
+- [Error Handling Pipeline](#error-handling-pipeline)
+- [Page Classification](#page-classification)
+- [Page Budget](#page-budget)
+- [Browser Pool and Session State](#browser-pool-and-session-state)
+
+---
+
 ## Part 1: How Scanning Affects Accessibility Results
 
 ### What Oobee Does
@@ -15,6 +40,29 @@ Oobee supports three main scan modes:
 - **Website**: Starts at one page and follows links to discover more pages on the same site. Discovers pages organically by extracting links from each page it visits. Coverage depends heavily on site navigation structure.
 
 Not all pages on a site will necessarily be scanned. The scanner stops when it reaches the page limit, time limit, or runs out of discoverable pages.
+
+### Scan Strategy
+
+The **strategy** (`-s`) controls which discovered links are followed. It is supported in Intelligent, Website, and Sitemap modes:
+
+- **`same-domain`** (default): Follows links on the same registered domain, including subdomains.
+- **`same-hostname`**: Only follows links on the exact same hostname (after stripping `www.`).
+- **`ignore`** (sitemap mode only): No URL filtering — all URLs in the sitemap are scanned regardless of domain. This is the default for standalone sitemap scans.
+
+**Example**: Scanning `https://www.acme.gov.sg/services/home`
+
+| Discovered Link | `same-domain` | `same-hostname` |
+|-----------------|:---:|:---:|
+| `https://www.acme.gov.sg/services/faq` | Followed | Followed |
+| `https://acme.gov.sg/about` | Followed | Followed (www. stripped) |
+| `https://employer.acme.gov.sg/dashboard` | Followed (same domain `acme.gov.sg`) | Skipped (different hostname) |
+| `https://blog.acme.gov.sg/news` | Followed (same domain `acme.gov.sg`) | Skipped (different hostname) |
+| `https://www.other.gov.sg/resources` | Skipped (different domain) | Skipped (different hostname) |
+
+Choosing the right strategy affects coverage:
+- Use `same-domain` when your site spans multiple subdomains and you want a holistic view.
+- Use `same-hostname` when you only care about one specific subdomain, or when following subdomains would waste budget on unrelated content (e.g., a separate blog platform).
+- The strategy only filters links discovered dynamically during the crawl — it does NOT affect which pages are listed in the sitemap.
 
 ### Why Some Pages Are Not Scanned
 
@@ -68,16 +116,22 @@ A representative scan means enough pages have been checked that the issues found
 
 Scanning is CPU and memory intensive — each page runs in a real browser with full JavaScript execution.
 
-| Scan Size | CPU Cores | RAM | Expected Duration |
-|-----------|-----------|-----|-------------------|
-| Up to 500 pages | 4 cores | 8 GB | ~30 minutes |
-| 1000-2000 pages | 6 cores | 12 GB | ~1-2 hours |
-| 3000-5000 pages | 8 cores | 16 GB | ~2-3 hours |
-| 5000+ pages | 8+ cores | 16+ GB | 3+ hours |
+| Scan Size | Hardware | Max Concurrency | Expected Duration |
+|-----------|----------|-----------------|-------------------|
+| 1,000 pages | ECS Fargate, 2 vCPU / 4 GB RAM | 10 (`-t 10`) | 2-3 hours |
+| 5,000 pages | Laptop/desktop, 8 cores / 12 threads, 24 GB RAM | 25 (`-t 25`) | 2-3 hours |
 
-These estimates assume default concurrency (25) on a site that doesn't aggressively rate-limit. Actual times depend on page complexity, server response speed, and rate limiting. Sites with heavy JavaScript or strict WAFs will take longer.
+**Oobee Desktop** runs with `OOBEE_FAST_CRAWLER=true`, which means concurrency scales up aggressively to the maximum (25) as fast as possible. This is suitable for desktop machines with adequate CPU and RAM, but may cause stability issues on low-powered devices.
 
-**Disk space**: Ensure at least 20 GB free. Browser caches, pool directories, intermediate scan data, and uncompressed reports can accumulate significantly during large scans. Running out of disk space mid-scan causes hard failures.
+Setting concurrency above 25 (e.g. `-t 50`) is possible but generally provides no speed improvement — either the target website rate-limits the extra requests, or the machine itself becomes the bottleneck (CPU saturation, memory pressure). In practice, 25 is the sweet spot for most hardware and most sites.
+
+For smaller environments (Fargate, low-spec VMs), reduce concurrency to 10 to avoid overwhelming the container's limited CPU and memory. Higher concurrency on constrained hardware causes thrashing, not faster scans.
+
+**Slow scan mode** (`-c website` with click discovery): The second-pass click-discovery loop visits every scanned page sequentially and clicks each interactive element with delays. On large sites (1000+ pages), this can add many hours to the scan. Use Intelligent mode instead — it discovers links via `<a>` tag extraction during the sitemap phase without the expensive click loop.
+
+These estimates assume the target site doesn't aggressively rate-limit. Actual times depend on page complexity, server response speed, and WAF behavior.
+
+**Disk space**: Ensure at least 20 GB free for a 5,000-page scan. This accounts for browser pool directories (~30-50 MB active at any time, but accumulates if cleanup is delayed), intermediate per-page JSON results (~2-5 KB each, ~10-25 MB total), uncompressed report artifacts (HTML report with embedded data can reach 500 MB+ before compression), and temporary PDF/screenshot storage if enabled. Smaller scans (1,000 pages) can get by with 5-10 GB free. Running out of disk space mid-scan causes hard failures (ENOSPC).
 
 **Slow machines degrade both coverage and accuracy**: Oobee has fixed timeouts — 30 seconds for a page to start loading, 90 seconds total for the page to load and be scanned. On an underpowered machine, Chromium itself runs slowly, which means:
 
@@ -127,7 +181,7 @@ Desktop machines or cloud instances with adequate cooling and dedicated CPU core
 
 ### Concurrency and Ordering
 
-- Default max concurrency: 25 simultaneous pages (configurable via `-c`)
+- Default max concurrency: 25 simultaneous pages (configurable via `-t`)
 - Pages process in parallel — completion order depends on server response times, not queue order
 - **Sitemap mode**: `RequestList` provides FIFO order to workers, but with 25 workers, pages 1-25 start together and complete in arbitrary order
 - **Domain mode**: Entirely non-deterministic — faster pages discover and enqueue links first, which get processed before slower pages' links
