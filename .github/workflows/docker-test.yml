@@ -26,15 +26,12 @@ jobs:
       - name: Run Node CLI command inside the Docker container
         run: |
           # Execute a webisite crawl
-          docker exec oobee-container npm run cli -- -u "${{ vars.OOBEE_SCAN_URL }}" -c 2 -p "${{ vars.OOBEE_SCAN_MAX_NUM_PAGES }}" -t "${{ vars.OOBEE_SCAN_MAX_CONCURRENCY }}" -k "${{ github.actor }}:${{ github.actor }}@users.noreply.github.com" -b chromium -g yes || true
-
-      - name: Print errors
-        run: |
-          docker exec oobee-container cat errors.txt || true
+          docker exec oobee-container npm run cli -- -u "${{ vars.OOBEE_SCAN_URL }}" -c intelligent -p "${{ vars.OOBEE_SCAN_MAX_NUM_PAGES }}" -t "${{ vars.OOBEE_SCAN_MAX_CONCURRENCY }}" -k "${{ github.actor }}:${{ github.actor }}@users.noreply.github.com" -b chromium -g yes || true
 
       - name: Print logs
         run: |
-          docker exec oobee-container cat logs/*/*.txt || true
+          docker exec oobee-container sh -c 'cat /app/oobee/????????-????-????-????-????????????.txt' || true
+
       - name: Copy Results from Docker Container
         run: docker cp oobee-container:/app/oobee/results ./results
 
