@@ -15,6 +15,7 @@ import constants, {
   STATUS_CODE_METADATA,
   guiInfoStatusTypes,
   UrlsCrawled,
+  blackListedFileExtensions,
   disallowedListOfPatterns,
   disallowedSelectorPatterns,
   FileTypes,
@@ -239,19 +240,10 @@ const crawlSitemap = async ({
             return;
           }
 
-          // Detect non-scannable file extensions (images, media, etc.) from
-          // sitemap URLs that would otherwise waste a browser navigation.
-          // PDFs are excluded — they're handled by the PDF scan path.
-          const nonScannableExtensions = [
-            'css', 'js', 'txt', 'mp3', 'mp4', 'jpg', 'jpeg', 'png',
-            'svg', 'gif', 'woff', 'woff2', 'zip', 'webp', 'json', 'xml',
-            'ico', 'bmp', 'tiff', 'tif', 'avi', 'mov', 'wmv', 'flv',
-            'ogg', 'wav', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-          ];
           try {
             const pathname = new URL(url).pathname;
             const ext = pathname.split('.').pop();
-            if (ext && nonScannableExtensions.includes(ext)) {
+            if (ext && blackListedFileExtensions.includes(ext)) {
               request.skipNavigation = true;
               request.userData.isNotSupportedDocument = true;
               return;

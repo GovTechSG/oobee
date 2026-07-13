@@ -426,6 +426,16 @@ const crawlDomain = async ({
       maxSessionRotations: 1,
       preNavigationHooks: [
         ...preNavigationHooks(extraHTTPHeaders),
+        async ({ request }) => {
+          const url = request.url.toLowerCase();
+          try {
+            const pathname = new URL(url).pathname;
+            const ext = pathname.split('.').pop();
+            if (ext && blackListedFileExtensions.includes(ext)) {
+              request.skipNavigation = true;
+            }
+          } catch {}
+        },
       ],
       postNavigationHooks: [
         async crawlingContext => {
