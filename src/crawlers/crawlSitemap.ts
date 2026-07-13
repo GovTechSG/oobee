@@ -236,12 +236,27 @@ const crawlSitemap = async ({
           if (isNotSupportedDocument) {
             request.skipNavigation = true;
             request.userData.isNotSupportedDocument = true;
-
-            // Log for verification (optional, but not required for correctness)
-            // console.log(`[SKIP] Not supported: ${request.url}`);
-
             return;
           }
+
+          // Detect non-scannable file extensions (images, media, etc.) from
+          // sitemap URLs that would otherwise waste a browser navigation.
+          // PDFs are excluded — they're handled by the PDF scan path.
+          const nonScannableExtensions = [
+            'css', 'js', 'txt', 'mp3', 'mp4', 'jpg', 'jpeg', 'png',
+            'svg', 'gif', 'woff', 'woff2', 'zip', 'webp', 'json', 'xml',
+            'ico', 'bmp', 'tiff', 'tif', 'avi', 'mov', 'wmv', 'flv',
+            'ogg', 'wav', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+          ];
+          try {
+            const pathname = new URL(url).pathname;
+            const ext = pathname.split('.').pop();
+            if (ext && nonScannableExtensions.includes(ext)) {
+              request.skipNavigation = true;
+              request.userData.isNotSupportedDocument = true;
+              return;
+            }
+          } catch {}
         },
       ],
       requestHandlerTimeoutSecs: 90,
@@ -446,20 +461,37 @@ const crawlSitemap = async ({
             });
 
             if (isScanHtml) {
-              // carry through the HTTP status metadata
-              const status = response?.status();
-              const metadata =
-                typeof status === 'number'
-                  ? STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599]
-                  : STATUS_CODE_METADATA[2];
+              // Non-HTML content types (images, PDFs, binary files) and URLs
+              // that redirect to non-HTML resources should be classified as
+              // unsupported documents, not generic page errors.
+              const isNonHtmlContent =
+                contentType &&
+                !contentType.startsWith('text/html') &&
+                !contentType.includes('html');
 
-              urlsCrawled.invalid.push({
-                actualUrl,
-                url: request.url,
-                pageTitle: request.url,
-                metadata,
-                httpStatusCode: typeof status === 'number' ? status : 0,
-              });
+              if (isNonHtmlContent && status !== 0) {
+                urlsCrawled.userExcluded.push({
+                  actualUrl,
+                  url: request.url,
+                  pageTitle: request.url,
+                  metadata: STATUS_CODE_METADATA[1],
+                  httpStatusCode: 1,
+                });
+              } else {
+                const httpStatus = response?.status();
+                const metadata =
+                  typeof httpStatus === 'number'
+                    ? STATUS_CODE_METADATA[httpStatus] || STATUS_CODE_METADATA[599]
+                    : STATUS_CODE_METADATA[2];
+
+                urlsCrawled.invalid.push({
+                  actualUrl,
+                  url: request.url,
+                  pageTitle: request.url,
+                  metadata,
+                  httpStatusCode: typeof httpStatus === 'number' ? httpStatus : 0,
+                });
+              }
             }
           }
         } catch (e) {
@@ -500,7 +532,7 @@ const crawlSitemap = async ({
               pageTitle: request.url,
               actualUrl: request.url,
               metadata: STATUS_CODE_METADATA[1],
-              httpStatusCode: 0,
+              httpStatusCode: 1,
             });
           }
           return;

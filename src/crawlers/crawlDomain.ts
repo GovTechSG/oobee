@@ -557,21 +557,17 @@ const crawlDomain = async ({
             (request.skipNavigation && actualUrl === 'about:blank')
           ) {
             if (!isScanPdfs) {
-              // Don't inform the user it is skipped since web crawler is best-effort.
-              /*
-            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-              numScanned: urlsCrawled.scanned.length,
-              urlScanned: request.url,
-            });
-            urlsCrawled.userExcluded.push({
-              url: request.url,
-              pageTitle: request.url,
-              actualUrl: request.url, // because about:blank is not useful
-              metadata: STATUS_CODE_METADATA[1],
-              httpStatusCode: 0,
-            });
-            */
-
+              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              urlsCrawled.userExcluded.push({
+                url: request.url,
+                pageTitle: request.url,
+                actualUrl: request.url,
+                metadata: STATUS_CODE_METADATA[1],
+                httpStatusCode: 1,
+              });
               return;
             }
             const { pdfFileName, url: downloadedPdfUrl } = handlePdfDownload(
@@ -587,20 +583,17 @@ const crawlDomain = async ({
           }
 
           if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
-            // Don't inform the user it is skipped since web crawler is best-effort.
-            /*
-          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-            numScanned: urlsCrawled.scanned.length,
-            urlScanned: request.url,
-          });
-          urlsCrawled.userExcluded.push({
-            url: request.url,
-            pageTitle: request.url,
-            actualUrl, // because about:blank is not useful
-            metadata: STATUS_CODE_METADATA[1],
-            httpStatusCode: 0,
-          });
-          */
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl,
+              metadata: STATUS_CODE_METADATA[1],
+              httpStatusCode: 1,
+            });
             return;
           }
 
@@ -829,7 +822,7 @@ const crawlDomain = async ({
               pageTitle: request.url,
               actualUrl: request.url,
               metadata: STATUS_CODE_METADATA[1],
-              httpStatusCode: 0,
+              httpStatusCode: 1,
             });
           }
           return;
