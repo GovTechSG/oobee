@@ -309,6 +309,30 @@ const isAllowedContentType = (ct: string): boolean => {
   );
 };
 
+const isLikelyQemuChromeCrash = (error: unknown): boolean => {
+  const msg = error instanceof Error ? error.message : String(error || '');
+  return (
+    msg.includes('Target page, context or browser has been closed') ||
+    msg.includes("GPU process isn't usable") ||
+    msg.includes('qemu: uncaught target signal')
+  );
+};
+
+const withQemuChromeWorkaroundArgs = (launchOptions: LaunchOptions): LaunchOptions => {
+  const args = [...(launchOptions.args ?? [])];
+  const extraArgs = [
+    '--in-process-gpu',
+    '--disable-gpu-compositing',
+    '--disable-features=VizDisplayCompositor',
+  ];
+
+  extraArgs.forEach(arg => {
+    if (!args.includes(arg)) args.push(arg);
+  });
+
+  return { ...launchOptions, args };
+};
+
 const checkUrlConnectivityWithBrowser = async (
   url: string,
   browserToRun: string,
@@ -404,32 +428,63 @@ const checkUrlConnectivityWithBrowser = async (
   // Keep UA emulation explicitly.
   contextOptions.userAgent = process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined);
 
-  try {
-    const launchPersistent = async () => {
-      browserContext = await launchPersistentSafeContext(clonedDataDir, {
-        ...launchOptions,
-        ...contextOptions,
-      });
-      register(browserContext);
-    };
+  const launchPersistent = async (effectiveLaunchOptions: LaunchOptions) => {
+    browserContext = await launchPersistentSafeContext(clonedDataDir, {
+      ...effectiveLaunchOptions,
+      ...contextOptions,
+    });
+    register(browserContext);
+  };
 
-    const launchEphemeral = async () => {
-      browserInstance = await constants.launcher.launch(launchOptions);
-      register(browserInstance as unknown as { close: () => Promise<void> });
-      browserContext = await browserInstance.newContext(contextOptions);
-    };
+  const launchEphemeral = async (effectiveLaunchOptions: LaunchOptions) => {
+    browserInstance = await constants.launcher.launch(effectiveLaunchOptions);
+    register(browserInstance as unknown as { close: () => Promise<void> });
+    browserContext = await browserInstance.newContext(contextOptions);
+  };
 
+  const launchBrowserContext = async (effectiveLaunchOptions: LaunchOptions) => {
     if (process.env.CRAWLEE_HEADLESS === '1') {
       try {
-        await launchPersistent();
+        await launchPersistent(effectiveLaunchOptions);
       } catch (error) {
         // Fallback to ephemeral context if persistent context fails (e.g. protocol errors)
         // More prone to falling back here when running localFile scans
         consoleLogger.warn(`Persistent context launch failed, retrying with ephemeral context: ${error.message}`);
-        await launchEphemeral();
+        await launchEphemeral(effectiveLaunchOptions);
       }
     } else {
-      await launchEphemeral();
+      await launchEphemeral(effectiveLaunchOptions);
+    }
+  };
+
+  try {
+    try {
+      await launchBrowserContext(launchOptions);
+    } catch (error) {
+      const shouldRetryWithQemuArgs =
+        browserToRun === BrowserTypes.CHROME &&
+        process.platform === 'linux' &&
+        fs.existsSync('/.dockerenv') &&
+        isLikelyQemuChromeCrash(error);
+
+      if (!shouldRetryWithQemuArgs) throw error;
+
+      consoleLogger.warn(
+        '[Chrome] Launch failed with likely emulation/GPU issue. Retrying Chrome with QEMU-safe flags.',
+      );
+
+      try {
+        await browserContext?.close();
+      } catch {}
+      if (browserInstance) {
+        try {
+          await browserInstance.close();
+        } catch {}
+      }
+      browserContext = undefined;
+      browserInstance = undefined;
+
+      await launchBrowserContext(withQemuChromeWorkaroundArgs(launchOptions));
     }
   } catch (err) {
     printMessage([`Unable to launch browser\n${err}`], messageOptions);
@@ -2151,11 +2206,12 @@ export async function initModifiedUserAgent(
 ) {
   // UA bootstrap must not use persistent context / user-data-dir.
   const launchOptions = getPlaywrightLaunchOptions(browser);
-
-  const browserInstance = await constants.launcher.launch(launchOptions);
-  register(browserInstance as unknown as { close: () => Promise<void> });
+  let browserInstance: Awaited<ReturnType<typeof constants.launcher.launch>> | undefined;
 
   try {
+    browserInstance = await constants.launcher.launch(launchOptions);
+    register(browserInstance as unknown as { close: () => Promise<void> });
+
     const context = await browserInstance.newContext();
     const page = await context.newPage();
     const defaultUA = await page.evaluate(() => navigator.userAgent);
@@ -2167,8 +2223,21 @@ export async function initModifiedUserAgent(
 
     // Do not mutate global CLI args with --user-agent=
     process.env.OOBEE_USER_AGENT = modifiedUA;
+  } catch (error) {
+    const fallbackUA =
+      (typeof (_playwrightDeviceDetailsObject as any)?.userAgent === 'string' &&
+        (_playwrightDeviceDetailsObject as any).userAgent) ||
+      devices['Desktop Chrome'].userAgent;
+
+    process.env.OOBEE_USER_AGENT = fallbackUA.includes('HeadlessChrome')
+      ? fallbackUA.replace('HeadlessChrome', 'Chrome')
+      : fallbackUA;
+
+    consoleLogger.warn(
+      `[UA] Failed to bootstrap user agent from browser (${(error as Error).message}). Using fallback Chrome UA string.`,
+    );
   } finally {
-    await browserInstance.close();
+    await browserInstance?.close();
   }
 }
 
@@ -2188,6 +2257,8 @@ export async function launchPersistentSafeContext(
  */
 export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   const channel = browser || undefined;
+  const isLinuxDockerChrome =
+    browser === BrowserTypes.CHROME && process.platform === 'linux' && fs.existsSync('/.dockerenv');
 
   const resolution = proxyInfoToResolution(cacheProxyInfo);
   const shouldIgnoreMuteAudio =
@@ -2205,6 +2276,23 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   // Cap browser disk cache to 10MB per instance to prevent storage bloat
   // during long crawls with multiple pool rotations
   finalArgs.push('--disk-cache-size=10485760');
+
+  // Chrome under Linux Docker emulation can crash in GPU process startup.
+  // Apply a conservative software-only launch profile while keeping Chrome channel.
+  if (isLinuxDockerChrome) {
+    const dockerChromeArgs = [
+      '--in-process-gpu',
+      '--disable-gpu-compositing',
+      '--disable-software-rasterizer',
+      '--disable-features=VizDisplayCompositor',
+      '--single-process',
+      '--no-zygote',
+    ];
+
+    dockerChromeArgs.forEach(arg => {
+      if (!finalArgs.includes(arg)) finalArgs.push(arg);
+    });
+  }
 
   // Prevent Windows from throttling background Chromium processes
   if (os.platform() === 'win32') {
@@ -2237,6 +2325,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   const baseIgnoredArgs = shouldIgnoreMuteAudio
     ? ['--use-mock-keychain', '--mute-audio']
     : ['--use-mock-keychain'];
+
+  if (isLinuxDockerChrome && !baseIgnoredArgs.includes('--enable-unsafe-swiftshader')) {
+    baseIgnoredArgs.push('--enable-unsafe-swiftshader');
+  }
 
   const safeBrowsingIgnoredArgs = safeBrowsingEnabled
     ? ['--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking']
