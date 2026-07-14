@@ -88,31 +88,23 @@ RUN if [ "$(dpkg --print-architecture)" = "amd64" ] && command -v google-chrome 
 
 # --- App code (changes here don't invalidate Chrome/seed layers above) ---
 
-WORKDIR /app/oobee
-
 # Environment variables for node and Playwright
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
 
+# Add non-privileged user before app copy so ownership can be set during COPY.
+RUN groupadd -r purple && useradd -r -g purple purple && \
+  mkdir -p /home/purple /app/oobee && chown purple:purple /home/purple /app /app/oobee
+
+WORKDIR /app/oobee
+
+# Run app build steps as non-root to avoid a full recursive chown later.
+USER purple
+
 # Install dependencies first (cached unless package.json/package-lock.json change)
-COPY package.json package-lock.json ./
+COPY --chown=purple:purple package.json package-lock.json ./
 RUN npm install --omit=dev
 
 # Copy source and compile TypeScript
-COPY . .
+COPY --chown=purple:purple . .
 RUN npm run build || true # true exits with code 0 - workaround for TS errors
-
-# Add non-privileged user
-RUN groupadd -r purple && useradd -r -g purple purple && \
-    mkdir -p /home/purple && chown -R purple:purple /home/purple
-
-WORKDIR /app
-
-# Set the ownership of the oobee directory to the user "purple"
-RUN chown -R purple:purple /app
-
-# For oobee to be run from present working directory
-WORKDIR /app/oobee
-
-# Run everything after as non-privileged user.
-USER purple
