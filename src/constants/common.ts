@@ -2366,7 +2366,12 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   }
 
   const safeBrowsingIgnoredArgs = safeBrowsingEnabled
-    ? ['--safebrowsing-disable-auto-update', '--disable-client-side-phishing-detection', '--disable-background-networking']
+    ? [
+        '--safebrowsing-disable-auto-update',
+        '--disable-client-side-phishing-detection',
+        '--disable-background-networking',
+        '--disable-component-update',
+      ]
     : [];
 
   if (safeBrowsingEnabled) {
