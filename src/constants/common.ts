@@ -14,7 +14,7 @@ import url, { fileURLToPath, pathToFileURL } from 'url';
 import safe from 'safe-regex';
 import * as https from 'https';
 import os from 'os';
-import { execSync as execSyncFn } from 'child_process';
+import { execSync as execSyncFn, spawn as spawnFn } from 'child_process';
 import mime from 'mime';
 import { minimatch } from 'minimatch';
 import { globSync, GlobOptionsWithFileTypesFalse } from 'glob';
@@ -331,6 +331,42 @@ const withQemuChromeWorkaroundArgs = (launchOptions: LaunchOptions): LaunchOptio
   });
 
   return { ...launchOptions, args };
+};
+
+const ensureXvfbDisplay = (): string | null => {
+  if (process.platform !== 'linux') return null;
+
+  const candidates = [process.env.DISPLAY, ':99', ':98', ':97', ':96']
+    .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    .filter((v, i, arr) => arr.indexOf(v) === i);
+
+  for (const display of candidates) {
+    const displayNum = display.replace(':', '');
+    const socketPath = `/tmp/.X11-unix/X${displayNum}`;
+
+    // Reuse an already-live display socket.
+    if (fs.existsSync(socketPath)) return display;
+
+    try {
+      const xvfb = spawnFn('Xvfb', [display, '-screen', '0', '1024x768x24', '-nolisten', 'tcp'], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      xvfb.unref();
+
+      // Wait briefly for the X socket to become available.
+      execSyncFn(
+        `for i in 1 2 3 4 5 6 7 8 9 10; do [ -S ${socketPath} ] && exit 0; sleep 0.2; done; exit 1`,
+        { stdio: 'ignore' },
+      );
+
+      return display;
+    } catch {
+      // Try next display candidate.
+    }
+  }
+
+  return null;
 };
 
 const checkUrlConnectivityWithBrowser = async (
@@ -2285,7 +2321,6 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
       '--disable-gpu-compositing',
       '--disable-software-rasterizer',
       '--disable-features=VizDisplayCompositor',
-      '--single-process',
       '--no-zygote',
     ];
 
@@ -2342,13 +2377,22 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   // On Linux without a display, we start Xvfb to provide a virtual framebuffer.
   let headless = process.env.CRAWLEE_HEADLESS === '1';
   if (safeBrowsingEnabled && headless) {
-    if (process.platform === 'linux' && !process.env.DISPLAY) {
-      try {
-        execSyncFn('pgrep -x Xvfb || (Xvfb :99 -screen 0 1024x768x24 &)', { stdio: 'ignore' });
-        process.env.DISPLAY = ':99';
-        consoleLogger.info('[SafeBrowsing] Started Xvfb on :99 for headful Safe Browsing');
-      } catch {
-        consoleLogger.info('[SafeBrowsing] Failed to start Xvfb, falling back to headless');
+    if (process.platform === 'linux') {
+      const currentDisplay = process.env.DISPLAY;
+      const currentDisplayNum = (currentDisplay || '').replace(':', '');
+      const currentDisplaySocket = currentDisplayNum
+        ? `/tmp/.X11-unix/X${currentDisplayNum}`
+        : '';
+
+      // Recover from stale DISPLAY values inherited from shell sessions.
+      if (!currentDisplay || !currentDisplaySocket || !fs.existsSync(currentDisplaySocket)) {
+        const display = ensureXvfbDisplay();
+        if (display) {
+          process.env.DISPLAY = display;
+          consoleLogger.info(`[SafeBrowsing] Xvfb ready on ${display} for headful Safe Browsing`);
+        } else {
+          consoleLogger.info('[SafeBrowsing] Failed to start Xvfb, falling back to headless');
+        }
       }
     }
     if (process.env.DISPLAY) {
@@ -2364,6 +2408,15 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     ...(channel && { channel }),
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
+
+  // Be explicit so Chrome child processes always inherit DISPLAY when
+  // Safe Browsing forces headed mode in Linux containers.
+  if (safeBrowsingEnabled && process.platform === 'linux' && process.env.DISPLAY) {
+    options.env = {
+      ...process.env,
+      DISPLAY: process.env.DISPLAY,
+    } as NodeJS.ProcessEnv;
+  }
 
   // SlowMo for debugging, can be set via env variable OOBEE_SLOWMO to avoid adding it as a CLI argument and causing confusion for users who don't need it
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
