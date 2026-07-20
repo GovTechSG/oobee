@@ -26,6 +26,7 @@ import constants, {
 } from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
+  getSafeBrowsingCdpLauncher,
   isBlacklistedFileExtensions,
   isSkippedUrl,
   isDisallowedInRobotsTxt,
@@ -394,19 +395,21 @@ const crawlDomain = async ({
 
   const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
 
+  const cdpLauncher = await getSafeBrowsingCdpLauncher(browser, userDataDirectory);
+
   const crawler = register(
     new crawlee.PlaywrightCrawler({
       launchContext: {
-        launcher: constants.launcher,
+        launcher: (cdpLauncher || constants.launcher) as any,
         launchOptions: getPlaywrightLaunchOptions(browser),
       },
       retryOnBlocked: false,
       browserPoolOptions: {
         useFingerprints: false,
-        retireBrowserAfterPageCount: 500,
+        retireBrowserAfterPageCount: cdpLauncher ? Number.MAX_SAFE_INTEGER : 500,
         closeInactiveBrowserAfterSecs: 30,
         preLaunchHooks: [
-          getPreLaunchHook(userDataDirectory),
+          ...(!cdpLauncher ? [getPreLaunchHook(userDataDirectory)] : []),
           async (_pageId, launchContext) => {
             // eslint-disable-next-line no-param-reassign
             launchContext.launchOptions = {
@@ -420,7 +423,7 @@ const crawlDomain = async ({
             };
           },
         ],
-        postPageCloseHooks: [getPostPageCloseHook(userDataDirectory)],
+        postPageCloseHooks: [...(!cdpLauncher ? [getPostPageCloseHook(userDataDirectory)] : [])],
       },
       requestQueue,
       maxRequestRetries: 3,
@@ -523,6 +526,7 @@ const crawlDomain = async ({
           }
 
           if (actualUrl.startsWith('chrome-error:')) {
+            const isSafeBrowsingBlock = !!process.env.GOOGLE_SAFE_BROWSING;
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
@@ -531,10 +535,9 @@ const crawlDomain = async ({
               url: request.url,
               pageTitle: request.url,
               actualUrl: request.url,
-              metadata: STATUS_CODE_METADATA[3],
-              httpStatusCode: 3,
+              metadata: isSafeBrowsingBlock ? STATUS_CODE_METADATA[3] : STATUS_CODE_METADATA[1],
+              httpStatusCode: isSafeBrowsingBlock ? 3 : 1,
             });
-            await enqueueProcess(page, enqueueLinks, browserContext);
             return;
           }
 
@@ -894,6 +897,27 @@ const crawlDomain = async ({
           );
           isAbortingScanNow = true;
           crawler.autoscaledPool?.abort();
+          return;
+        }
+
+        const isSafeBrowsingBlock = !!process.env.GOOGLE_SAFE_BROWSING &&
+          request.errorMessages?.some((msg: string) =>
+            msg.includes('ERR_BLOCKED_BY_CLIENT') ||
+            msg.includes('ERR_BLOCKED_BY_RESPONSE'),
+          );
+
+        if (isSafeBrowsingBlock) {
+          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+            numScanned: urlsCrawled.scanned.length,
+            urlScanned: request.url,
+          });
+          urlsCrawled.userExcluded.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: request.url,
+            metadata: STATUS_CODE_METADATA[3],
+            httpStatusCode: 3,
+          });
           return;
         }
 

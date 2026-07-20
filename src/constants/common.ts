@@ -14,7 +14,7 @@ import url, { fileURLToPath, pathToFileURL } from 'url';
 import safe from 'safe-regex';
 import * as https from 'https';
 import os from 'os';
-import { execSync as execSyncFn, spawn as spawnFn } from 'child_process';
+
 import mime from 'mime';
 import { minimatch } from 'minimatch';
 import { globSync, GlobOptionsWithFileTypesFalse } from 'glob';
@@ -333,42 +333,6 @@ const withQemuChromeWorkaroundArgs = (launchOptions: LaunchOptions): LaunchOptio
   return { ...launchOptions, args };
 };
 
-const ensureXvfbDisplay = (): string | null => {
-  if (process.platform !== 'linux') return null;
-
-  const candidates = [process.env.DISPLAY, ':99', ':98', ':97', ':96']
-    .filter((v): v is string => typeof v === 'string' && v.length > 0)
-    .filter((v, i, arr) => arr.indexOf(v) === i);
-
-  for (const display of candidates) {
-    const displayNum = display.replace(':', '');
-    const socketPath = `/tmp/.X11-unix/X${displayNum}`;
-
-    // Reuse an already-live display socket.
-    if (fs.existsSync(socketPath)) return display;
-
-    try {
-      const xvfb = spawnFn('Xvfb', [display, '-screen', '0', '1024x768x24', '-nolisten', 'tcp'], {
-        detached: true,
-        stdio: 'ignore',
-      });
-      xvfb.unref();
-
-      // Wait briefly for the X socket to become available.
-      execSyncFn(
-        `for i in 1 2 3 4 5 6 7 8 9 10; do [ -S ${socketPath} ] && exit 0; sleep 0.2; done; exit 1`,
-        { stdio: 'ignore' },
-      );
-
-      return display;
-    } catch {
-      // Try next display candidate.
-    }
-  }
-
-  return null;
-};
-
 const checkUrlConnectivityWithBrowser = async (
   url: string,
   browserToRun: string,
@@ -559,15 +523,6 @@ const checkUrlConnectivityWithBrowser = async (
       consoleLogger.info(`Unable to set download deny: ${(e as Error).message}`);
     }
 
-    // Give Chrome's Safe Browsing real-time service time to initialize.
-    // On fresh Docker containers, Chrome needs a few seconds to connect to
-    // Google's OHTTP relay and establish the v5 hash-prefix lookup service.
-    if (process.env.GOOGLE_SAFE_BROWSING) {
-      consoleLogger.info('[SafeBrowsing] Warming up Chrome Safe Browsing service (10s)...');
-      await page.goto('about:blank');
-      await new Promise(resolve => setTimeout(resolve, 10000));
-      consoleLogger.info('[SafeBrowsing] Warm-up complete, navigating to target URL...');
-    }
 
     // STEP 2: Navigate (follows server-side redirects)
     page.once('download', () => {
@@ -583,28 +538,10 @@ const checkUrlConnectivityWithBrowser = async (
         waitUntil: 'domcontentloaded',
       });
     } catch (navError) {
-      if (process.env.GOOGLE_SAFE_BROWSING) {
-        const errMsg = (navError as Error).message || '';
-        consoleLogger.info(`[SafeBrowsing] Navigation error: ${errMsg}`);
-        if (errMsg.includes('ERR_BLOCKED_BY_CLIENT') || errMsg.includes('ERR_ABORTED')) {
-          consoleLogger.info('[SafeBrowsing] Page blocked by Chrome Safe Browsing!');
-          const currentUrl = page.url();
-          consoleLogger.info(`[SafeBrowsing] Current page URL after block: ${currentUrl}`);
-        }
-      }
       throw navError;
     }
 
     if (!response) throw new Error('No response from navigation');
-
-    if (process.env.GOOGLE_SAFE_BROWSING) {
-      const navUrl = page.url();
-      const navStatus = response.status();
-      consoleLogger.info(`[SafeBrowsing] Navigation completed - status: ${navStatus}, url: ${navUrl}`);
-      if (navUrl.startsWith('chrome-error:') || navUrl.includes('interstitial')) {
-        consoleLogger.info('[SafeBrowsing] Interstitial/error page detected!');
-      }
-    }
 
     // Wait briefly for JS/meta-refresh redirects to settle before reading the final URL.
     // Server-side redirects are already reflected after goto(), but client-side redirects
@@ -1813,6 +1750,54 @@ const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, des
 };
 
 /**
+ * Clone Chrome profile Preferences file (contains Safe Browsing OHTTP key on warmed profiles)
+ * @param {*} options - glob options object
+ * @param {string} destDir - destination directory
+ * @returns boolean indicating whether the operation was successful
+ */
+const cloneChromeProfilePreferences = (options: GlobOptionsWithFileTypesFalse, destDir: string) => {
+  let profilePreferencesDir;
+  let profileNamesRegex: RegExp;
+
+  if (os.platform() === 'win32' || os.platform() === 'darwin' || os.platform() === 'linux') {
+    profilePreferencesDir = globSync('**/Preferences', {
+      ...options,
+      ignore: ['oobee*/**'],
+    });
+  } else {
+    return true;
+  }
+
+  if (profilePreferencesDir.length > 0) {
+    let success = true;
+    profilePreferencesDir.forEach(dir => {
+      // Extract profile name from path (e.g., "Default" from "Default/Preferences")
+      const pathParts = dir.split(/[/\\]/);
+      const profileName = pathParts[pathParts.length - 2];
+      
+      if (profileName && profileName !== 'oobee') {
+        const destProfileDir = path.join(destDir, profileName);
+        if (!fs.existsSync(destProfileDir)) {
+          fs.mkdirSync(destProfileDir, { recursive: true });
+        }
+
+        const destPrefsPath = path.join(destProfileDir, 'Preferences');
+        // Always copy, overwriting if needed, to ensure OHTTP key is inherited
+        if (!copyFileWithRetry(dir, destPrefsPath)) {
+          consoleLogger.warn(`Unable to copy Chrome profile Preferences for ${profileName}.`);
+          success = false;
+        }
+      }
+    });
+    return success;
+  }
+
+  // If no Preferences files found in base profile, that's still OK (they'll be created)
+  consoleLogger.warn('[SafeBrowsing] No source Preferences files found; will be created fresh.');
+  return true;
+};
+
+/**
  * Both Edge and Chrome Local State files are located in the .../User Data directory
  * @param {*} options - glob options object
  * @param {string} destDir - destination directory
@@ -1878,7 +1863,8 @@ export const cloneChromeProfiles = (randomToken: string): string => {
       nodir: true,
     };
     const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
-    if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
+    const cloneChromePrefsSuccess = cloneChromeProfilePreferences(baseOptions, destDir);
+    if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess && cloneChromePrefsSuccess) {
       return destDir;
     }
 
@@ -2288,6 +2274,69 @@ export async function launchPersistentSafeContext(
 }
 
 /**
+ * When GOOGLE_SAFE_BROWSING is enabled and a pre-warmed Chrome is already
+ * running on port 9222 (Docker), returns a Playwright launcher that connects
+ * via CDP using the default context (which has the active OHTTP relay).
+ *
+ * Returns null when: Safe Browsing is not enabled, browser is not Chrome,
+ * or no pre-warmed Chrome is reachable on port 9222.
+ * On macOS/Windows without a pre-warmed Chrome, callers use the standard
+ * launcher (Safe Browsing works natively with the cloned profile).
+ */
+export const getSafeBrowsingCdpLauncher = async (browser: string, _userDataDir?: string) => {
+  if (!process.env.GOOGLE_SAFE_BROWSING) return null;
+  if (browser !== 'chrome') return null;
+
+  const { chromium } = await import('playwright');
+
+  try {
+    const testBrowser = await chromium.connectOverCDP('http://127.0.0.1:9222');
+    await testBrowser.close();
+  } catch {
+    return null;
+  }
+
+  const cdpLauncher = {
+    launch: async () => {
+      consoleLogger.info('[SafeBrowsing] Connecting to pre-warmed Chrome via CDP...');
+      return chromium.connectOverCDP('http://127.0.0.1:9222');
+    },
+    launchPersistentContext: async (_ud: string, _options: any) => {
+      consoleLogger.info('[SafeBrowsing] Connecting to pre-warmed Chrome via CDP...');
+      const b = await chromium.connectOverCDP('http://127.0.0.1:9222');
+      const ctx = b.contexts()[0];
+      if (!ctx) throw new Error('[SafeBrowsing] No default context in pre-warmed Chrome');
+
+      const myPages = new Set<any>();
+      const origNewPage: any = ctx.newPage.bind(ctx);
+      ctx.newPage = async (options?: any) => {
+        const page = await origNewPage(options);
+        myPages.add(page);
+        page.once('close', () => myPages.delete(page));
+        return page;
+      };
+
+      const origClose = ctx.close;
+      ctx.close = async () => {
+        for (const p of myPages) {
+          if (!p.isClosed()) await p.close().catch(() => {});
+        }
+        myPages.clear();
+        ctx.close = origClose;
+        ctx.newPage = origNewPage;
+        await b.close().catch(() => {});
+      };
+
+      return ctx;
+    },
+    name: () => 'chromium',
+    executablePath: () => '',
+  };
+  consoleLogger.info('[SafeBrowsing] CDP launcher configured for pre-warmed Chrome on port 9222');
+  return cdpLauncher;
+};
+
+/**
  * @param {string} browser browser name ("chrome" or "edge", null for chromium, the default Playwright browser)
  * @returns playwright launch options object. For more details: https://playwright.dev/docs/api/class-browsertype#browser-type-launch
  */
@@ -2378,32 +2427,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     finalArgs.push('--enable-features=SafeBrowsingEnhancedProtection');
   }
 
-  // Safe Browsing requires headful mode (Chrome doesn't enforce interstitials in headless).
-  // On Linux without a display, we start Xvfb to provide a virtual framebuffer.
   let headless = process.env.CRAWLEE_HEADLESS === '1';
-  if (safeBrowsingEnabled && headless) {
-    if (process.platform === 'linux') {
-      const currentDisplay = process.env.DISPLAY;
-      const currentDisplayNum = (currentDisplay || '').replace(':', '');
-      const currentDisplaySocket = currentDisplayNum
-        ? `/tmp/.X11-unix/X${currentDisplayNum}`
-        : '';
-
-      // Recover from stale DISPLAY values inherited from shell sessions.
-      if (!currentDisplay || !currentDisplaySocket || !fs.existsSync(currentDisplaySocket)) {
-        const display = ensureXvfbDisplay();
-        if (display) {
-          process.env.DISPLAY = display;
-          consoleLogger.info(`[SafeBrowsing] Xvfb ready on ${display} for headful Safe Browsing`);
-        } else {
-          consoleLogger.info('[SafeBrowsing] Failed to start Xvfb, falling back to headless');
-        }
-      }
-    }
-    if (process.env.DISPLAY) {
-      headless = false;
-      consoleLogger.info(`[SafeBrowsing] Forcing headful mode (DISPLAY=${process.env.DISPLAY})`);
-    }
+  if (safeBrowsingEnabled && headless && process.env.DISPLAY) {
+    headless = false;
+    consoleLogger.info(`[SafeBrowsing] Forcing headful mode (DISPLAY=${process.env.DISPLAY})`);
   }
 
   const options: LaunchOptions = {
@@ -2414,35 +2441,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
 
-  // Be explicit so Chrome child processes always inherit DISPLAY when
-  // Safe Browsing forces headed mode in Linux containers.
-  if (safeBrowsingEnabled && process.platform === 'linux' && process.env.DISPLAY) {
-    options.env = {
-      ...process.env,
-      DISPLAY: process.env.DISPLAY,
-    } as NodeJS.ProcessEnv;
-  }
-
   // SlowMo for debugging, can be set via env variable OOBEE_SLOWMO to avoid adding it as a CLI argument and causing confusion for users who don't need it
   if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
     options.slowMo = Number(process.env.OOBEE_SLOWMO);
     consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
-  }
-
-  if (safeBrowsingEnabled) {
-    consoleLogger.info(`[SafeBrowsing] Launch options - ignoreDefaultArgs: ${JSON.stringify(options.ignoreDefaultArgs)}`);
-    consoleLogger.info(`[SafeBrowsing] Launch options - headless: ${options.headless}, channel: ${channel || 'bundled-chromium'}`);
-    consoleLogger.info(`[SafeBrowsing] Launch options - args: ${JSON.stringify(options.args)}`);
-  }
-
-  if (safeBrowsingEnabled && !!process.env.GOOGLE_SAFE_BROWSING_DEBUG) {
-    options.args = [
-      ...(options.args ?? []),
-      '--enable-logging=stderr',
-      '--log-level=0',
-      '--vmodule=safe_browsing*=2,*phishing*=2',
-    ];
-    consoleLogger.info('Safe Browsing debug logging enabled');
   }
 
   return options;

@@ -147,10 +147,7 @@ The `constants` default export object holds runtime state:
 <<<<<<< HEAD
 | `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML to `pageDOMs/` in results directory. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
 | `OOBEE_SAVE_PAGE_SCREENSHOT` | `1` or `true` = save full-page desktop + mobile viewport screenshots to `pageDOMs/desktopPageScreenshots/` and `pageDOMs/mobilePageScreenshots/`. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
-=======
 | `GOOGLE_SAFE_BROWSING` | `1` = enable Google Safe Browsing (requires Chrome, not Chromium) |
-| `GOOGLE_SAFE_BROWSING_DEBUG` | `1` = enable verbose Safe Browsing debug logging |
->>>>>>> 86d9da36 (feat: add Google Safe Browsing support via Chrome real-time URL protection)
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | Proxy configuration |
 | `NO_PROXY` / `INCLUDE_PROXY` | Proxy bypass/include lists |
 
@@ -189,52 +186,60 @@ The `constants` default export object holds runtime state:
 
 ### Overview
 
-Google Safe Browsing protects users by blocking navigation to phishing/malware URLs. It requires the local hash-prefix threat database (`UrlSoceng.store.*`, `UrlMalware.store.*`) to be present in the browser profile. Chrome uses this local DB as a first-pass filter and shows interstitial warning pages when a match is found.
+Google Safe Browsing protects users by blocking navigation to phishing/malware URLs. On macOS, it copies the local hash-prefix threat database (`UrlSoceng.store.*`, `UrlMalware.store.*`) from the system Chrome profile. On Docker Linux, it connects via CDP to a pre-warmed Chrome instance with an active OHTTP relay. Blocked pages are classified as "Blocked by Safe Browsing" in scan results.
 
 ### Requirements
 
-1. **Google Chrome** (not Chromium) — Safe Browsing requires Google's proprietary API keys. Chromium does not include them.
+1. **Google Chrome** (not Chromium) — Safe Browsing requires Google's proprietary API keys.
 2. **`GOOGLE_SAFE_BROWSING`** environment variable set to any value.
 3. **macOS or Linux only** — Windows is not yet supported (prints a warning and skips).
 
 ### How It Works
 
-When `GOOGLE_SAFE_BROWSING` is set:
+#### macOS (all scan types)
 
-1. `ensureAndInjectSafeBrowsing()` in `src/safeBrowsingProfile.ts` runs before each browser launch:
-   - **Fast path**: Copies the threat DB from your system Chrome profile (`~/Library/Application Support/Google/Chrome/Safe Browsing` on macOS, `~/.config/google-chrome/Safe Browsing` on Linux). This is instant.
-   - **Slow path**: If no system profile exists, spawns a real Chrome process for up to 120s to download the DB. On Linux without DISPLAY, tries Xvfb first, falls back to `--headless=old`.
-   - Writes `safebrowsing: { enabled: true }` into the profile's Preferences.
-   - Uses a file lock (`~/.oobee/safe-browsing-profile/.warmup-lock`) to prevent concurrent processes from corrupting the DB.
+1. `ensureAndInjectSafeBrowsing()` copies the Safe Browsing DB from your system Chrome profile (`~/Library/Application Support/Google/Chrome/Safe Browsing/`) into a base profile at `~/.oobee/safe-browsing-profile/`.
+2. `injectSafeBrowsingDb()` copies the DB into each scan's browser profile directory and writes `safebrowsing: { enabled: true, enhanced: true }` into Preferences.
+3. `getPlaywrightLaunchOptions()` removes Playwright default flags that suppress Safe Browsing (`--safebrowsing-disable-auto-update`, `--disable-client-side-phishing-detection`, `--disable-background-networking`, `--disable-component-update`) via `ignoreDefaultArgs`.
+4. Chrome uses the local DB for immediate threat detection without needing the OHTTP relay.
 
-2. `getPlaywrightLaunchOptions()` in `src/constants/common.ts` adds three Playwright default args to `ignoreDefaultArgs`:
-   - `--safebrowsing-disable-auto-update`
-   - `--disable-background-networking`
-   - `--disable-client-side-phishing-detection`
+#### Docker Linux (crawlDomain, crawlSitemap)
 
-3. `urlGuard.ts` allows `chrome-error://` protocol when Safe Browsing is active, so the interstitial warning page is not redirected away.
+1. A pre-warmed Chrome runs on port 9222 (started by `start-gsb-novnc.sh`) with an active OHTTP relay.
+2. `getSafeBrowsingCdpLauncher()` connects to this Chrome via CDP and returns the default context (which has active Safe Browsing).
+3. Crawlee's browser pool uses this CDP launcher instead of spawning fresh instances.
+
+#### Docker Linux (runCustom)
+
+1. Same CDP approach — `getSafeBrowsingCdpLauncher()` connects to the pre-warmed Chrome.
+2. Falls back to `launchPersistentSafeContext()` if CDP is unavailable.
+
+#### Detection of blocked pages
+
+- **requestHandler**: Pages that navigate to `chrome-error://` are classified as "Blocked by Safe Browsing" (`STATUS_CODE_METADATA[3]`).
+- **failedRequestHandler**: Navigation errors containing `ERR_BLOCKED_BY_CLIENT` or `ERR_BLOCKED_BY_RESPONSE` are classified as "Blocked by Safe Browsing".
+- **runCustom**: `urlGuard.ts` with `allowChromeErrors: true` lets the interstitial page stay visible to the user.
 
 ### Docker / Architecture Constraints
 
 - **amd64 (x86_64)**: Google Chrome .deb is installed in Dockerfile. Safe Browsing works fully.
 - **arm64 (aarch64)**: Chrome is NOT available for ARM64 Linux. Safe Browsing is unavailable.
 - Build the image with `docker build --platform linux/amd64` to ensure Chrome is available.
-- On first run in Docker, the slow path (spawning Chrome) is used since there's no system profile.
 
 ### Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
 | `GOOGLE_SAFE_BROWSING` | Enable Safe Browsing (any value; requires Chrome) |
-| `GOOGLE_SAFE_BROWSING_DEBUG` | Enable verbose Chrome Safe Browsing logging |
 
 ### Key Files
 
-- `src/safeBrowsingProfile.ts` — DB warmup, injection, and seeding logic
-- `src/constants/common.ts` — `getPlaywrightLaunchOptions()` (ignoreDefaultArgs), `launchPersistentSafeContext()` wrapper
-- `src/crawlers/guards/urlGuard.ts` — `allowChromeErrors` for interstitial pages
-- `src/crawlers/runCustom.ts` — passes `allowChromeErrors` to urlGuard
-- `Dockerfile` — Conditional Chrome installation for amd64
+- `src/safeBrowsingProfile.ts` — DB warmup, copy from system profile, injection into scan profiles
+- `src/constants/common.ts` — `getSafeBrowsingCdpLauncher()`, `getPlaywrightLaunchOptions()` (ignoreDefaultArgs), `launchPersistentSafeContext()`
+- `src/crawlers/guards/urlGuard.ts` — `allowChromeErrors` for interstitial pages in runCustom
+- `src/crawlers/crawlDomain.ts` — `chrome-error:` and `ERR_BLOCKED_BY_CLIENT` detection
+- `src/crawlers/crawlSitemap.ts` — same blocked-page detection
+- `src/crawlers/runCustom.ts` — CDP on Docker, persistent context on macOS
 
 ### What Does NOT Work
 

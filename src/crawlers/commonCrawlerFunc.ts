@@ -1248,10 +1248,6 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
 
     await fsp.mkdir(effectiveDir, { recursive: true });
 
-    if (process.env.GOOGLE_SAFE_BROWSING) {
-      injectSafeBrowsingDb(effectiveDir);
-    }
-
     // Copy auth-relevant files from the pristine base directory so
     // authenticated sessions are preserved across pool rotations.
     try {
@@ -1269,6 +1265,14 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
         const srcProfile = path.join(userDataDirectory, profile.name);
         const destProfile = path.join(effectiveDir, profile.name);
         await fsp.mkdir(destProfile, { recursive: true }).catch(() => {});
+
+        // Copy Preferences so the Safe Browsing OHTTP key (hash_real_time_ohttp_key)
+        // is inherited from the base profile. injectSafeBrowsingDb() will merge
+        // enabled/enhanced on top, preserving the warmed-up key.
+        const prefsSrc = path.join(srcProfile, 'Preferences');
+        if (await fsp.stat(prefsSrc).catch(() => null)) {
+          await fsp.copyFile(prefsSrc, path.join(destProfile, 'Preferences')).catch(() => {});
+        }
 
         // Cookies (macOS layout: <Profile>/Cookies)
         const cookiesSrc = path.join(srcProfile, 'Cookies');
@@ -1304,6 +1308,12 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
     } catch {
       // Silent fallback: use empty profile if clone fails
     }
+
+    // Inject Safe Browsing preferences after copying base profile files.
+    // This merges enabled/enhanced on top of any copied Preferences, preserving
+    // the hash_real_time_ohttp_key from the base profile so Chrome does not need
+    // to re-fetch it for every pool browser.
+    injectSafeBrowsingDb(effectiveDir);
 
     // Clean any stale lock files that may block browser launches on Windows
     const lockFiles = [
@@ -1347,6 +1357,7 @@ export const getPostPageCloseHook = (userDataDirectory: string) => {
     }
   };
 };
+
 
 export const failedRequestHandler = async ({ request }: { request: Request }) => {
   guiInfoLog(guiInfoStatusTypes.ERROR, { numScanned: 0, urlScanned: request.url });

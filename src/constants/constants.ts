@@ -63,6 +63,16 @@ export const destinationPath = (storagePath: string): string => `${storagePath}/
  */
 export const getDefaultChromeDataDir = (): string => {
   try {
+    // If GOOGLE_SAFE_BROWSING is set, use the pre-warmed profile prepared by Dockerfile
+    if (process.env.GOOGLE_SAFE_BROWSING && fs.existsSync('/data/chrome-profile')) {
+      return '/data/chrome-profile';
+    }
+
+    // Check for environment override (used when GSB profile is pre-warmed in Docker)
+    if (process.env.OOBEE_CHROME_DATA_DIR && fs.existsSync(process.env.OOBEE_CHROME_DATA_DIR)) {
+      return process.env.OOBEE_CHROME_DATA_DIR;
+    }
+
     let defaultChromeDataDir = null;
     if (os.platform() === 'win32') {
       defaultChromeDataDir = path.join(
