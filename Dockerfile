@@ -43,13 +43,6 @@ RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
 
 
 # --- noVNC / Safe Browsing warmup entrypoint ---
-# Baked into the base image so the same oobee image can be used as a GUI
-# test container by overriding the entrypoint:
-#   docker run ... -p 6080:6080 oobee /usr/local/bin/start-gsb-novnc.sh
-COPY gsb-test/start-gsb-novnc.sh /usr/local/bin/start-gsb-novnc.sh
-RUN chmod +x /usr/local/bin/start-gsb-novnc.sh
-ENV GSB_WARMUP_SECONDS=300
-ENV GSB_WARMUP_URL=https://example.com
 ENV GOOGLE_SAFE_BROWSING=1
 EXPOSE 6080 5900
 VOLUME ["/data/chrome-profile"]

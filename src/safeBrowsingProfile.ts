@@ -11,7 +11,8 @@ const BASE_PROFILE_DIR = path.join(os.homedir(), '.oobee', 'safe-browsing-profil
 const SB_DIR = path.join(BASE_PROFILE_DIR, 'Safe Browsing');
 const SEEDED_MARKER = '.sb-seeded';
 const LOCK_DIR = path.join(BASE_PROFILE_DIR, '.warmup-lock');
-const LOCK_STALE_MS = 180_000;
+const DB_DOWNLOAD_TIMEOUT_MS = parseInt(process.env.SB_DB_TIMEOUT_MS || '180000', 10);
+const LOCK_STALE_MS = DB_DOWNLOAD_TIMEOUT_MS;
 
 function getChromeExecutable(): string {
   const candidates: string[] =
@@ -49,7 +50,12 @@ function findSystemSafeBrowsingDir(): string | null {
 
 function isDbDir(dir: string): boolean {
   if (!fs.existsSync(dir)) return false;
-  return fs.readdirSync(dir).some(f => f.startsWith('UrlSoceng.store.') || f.startsWith('UrlMalware.store.'));
+  return fs.readdirSync(dir).some(f =>
+    f.startsWith('UrlSoceng.store.') ||
+    f.startsWith('UrlMalware.store.') ||
+    f.startsWith('UrlMalBin.store.') ||
+    f.startsWith('UrlBilling.store.'),
+  );
 }
 
 function copyDirectory(src: string, dst: string): void {
@@ -94,22 +100,34 @@ function releaseLock(): void {
 }
 
 async function spawnChromeForWarmup(): Promise<void> {
-  printMessage(['Downloading Safe Browsing threat database via Chrome (up to 120s)...'], messageOptions);
+  printMessage([`Downloading Safe Browsing threat database via Chrome (up to ${DB_DOWNLOAD_TIMEOUT_MS / 1000}s)...`], messageOptions);
 
   fs.mkdirSync(path.join(BASE_PROFILE_DIR, 'Default'), { recursive: true });
+  // Use standard protection (not enhanced) for the warmup to force Chrome to
+  // download local hash-prefix databases. Enhanced protection relies on OHTTP
+  // real-time checks which don't work with Playwright/CDP navigations.
+  // Standard protection NEEDS local databases, so Chrome downloads them.
   fs.writeFileSync(
     path.join(BASE_PROFILE_DIR, 'Default', 'Preferences'),
-    JSON.stringify({ safebrowsing: { enabled: true, enhanced: true } }),
+    JSON.stringify({ safebrowsing: { enabled: true, enhanced: false } }),
   );
 
   const exe = getChromeExecutable();
 
+  const isLinuxDocker = process.platform === 'linux' && fs.existsSync('/.dockerenv');
   const baseArgs = [
     `--user-data-dir=${BASE_PROFILE_DIR}`,
+    '--profile-directory=Default',
     '--no-first-run',
     '--no-default-browser-check',
-    '--disable-extensions',
+    '--ignore-certificate-errors',
     ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
+    ...(isLinuxDocker ? [
+      '--disable-dev-shm-usage', '--disable-gpu', '--disable-software-rasterizer',
+      '--in-process-gpu', '--disable-gpu-compositing',
+      '--disable-features=VizDisplayCompositor', '--no-zygote',
+      '--ozone-platform=x11',
+    ] : []),
   ];
 
   let spawnEnv: NodeJS.ProcessEnv = { ...process.env };
@@ -144,16 +162,19 @@ async function spawnChromeForWarmup(): Promise<void> {
 
   const chrome = spawn(
     exe,
-    [...baseArgs, ...windowArgs, 'about:blank'],
+    [...baseArgs, ...windowArgs, 'https://www.google.com/generate_204'],
     { stdio: 'ignore', detached: true, env: spawnEnv },
   );
 
-  const maxWait = 120_000;
+  const maxWait = DB_DOWNLOAD_TIMEOUT_MS;
   const pollInterval = 5_000;
   let waited = 0;
   while (!isDbDir(SB_DIR) && waited < maxWait) {
     await new Promise(r => setTimeout(r, pollInterval));
     waited += pollInterval;
+    if (waited % 15_000 === 0) {
+      consoleLogger.info(`[SafeBrowsing] Waiting for hash-prefix DB... (${waited / 1000}s)`);
+    }
   }
 
   killChromeTree(chrome);
@@ -194,18 +215,14 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
     return;
   }
 
-  // Chrome 128+ uses real-time v5 hash-prefix lookups via OHTTP and no longer
-  // downloads local UrlSoceng.store.* files. Skip the legacy DB download and
-  // rely on real-time API with preferences set by injectSafeBrowsingDb().
-  consoleLogger.info('[SafeBrowsing] Skipping legacy DB download (Chrome 128+ uses real-time v5 API)');
-  printMessage(['Google Safe Browsing enabled (real-time URL protection via Chrome)'], messageOptions);
-  return;
-
   if (!acquireLock()) {
     consoleLogger.info('Another process is downloading Safe Browsing DB; waiting...');
     const waitStart = Date.now();
-    while (!isDbDir(SB_DIR) && Date.now() - waitStart < 150_000) {
+    while (!isDbDir(SB_DIR) && Date.now() - waitStart < DB_DOWNLOAD_TIMEOUT_MS) {
       await new Promise(r => setTimeout(r, 5_000));
+    }
+    if (isDbDir(SB_DIR)) {
+      printMessage(['Google Safe Browsing enabled (real-time URL protection active)'], messageOptions);
     }
     return;
   }
@@ -216,7 +233,7 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
     if (isDbDir(SB_DIR)) {
       printMessage(['Google Safe Browsing enabled (real-time URL protection active)'], messageOptions);
     } else {
-      printMessage(['WARNING: Safe Browsing DB did not populate. Protection may be reduced.'], messageOptions);
+      printMessage([`WARNING: Safe Browsing DB did not populate in ${DB_DOWNLOAD_TIMEOUT_MS / 1000}s. Protection may be reduced.`], messageOptions);
     }
   } finally {
     releaseLock();
@@ -235,9 +252,20 @@ export function injectSafeBrowsingDb(targetDir: string): void {
     if (fs.existsSync(prefsPath)) {
       try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')); } catch {}
     }
-    prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: true };
+    // Copy the full safebrowsing object (including OHTTP key) from base profile
+    const basePrefsPath = path.join(BASE_PROFILE_DIR, 'Default', 'Preferences');
+    let baseSbPrefs: Record<string, unknown> = { enabled: true, enhanced: false };
+    if (fs.existsSync(basePrefsPath)) {
+      try {
+        const basePrefs = JSON.parse(fs.readFileSync(basePrefsPath, 'utf8'));
+        if (basePrefs?.safebrowsing) {
+          baseSbPrefs = { ...basePrefs.safebrowsing, enabled: true, enhanced: false };
+        }
+      } catch {}
+    }
+    prefs.safebrowsing = { ...(prefs.safebrowsing as object), ...baseSbPrefs };
     fs.writeFileSync(prefsPath, JSON.stringify(prefs));
-    consoleLogger.info(`[SafeBrowsing] Wrote preferences to ${prefsPath}: ${JSON.stringify(prefs.safebrowsing)}`);
+    consoleLogger.info(`[SafeBrowsing] Wrote preferences to ${prefsPath} (has OHTTP key: ${!!((prefs.safebrowsing as any)?.hash_real_time_ohttp_key)})`);
     return;
   }
   if (fs.existsSync(path.join(targetDir, SEEDED_MARKER))) {
@@ -255,7 +283,7 @@ export function injectSafeBrowsingDb(targetDir: string): void {
   if (fs.existsSync(prefsPath)) {
     try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')); } catch {}
   }
-  prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: true };
+  prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: false };
   fs.writeFileSync(prefsPath, JSON.stringify(prefs));
   consoleLogger.info(`[SafeBrowsing] Wrote preferences to ${prefsPath}: ${JSON.stringify(prefs.safebrowsing)}`);
 

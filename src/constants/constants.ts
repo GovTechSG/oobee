@@ -51,6 +51,7 @@ export const blackListedFileExtensions = [
   'xlsx',
   'ppt',
   'pptx',
+  'apk',
 ];
 
 export const getIntermediateScreenshotsPath = (datasetsPath: string): string =>
@@ -65,7 +66,12 @@ export const getDefaultChromeDataDir = (): string => {
   try {
     // If GOOGLE_SAFE_BROWSING is set, use the pre-warmed profile prepared by Dockerfile
     if (process.env.GOOGLE_SAFE_BROWSING && fs.existsSync('/data/chrome-profile')) {
-      return '/data/chrome-profile';
+      try {
+        fs.accessSync('/data/chrome-profile', fs.constants.W_OK);
+        return '/data/chrome-profile';
+      } catch {
+        // Not writable — fall through to other options
+      }
     }
 
     // Check for environment override (used when GSB profile is pre-warmed in Docker)

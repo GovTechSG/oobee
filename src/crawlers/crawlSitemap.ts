@@ -254,6 +254,12 @@ const crawlSitemap = async ({
           } catch {}
         },
       ],
+      errorHandler: async ({ request }, error) => {
+        const msg = error?.message || '';
+        if (msg.includes('ERR_BLOCKED_BY_CLIENT') || msg.includes('ERR_BLOCKED_BY_RESPONSE')) {
+          request.noRetry = true;
+        }
+      },
       requestHandlerTimeoutSecs: 90,
       requestHandler: async ({ page, request, response, sendRequest, enqueueLinks }) => {
         // Log documents that are not supported
@@ -291,6 +297,48 @@ const crawlSitemap = async ({
               httpStatusCode: 3,
             });
             return;
+          }
+
+          if (process.env.GOOGLE_SAFE_BROWSING && cdpLauncher) {
+            await new Promise(r => setTimeout(r, 2000));
+
+            if (page.url().startsWith('chrome-error:')) {
+              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              urlsCrawled.userExcluded.push({
+                url: request.url,
+                pageTitle: request.url,
+                actualUrl: request.url,
+                metadata: STATUS_CODE_METADATA[3],
+                httpStatusCode: 3,
+              });
+              return;
+            }
+
+            const isSbInterstitial = await page.evaluate(() => {
+              const bodyText = (document.body?.innerText || '').toLowerCase();
+              return bodyText.includes('deceptive site ahead') ||
+                bodyText.includes('dangerous site') ||
+                bodyText.includes('the site ahead contains malware') ||
+                bodyText.includes('the site ahead contains harmful programs') ||
+                bodyText.includes('this site may be hacked');
+            }).catch(() => false);
+            if (isSbInterstitial) {
+              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              urlsCrawled.userExcluded.push({
+                url: request.url,
+                pageTitle: request.url,
+                actualUrl: actualUrl,
+                metadata: STATUS_CODE_METADATA[3],
+                httpStatusCode: 3,
+              });
+              return;
+            }
           }
 
           const hasExceededDuration =

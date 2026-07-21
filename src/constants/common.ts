@@ -14,6 +14,7 @@ import url, { fileURLToPath, pathToFileURL } from 'url';
 import safe from 'safe-regex';
 import * as https from 'https';
 import os from 'os';
+import { execSync as execSyncFn, spawn as spawnFn } from 'child_process';
 
 import mime from 'mime';
 import { minimatch } from 'minimatch';
@@ -2273,67 +2274,16 @@ export async function launchPersistentSafeContext(
   return constants.launcher.launchPersistentContext(userDataDir, options);
 }
 
+
 /**
- * When GOOGLE_SAFE_BROWSING is enabled and a pre-warmed Chrome is already
- * running on port 9222 (Docker), returns a Playwright launcher that connects
- * via CDP using the default context (which has the active OHTTP relay).
+ * Safe Browsing no longer uses CDP. This function always returns null.
+ * The DB download is handled by warmupSafeBrowsingBaseProfile() in
+ * safeBrowsingProfile.ts (called via ensureAndInjectSafeBrowsing).
  *
- * Returns null when: Safe Browsing is not enabled, browser is not Chrome,
- * or no pre-warmed Chrome is reachable on port 9222.
- * On macOS/Windows without a pre-warmed Chrome, callers use the standard
- * launcher (Safe Browsing works natively with the cloned profile).
+ * Kept as a stub for callers that check its return value.
  */
-export const getSafeBrowsingCdpLauncher = async (browser: string, _userDataDir?: string) => {
-  if (!process.env.GOOGLE_SAFE_BROWSING) return null;
-  if (browser !== 'chrome') return null;
-
-  const { chromium } = await import('playwright');
-
-  try {
-    const testBrowser = await chromium.connectOverCDP('http://127.0.0.1:9222');
-    await testBrowser.close();
-  } catch {
-    return null;
-  }
-
-  const cdpLauncher = {
-    launch: async () => {
-      consoleLogger.info('[SafeBrowsing] Connecting to pre-warmed Chrome via CDP...');
-      return chromium.connectOverCDP('http://127.0.0.1:9222');
-    },
-    launchPersistentContext: async (_ud: string, _options: any) => {
-      consoleLogger.info('[SafeBrowsing] Connecting to pre-warmed Chrome via CDP...');
-      const b = await chromium.connectOverCDP('http://127.0.0.1:9222');
-      const ctx = b.contexts()[0];
-      if (!ctx) throw new Error('[SafeBrowsing] No default context in pre-warmed Chrome');
-
-      const myPages = new Set<any>();
-      const origNewPage: any = ctx.newPage.bind(ctx);
-      ctx.newPage = async (options?: any) => {
-        const page = await origNewPage(options);
-        myPages.add(page);
-        page.once('close', () => myPages.delete(page));
-        return page;
-      };
-
-      const origClose = ctx.close;
-      ctx.close = async () => {
-        for (const p of myPages) {
-          if (!p.isClosed()) await p.close().catch(() => {});
-        }
-        myPages.clear();
-        ctx.close = origClose;
-        ctx.newPage = origNewPage;
-        await b.close().catch(() => {});
-      };
-
-      return ctx;
-    },
-    name: () => 'chromium',
-    executablePath: () => '',
-  };
-  consoleLogger.info('[SafeBrowsing] CDP launcher configured for pre-warmed Chrome on port 9222');
-  return cdpLauncher;
+export const getSafeBrowsingCdpLauncher = async (_browser: string, _userDataDir?: string) => {
+  return null;
 };
 
 /**
@@ -2423,14 +2373,40 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
       ]
     : [];
 
-  if (safeBrowsingEnabled) {
-    finalArgs.push('--enable-features=SafeBrowsingEnhancedProtection');
-  }
+  // Note: do NOT pass --enable-features=SafeBrowsingEnhancedProtection here.
+  // Enhanced mode uses OHTTP real-time checks exclusively and does NOT download
+  // local hash-prefix databases. Standard mode (safebrowsing.enabled=true in
+  // Preferences) downloads the databases for local URL matching.
 
   let headless = process.env.CRAWLEE_HEADLESS === '1';
-  if (safeBrowsingEnabled && headless && process.env.DISPLAY) {
-    headless = false;
-    consoleLogger.info(`[SafeBrowsing] Forcing headful mode (DISPLAY=${process.env.DISPLAY})`);
+  if (safeBrowsingEnabled && headless) {
+    // Start Xvfb if no DISPLAY available (Linux Docker without a display server)
+    if (!process.env.DISPLAY && process.platform === 'linux') {
+      try {
+        const displayNum = ':99';
+        execSyncFn('rm -f /tmp/.X99-lock', { stdio: 'ignore' });
+        const xvfb = spawnFn('Xvfb', [displayNum, '-screen', '0', '1920x1080x24', '-nolisten', 'tcp'], {
+          detached: true,
+          stdio: 'ignore',
+        });
+        xvfb.unref();
+        const xvfbPid = xvfb.pid;
+        if (xvfbPid) {
+          process.once('exit', () => { try { process.kill(xvfbPid); } catch {} });
+        }
+        process.env.DISPLAY = displayNum;
+        consoleLogger.info(`[SafeBrowsing] Xvfb started on ${displayNum} (PID ${xvfbPid})`);
+      } catch (e) {
+        consoleLogger.warn(`[SafeBrowsing] Failed to start Xvfb: ${e}`);
+      }
+    }
+
+    if (process.env.DISPLAY) {
+      headless = false;
+      consoleLogger.info(`[SafeBrowsing] Forcing headful mode (DISPLAY=${process.env.DISPLAY})`);
+    } else {
+      consoleLogger.warn('[SafeBrowsing] No DISPLAY available — staying headless. Interstitials may not fire.');
+    }
   }
 
   const options: LaunchOptions = {
