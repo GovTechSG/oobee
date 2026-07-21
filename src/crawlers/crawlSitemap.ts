@@ -24,7 +24,6 @@ import constants, {
 import {
   getLinksFromSitemap,
   getPlaywrightLaunchOptions,
-  getSafeBrowsingCdpLauncher,
   isDisallowedInRobotsTxt,
   isSkippedUrl,
   waitForPageLoaded,
@@ -145,21 +144,19 @@ const crawlSitemap = async ({
   // 403 rate-limit retry, and enqueueLinks for intelligent sitemap discovery.
   const { requestQueue } = await createCrawleeSubFolders(randomToken);
 
-  const cdpLauncher = await getSafeBrowsingCdpLauncher(browser, userDataDirectory);
-
   const crawler = register(
     new crawlee.PlaywrightCrawler({
       launchContext: {
-        launcher: (cdpLauncher || constants.launcher) as any,
+        launcher: constants.launcher,
         launchOptions: getPlaywrightLaunchOptions(browser),
       },
       retryOnBlocked: false,
       browserPoolOptions: {
         useFingerprints: false,
-        retireBrowserAfterPageCount: cdpLauncher ? Number.MAX_SAFE_INTEGER : 500,
+        retireBrowserAfterPageCount: 500,
         closeInactiveBrowserAfterSecs: 30,
         preLaunchHooks: [
-          ...(!cdpLauncher ? [getPreLaunchHook(userDataDirectory)] : []),
+          getPreLaunchHook(userDataDirectory),
           async (_pageId, launchContext) => {
             launchContext.launchOptions = {
               ...launchContext.launchOptions,
@@ -172,7 +169,7 @@ const crawlSitemap = async ({
             };
           },
         ],
-        postPageCloseHooks: [...(!cdpLauncher ? [getPostPageCloseHook(userDataDirectory)] : [])],
+        postPageCloseHooks: [getPostPageCloseHook(userDataDirectory)],
       },
       requestList,
       requestQueue,
@@ -297,48 +294,6 @@ const crawlSitemap = async ({
               httpStatusCode: 3,
             });
             return;
-          }
-
-          if (process.env.GOOGLE_SAFE_BROWSING && cdpLauncher) {
-            await new Promise(r => setTimeout(r, 2000));
-
-            if (page.url().startsWith('chrome-error:')) {
-              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-                numScanned: urlsCrawled.scanned.length,
-                urlScanned: request.url,
-              });
-              urlsCrawled.userExcluded.push({
-                url: request.url,
-                pageTitle: request.url,
-                actualUrl: request.url,
-                metadata: STATUS_CODE_METADATA[3],
-                httpStatusCode: 3,
-              });
-              return;
-            }
-
-            const isSbInterstitial = await page.evaluate(() => {
-              const bodyText = (document.body?.innerText || '').toLowerCase();
-              return bodyText.includes('deceptive site ahead') ||
-                bodyText.includes('dangerous site') ||
-                bodyText.includes('the site ahead contains malware') ||
-                bodyText.includes('the site ahead contains harmful programs') ||
-                bodyText.includes('this site may be hacked');
-            }).catch(() => false);
-            if (isSbInterstitial) {
-              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-                numScanned: urlsCrawled.scanned.length,
-                urlScanned: request.url,
-              });
-              urlsCrawled.userExcluded.push({
-                url: request.url,
-                pageTitle: request.url,
-                actualUrl: actualUrl,
-                metadata: STATUS_CODE_METADATA[3],
-                httpStatusCode: 3,
-              });
-              return;
-            }
           }
 
           const hasExceededDuration =

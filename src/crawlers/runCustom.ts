@@ -7,13 +7,12 @@ import constants, {
   UrlsCrawled,
 } from '../constants/constants.js';
 import { DEBUG, initNewPage, log } from './custom/utils.js';
-import { consoleLogger, guiInfoLog } from '../logs.js';
+import { guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { addUrlGuardScript } from './guards/urlGuard.js';
 import {
   getBrowserToRun,
   getPlaywrightLaunchOptions,
-  getSafeBrowsingCdpLauncher,
   initModifiedUserAgent,
   launchPersistentSafeContext,
 } from '../constants/common.js';
@@ -114,33 +113,18 @@ const runCustom = async (
 
     const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
 
-    const cdpLauncher = await getSafeBrowsingCdpLauncher(resolvedBrowserToRun, userDataDirectory);
-    let context;
-    let usedCdp = false;
-
-    if (cdpLauncher) {
-      try {
-        context = await cdpLauncher.launchPersistentContext(userDataDirectory, {});
-        usedCdp = true;
-      } catch (e) {
-        consoleLogger.info(`[SafeBrowsing] CDP fallback: ${e}`);
-      }
-    }
-
-    if (!context) {
-      context = await launchPersistentSafeContext(userDataDirectory, {
-        ...baseLaunchOptions,
-        args: mergedArgs,
-        headless: false,
-        ignoreHTTPSErrors: true,
-        serviceWorkers: 'block' as const,
-        viewport: null,
-        ...(hasCustomViewport ? contextDeviceOptions : {}),
-        userAgent: process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined),
-        ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
-        ...(httpCredentials && { httpCredentials }),
-      });
-    }
+    const context = await launchPersistentSafeContext(userDataDirectory, {
+      ...baseLaunchOptions,
+      args: mergedArgs,
+      headless: false,
+      ignoreHTTPSErrors: true,
+      serviceWorkers: 'block' as const,
+      viewport: null,
+      ...(hasCustomViewport ? contextDeviceOptions : {}),
+      userAgent: process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined),
+      ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+      ...(httpCredentials && { httpCredentials }),
+    });
 
     if (authHeader) {
       await addAuthRouteHandler(context, url, authHeader);
@@ -159,9 +143,7 @@ const runCustom = async (
 
     addUrlGuardScript(context, { fallbackUrl: url, allowChromeErrors: !!process.env.GOOGLE_SAFE_BROWSING });
 
-    const page = usedCdp
-      ? await context.newPage()
-      : context.pages().find(existingPage => !existingPage.isClosed()) || (await context.newPage());
+    const page = context.pages().find(existingPage => !existingPage.isClosed()) || (await context.newPage());
     await initNewPage(page, pageClosePromises, processPageParams, pagesDict);
 
     // Detection of new page

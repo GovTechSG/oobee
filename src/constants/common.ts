@@ -14,8 +14,6 @@ import url, { fileURLToPath, pathToFileURL } from 'url';
 import safe from 'safe-regex';
 import * as https from 'https';
 import os from 'os';
-import { execSync as execSyncFn, spawn as spawnFn } from 'child_process';
-
 import mime from 'mime';
 import { minimatch } from 'minimatch';
 import { globSync, GlobOptionsWithFileTypesFalse } from 'glob';
@@ -39,7 +37,7 @@ import { cleanUpAndExit, isFollowStrategy, randomThreeDigitNumberString, registe
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
-import { ensureAndInjectSafeBrowsing } from '../safeBrowsingProfile.js';
+import { ensureAndInjectSafeBrowsing, ensureXvfbForSafeBrowsing, getSafeBrowsingIgnoredArgs } from '../safeBrowsingProfile.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -2275,16 +2273,6 @@ export async function launchPersistentSafeContext(
 }
 
 
-/**
- * Safe Browsing no longer uses CDP. This function always returns null.
- * The DB download is handled by warmupSafeBrowsingBaseProfile() in
- * safeBrowsingProfile.ts (called via ensureAndInjectSafeBrowsing).
- *
- * Kept as a stub for callers that check its return value.
- */
-export const getSafeBrowsingCdpLauncher = async (_browser: string, _userDataDir?: string) => {
-  return null;
-};
 
 /**
  * @param {string} browser browser name ("chrome" or "edge", null for chromium, the default Playwright browser)
@@ -2364,44 +2352,9 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     baseIgnoredArgs.push('--enable-unsafe-swiftshader');
   }
 
-  const safeBrowsingIgnoredArgs = safeBrowsingEnabled
-    ? [
-        '--safebrowsing-disable-auto-update',
-        '--disable-client-side-phishing-detection',
-        '--disable-background-networking',
-        '--disable-component-update',
-      ]
-    : [];
-
-  // Note: do NOT pass --enable-features=SafeBrowsingEnhancedProtection here.
-  // Enhanced mode uses OHTTP real-time checks exclusively and does NOT download
-  // local hash-prefix databases. Standard mode (safebrowsing.enabled=true in
-  // Preferences) downloads the databases for local URL matching.
-
   let headless = process.env.CRAWLEE_HEADLESS === '1';
   if (safeBrowsingEnabled && headless) {
-    // Start Xvfb if no DISPLAY available (Linux Docker without a display server)
-    if (!process.env.DISPLAY && process.platform === 'linux') {
-      try {
-        const displayNum = ':99';
-        execSyncFn('rm -f /tmp/.X99-lock', { stdio: 'ignore' });
-        const xvfb = spawnFn('Xvfb', [displayNum, '-screen', '0', '1920x1080x24', '-nolisten', 'tcp'], {
-          detached: true,
-          stdio: 'ignore',
-        });
-        xvfb.unref();
-        const xvfbPid = xvfb.pid;
-        if (xvfbPid) {
-          process.once('exit', () => { try { process.kill(xvfbPid); } catch {} });
-        }
-        process.env.DISPLAY = displayNum;
-        consoleLogger.info(`[SafeBrowsing] Xvfb started on ${displayNum} (PID ${xvfbPid})`);
-      } catch (e) {
-        consoleLogger.warn(`[SafeBrowsing] Failed to start Xvfb: ${e}`);
-      }
-    }
-
-    if (process.env.DISPLAY) {
+    if (ensureXvfbForSafeBrowsing()) {
       headless = false;
       consoleLogger.info(`[SafeBrowsing] Forcing headful mode (DISPLAY=${process.env.DISPLAY})`);
     } else {
@@ -2410,7 +2363,7 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   }
 
   const options: LaunchOptions = {
-    ignoreDefaultArgs: [...baseIgnoredArgs, ...safeBrowsingIgnoredArgs],
+    ignoreDefaultArgs: [...baseIgnoredArgs, ...getSafeBrowsingIgnoredArgs()],
     args: finalArgs,
     headless,
     ...(channel && { channel }),

@@ -26,7 +26,6 @@ import constants, {
 } from '../constants/constants.js';
 import {
   getPlaywrightLaunchOptions,
-  getSafeBrowsingCdpLauncher,
   isBlacklistedFileExtensions,
   isSkippedUrl,
   isDisallowedInRobotsTxt,
@@ -395,21 +394,19 @@ const crawlDomain = async ({
 
   const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
 
-  const cdpLauncher = await getSafeBrowsingCdpLauncher(browser, userDataDirectory);
-
   const crawler = register(
     new crawlee.PlaywrightCrawler({
       launchContext: {
-        launcher: (cdpLauncher || constants.launcher) as any,
+        launcher: constants.launcher,
         launchOptions: getPlaywrightLaunchOptions(browser),
       },
       retryOnBlocked: false,
       browserPoolOptions: {
         useFingerprints: false,
-        retireBrowserAfterPageCount: cdpLauncher ? Number.MAX_SAFE_INTEGER : 500,
+        retireBrowserAfterPageCount: 500,
         closeInactiveBrowserAfterSecs: 30,
         preLaunchHooks: [
-          ...(!cdpLauncher ? [getPreLaunchHook(userDataDirectory)] : []),
+          getPreLaunchHook(userDataDirectory),
           async (_pageId, launchContext) => {
             // eslint-disable-next-line no-param-reassign
             launchContext.launchOptions = {
@@ -423,7 +420,7 @@ const crawlDomain = async ({
             };
           },
         ],
-        postPageCloseHooks: [...(!cdpLauncher ? [getPostPageCloseHook(userDataDirectory)] : [])],
+        postPageCloseHooks: [getPostPageCloseHook(userDataDirectory)],
       },
       requestQueue,
       maxRequestRetries: 3,
@@ -545,73 +542,6 @@ const crawlDomain = async ({
               httpStatusCode: isSafeBrowsingBlock ? 3 : 1,
             });
             return;
-          }
-
-          // Via CDP, Safe Browsing may render an interstitial or block.
-          // Detect via CDP Page.interstitialShown event + DOM text check.
-          if (process.env.GOOGLE_SAFE_BROWSING && cdpLauncher) {
-            let interstitialShown = false;
-            try {
-              const cdpSession = await page.context().newCDPSession(page);
-              await cdpSession.send('Page.enable');
-              // Check if interstitial is already showing
-              interstitialShown = await new Promise<boolean>(resolve => {
-                const timer = setTimeout(() => resolve(false), 3000);
-                cdpSession.on('Page.interstitialShown', () => {
-                  clearTimeout(timer);
-                  resolve(true);
-                });
-                // Also check if already on interstitial via frame info
-                cdpSession.send('Page.getFrameTree').then((result: any) => {
-                  const frameUrl = result?.frameTree?.frame?.unreachableUrl || '';
-                  if (frameUrl && !frameUrl.startsWith('chrome-error:')) {
-                    // unreachableUrl set means navigation was blocked
-                    clearTimeout(timer);
-                    resolve(true);
-                  }
-                }).catch(() => {});
-              });
-              await cdpSession.detach().catch(() => {});
-            } catch {}
-
-            if (interstitialShown) {
-              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-                numScanned: urlsCrawled.scanned.length,
-                urlScanned: request.url,
-              });
-              urlsCrawled.userExcluded.push({
-                url: request.url,
-                pageTitle: request.url,
-                actualUrl: actualUrl,
-                metadata: STATUS_CODE_METADATA[3],
-                httpStatusCode: 3,
-              });
-              return;
-            }
-
-            // Fallback: check DOM for interstitial text
-            const isSbInterstitial = await page.evaluate(() => {
-              const bodyText = (document.body?.innerText || '').toLowerCase();
-              return bodyText.includes('deceptive site ahead') ||
-                bodyText.includes('dangerous site') ||
-                bodyText.includes('the site ahead contains malware') ||
-                bodyText.includes('the site ahead contains harmful programs') ||
-                bodyText.includes('this site may be hacked');
-            }).catch(() => false);
-            if (isSbInterstitial) {
-              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
-                numScanned: urlsCrawled.scanned.length,
-                urlScanned: request.url,
-              });
-              urlsCrawled.userExcluded.push({
-                url: request.url,
-                pageTitle: request.url,
-                actualUrl: actualUrl,
-                metadata: STATUS_CODE_METADATA[3],
-                httpStatusCode: 3,
-              });
-              return;
-            }
           }
 
           // Second-pass requests: only do click-discovery, skip scanning

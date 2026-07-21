@@ -291,6 +291,50 @@ export function injectSafeBrowsingDb(targetDir: string): void {
   consoleLogger.info('[SafeBrowsing] Injection complete');
 }
 
+/**
+ * Args that Playwright adds by default which must be removed when Safe Browsing is enabled,
+ * otherwise Chrome disables the SB service.
+ */
+export function getSafeBrowsingIgnoredArgs(): string[] {
+  if (!process.env.GOOGLE_SAFE_BROWSING) return [];
+  return [
+    '--safebrowsing-disable-auto-update',
+    '--disable-client-side-phishing-detection',
+    '--disable-background-networking',
+    '--disable-component-update',
+  ];
+}
+
+/**
+ * Ensures Xvfb is running for headful Safe Browsing on Linux Docker.
+ * Returns true if DISPLAY is available (headful possible), false otherwise.
+ */
+export function ensureXvfbForSafeBrowsing(): boolean {
+  if (!process.env.GOOGLE_SAFE_BROWSING) return false;
+  if (process.env.DISPLAY) return true;
+  if (process.platform !== 'linux') return false;
+
+  try {
+    const displayNum = ':99';
+    execSync('rm -f /tmp/.X99-lock', { stdio: 'ignore' });
+    const xvfb = spawn('Xvfb', [displayNum, '-screen', '0', '1920x1080x24', '-nolisten', 'tcp'], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    xvfb.unref();
+    const xvfbPid = xvfb.pid;
+    if (xvfbPid) {
+      process.once('exit', () => { try { process.kill(xvfbPid); } catch {} });
+    }
+    process.env.DISPLAY = displayNum;
+    consoleLogger.info(`[SafeBrowsing] Xvfb started on ${displayNum} (PID ${xvfbPid})`);
+    return true;
+  } catch (e) {
+    consoleLogger.warn(`[SafeBrowsing] Failed to start Xvfb: ${e}`);
+    return false;
+  }
+}
+
 export async function ensureAndInjectSafeBrowsing(targetDir: string): Promise<void> {
   if (!process.env.GOOGLE_SAFE_BROWSING) return;
   consoleLogger.info(`[SafeBrowsing] ensureAndInjectSafeBrowsing(${targetDir})`);
