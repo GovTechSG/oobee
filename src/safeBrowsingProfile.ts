@@ -1,4 +1,4 @@
-import { type ChildProcess, execSync, spawn } from 'child_process';
+import { type ChildProcess, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -123,40 +123,10 @@ async function spawnChromeForWarmup(): Promise<void> {
     ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote'] : []),
   ];
 
-  let spawnEnv: NodeJS.ProcessEnv = { ...process.env };
-  let windowArgs: string[] = ['--window-position=-10000,-10000', '--window-size=1,1'];
-  let xvfbProcess: ChildProcess | null = null;
-
-  if (process.platform === 'linux' && !process.env.DISPLAY) {
-    const displayNum = ':99';
-    let xvfbStarted = false;
-    try {
-      xvfbProcess = spawn('Xvfb', [displayNum, '-screen', '0', '1024x768x24'], {
-        stdio: 'ignore',
-        detached: true,
-      });
-      xvfbProcess.unref();
-      await new Promise(r => setTimeout(r, 1500));
-
-      if (xvfbProcess.exitCode === null && !xvfbProcess.killed) {
-        spawnEnv = { ...process.env, DISPLAY: displayNum };
-        xvfbStarted = true;
-      } else {
-        xvfbProcess = null;
-      }
-    } catch {
-      xvfbProcess = null;
-    }
-
-    if (!xvfbStarted) {
-      windowArgs = ['--headless=old', '--disable-gpu'];
-    }
-  }
-
   const chrome = spawn(
     exe,
-    [...baseArgs, ...windowArgs, 'https://www.google.com/generate_204'],
-    { stdio: 'ignore', detached: true, env: spawnEnv },
+    [...baseArgs, '--headless=new', '--disable-gpu', 'https://www.google.com/generate_204'],
+    { stdio: 'ignore', detached: true },
   );
 
   const maxWait = DB_DOWNLOAD_TIMEOUT_MS;
@@ -171,10 +141,6 @@ async function spawnChromeForWarmup(): Promise<void> {
   }
 
   killChromeTree(chrome);
-
-  if (xvfbProcess?.pid) {
-    try { process.kill(xvfbProcess.pid, 'SIGTERM'); } catch {}
-  }
 }
 
 export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
@@ -298,35 +264,6 @@ export function getSafeBrowsingIgnoredArgs(): string[] {
   ];
 }
 
-/**
- * Ensures Xvfb is running for headful Safe Browsing on Linux Docker.
- * Returns true if DISPLAY is available (headful possible), false otherwise.
- */
-export function ensureXvfbForSafeBrowsing(): boolean {
-  if (!process.env.GOOGLE_SAFE_BROWSING) return false;
-  if (process.env.DISPLAY) return true;
-  if (process.platform !== 'linux') return false;
-
-  try {
-    const displayNum = ':99';
-    execSync('rm -f /tmp/.X99-lock', { stdio: 'ignore' });
-    const xvfb = spawn('Xvfb', [displayNum, '-screen', '0', '1920x1080x24', '-nolisten', 'tcp'], {
-      detached: true,
-      stdio: 'ignore',
-    });
-    xvfb.unref();
-    const xvfbPid = xvfb.pid;
-    if (xvfbPid) {
-      process.once('exit', () => { try { process.kill(xvfbPid); } catch {} });
-    }
-    process.env.DISPLAY = displayNum;
-    consoleLogger.info(`[SafeBrowsing] Xvfb started on ${displayNum} (PID ${xvfbPid})`);
-    return true;
-  } catch (e) {
-    consoleLogger.warn(`[SafeBrowsing] Failed to start Xvfb: ${e}`);
-    return false;
-  }
-}
 
 export async function ensureAndInjectSafeBrowsing(targetDir: string): Promise<void> {
   if (!process.env.GOOGLE_SAFE_BROWSING) return;

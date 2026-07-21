@@ -37,7 +37,7 @@ import { cleanUpAndExit, isFollowStrategy, randomThreeDigitNumberString, registe
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
-import { ensureAndInjectSafeBrowsing, ensureXvfbForSafeBrowsing, getSafeBrowsingIgnoredArgs } from '../safeBrowsingProfile.js';
+import { ensureAndInjectSafeBrowsing, getSafeBrowsingIgnoredArgs } from '../safeBrowsingProfile.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -2279,15 +2279,7 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     ? ['--use-mock-keychain', '--mute-audio']
     : ['--use-mock-keychain'];
 
-  let headless = process.env.CRAWLEE_HEADLESS === '1';
-  if (safeBrowsingEnabled && headless) {
-    if (ensureXvfbForSafeBrowsing()) {
-      headless = false;
-      consoleLogger.info(`[SafeBrowsing] Forcing headful mode (DISPLAY=${process.env.DISPLAY})`);
-    } else {
-      consoleLogger.warn('[SafeBrowsing] No DISPLAY available — staying headless. Interstitials may not fire.');
-    }
-  }
+  const headless = process.env.CRAWLEE_HEADLESS === '1';
 
   const options: LaunchOptions = {
     ignoreDefaultArgs: [...baseIgnoredArgs, ...getSafeBrowsingIgnoredArgs()],
