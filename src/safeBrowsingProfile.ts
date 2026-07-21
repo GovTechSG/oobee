@@ -120,7 +120,7 @@ async function spawnChromeForWarmup(): Promise<void> {
     '--no-first-run',
     '--no-default-browser-check',
     '--ignore-certificate-errors',
-    ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : []),
+    ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote'] : []),
   ];
 
   let spawnEnv: NodeJS.ProcessEnv = { ...process.env };

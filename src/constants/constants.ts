@@ -331,7 +331,7 @@ let launchOptionsArgs: string[] = [];
 
 // Check if running in docker container
 if (fs.existsSync('/.dockerenv')) {
-  launchOptionsArgs = ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'];
+  launchOptionsArgs = ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage', '--no-zygote'];
 }
 
 export const impactOrder = {
