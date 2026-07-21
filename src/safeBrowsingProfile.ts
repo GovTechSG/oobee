@@ -114,20 +114,13 @@ async function spawnChromeForWarmup(): Promise<void> {
 
   const exe = getChromeExecutable();
 
-  const isLinuxDocker = process.platform === 'linux' && fs.existsSync('/.dockerenv');
   const baseArgs = [
     `--user-data-dir=${BASE_PROFILE_DIR}`,
     '--profile-directory=Default',
     '--no-first-run',
     '--no-default-browser-check',
     '--ignore-certificate-errors',
-    ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
-    ...(isLinuxDocker ? [
-      '--disable-dev-shm-usage', '--disable-gpu', '--disable-software-rasterizer',
-      '--in-process-gpu', '--disable-gpu-compositing',
-      '--disable-features=VizDisplayCompositor', '--no-zygote',
-      '--ozone-platform=x11',
-    ] : []),
+    ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : []),
   ];
 
   let spawnEnv: NodeJS.ProcessEnv = { ...process.env };

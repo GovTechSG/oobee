@@ -308,30 +308,6 @@ const isAllowedContentType = (ct: string): boolean => {
   );
 };
 
-const isLikelyQemuChromeCrash = (error: unknown): boolean => {
-  const msg = error instanceof Error ? error.message : String(error || '');
-  return (
-    msg.includes('Target page, context or browser has been closed') ||
-    msg.includes("GPU process isn't usable") ||
-    msg.includes('qemu: uncaught target signal')
-  );
-};
-
-const withQemuChromeWorkaroundArgs = (launchOptions: LaunchOptions): LaunchOptions => {
-  const args = [...(launchOptions.args ?? [])];
-  const extraArgs = [
-    '--in-process-gpu',
-    '--disable-gpu-compositing',
-    '--disable-features=VizDisplayCompositor',
-  ];
-
-  extraArgs.forEach(arg => {
-    if (!args.includes(arg)) args.push(arg);
-  });
-
-  return { ...launchOptions, args };
-};
-
 const checkUrlConnectivityWithBrowser = async (
   url: string,
   browserToRun: string,
@@ -457,34 +433,7 @@ const checkUrlConnectivityWithBrowser = async (
   };
 
   try {
-    try {
-      await launchBrowserContext(launchOptions);
-    } catch (error) {
-      const shouldRetryWithQemuArgs =
-        browserToRun === BrowserTypes.CHROME &&
-        process.platform === 'linux' &&
-        fs.existsSync('/.dockerenv') &&
-        isLikelyQemuChromeCrash(error);
-
-      if (!shouldRetryWithQemuArgs) throw error;
-
-      consoleLogger.warn(
-        '[Chrome] Launch failed with likely emulation/GPU issue. Retrying Chrome with QEMU-safe flags.',
-      );
-
-      try {
-        await browserContext?.close();
-      } catch {}
-      if (browserInstance) {
-        try {
-          await browserInstance.close();
-        } catch {}
-      }
-      browserContext = undefined;
-      browserInstance = undefined;
-
-      await launchBrowserContext(withQemuChromeWorkaroundArgs(launchOptions));
-    }
+    await launchBrowserContext(launchOptions);
   } catch (err) {
     printMessage([`Unable to launch browser\n${err}`], messageOptions);
     res.status = constants.urlCheckStatuses.browserError.code;
@@ -2280,8 +2229,6 @@ export async function launchPersistentSafeContext(
  */
 export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   const channel = browser || undefined;
-  const isLinuxDockerChrome =
-    browser === BrowserTypes.CHROME && process.platform === 'linux' && fs.existsSync('/.dockerenv');
 
   const resolution = proxyInfoToResolution(cacheProxyInfo);
   const shouldIgnoreMuteAudio =
@@ -2299,22 +2246,6 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   // Cap browser disk cache to 10MB per instance to prevent storage bloat
   // during long crawls with multiple pool rotations
   finalArgs.push('--disk-cache-size=10485760');
-
-  // Chrome under Linux Docker emulation can crash in GPU process startup.
-  // Apply a conservative software-only launch profile while keeping Chrome channel.
-  if (isLinuxDockerChrome) {
-    const dockerChromeArgs = [
-      '--in-process-gpu',
-      '--disable-gpu-compositing',
-      '--disable-software-rasterizer',
-      '--disable-features=VizDisplayCompositor',
-      '--no-zygote',
-    ];
-
-    dockerChromeArgs.forEach(arg => {
-      if (!finalArgs.includes(arg)) finalArgs.push(arg);
-    });
-  }
 
   // Prevent Windows from throttling background Chromium processes
   if (os.platform() === 'win32') {
@@ -2347,10 +2278,6 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   const baseIgnoredArgs = shouldIgnoreMuteAudio
     ? ['--use-mock-keychain', '--mute-audio']
     : ['--use-mock-keychain'];
-
-  if (isLinuxDockerChrome && !baseIgnoredArgs.includes('--enable-unsafe-swiftshader')) {
-    baseIgnoredArgs.push('--enable-unsafe-swiftshader');
-  }
 
   let headless = process.env.CRAWLEE_HEADLESS === '1';
   if (safeBrowsingEnabled && headless) {
