@@ -104,8 +104,8 @@ async function spawnChromeForWarmup(): Promise<void> {
 
   fs.mkdirSync(path.join(BASE_PROFILE_DIR, 'Default'), { recursive: true });
   // Use standard protection (not enhanced) for the warmup to force Chrome to
-  // download local hash-prefix databases. Enhanced protection relies on OHTTP
-  // real-time checks which don't work with Playwright/CDP navigations.
+  // download local hash-prefix databases. Enhanced protection uses OHTTP
+  // real-time checks exclusively and does NOT download local databases.
   // Standard protection NEEDS local databases, so Chrome downloads them.
   fs.writeFileSync(
     path.join(BASE_PROFILE_DIR, 'Default', 'Preferences'),
@@ -162,7 +162,7 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
     consoleLogger.info(`[SafeBrowsing] Files in system DB: ${files.join(', ')}`);
     printMessage(['Copying Safe Browsing threat database from system Chrome profile...'], messageOptions);
     copyDirectory(systemSbDir, SB_DIR);
-    printMessage(['Google Safe Browsing enabled (real-time URL protection active)'], messageOptions);
+    printMessage(['Google Safe Browsing enabled (local hash-prefix DB active)'], messageOptions);
     return;
   }
 
@@ -181,7 +181,7 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
       await new Promise(r => setTimeout(r, 5_000));
     }
     if (isDbDir(SB_DIR)) {
-      printMessage(['Google Safe Browsing enabled (real-time URL protection active)'], messageOptions);
+      printMessage(['Google Safe Browsing enabled (local hash-prefix DB active)'], messageOptions);
     }
     return;
   }
@@ -190,7 +190,7 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
     await spawnChromeForWarmup();
 
     if (isDbDir(SB_DIR)) {
-      printMessage(['Google Safe Browsing enabled (real-time URL protection active)'], messageOptions);
+      printMessage(['Google Safe Browsing enabled (local hash-prefix DB active)'], messageOptions);
     } else {
       printMessage([`WARNING: Safe Browsing DB did not populate in ${DB_DOWNLOAD_TIMEOUT_MS / 1000}s. Protection may be reduced.`], messageOptions);
     }

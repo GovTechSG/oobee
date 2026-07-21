@@ -23,8 +23,9 @@ RUN npx playwright install chromium
 # =============================================================================
 # Google Chrome installation for Safe Browsing support
 # =============================================================================
-# WHY: Chrome's Safe Browsing (v5) checks URLs in real-time via Google's OHTTP
-#      relay — no local hash database is needed or pre-seeded.
+# WHY: Chrome downloads local hash-prefix threat databases (UrlSoceng, UrlMalware)
+#      at runtime using standard protection mode. These databases enable local URL
+#      matching to block phishing/malware pages.
 #      This is Chrome-only; Chromium lacks the required proprietary API keys.
 #
 # ARCHITECTURE LIMITATION:

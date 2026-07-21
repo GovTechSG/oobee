@@ -1707,12 +1707,6 @@ const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, des
 };
 
 /**
- * Clone Chrome profile Preferences file (contains Safe Browsing OHTTP key on warmed profiles)
- * @param {*} options - glob options object
- * @param {string} destDir - destination directory
- * @returns boolean indicating whether the operation was successful
- */
-/**
  * Both Edge and Chrome Local State files are located in the .../User Data directory
  * @param {*} options - glob options object
  * @param {string} destDir - destination directory
