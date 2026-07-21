@@ -1613,6 +1613,7 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
       const profileName = dir.match(profileNamesRegex)[1];
       if (profileName) {
         let destProfileDir = path.join(destDir, profileName);
+        const destProfileBaseDir = path.join(destDir, profileName);
         if (os.platform() === 'win32') {
           destProfileDir = path.join(destProfileDir, 'Network');
         }
@@ -1631,6 +1632,14 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
             consoleLogger.error(`Failed to copy Chrome profile cookies for ${profileName} after retries.`);
             success = false;
           }
+        }
+
+        // Copy Preferences (contains Safe Browsing OHTTP key when GSB is enabled)
+        const srcPrefsPath = path.join(path.dirname(os.platform() === 'win32' ? path.dirname(dir) : dir), 'Preferences');
+        const destPrefsPath = path.join(destProfileBaseDir, 'Preferences');
+        if (fs.existsSync(srcPrefsPath) && !fs.existsSync(destPrefsPath)) {
+          fs.mkdirSync(destProfileBaseDir, { recursive: true });
+          copyFileWithRetry(srcPrefsPath, destPrefsPath);
         }
       }
     });
@@ -1703,48 +1712,6 @@ const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, des
  * @param {string} destDir - destination directory
  * @returns boolean indicating whether the operation was successful
  */
-const cloneChromeProfilePreferences = (options: GlobOptionsWithFileTypesFalse, destDir: string) => {
-  let profilePreferencesDir;
-  let profileNamesRegex: RegExp;
-
-  if (os.platform() === 'win32' || os.platform() === 'darwin' || os.platform() === 'linux') {
-    profilePreferencesDir = globSync('**/Preferences', {
-      ...options,
-      ignore: ['oobee*/**'],
-    });
-  } else {
-    return true;
-  }
-
-  if (profilePreferencesDir.length > 0) {
-    let success = true;
-    profilePreferencesDir.forEach(dir => {
-      // Extract profile name from path (e.g., "Default" from "Default/Preferences")
-      const pathParts = dir.split(/[/\\]/);
-      const profileName = pathParts[pathParts.length - 2];
-      
-      if (profileName && profileName !== 'oobee') {
-        const destProfileDir = path.join(destDir, profileName);
-        if (!fs.existsSync(destProfileDir)) {
-          fs.mkdirSync(destProfileDir, { recursive: true });
-        }
-
-        const destPrefsPath = path.join(destProfileDir, 'Preferences');
-        // Always copy, overwriting if needed, to ensure OHTTP key is inherited
-        if (!copyFileWithRetry(dir, destPrefsPath)) {
-          consoleLogger.warn(`Unable to copy Chrome profile Preferences for ${profileName}.`);
-          success = false;
-        }
-      }
-    });
-    return success;
-  }
-
-  // If no Preferences files found in base profile, that's still OK (they'll be created)
-  consoleLogger.warn('[SafeBrowsing] No source Preferences files found; will be created fresh.');
-  return true;
-};
-
 /**
  * Both Edge and Chrome Local State files are located in the .../User Data directory
  * @param {*} options - glob options object
@@ -1811,8 +1778,7 @@ export const cloneChromeProfiles = (randomToken: string): string => {
       nodir: true,
     };
     const cloneLocalStateFileSuccess = cloneLocalStateFile(baseOptions, destDir);
-    const cloneChromePrefsSuccess = cloneChromeProfilePreferences(baseOptions, destDir);
-    if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess && cloneChromePrefsSuccess) {
+    if (cloneChromeProfileCookieFiles(baseOptions, destDir) && cloneLocalStateFileSuccess) {
       return destDir;
     }
 

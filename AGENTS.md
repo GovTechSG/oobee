@@ -204,9 +204,9 @@ Google Safe Browsing protects users by blocking navigation to phishing/malware U
 #### Browser Launch
 
 1. `getPlaywrightLaunchOptions()` removes Playwright default flags that suppress Safe Browsing via `getSafeBrowsingIgnoredArgs()`: `--safebrowsing-disable-auto-update`, `--disable-client-side-phishing-detection`, `--disable-background-networking`, `--disable-component-update`.
-2. `ensureXvfbForSafeBrowsing()` starts Xvfb on Linux when no DISPLAY is available, enabling headful mode (required for interstitial rendering).
-3. `launchPersistentSafeContext()` calls `ensureAndInjectSafeBrowsing()` before launching the persistent context.
-4. `getPreLaunchHook()` in `commonCrawlerFunc.ts` injects Safe Browsing preferences (including OHTTP key) into each browser pool instance on rotation.
+2. `launchPersistentSafeContext()` calls `ensureAndInjectSafeBrowsing()` before launching the persistent context. All scan types use this as the single entry point.
+3. `getPreLaunchHook()` in `commonCrawlerFunc.ts` injects Safe Browsing preferences (including OHTTP key) into each browser pool instance on rotation.
+4. All browsers run headless in Docker. `runCustom` runs headed (user sees interstitials directly).
 
 #### Detection of blocked pages
 
@@ -230,8 +230,8 @@ Google Safe Browsing protects users by blocking navigation to phishing/malware U
 
 ### Key Files
 
-- `src/safeBrowsingProfile.ts` — DB warmup via Chrome spawn, injection into scan profiles, `ensureXvfbForSafeBrowsing()`, `getSafeBrowsingIgnoredArgs()`
-- `src/constants/common.ts` — `launchPersistentSafeContext()`, `getPlaywrightLaunchOptions()` (ignoreDefaultArgs + headful forcing), `cloneChromeProfilePreferences()`
+- `src/safeBrowsingProfile.ts` — DB warmup via headless Chrome spawn, injection into scan profiles, `getSafeBrowsingIgnoredArgs()`
+- `src/constants/common.ts` — `launchPersistentSafeContext()`, `getPlaywrightLaunchOptions()` (ignoreDefaultArgs), `cloneChromeProfileCookieFiles()` (copies Preferences alongside Cookies)
 - `src/crawlers/commonCrawlerFunc.ts` — `getPreLaunchHook()` injects SB preferences into pool instances
 - `src/crawlers/guards/urlGuard.ts` — `allowChromeErrors` for interstitial pages in runCustom
 - `src/crawlers/crawlDomain.ts` — `chrome-error:` and `ERR_BLOCKED_BY_CLIENT` detection
