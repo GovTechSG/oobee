@@ -15,15 +15,26 @@ const DB_DOWNLOAD_TIMEOUT_MS = parseInt(process.env.SB_DB_TIMEOUT_MS || '180000'
 const LOCK_STALE_MS = DB_DOWNLOAD_TIMEOUT_MS;
 
 function getChromeExecutable(): string {
-  const candidates: string[] =
-    process.platform === 'darwin'
-      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
-      : [
-          '/usr/bin/google-chrome',
-          '/usr/bin/google-chrome-stable',
-          '/usr/bin/chromium-browser',
-          '/usr/bin/chromium',
-        ];
+  let candidates: string[];
+  if (process.platform === 'darwin') {
+    candidates = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'];
+  } else if (process.platform === 'win32') {
+    const programFiles = process.env.PROGRAMFILES || 'C:\\Program Files';
+    const programFilesX86 = process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
+    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    candidates = [
+      path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    ];
+  } else {
+    candidates = [
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+    ];
+  }
 
   const found = candidates.find(p => fs.existsSync(p));
   if (found) return found;
@@ -33,18 +44,23 @@ function getChromeExecutable(): string {
     if (fs.existsSync(playwrightPath)) return playwrightPath;
   } catch {}
 
-  return 'google-chrome';
+  return process.platform === 'win32' ? 'chrome.exe' : 'google-chrome';
 }
 
 function findSystemSafeBrowsingDir(): string | null {
-  const candidates =
-    process.platform === 'darwin'
-      ? [path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'Safe Browsing')]
-      : [
-          '/opt/oobee-safe-browsing/Safe Browsing',
-          path.join(os.homedir(), '.config', 'google-chrome', 'Safe Browsing'),
-          path.join(os.homedir(), '.config', 'chromium', 'Safe Browsing'),
-        ];
+  let candidates: string[];
+  if (process.platform === 'darwin') {
+    candidates = [path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'Safe Browsing')];
+  } else if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    candidates = [path.join(localAppData, 'Google', 'Chrome', 'User Data', 'Safe Browsing')];
+  } else {
+    candidates = [
+      '/opt/oobee-safe-browsing/Safe Browsing',
+      path.join(os.homedir(), '.config', 'google-chrome', 'Safe Browsing'),
+      path.join(os.homedir(), '.config', 'chromium', 'Safe Browsing'),
+    ];
+  }
   return candidates.find(isDbDir) ?? null;
 }
 
@@ -67,10 +83,14 @@ function copyDirectory(src: string, dst: string): void {
 
 function killChromeTree(chrome: ChildProcess): void {
   if (!chrome.pid) return;
-  try {
-    process.kill(-chrome.pid, 'SIGKILL');
-  } catch {
-    try { chrome.kill('SIGKILL'); } catch {}
+  if (process.platform === 'win32') {
+    try { spawn('taskkill', ['/pid', String(chrome.pid), '/T', '/F'], { stdio: 'ignore' }); } catch {}
+  } else {
+    try {
+      process.kill(-chrome.pid, 'SIGKILL');
+    } catch {
+      try { chrome.kill('SIGKILL'); } catch {}
+    }
   }
 }
 
@@ -269,10 +289,6 @@ export async function ensureAndInjectSafeBrowsing(targetDir: string): Promise<vo
   if (!process.env.GOOGLE_SAFE_BROWSING) return;
   consoleLogger.info(`[SafeBrowsing] ensureAndInjectSafeBrowsing(${targetDir})`);
 
-  if (process.platform === 'win32') {
-    printMessage(['Google Safe Browsing is not yet supported on Windows.'], messageOptions);
-    return;
-  }
 
   await warmupSafeBrowsingBaseProfile();
   injectSafeBrowsingDb(targetDir);
