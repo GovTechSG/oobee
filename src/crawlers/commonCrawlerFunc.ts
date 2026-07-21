@@ -23,7 +23,7 @@ import xPathToCss from './custom/xPathToCss.js';
 import type { Response as PlaywrightResponse } from 'playwright';
 import fs from 'fs';
 import { getStoragePath } from '../utils.js';
-import { injectSafeBrowsingDb } from '../safeBrowsingProfile.js';
+import { ensureAndInjectSafeBrowsing } from '../safeBrowsingProfile.js';
 import path from 'path';
 
 // types
@@ -1309,11 +1309,9 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
       // Silent fallback: use empty profile if clone fails
     }
 
-    // Inject Safe Browsing preferences after copying base profile files.
-    // This merges enabled/enhanced on top of any copied Preferences, preserving
-    // the hash_real_time_ohttp_key from the base profile so Chrome does not need
-    // to re-fetch it for every pool browser.
-    injectSafeBrowsingDb(effectiveDir);
+    // Ensure Safe Browsing DB is warmed up (first call downloads it, subsequent
+    // calls are no-ops) then inject preferences into this pool browser's profile.
+    await ensureAndInjectSafeBrowsing(effectiveDir);
 
     // Clean any stale lock files that may block browser launches on Windows
     const lockFiles = [
