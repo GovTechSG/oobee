@@ -43,8 +43,7 @@ RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
     fi
 
 
-# --- noVNC / Safe Browsing warmup entrypoint ---
-ENV GOOGLE_SAFE_BROWSING=1
+# --- noVNC entrypoint ---
 EXPOSE 6080 5900
 
 # --- App code (changes here don't invalidate Chrome layers above) ---
