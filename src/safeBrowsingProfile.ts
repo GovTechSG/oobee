@@ -3,18 +3,18 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import printMessage from 'print-message';
-import { chromium as playwrightChromium } from 'playwright';
 import { consoleLogger } from './logs.js';
 import { messageOptions } from './constants/common.js';
 
 const BASE_PROFILE_DIR = process.env.SB_PROFILE_DIR || path.join(os.homedir(), '.oobee', 'safe-browsing-profile');
 const SB_DIR = path.join(BASE_PROFILE_DIR, 'Safe Browsing');
 const SEEDED_MARKER = '.sb-seeded';
+const FAILED_MARKER = path.join(BASE_PROFILE_DIR, '.sb-warmup-failed');
 const LOCK_DIR = path.join(BASE_PROFILE_DIR, '.warmup-lock');
 const DB_DOWNLOAD_TIMEOUT_MS = parseInt(process.env.SB_DB_TIMEOUT_MS || '300000', 10);
 const LOCK_STALE_MS = DB_DOWNLOAD_TIMEOUT_MS;
 
-function getChromeExecutable(): string {
+function getChromeExecutable(): string | null {
   let candidates: string[];
   if (process.platform === 'darwin') {
     candidates = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'];
@@ -31,20 +31,10 @@ function getChromeExecutable(): string {
     candidates = [
       '/usr/bin/google-chrome',
       '/usr/bin/google-chrome-stable',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
     ];
   }
 
-  const found = candidates.find(p => fs.existsSync(p));
-  if (found) return found;
-
-  try {
-    const playwrightPath = playwrightChromium.executablePath();
-    if (fs.existsSync(playwrightPath)) return playwrightPath;
-  } catch {}
-
-  return process.platform === 'win32' ? 'chrome.exe' : 'google-chrome';
+  return candidates.find(p => fs.existsSync(p)) ?? null;
 }
 
 function findPrePopulatedSource(): string | null {
@@ -161,7 +151,7 @@ async function spawnChromeForWarmup(): Promise<void> {
     JSON.stringify({ safebrowsing: { enabled: true, enhanced: false } }),
   );
 
-  const exe = getChromeExecutable();
+  const exe = getChromeExecutable()!;
 
   const baseArgs = [
     `--user-data-dir=${BASE_PROFILE_DIR}`,
@@ -201,6 +191,11 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
     return;
   }
 
+  if (fs.existsSync(FAILED_MARKER)) {
+    consoleLogger.info('[SafeBrowsing] Previous warmup failed (marker exists), skipping retry');
+    return;
+  }
+
   fs.mkdirSync(BASE_PROFILE_DIR, { recursive: true });
 
   const prePopulated = findPrePopulatedSource();
@@ -216,9 +211,11 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
   }
 
   const exe = getChromeExecutable();
-  const chromeFound = fs.existsSync(exe);
-  consoleLogger.info(`[SafeBrowsing] Chrome executable: ${exe}, found: ${chromeFound}`);
-  if (!chromeFound) {
+  consoleLogger.info(`[SafeBrowsing] Chrome executable: ${exe}`);
+  if (!exe) {
+    consoleLogger.info('[SafeBrowsing] Google Chrome not found, marking as failed');
+    fs.mkdirSync(BASE_PROFILE_DIR, { recursive: true });
+    fs.writeFileSync(FAILED_MARKER, `no-chrome:${new Date().toISOString()}`);
     printMessage(['WARNING: Google Chrome not found. Safe Browsing requires Chrome (not Chromium). On Linux Docker, build with --platform linux/amd64.'], messageOptions);
     return;
   }
@@ -241,6 +238,7 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
     if (isDbDir(SB_DIR)) {
       printMessage(['Google Safe Browsing enabled (local hash-prefix DB active)'], messageOptions);
     } else {
+      fs.writeFileSync(FAILED_MARKER, `timeout:${new Date().toISOString()}`);
       printMessage([`WARNING: Safe Browsing DB did not populate in ${DB_DOWNLOAD_TIMEOUT_MS / 1000}s. Protection may be reduced.`], messageOptions);
     }
   } finally {
