@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'child_process';
+import { type ChildProcess, spawn, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -7,11 +7,11 @@ import { chromium as playwrightChromium } from 'playwright';
 import { consoleLogger } from './logs.js';
 import { messageOptions } from './constants/common.js';
 
-const BASE_PROFILE_DIR = path.join(os.homedir(), '.oobee', 'safe-browsing-profile');
+const BASE_PROFILE_DIR = process.env.SB_PROFILE_DIR || path.join(os.homedir(), '.oobee', 'safe-browsing-profile');
 const SB_DIR = path.join(BASE_PROFILE_DIR, 'Safe Browsing');
 const SEEDED_MARKER = '.sb-seeded';
 const LOCK_DIR = path.join(BASE_PROFILE_DIR, '.warmup-lock');
-const DB_DOWNLOAD_TIMEOUT_MS = parseInt(process.env.SB_DB_TIMEOUT_MS || '180000', 10);
+const DB_DOWNLOAD_TIMEOUT_MS = parseInt(process.env.SB_DB_TIMEOUT_MS || '300000', 10);
 const LOCK_STALE_MS = DB_DOWNLOAD_TIMEOUT_MS;
 
 function getChromeExecutable(): string {
@@ -47,21 +47,50 @@ function getChromeExecutable(): string {
   return process.platform === 'win32' ? 'chrome.exe' : 'google-chrome';
 }
 
-function findSystemSafeBrowsingDir(): string | null {
-  let candidates: string[];
+function findPrePopulatedSource(): string | null {
+  const envPath = process.env.SB_PREPOPULATED_DIR;
+  if (envPath) {
+    if (isDbDir(path.join(envPath, 'Safe Browsing'))) return path.join(envPath, 'Safe Browsing');
+    if (isDbDir(envPath)) return envPath;
+  }
+
+  const zipCandidates = [
+    process.env.SB_PREPOPULATED_ZIP,
+    '/data/safe-browsing-db.zip',
+    '/opt/oobee-safe-browsing/safe-browsing-db.zip',
+    path.join(os.homedir(), '.oobee', 'safe-browsing-db.zip'),
+  ].filter(Boolean) as string[];
+
+  for (const zipPath of zipCandidates) {
+    if (fs.existsSync(zipPath)) {
+      consoleLogger.info(`[SafeBrowsing] Found pre-populated zip: ${zipPath}`);
+      const extractDir = path.join(BASE_PROFILE_DIR, 'Safe Browsing');
+      fs.mkdirSync(extractDir, { recursive: true });
+      try {
+        execSync(`unzip -o -q "${zipPath}" -d "${extractDir}"`, { stdio: 'pipe' });
+        if (isDbDir(extractDir)) return extractDir;
+      } catch (e) {
+        consoleLogger.info(`[SafeBrowsing] Failed to extract zip: ${e}`);
+      }
+    }
+  }
+
+  const dirCandidates: string[] = [];
   if (process.platform === 'darwin') {
-    candidates = [path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'Safe Browsing')];
+    dirCandidates.push(path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'Safe Browsing'));
   } else if (process.platform === 'win32') {
     const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-    candidates = [path.join(localAppData, 'Google', 'Chrome', 'User Data', 'Safe Browsing')];
+    dirCandidates.push(path.join(localAppData, 'Google', 'Chrome', 'User Data', 'Safe Browsing'));
   } else {
-    candidates = [
+    dirCandidates.push(
+      '/data/chrome-profile/Safe Browsing',
       '/opt/oobee-safe-browsing/Safe Browsing',
       path.join(os.homedir(), '.config', 'google-chrome', 'Safe Browsing'),
       path.join(os.homedir(), '.config', 'chromium', 'Safe Browsing'),
-    ];
+    );
   }
-  return candidates.find(isDbDir) ?? null;
+
+  return dirCandidates.find(isDbDir) ?? null;
 }
 
 function isDbDir(dir: string): boolean {
@@ -174,14 +203,14 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
 
   fs.mkdirSync(BASE_PROFILE_DIR, { recursive: true });
 
-  const systemSbDir = findSystemSafeBrowsingDir();
-  consoleLogger.info(`[SafeBrowsing] findSystemSafeBrowsingDir() = ${systemSbDir}`);
-  if (systemSbDir) {
-    consoleLogger.info(`[SafeBrowsing] Found system DB at: ${systemSbDir}`);
-    const files = fs.readdirSync(systemSbDir);
-    consoleLogger.info(`[SafeBrowsing] Files in system DB: ${files.join(', ')}`);
-    printMessage(['Copying Safe Browsing threat database from system Chrome profile...'], messageOptions);
-    copyDirectory(systemSbDir, SB_DIR);
+  const prePopulated = findPrePopulatedSource();
+  consoleLogger.info(`[SafeBrowsing] findPrePopulatedSource() = ${prePopulated}`);
+  if (prePopulated) {
+    consoleLogger.info(`[SafeBrowsing] Found pre-populated DB at: ${prePopulated}`);
+    const files = fs.readdirSync(prePopulated);
+    consoleLogger.info(`[SafeBrowsing] Files: ${files.join(', ')}`);
+    printMessage(['Copying Safe Browsing threat database from pre-populated source...'], messageOptions);
+    copyDirectory(prePopulated, SB_DIR);
     printMessage(['Google Safe Browsing enabled (local hash-prefix DB active)'], messageOptions);
     return;
   }
