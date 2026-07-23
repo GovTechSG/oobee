@@ -875,6 +875,38 @@ export const runAxeScript = async ({
   const browserContext: BrowserContext = page.context();
   const requestUrl = page.url();
 
+  // Some pages replace native constructors (Set, Map, WeakMap, ...) with
+  // incomplete polyfills. axe-core and even Playwright's own return-value
+  // serialization use these natives internally and blow up with unhelpful
+  // errors like `r.has is not a function` or `i.forEach is not a function`.
+  // Restore pristine constructors by stealing them from a fresh same-origin
+  // iframe (whose Realm the page hasn't touched) before doing any evaluation.
+  try {
+    await page.evaluate(() => {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.setAttribute('aria-hidden', 'true');
+      document.documentElement.appendChild(iframe);
+      const w = iframe.contentWindow as unknown as Record<string, unknown>;
+      if (!w) return;
+      for (const name of [
+        'Set', 'Map', 'WeakSet', 'WeakMap',
+        'Array', 'Object', 'Promise', 'Symbol',
+        'Number', 'String', 'Boolean', 'RegExp', 'Date',
+        'JSON', 'Math',
+      ]) {
+        try {
+          (window as unknown as Record<string, unknown>)[name] = w[name];
+        } catch {}
+      }
+      // Intentionally leave the iframe in the DOM — removing it invalidates
+      // its Realm and the constructors we just copied become dead references.
+    });
+  } catch {
+    // Page may not be ready or the eval itself may fail on hostile pages;
+    // best effort — continue with axe injection regardless.
+  }
+
   let pageTitle: string | null = null;
   try {
     pageTitle = await page.evaluate(() => document.title);
