@@ -2277,7 +2277,15 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const headless = process.env.CRAWLEE_HEADLESS === '1';
 
+  // Playwright pushes --no-sandbox by default unless chromiumSandbox: true is set —
+  // that flag triggers Chrome's "unsupported command-line flag" yellow banner on
+  // desktop hosts. Opt back in to the sandbox on host OSes so the banner does not
+  // appear. In Docker the sandbox typically cannot start without extra container
+  // capabilities, so leave Playwright's default (--no-sandbox) in place there.
+  const inDocker = fs.existsSync('/.dockerenv');
+
   const options: LaunchOptions = {
+    ...(inDocker ? {} : { chromiumSandbox: true }),
     ignoreDefaultArgs: [...baseIgnoredArgs, ...getSafeBrowsingIgnoredArgs()],
     args: finalArgs,
     headless,
