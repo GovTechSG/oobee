@@ -8,17 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
     zip \
-    xvfb \
-    x11vnc \
-    novnc \
-    websockify \
-    openbox \
-    procps \
-    libnss3-tools && \
     rm -rf /var/lib/apt/lists/*
-
-# Install Playwright browsers
-RUN npx playwright install chromium
 
 # =============================================================================
 # Google Chrome installation for Safe Browsing support
@@ -64,6 +54,9 @@ USER purple
 # Install dependencies first (cached unless package.json/package-lock.json change)
 COPY --chown=purple:purple package.json package-lock.json ./
 RUN npm install --omit=dev
+
+# Install Playwright browsers
+RUN npx playwright install chromium
 
 # Copy source and compile TypeScript
 COPY --chown=purple:purple . .
