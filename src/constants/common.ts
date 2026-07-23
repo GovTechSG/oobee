@@ -554,6 +554,11 @@ const checkUrlConnectivityWithBrowser = async (
       res.status = constants.urlCheckStatuses.timedOut.code;
     } else if (error.message.includes('net::ERR_SSL_PROTOCOL_ERROR')) {
       res.status = constants.urlCheckStatuses.sslProtocolError.code;
+    } else if (
+      error.message.includes('net::ERR_BLOCKED_BY_CLIENT') ||
+      error.message.includes('net::ERR_BLOCKED_BY_RESPONSE')
+    ) {
+      res.status = constants.urlCheckStatuses.blockedByClient.code;
     } else {
       consoleLogger.error(error);
       res.status = constants.urlCheckStatuses.systemError.code;

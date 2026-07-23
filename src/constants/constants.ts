@@ -541,6 +541,11 @@ const urlCheckStatuses = {
     message:
       'Request timed out. Please try again in a few minutes. If this issue persists, please contact the Oobee team.',
   },
+  blockedByClient: {
+    code: 24,
+    message:
+      'Something went wrong when verifying the URL. If this issue persists, please contact the Oobee team.',
+  },
 };
 
 /* eslint-disable no-unused-vars */
