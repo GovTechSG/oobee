@@ -69,7 +69,7 @@ RUN npm run build || true # true exits with code 0 - workaround for TS errors
 # root without --no-sandbox, which we intentionally dropped from the warmup args.
 RUN ARCH="$(dpkg --print-architecture)"; \
     if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "arm64" ]; then \
-      GOOGLE_SAFE_BROWSING=1 OOBEE_VERBOSE=1 SB_PROFILE_DIR=/data/chrome-profile node scripts/warmup-safe-browsing.mjs --timeout 1200000; \
+      GOOGLE_SAFE_BROWSING=1 SB_PROFILE_DIR=/data/chrome-profile node scripts/warmup-safe-browsing.mjs --timeout 1200000; \
     else \
       echo "NOTICE: Skipping Safe Browsing warmup (unsupported architecture: $ARCH)"; \
     fi

@@ -164,14 +164,30 @@ async function spawnChromeForWarmup(): Promise<void> {
     '--no-first-run',
     '--no-default-browser-check',
     '--ignore-certificate-errors',
-    ...(process.platform === 'linux' ? ['--disable-dev-shm-usage', '--disable-gpu', '--no-zygote'] : []),
+    // Warmup only visits google.com/generate_204 to trigger a DB download into
+    // a throwaway profile — no untrusted content. --no-sandbox is safe here and
+    // is required inside BuildKit / restricted containers where Chrome's
+    // setuid/namespace sandbox can't initialise (SIGABRT during zygote setup).
+    // Runtime scanning Chrome (launched via Playwright, not this code path)
+    // keeps the sandbox on.
+    ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] : []),
   ];
 
+  const chromeStdio: 'ignore' | 'inherit' = SB_DEBUG ? 'inherit' : 'ignore';
+  sbDebug(`[SafeBrowsing] Spawning Chrome: ${exe}`);
+  sbDebug(`[SafeBrowsing] Chrome args: ${[...baseArgs, '--headless=new', '--disable-gpu', 'https://www.google.com/generate_204'].join(' ')}`);
   const chrome = spawn(
     exe,
     [...baseArgs, '--headless=new', '--disable-gpu', 'https://www.google.com/generate_204'],
-    { stdio: 'ignore', detached: true },
+    { stdio: chromeStdio, detached: true },
   );
+  sbDebug(`[SafeBrowsing] Chrome PID: ${chrome.pid}`);
+  chrome.on('exit', (code, signal) => {
+    consoleLogger.info(`[SafeBrowsing] Chrome exited early: code=${code} signal=${signal}`);
+  });
+  chrome.on('error', err => {
+    consoleLogger.info(`[SafeBrowsing] Chrome spawn error: ${err}`);
+  });
 
   const maxWait = DB_DOWNLOAD_TIMEOUT_MS;
   const pollInterval = 5_000;
@@ -180,7 +196,13 @@ async function spawnChromeForWarmup(): Promise<void> {
     await new Promise(r => setTimeout(r, pollInterval));
     waited += pollInterval;
     if (waited % 15_000 === 0) {
-      sbDebug(`[SafeBrowsing] Waiting for hash-prefix DB... (${waited / 1000}s)`);
+      let sbListing = '(missing)';
+      try {
+        sbListing = fs.existsSync(SB_DIR) ? fs.readdirSync(SB_DIR).join(', ') || '(empty)' : '(missing)';
+      } catch (e) {
+        sbListing = `(read error: ${e})`;
+      }
+      consoleLogger.info(`[SafeBrowsing] Waiting for hash-prefix DB... (${waited / 1000}s) SB_DIR contents: ${sbListing}`);
     }
   }
 
