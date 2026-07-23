@@ -61,10 +61,13 @@ RUN npm run build || true # true exits with code 0 - workaround for TS errors
 
 # Pre-warm Safe Browsing DB at build time so concurrent scans don't each
 # trigger a 10 minutes warmup (or fight over a lock). The DB is baked into the image.
+# CACHEBUST forces this layer to re-run every build so the threat DB is always fresh.
 USER root
+ARG CACHEBUST=unset
 RUN ARCH="$(dpkg --print-architecture)"; \
+    echo "Safe Browsing warmup cachebust: $CACHEBUST"; \
     if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "arm64" ]; then \
-      GOOGLE_SAFE_BROWSING=1 OOBEE_VERBOSE=1 SB_PROFILE_DIR=/data/chrome-profile node scripts/warmup-safe-browsing.mjs --timeout 600000; \
+      GOOGLE_SAFE_BROWSING=1 OOBEE_VERBOSE=1 SB_PROFILE_DIR=/data/chrome-profile node scripts/warmup-safe-browsing.mjs --timeout 1200000; \
     else \
       echo "NOTICE: Skipping Safe Browsing warmup (unsupported architecture: $ARCH)"; \
     fi

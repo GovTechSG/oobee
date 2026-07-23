@@ -49,5 +49,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}
             ghcr.io/${{ steps.repo.outputs.name }}:latest
+          build-args: |
+            CACHEBUST=${{ github.run_id }}-${{ github.run_attempt }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
