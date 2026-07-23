@@ -1270,8 +1270,18 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
         // is inherited from the base profile. injectSafeBrowsingDb() will merge
         // enabled/enhanced on top, preserving the warmed-up key.
         const prefsSrc = path.join(srcProfile, 'Preferences');
+        const prefsDest = path.join(destProfile, 'Preferences');
         if (await fsp.stat(prefsSrc).catch(() => null)) {
-          await fsp.copyFile(prefsSrc, path.join(destProfile, 'Preferences')).catch(() => {});
+          await fsp.copyFile(prefsSrc, prefsDest).catch(() => {});
+          // Mark clean exit so Chrome doesn't show "Restore pages?" prompt.
+          try {
+            const raw = await fsp.readFile(prefsDest, 'utf8');
+            const prefs: any = JSON.parse(raw);
+            prefs.profile = { ...(prefs.profile || {}), exit_type: 'Normal', exited_cleanly: true };
+            await fsp.writeFile(prefsDest, JSON.stringify(prefs));
+          } catch {
+            // Best effort — a corrupt Preferences file just means the prompt may show.
+          }
         }
 
         // Cookies (macOS layout: <Profile>/Cookies)

@@ -143,7 +143,27 @@ const runCustom = async (
 
     addUrlGuardScript(context, { fallbackUrl: url, allowChromeErrors: !!process.env.GOOGLE_SAFE_BROWSING });
 
-    const page = context.pages().find(existingPage => !existingPage.isClosed()) || (await context.newPage());
+    // Persistent Chrome always opens an initial about:blank page. If context.pages()
+    // is briefly empty right after launch, wait for that initial page rather than
+    // calling context.newPage() — with viewport: null + --start-maximized, newPage()
+    // spawns a second window and the original about:blank is left orphaned.
+    let page = context.pages().find(existingPage => !existingPage.isClosed());
+    if (!page) {
+      page = await context
+        .waitForEvent('page', { timeout: 5000 })
+        .catch(() => undefined);
+    }
+    if (!page) {
+      page = await context.newPage();
+    }
+
+    // Close any extra pages (stray about:blank windows) that came up during launch.
+    for (const other of context.pages()) {
+      if (other !== page && !other.isClosed()) {
+        await other.close().catch(() => {});
+      }
+    }
+
     await initNewPage(page, pageClosePromises, processPageParams, pagesDict);
 
     // Detection of new page

@@ -1216,6 +1216,20 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       .then(async () => {
         if (refreshSeq !== overlayRefreshSeq || page.isClosed()) return;
 
+        // Skip overlay work on schemes we can't inject into — about:blank (no origin,
+        // blocks localStorage), chrome://new-tab-page and chrome-error:// (Trusted
+        // Types policy blocks innerHTML), devtools://, view-source://, chrome-extension://,
+        // etc. The overlay cannot inject on any of these and the attempt produces
+        // noisy errors on every new tab / failed navigation. Allow http(s) and file://
+        // (used for local-file scans). Subsequent triggers will reconcile the overlay
+        // once the tab navigates to a supported scheme.
+        const currentUrl = page.url();
+        const isInjectable =
+          currentUrl.startsWith('http://') ||
+          currentUrl.startsWith('https://') ||
+          currentUrl.startsWith('file://');
+        if (!isInjectable) return;
+
         // During an active scan, navigation events (framenavigated/domcontentloaded) can fire
         // due to axe-core injection or page resource loading. In CDP mode, concurrent
         // page.evaluate() calls conflict with the running scan. Skip overlay injection

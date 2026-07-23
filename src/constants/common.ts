@@ -1601,6 +1601,23 @@ const copyFileWithRetry = (src: string, dest: string, maxRetries: number = 3): b
   return false;
 };
 
+// Patch the cloned Preferences so Chrome doesn't show "Restore pages?" on launch.
+// The real profile's Preferences almost always has exit_type != "Normal" while
+// Chrome is still running or was closed abruptly — that state is what triggers
+// the restore prompt, and it rides along when we copy Preferences verbatim.
+const markProfileCleanExit = (prefsPath: string): void => {
+  try {
+    if (!fs.existsSync(prefsPath)) return;
+    const raw = fs.readFileSync(prefsPath, 'utf8');
+    let prefs: any = {};
+    try { prefs = JSON.parse(raw); } catch { return; }
+    prefs.profile = { ...(prefs.profile || {}), exit_type: 'Normal', exited_cleanly: true };
+    fs.writeFileSync(prefsPath, JSON.stringify(prefs));
+  } catch {
+    // Best effort — a corrupt Preferences file just means the prompt may show.
+  }
+};
+
 const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, destDir: string) => {
   let profileCookiesDir;
   // Cookies file per profile is located in .../User Data/<profile name>/Network/Cookies for windows
@@ -1656,6 +1673,7 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
         if (fs.existsSync(srcPrefsPath) && !fs.existsSync(destPrefsPath)) {
           fs.mkdirSync(destProfileBaseDir, { recursive: true });
           copyFileWithRetry(srcPrefsPath, destPrefsPath);
+          markProfileCleanExit(destPrefsPath);
         }
       }
     });
@@ -2151,7 +2169,9 @@ export async function initModifiedUserAgent(
   _userDataDirectory?: string,
 ) {
   // UA bootstrap must not use persistent context / user-data-dir.
-  const launchOptions = getPlaywrightLaunchOptions(browser);
+  // Force headless so this transient browser never flashes a visible window
+  // (particularly on macOS, where there's no Xvfb indirection).
+  const launchOptions = { ...getPlaywrightLaunchOptions(browser), headless: true };
   let browserInstance: Awaited<ReturnType<typeof constants.launcher.launch>> | undefined;
 
   try {
@@ -2257,7 +2277,20 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const headless = process.env.CRAWLEE_HEADLESS === '1';
 
+  // Playwright pushes --no-sandbox by default unless chromiumSandbox: true is set,
+  // and Chrome shows an "unsupported command-line flag: --no-sandbox" yellow banner
+  // whenever that flag is present. On host OSes we opt back into the sandbox so the
+  // banner never appears. In containers (Docker / ECS Fargate) the sandbox cannot
+  // start under default seccomp, so we leave --no-sandbox in place AND add
+  // --test-type, which tells Chrome this is a test harness and suppresses the
+  // yellow banner (and the "controlled by automated test software" one).
+  const inDocker = fs.existsSync('/.dockerenv');
+  if (inDocker && !finalArgs.includes('--test-type')) {
+    finalArgs.push('--test-type');
+  }
+
   const options: LaunchOptions = {
+    ...(inDocker ? {} : { chromiumSandbox: true }),
     ignoreDefaultArgs: [...baseIgnoredArgs, ...getSafeBrowsingIgnoredArgs()],
     args: finalArgs,
     headless,
