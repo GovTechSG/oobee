@@ -1,8 +1,11 @@
 name: Publish Package to npmjs
 on:
   workflow_dispatch:
-  release:
-    types: [published]
+    inputs:
+      release_tag:
+        description: 'Git tag or ref to publish (e.g. 0.11.4). The commit at this ref will be built and published; its package.json version is what lands on npm.'
+        required: true
+        type: string
 permissions:
   contents: write
 jobs:
@@ -10,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.release_tag }}
       # Setup .npmrc file to publish to npm
       - uses: actions/setup-node@v3
         with:
