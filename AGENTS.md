@@ -76,7 +76,7 @@ All crawlers use Crawlee's `PlaywrightCrawler` with:
 
 `getPlaywrightLaunchOptions()` builds Playwright launch config:
 - Headless mode from `process.env.CRAWLEE_HEADLESS`
-- Docker detection (`/.dockerenv`): adds `--disable-gpu`, `--no-sandbox`, `--disable-dev-shm-usage`
+- Docker detection (`/.dockerenv`): adds `--disable-gpu`, `--disable-dev-shm-usage`, `--no-zygote`
 - Proxy support (manual, PAC, or none) via `getProxyInfo()`
 - Channel set from browser name (undefined for chromium = bundled)
 - `--mute-audio` is added by default in both headless and headful modes, but must be disabled for `customFlow` by calling `getPlaywrightLaunchOptions(browser, { includeMuteAudio: false })`
@@ -161,7 +161,7 @@ The `constants` default export object holds runtime state:
 ## Platform Differences
 
 ### Docker/Linux
-- `/.dockerenv` detection adds `--no-sandbox`, `--disable-gpu`, `--disable-dev-shm-usage`
+- `/.dockerenv` detection adds `--disable-gpu`, `--disable-dev-shm-usage`, `--no-zygote`
 - No system Chrome/Edge — always falls back to Playwright's bundled Chromium
 - `getDefaultChromeDataDir()` returns null (no Chrome profile to clone)
 - `getDefaultChromiumDataDir()` creates `./Chromium Support` or falls back to `/tmp`

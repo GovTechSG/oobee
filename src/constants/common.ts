@@ -2151,7 +2151,9 @@ export async function initModifiedUserAgent(
   _userDataDirectory?: string,
 ) {
   // UA bootstrap must not use persistent context / user-data-dir.
-  const launchOptions = getPlaywrightLaunchOptions(browser);
+  // Force headless so this transient browser never flashes a visible window
+  // (particularly on macOS, where there's no Xvfb indirection).
+  const launchOptions = { ...getPlaywrightLaunchOptions(browser), headless: true };
   let browserInstance: Awaited<ReturnType<typeof constants.launcher.launch>> | undefined;
 
   try {
