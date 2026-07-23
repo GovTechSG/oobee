@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
     zip \
-    rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 # =============================================================================
 # Google Chrome installation for Safe Browsing support
