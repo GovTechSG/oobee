@@ -290,8 +290,11 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   if (scanDetails.urlsCrawled) {
     if (scanDetails.urlsCrawled.scanned.length > 0) {
       await createAndUpdateResultsFolders(randomToken);
-      await writeManifest(randomToken);
-      resetCaptureEntries();
+      try {
+        await writeManifest(randomToken);
+      } finally {
+        resetCaptureEntries();
+      }
       const pagesNotScanned = [
         ...urlsCrawledObj.error,
         ...urlsCrawledObj.invalid,
