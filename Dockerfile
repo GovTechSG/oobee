@@ -70,10 +70,10 @@ COPY --chown=purple:purple . .
 RUN npm run build || true # true exits with code 0 - workaround for TS errors
 
 # Pre-warm Safe Browsing DB at build time so concurrent scans don't each
-# trigger a 180s warmup (or fight over a lock). The DB is baked into the image.
+# trigger a 10 minutes warmup (or fight over a lock). The DB is baked into the image.
 USER root
 RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
-      GOOGLE_SAFE_BROWSING=1 OOBEE_VERBOSE=1 SB_PROFILE_DIR=/data/chrome-profile node scripts/warmup-safe-browsing.mjs --timeout 300000; \
+      GOOGLE_SAFE_BROWSING=1 OOBEE_VERBOSE=1 SB_PROFILE_DIR=/data/chrome-profile node scripts/warmup-safe-browsing.mjs --timeout 600000; \
     else \
       echo "NOTICE: Skipping Safe Browsing warmup (not amd64)"; \
     fi
