@@ -33,10 +33,6 @@ RUN ARCH="$(dpkg --print-architecture)"; \
       echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $ARCH)"; \
     fi
 
-
-# --- noVNC entrypoint ---
-EXPOSE 6080 5900
-
 # --- App code (changes here don't invalidate Chrome layers above) ---
 
 # Environment variables for node and Playwright
@@ -56,8 +52,8 @@ USER purple
 COPY --chown=purple:purple package.json package-lock.json ./
 RUN npm install --omit=dev
 
-# Install Playwright browsers
-RUN npx playwright install chromium
+# Install Playwright browsers no longer needed since we are using Google Chrome for Safe Browsing
+# RUN npx playwright install chromium
 
 # Copy source and compile TypeScript
 COPY --chown=purple:purple . .
