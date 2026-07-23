@@ -14,6 +14,11 @@ const LOCK_DIR = path.join(BASE_PROFILE_DIR, '.warmup-lock');
 const DB_DOWNLOAD_TIMEOUT_MS = parseInt(process.env.SB_DB_TIMEOUT_MS || '300000', 10);
 const LOCK_STALE_MS = DB_DOWNLOAD_TIMEOUT_MS;
 
+const SB_DEBUG = !!process.env.GOOGLE_SAFE_BROWSING_DEBUG;
+function sbDebug(msg: string) {
+  if (SB_DEBUG) consoleLogger.info(msg);
+}
+
 function getChromeExecutable(): string | null {
   let candidates: string[];
   if (process.platform === 'darwin') {
@@ -53,14 +58,14 @@ function findPrePopulatedSource(): string | null {
 
   for (const zipPath of zipCandidates) {
     if (fs.existsSync(zipPath)) {
-      consoleLogger.info(`[SafeBrowsing] Found pre-populated zip: ${zipPath}`);
+      sbDebug(`[SafeBrowsing] Found pre-populated zip: ${zipPath}`);
       const extractDir = path.join(BASE_PROFILE_DIR, 'Safe Browsing');
       fs.mkdirSync(extractDir, { recursive: true });
       try {
         execSync(`unzip -o -q "${zipPath}" -d "${extractDir}"`, { stdio: 'pipe' });
         if (isDbDir(extractDir)) return extractDir;
       } catch (e) {
-        consoleLogger.info(`[SafeBrowsing] Failed to extract zip: ${e}`);
+        sbDebug(`[SafeBrowsing] Failed to extract zip: ${e}`);
       }
     }
   }
@@ -175,7 +180,7 @@ async function spawnChromeForWarmup(): Promise<void> {
     await new Promise(r => setTimeout(r, pollInterval));
     waited += pollInterval;
     if (waited % 15_000 === 0) {
-      consoleLogger.info(`[SafeBrowsing] Waiting for hash-prefix DB... (${waited / 1000}s)`);
+      sbDebug(`[SafeBrowsing] Waiting for hash-prefix DB... (${waited / 1000}s)`);
     }
   }
 
@@ -183,27 +188,27 @@ async function spawnChromeForWarmup(): Promise<void> {
 }
 
 export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
-  consoleLogger.info(`[SafeBrowsing] BASE_PROFILE_DIR: ${BASE_PROFILE_DIR}`);
-  consoleLogger.info(`[SafeBrowsing] SB_DIR: ${SB_DIR}`);
-  consoleLogger.info(`[SafeBrowsing] isDbDir(SB_DIR): ${isDbDir(SB_DIR)}`);
+  sbDebug(`[SafeBrowsing] BASE_PROFILE_DIR: ${BASE_PROFILE_DIR}`);
+  sbDebug(`[SafeBrowsing] SB_DIR: ${SB_DIR}`);
+  sbDebug(`[SafeBrowsing] isDbDir(SB_DIR): ${isDbDir(SB_DIR)}`);
   if (isDbDir(SB_DIR)) {
-    consoleLogger.info('[SafeBrowsing] DB already exists in base profile, skipping warmup');
+    sbDebug('[SafeBrowsing] DB already exists in base profile, skipping warmup');
     return;
   }
 
   if (fs.existsSync(FAILED_MARKER)) {
-    consoleLogger.info('[SafeBrowsing] Previous warmup failed (marker exists), skipping retry');
+    sbDebug('[SafeBrowsing] Previous warmup failed (marker exists), skipping retry');
     return;
   }
 
   fs.mkdirSync(BASE_PROFILE_DIR, { recursive: true });
 
   const prePopulated = findPrePopulatedSource();
-  consoleLogger.info(`[SafeBrowsing] findPrePopulatedSource() = ${prePopulated}`);
+  sbDebug(`[SafeBrowsing] findPrePopulatedSource() = ${prePopulated}`);
   if (prePopulated) {
-    consoleLogger.info(`[SafeBrowsing] Found pre-populated DB at: ${prePopulated}`);
+    sbDebug(`[SafeBrowsing] Found pre-populated DB at: ${prePopulated}`);
     const files = fs.readdirSync(prePopulated);
-    consoleLogger.info(`[SafeBrowsing] Files: ${files.join(', ')}`);
+    sbDebug(`[SafeBrowsing] Files: ${files.join(', ')}`);
     printMessage(['Copying Safe Browsing threat database from pre-populated source...'], messageOptions);
     copyDirectory(prePopulated, SB_DIR);
     printMessage(['Google Safe Browsing enabled (local hash-prefix DB active)'], messageOptions);
@@ -211,9 +216,9 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
   }
 
   const exe = getChromeExecutable();
-  consoleLogger.info(`[SafeBrowsing] Chrome executable: ${exe}`);
+  sbDebug(`[SafeBrowsing] Chrome executable: ${exe}`);
   if (!exe) {
-    consoleLogger.info('[SafeBrowsing] Google Chrome not found, marking as failed');
+    sbDebug('[SafeBrowsing] Google Chrome not found, marking as failed');
     fs.mkdirSync(BASE_PROFILE_DIR, { recursive: true });
     fs.writeFileSync(FAILED_MARKER, `no-chrome:${new Date().toISOString()}`);
     printMessage(['WARNING: Google Chrome not found. Safe Browsing requires Chrome (not Chromium). On Linux Docker, build with --platform linux/amd64.'], messageOptions);
@@ -221,7 +226,7 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
   }
 
   if (!acquireLock()) {
-    consoleLogger.info('Another process is downloading Safe Browsing DB; waiting...');
+    sbDebug('Another process is downloading Safe Browsing DB; waiting...');
     const waitStart = Date.now();
     while (!isDbDir(SB_DIR) && Date.now() - waitStart < DB_DOWNLOAD_TIMEOUT_MS) {
       await new Promise(r => setTimeout(r, 5_000));
@@ -247,10 +252,10 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
 }
 
 export function injectSafeBrowsingDb(targetDir: string): void {
-  consoleLogger.info(`[SafeBrowsing] injectSafeBrowsingDb(${targetDir})`);
-  consoleLogger.info(`[SafeBrowsing] isDbDir(SB_DIR=${SB_DIR}): ${isDbDir(SB_DIR)}`);
+  sbDebug(`[SafeBrowsing] injectSafeBrowsingDb(${targetDir})`);
+  sbDebug(`[SafeBrowsing] isDbDir(SB_DIR=${SB_DIR}): ${isDbDir(SB_DIR)}`);
   if (!isDbDir(SB_DIR)) {
-    consoleLogger.info('[SafeBrowsing] No DB to inject — setting preferences only');
+    sbDebug('[SafeBrowsing] No DB to inject — setting preferences only');
     const defaultDir = path.join(targetDir, 'Default');
     fs.mkdirSync(defaultDir, { recursive: true });
     const prefsPath = path.join(defaultDir, 'Preferences');
@@ -271,15 +276,15 @@ export function injectSafeBrowsingDb(targetDir: string): void {
     }
     prefs.safebrowsing = { ...(prefs.safebrowsing as object), ...baseSbPrefs };
     fs.writeFileSync(prefsPath, JSON.stringify(prefs));
-    consoleLogger.info(`[SafeBrowsing] Wrote preferences to ${prefsPath} (has OHTTP key: ${!!((prefs.safebrowsing as any)?.hash_real_time_ohttp_key)})`);
+    sbDebug(`[SafeBrowsing] Wrote preferences to ${prefsPath} (has OHTTP key: ${!!((prefs.safebrowsing as any)?.hash_real_time_ohttp_key)})`);
     return;
   }
   if (fs.existsSync(path.join(targetDir, SEEDED_MARKER))) {
-    consoleLogger.info('[SafeBrowsing] Already seeded (marker exists), skipping');
+    sbDebug('[SafeBrowsing] Already seeded (marker exists), skipping');
     return;
   }
 
-  consoleLogger.info('[SafeBrowsing] Copying DB + setting preferences');
+  sbDebug('[SafeBrowsing] Copying DB + setting preferences');
   copyDirectory(SB_DIR, path.join(targetDir, 'Safe Browsing'));
 
   const defaultDir = path.join(targetDir, 'Default');
@@ -291,10 +296,10 @@ export function injectSafeBrowsingDb(targetDir: string): void {
   }
   prefs.safebrowsing = { ...(prefs.safebrowsing as object), enabled: true, enhanced: false };
   fs.writeFileSync(prefsPath, JSON.stringify(prefs));
-  consoleLogger.info(`[SafeBrowsing] Wrote preferences to ${prefsPath}: ${JSON.stringify(prefs.safebrowsing)}`);
+  sbDebug(`[SafeBrowsing] Wrote preferences to ${prefsPath}: ${JSON.stringify(prefs.safebrowsing)}`);
 
   fs.writeFileSync(path.join(targetDir, SEEDED_MARKER), new Date().toISOString());
-  consoleLogger.info('[SafeBrowsing] Injection complete');
+  sbDebug('[SafeBrowsing] Injection complete');
 }
 
 /**
@@ -314,10 +319,10 @@ export function getSafeBrowsingIgnoredArgs(): string[] {
 
 export async function ensureAndInjectSafeBrowsing(targetDir: string): Promise<void> {
   if (!process.env.GOOGLE_SAFE_BROWSING) return;
-  consoleLogger.info(`[SafeBrowsing] ensureAndInjectSafeBrowsing(${targetDir})`);
+  sbDebug(`[SafeBrowsing] ensureAndInjectSafeBrowsing(${targetDir})`);
 
 
   await warmupSafeBrowsingBaseProfile();
   injectSafeBrowsingDb(targetDir);
-  consoleLogger.info('[SafeBrowsing] ensureAndInjectSafeBrowsing complete');
+  sbDebug('[SafeBrowsing] ensureAndInjectSafeBrowsing complete');
 }
