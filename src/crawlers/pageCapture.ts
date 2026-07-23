@@ -10,7 +10,8 @@ const MOBILE_VIEWPORT_HEIGHT = devices['iPhone 11'].viewport.height;
 export interface PageCaptureEntry {
   url: string;
   hash: string;
-  domFile?: string;
+  desktopDom?: string;
+  mobileDom?: string;
   desktopScreenshot?: string;
   mobileScreenshot?: string;
   errors: string[];
@@ -84,6 +85,11 @@ export async function capturePageData(
   const fileName = `${hash}-${truncatedPath}`;
   const pageDomsDir = getPageDomsDir(randomToken);
 
+  const desktopDomDir = path.join(pageDomsDir, 'desktopPageDOMs');
+  const mobileDomDir = path.join(pageDomsDir, 'mobilePageDOMs');
+  const desktopScreenshotDir = path.join(pageDomsDir, 'desktopPageScreenshots');
+  const mobileScreenshotDir = path.join(pageDomsDir, 'mobilePageScreenshots');
+
   const entry: PageCaptureEntry = {
     url,
     hash,
@@ -92,57 +98,77 @@ export async function capturePageData(
 
   if (isSaveDomEnabled()) {
     try {
-      await fs.ensureDir(pageDomsDir);
+      await fs.ensureDir(desktopDomDir);
       const domContent = await page.content();
-      const domFilePath = await getUniqueFilePath(pageDomsDir, fileName, '.html');
+      const domFilePath = await getUniqueFilePath(desktopDomDir, fileName, '.html');
       await fs.writeFile(domFilePath, domContent, 'utf-8');
-      entry.domFile = `pageDOMs/${getRelativeName(domFilePath, pageDomsDir)}`;
+      entry.desktopDom = `pageDOMs/desktopPageDOMs/${getRelativeName(domFilePath, desktopDomDir)}`;
     } catch (err) {
-      entry.errors.push(`DOM save failed: ${err instanceof Error ? err.message : String(err)}`);
+      entry.errors.push(
+        `Desktop DOM save failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
   if (isSavePageScreenshotEnabled()) {
-    const desktopDir = path.join(pageDomsDir, 'desktopPageScreenshots');
-    const mobileDir = path.join(pageDomsDir, 'mobilePageScreenshots');
-
     try {
-      await fs.ensureDir(desktopDir);
-      const desktopPath = await getUniqueFilePath(desktopDir, fileName, '.png');
+      await fs.ensureDir(desktopScreenshotDir);
+      const desktopPath = await getUniqueFilePath(desktopScreenshotDir, fileName, '.png');
       await page.screenshot({ path: desktopPath, fullPage: true });
-      entry.desktopScreenshot = `pageDOMs/desktopPageScreenshots/${getRelativeName(desktopPath, desktopDir)}`;
+      entry.desktopScreenshot = `pageDOMs/desktopPageScreenshots/${getRelativeName(desktopPath, desktopScreenshotDir)}`;
     } catch (err) {
       entry.errors.push(
         `Desktop screenshot failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
 
-    const currentViewport = page.viewportSize();
-    try {
-      await fs.ensureDir(mobileDir);
+  const currentViewport = page.viewportSize();
+  try {
+    await page.setViewportSize({
+      width: MOBILE_VIEWPORT_WIDTH,
+      height: MOBILE_VIEWPORT_HEIGHT,
+    });
+    await page.waitForTimeout(500);
 
-      await page.setViewportSize({
-        width: MOBILE_VIEWPORT_WIDTH,
-        height: MOBILE_VIEWPORT_HEIGHT,
-      });
-      await page.waitForTimeout(500);
+    if (isSaveDomEnabled()) {
+      try {
+        await fs.ensureDir(mobileDomDir);
+        const domContent = await page.content();
+        const domFilePath = await getUniqueFilePath(mobileDomDir, fileName, '.html');
+        await fs.writeFile(domFilePath, domContent, 'utf-8');
+        entry.mobileDom = `pageDOMs/mobilePageDOMs/${getRelativeName(domFilePath, mobileDomDir)}`;
+      } catch (err) {
+        entry.errors.push(
+          `Mobile DOM save failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
 
-      const mobilePath = await getUniqueFilePath(mobileDir, fileName, '.png');
-      await page.screenshot({ path: mobilePath, fullPage: true });
-      entry.mobileScreenshot = `pageDOMs/mobilePageScreenshots/${getRelativeName(mobilePath, mobileDir)}`;
-    } catch (err) {
-      entry.errors.push(
-        `Mobile screenshot failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    } finally {
-      if (currentViewport) {
-        try {
-          await page.setViewportSize(currentViewport);
-        } catch (err) {
-          entry.errors.push(
-            `Viewport restore failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
+    if (isSavePageScreenshotEnabled()) {
+      try {
+        await fs.ensureDir(mobileScreenshotDir);
+        const mobilePath = await getUniqueFilePath(mobileScreenshotDir, fileName, '.png');
+        await page.screenshot({ path: mobilePath, fullPage: true });
+        entry.mobileScreenshot = `pageDOMs/mobilePageScreenshots/${getRelativeName(mobilePath, mobileScreenshotDir)}`;
+      } catch (err) {
+        entry.errors.push(
+          `Mobile screenshot failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  } catch (err) {
+    entry.errors.push(
+      `Mobile viewport switch failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  } finally {
+    if (currentViewport) {
+      try {
+        await page.setViewportSize(currentViewport);
+      } catch (err) {
+        entry.errors.push(
+          `Viewport restore failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
   }
@@ -162,7 +188,8 @@ export async function writeManifest(randomToken: string): Promise<void> {
     pages: Array.from(captureEntries.values()).map(entry => ({
       url: entry.url,
       hash: entry.hash,
-      ...(entry.domFile && { domFile: entry.domFile }),
+      ...(entry.desktopDom && { desktopDom: entry.desktopDom }),
+      ...(entry.mobileDom && { mobileDom: entry.mobileDom }),
       ...(entry.desktopScreenshot && { desktopScreenshot: entry.desktopScreenshot }),
       ...(entry.mobileScreenshot && { mobileScreenshot: entry.mobileScreenshot }),
       errors: entry.errors,

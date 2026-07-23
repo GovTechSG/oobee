@@ -100,7 +100,7 @@ verapdf --version
 | OOBEE_SCAN_METADATA | Overrides the `entryUrl` tag sent to telemetry. | |
 | OOBEE_SCAN_PRODUCT | Adds a `scanProduct` tag to telemetry events. | |
 | OOBEE_CONSECUTIVE_MAX_RETRIES | Max consecutive HTTP failures before the circuit breaker aborts the crawl. | `100` |
-| OOBEE_SAVE_DOM | Set to `1` or `true` to save full-page DOM HTML for each scanned page to the results directory. Works with all scan types (Website, Sitemap, Intelligent, LocalFile, Custom). | |
+| OOBEE_SAVE_DOM | Set to `1` or `true` to save full-page DOM HTML for each scanned page in both desktop and mobile viewports to the results directory. Mobile viewport width is determined from iPhone 11 device profile. Works with all scan types (Website, Sitemap, Intelligent, LocalFile, Custom). | |
 | OOBEE_SAVE_PAGE_SCREENSHOT | Set to `1` or `true` to save full-page desktop and mobile viewport screenshots for each scanned page. Mobile viewport width is determined from iPhone 11 device profile. Works with all scan types (Website, Sitemap, Intelligent, LocalFile, Custom). | |
 | HTTP_PROXY | URL of the proxy server to be used for HTTP requests (e.g. `http://proxy.example.com:8080`). | |
 | HTTPS_PROXY | URL of the proxy server to be used for HTTPS requests (e.g. `https://proxy.example.com:8080`). | |
