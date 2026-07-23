@@ -37,6 +37,7 @@ import { cleanUpAndExit, isFollowStrategy, randomThreeDigitNumberString, registe
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
+import { ensureAndInjectSafeBrowsing, getSafeBrowsingIgnoredArgs } from '../safeBrowsingProfile.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -402,33 +403,37 @@ const checkUrlConnectivityWithBrowser = async (
   // Keep UA emulation explicitly.
   contextOptions.userAgent = process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined);
 
-  try {
-    const launchPersistent = async () => {
-      browserContext = await constants.launcher.launchPersistentContext(clonedDataDir, {
-        ...launchOptions,
-        ...contextOptions,
-      });
-      register(browserContext);
-    };
+  const launchPersistent = async (effectiveLaunchOptions: LaunchOptions) => {
+    browserContext = await launchPersistentSafeContext(clonedDataDir, {
+      ...effectiveLaunchOptions,
+      ...contextOptions,
+    });
+    register(browserContext);
+  };
 
-    const launchEphemeral = async () => {
-      browserInstance = await constants.launcher.launch(launchOptions);
-      register(browserInstance as unknown as { close: () => Promise<void> });
-      browserContext = await browserInstance.newContext(contextOptions);
-    };
+  const launchEphemeral = async (effectiveLaunchOptions: LaunchOptions) => {
+    browserInstance = await constants.launcher.launch(effectiveLaunchOptions);
+    register(browserInstance as unknown as { close: () => Promise<void> });
+    browserContext = await browserInstance.newContext(contextOptions);
+  };
 
+  const launchBrowserContext = async (effectiveLaunchOptions: LaunchOptions) => {
     if (process.env.CRAWLEE_HEADLESS === '1') {
       try {
-        await launchPersistent();
+        await launchPersistent(effectiveLaunchOptions);
       } catch (error) {
         // Fallback to ephemeral context if persistent context fails (e.g. protocol errors)
         // More prone to falling back here when running localFile scans
         consoleLogger.warn(`Persistent context launch failed, retrying with ephemeral context: ${error.message}`);
-        await launchEphemeral();
+        await launchEphemeral(effectiveLaunchOptions);
       }
     } else {
-      await launchEphemeral();
+      await launchEphemeral(effectiveLaunchOptions);
     }
+  };
+
+  try {
+    await launchBrowserContext(launchOptions);
   } catch (err) {
     printMessage([`Unable to launch browser\n${err}`], messageOptions);
     res.status = constants.urlCheckStatuses.browserError.code;
@@ -466,17 +471,23 @@ const checkUrlConnectivityWithBrowser = async (
       consoleLogger.info(`Unable to set download deny: ${(e as Error).message}`);
     }
 
+
     // STEP 2: Navigate (follows server-side redirects)
     page.once('download', () => {
       res.status = constants.urlCheckStatuses.notASupportedDocument.code;
       return res;
     });
-    
+
     // OPTIMIZATION: Wait for 'domcontentloaded' only
-    const response = await page.goto(url, {
-      timeout: 15000,
-      waitUntil: 'domcontentloaded', // enough to get status + allow potential client redirects to kick in
-    });
+    let response;
+    try {
+      response = await page.goto(url, {
+        timeout: 15000,
+        waitUntil: 'domcontentloaded',
+      });
+    } catch (navError) {
+      throw navError;
+    }
 
     if (!response) throw new Error('No response from navigation');
 
@@ -543,6 +554,11 @@ const checkUrlConnectivityWithBrowser = async (
       res.status = constants.urlCheckStatuses.timedOut.code;
     } else if (error.message.includes('net::ERR_SSL_PROTOCOL_ERROR')) {
       res.status = constants.urlCheckStatuses.sslProtocolError.code;
+    } else if (
+      error.message.includes('net::ERR_BLOCKED_BY_CLIENT') ||
+      error.message.includes('net::ERR_BLOCKED_BY_RESPONSE')
+    ) {
+      res.status = constants.urlCheckStatuses.blockedByClient.code;
     } else {
       consoleLogger.error(error);
       res.status = constants.urlCheckStatuses.systemError.code;
@@ -929,7 +945,7 @@ const getRobotsTxtViaPlaywright = async (
 
   try {
     if (process.env.CRAWLEE_HEADLESS === '1') {
-      browserContext = await constants.launcher.launchPersistentContext(robotsDataDir, {
+      browserContext = await launchPersistentSafeContext(robotsDataDir, {
         ...getPlaywrightLaunchOptions(browser),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
@@ -1151,7 +1167,7 @@ export const getLinksFromSitemap = async (
 
       try {
         if (process.env.CRAWLEE_HEADLESS === '1') {
-          browserContext = await constants.launcher.launchPersistentContext(
+          browserContext = await launchPersistentSafeContext(
             finalUserDataDirectory,
             {
               ...getPlaywrightLaunchOptions(browser),
@@ -1417,9 +1433,20 @@ export const getBrowserToRun = (
   const platform = os.platform();
 
   // Prioritise Chrome on Windows and Mac platforms if user does not specify a browser
-  if (!preferredBrowser && (os.platform() === 'win32' || os.platform() === 'darwin')) {
-    preferredBrowser = BrowserTypes.CHROME;
-  } else {
+  // On Linux, also prioritise Chrome if it's installed (for Safe Browsing support)
+  if (!preferredBrowser) {
+    if (os.platform() === 'win32' || os.platform() === 'darwin') {
+      preferredBrowser = BrowserTypes.CHROME;
+    } else if (os.platform() === 'linux') {
+      // Check if Chrome is installed on Linux
+      const chromeExists = fs.existsSync('/usr/bin/google-chrome') || fs.existsSync('/usr/bin/google-chrome-stable');
+      if (chromeExists) {
+        preferredBrowser = BrowserTypes.CHROME;
+      }
+    }
+  }
+  
+  if (preferredBrowser) {
     printMessage([`Preferred browser ${preferredBrowser}`], messageOptions);
   }
 
@@ -1592,6 +1619,8 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
       ignore: 'oobee*/**',
     });
     profileNamesRegex = /Chrome\/(.*?)\/Cookies/;
+  } else {
+    return true;
   }
 
   if (profileCookiesDir.length > 0) {
@@ -1600,6 +1629,7 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
       const profileName = dir.match(profileNamesRegex)[1];
       if (profileName) {
         let destProfileDir = path.join(destDir, profileName);
+        const destProfileBaseDir = path.join(destDir, profileName);
         if (os.platform() === 'win32') {
           destProfileDir = path.join(destProfileDir, 'Network');
         }
@@ -1618,6 +1648,14 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
             consoleLogger.error(`Failed to copy Chrome profile cookies for ${profileName} after retries.`);
             success = false;
           }
+        }
+
+        // Copy Preferences (contains Safe Browsing OHTTP key when GSB is enabled)
+        const srcPrefsPath = path.join(path.dirname(os.platform() === 'win32' ? path.dirname(dir) : dir), 'Preferences');
+        const destPrefsPath = path.join(destProfileBaseDir, 'Preferences');
+        if (fs.existsSync(srcPrefsPath) && !fs.existsSync(destPrefsPath)) {
+          fs.mkdirSync(destProfileBaseDir, { recursive: true });
+          copyFileWithRetry(srcPrefsPath, destPrefsPath);
         }
       }
     });
@@ -2034,7 +2072,7 @@ export const submitFormViaPlaywright = async (
   userDataDirectory: string,
   finalUrl: string,
 ) => {
-  const browserContext = await constants.launcher.launchPersistentContext(userDataDirectory, {
+  const browserContext = await launchPersistentSafeContext(userDataDirectory, {
     ...getPlaywrightLaunchOptions(browserToRun),
   });
 
@@ -2114,11 +2152,12 @@ export async function initModifiedUserAgent(
 ) {
   // UA bootstrap must not use persistent context / user-data-dir.
   const launchOptions = getPlaywrightLaunchOptions(browser);
-
-  const browserInstance = await constants.launcher.launch(launchOptions);
-  register(browserInstance as unknown as { close: () => Promise<void> });
+  let browserInstance: Awaited<ReturnType<typeof constants.launcher.launch>> | undefined;
 
   try {
+    browserInstance = await constants.launcher.launch(launchOptions);
+    register(browserInstance as unknown as { close: () => Promise<void> });
+
     const context = await browserInstance.newContext();
     const page = await context.newPage();
     const defaultUA = await page.evaluate(() => navigator.userAgent);
@@ -2130,12 +2169,35 @@ export async function initModifiedUserAgent(
 
     // Do not mutate global CLI args with --user-agent=
     process.env.OOBEE_USER_AGENT = modifiedUA;
+  } catch (error) {
+    const fallbackUA =
+      (typeof (_playwrightDeviceDetailsObject as any)?.userAgent === 'string' &&
+        (_playwrightDeviceDetailsObject as any).userAgent) ||
+      devices['Desktop Chrome'].userAgent;
+
+    process.env.OOBEE_USER_AGENT = fallbackUA.includes('HeadlessChrome')
+      ? fallbackUA.replace('HeadlessChrome', 'Chrome')
+      : fallbackUA;
+
+    consoleLogger.warn(
+      `[UA] Failed to bootstrap user agent from browser (${(error as Error).message}). Using fallback Chrome UA string.`,
+    );
   } finally {
-    await browserInstance.close();
+    await browserInstance?.close();
   }
 }
 
 const cacheProxyInfo = getProxyInfo();
+
+export async function launchPersistentSafeContext(
+  userDataDir: string,
+  options: Parameters<typeof constants.launcher.launchPersistentContext>[1],
+) {
+  await ensureAndInjectSafeBrowsing(userDataDir);
+  return constants.launcher.launchPersistentContext(userDataDir, options);
+}
+
+
 
 /**
  * @param {string} browser browser name ("chrome" or "edge", null for chromium, the default Playwright browser)
@@ -2187,12 +2249,18 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
       break;
   }
 
+  const safeBrowsingEnabled = !!process.env.GOOGLE_SAFE_BROWSING;
+
+  const baseIgnoredArgs = shouldIgnoreMuteAudio
+    ? ['--use-mock-keychain', '--mute-audio']
+    : ['--use-mock-keychain'];
+
+  const headless = process.env.CRAWLEE_HEADLESS === '1';
+
   const options: LaunchOptions = {
-    ignoreDefaultArgs: shouldIgnoreMuteAudio
-      ? ['--use-mock-keychain', '--mute-audio']
-      : ['--use-mock-keychain'],
+    ignoreDefaultArgs: [...baseIgnoredArgs, ...getSafeBrowsingIgnoredArgs()],
     args: finalArgs,
-    headless: process.env.CRAWLEE_HEADLESS === '1',
+    headless,
     ...(channel && { channel }),
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };

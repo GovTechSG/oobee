@@ -14,6 +14,7 @@ import {
   getBrowserToRun,
   getPlaywrightLaunchOptions,
   initModifiedUserAgent,
+  launchPersistentSafeContext,
 } from '../constants/common.js';
 import { BrowserTypes } from '../constants/constants.js';
 
@@ -112,12 +113,12 @@ const runCustom = async (
 
     const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
 
-    const context = await constants.launcher.launchPersistentContext(userDataDirectory, {
+    const context = await launchPersistentSafeContext(userDataDirectory, {
       ...baseLaunchOptions,
       args: mergedArgs,
       headless: false,
       ignoreHTTPSErrors: true,
-      serviceWorkers: 'block',
+      serviceWorkers: 'block' as const,
       viewport: null,
       ...(hasCustomViewport ? contextDeviceOptions : {}),
       userAgent: process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined),
@@ -140,7 +141,7 @@ const runCustom = async (
     // For handling closing playwright browser and continue generate artifacts etc
     registerSoftClose(processPageParams.stopAll);
 
-    addUrlGuardScript(context, { fallbackUrl: url });
+    addUrlGuardScript(context, { fallbackUrl: url, allowChromeErrors: !!process.env.GOOGLE_SAFE_BROWSING });
 
     const page = context.pages().find(existingPage => !existingPage.isClosed()) || (await context.newPage());
     await initNewPage(page, pageClosePromises, processPageParams, pagesDict);

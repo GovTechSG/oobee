@@ -146,6 +146,7 @@ The `constants` default export object holds runtime state:
 | `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
 | `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML to `pageDOMs/` in results directory. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
 | `OOBEE_SAVE_PAGE_SCREENSHOT` | `1` or `true` = save full-page desktop + mobile viewport screenshots to `pageDOMs/desktopPageScreenshots/` and `pageDOMs/mobilePageScreenshots/`. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
+| `GOOGLE_SAFE_BROWSING` | `1` = enable Google Safe Browsing (requires Chrome, not Chromium) |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | Proxy configuration |
 | `NO_PROXY` / `INCLUDE_PROXY` | Proxy bypass/include lists |
 
@@ -179,6 +180,68 @@ The `constants` default export object holds runtime state:
 - File locks require longer cleanup delays (5s vs 3s)
 - Path separator differences in cookie profile regex
 - `CRAWLEE_SYSTEM_INFO_V2=1` needed (wmic deprecation)
+
+## Safe Browsing
+
+### Overview
+
+Google Safe Browsing protects users by blocking navigation to phishing/malware URLs. It works by downloading local hash-prefix threat databases (`UrlSoceng.store.*`, `UrlMalware.store.*`, `UrlMalBin.store.*`, `UrlBilling.store.*`) via Chrome's standard protection mode. Blocked pages are classified as "Blocked by Safe Browsing" in scan results.
+
+### Requirements
+
+1. **Google Chrome** (not Chromium) — Safe Browsing requires Google's proprietary API keys.
+2. **`GOOGLE_SAFE_BROWSING`** environment variable set to any value.
+3. **macOS or Linux only** — Windows is not yet supported (prints a warning and skips).
+
+### How It Works
+
+#### DB Warmup (all platforms)
+
+1. `warmupSafeBrowsingBaseProfile()` first checks for existing Safe Browsing DB files in the system Chrome profile and copies them if found.
+2. If no system DB exists, spawns Chrome with `safebrowsing: { enabled: true, enhanced: false }` (standard protection, NOT enhanced — enhanced uses OHTTP real-time checks only and does NOT download local databases). Chrome navigates to `google.com/generate_204` and polls for DB download (configurable via `SB_DB_TIMEOUT_MS`, default 180s).
+3. `injectSafeBrowsingDb()` copies the warmed DB + OHTTP key into each scan's browser profile directory and writes `safebrowsing: { enabled: true, enhanced: false }` into Preferences.
+
+#### Browser Launch
+
+1. `getPlaywrightLaunchOptions()` removes Playwright default flags that suppress Safe Browsing via `getSafeBrowsingIgnoredArgs()`: `--safebrowsing-disable-auto-update`, `--disable-client-side-phishing-detection`, `--disable-background-networking`, `--disable-component-update`.
+2. `launchPersistentSafeContext()` calls `ensureAndInjectSafeBrowsing()` before launching the persistent context. All scan types use this as the single entry point.
+3. `getPreLaunchHook()` in `commonCrawlerFunc.ts` injects Safe Browsing preferences (including OHTTP key) into each browser pool instance on rotation.
+4. All browsers run headless in Docker. `runCustom` runs headed (user sees interstitials directly).
+
+#### Detection of blocked pages
+
+- **requestHandler**: Pages that navigate to `chrome-error://` are classified as "Blocked by Safe Browsing" (`STATUS_CODE_METADATA[3]`).
+- **failedRequestHandler**: Navigation errors containing `ERR_BLOCKED_BY_CLIENT` or `ERR_BLOCKED_BY_RESPONSE` are classified as "Blocked by Safe Browsing".
+- **errorHandler**: Skips retries for `ERR_BLOCKED_BY_CLIENT` / `ERR_BLOCKED_BY_RESPONSE` (no point retrying a blocked URL).
+- **runCustom**: `urlGuard.ts` with `allowChromeErrors: true` lets the interstitial page stay visible to the user.
+
+### Docker / Architecture Constraints
+
+- **amd64 (x86_64)**: Google Chrome .deb is installed in Dockerfile. Safe Browsing works fully.
+- **arm64 (aarch64)**: Chrome is NOT available for ARM64 Linux. Safe Browsing is unavailable.
+- Build the image with `docker build --platform linux/amd64` to ensure Chrome is available.
+
+### Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_SAFE_BROWSING` | Enable Safe Browsing (any value; requires Chrome) |
+| `SB_DB_TIMEOUT_MS` | Override DB download timeout (default 180000ms) |
+
+### Key Files
+
+- `src/safeBrowsingProfile.ts` — DB warmup via headless Chrome spawn, injection into scan profiles, `getSafeBrowsingIgnoredArgs()`
+- `src/constants/common.ts` — `launchPersistentSafeContext()`, `getPlaywrightLaunchOptions()` (ignoreDefaultArgs), `cloneChromeProfileCookieFiles()` (copies Preferences alongside Cookies)
+- `src/crawlers/commonCrawlerFunc.ts` — `getPreLaunchHook()` injects SB preferences into pool instances
+- `src/crawlers/guards/urlGuard.ts` — `allowChromeErrors` for interstitial pages in runCustom
+- `src/crawlers/crawlDomain.ts` — `chrome-error:` and `ERR_BLOCKED_BY_CLIENT` detection
+- `src/crawlers/crawlSitemap.ts` — same blocked-page detection
+- `src/crawlers/runCustom.ts` — uses `launchPersistentSafeContext()`
+
+### What Does NOT Work
+
+- Chromium (Playwright's bundled browser) — lacks Safe Browsing entirely
+- Windows — not yet supported (prints warning)
 
 ## Testing
 

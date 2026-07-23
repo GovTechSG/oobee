@@ -51,6 +51,7 @@ export const blackListedFileExtensions = [
   'xlsx',
   'ppt',
   'pptx',
+  'apk',
 ];
 
 export const getIntermediateScreenshotsPath = (datasetsPath: string): string =>
@@ -63,6 +64,21 @@ export const destinationPath = (storagePath: string): string => `${storagePath}/
  */
 export const getDefaultChromeDataDir = (): string => {
   try {
+    // If GOOGLE_SAFE_BROWSING is set, use the pre-warmed profile prepared by Dockerfile
+    if (process.env.GOOGLE_SAFE_BROWSING && fs.existsSync('/data/chrome-profile')) {
+      try {
+        fs.accessSync('/data/chrome-profile', fs.constants.W_OK);
+        return '/data/chrome-profile';
+      } catch {
+        // Not writable — fall through to other options
+      }
+    }
+
+    // Check for environment override (used when GSB profile is pre-warmed in Docker)
+    if (process.env.OOBEE_CHROME_DATA_DIR && fs.existsSync(process.env.OOBEE_CHROME_DATA_DIR)) {
+      return process.env.OOBEE_CHROME_DATA_DIR;
+    }
+
     let defaultChromeDataDir = null;
     if (os.platform() === 'win32') {
       defaultChromeDataDir = path.join(
@@ -86,6 +102,26 @@ export const getDefaultChromeDataDir = (): string => {
     if (defaultChromeDataDir && fs.existsSync(defaultChromeDataDir)) {
       return defaultChromeDataDir;
     }
+
+    // Linux: check if Chrome is installed; use same scratch dir pattern as Chromium
+    if (os.platform() === 'linux') {
+      const chromeExists = fs.existsSync('/usr/bin/google-chrome') || fs.existsSync('/usr/bin/google-chrome-stable');
+      if (chromeExists) {
+        let linuxChromeDataDir = path.join(process.cwd(), 'Chromium Support');
+        try {
+          fs.mkdirSync(linuxChromeDataDir, { recursive: true });
+        } catch {
+          linuxChromeDataDir = '/tmp';
+        }
+        // Create minimal Local State file so cloneChromeProfiles succeeds
+        const localStatePath = path.join(linuxChromeDataDir, 'Local State');
+        if (!fs.existsSync(localStatePath)) {
+          fs.writeFileSync(localStatePath, JSON.stringify({ profile: { info_cache: {} } }));
+        }
+        return linuxChromeDataDir;
+      }
+    }
+
     return null;
   } catch (error) {
     console.error(`Error in getDefaultChromeDataDir(): ${error}`);
@@ -295,7 +331,7 @@ let launchOptionsArgs: string[] = [];
 
 // Check if running in docker container
 if (fs.existsSync('/.dockerenv')) {
-  launchOptionsArgs = ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'];
+  launchOptionsArgs = ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage', '--no-zygote'];
 }
 
 export const impactOrder = {
@@ -504,6 +540,11 @@ const urlCheckStatuses = {
     code: 23,
     message:
       'Request timed out. Please try again in a few minutes. If this issue persists, please contact the Oobee team.',
+  },
+  blockedByClient: {
+    code: 24,
+    message:
+      'Something went wrong when verifying the URL. If this issue persists, please contact the Oobee team.',
   },
 };
 
@@ -1000,6 +1041,7 @@ export const STATUS_CODE_METADATA: Record<number, string> = {
   0: 'Page Excluded',
   1: 'Not A Supported Document',
   2: 'Web Crawler Errored',
+  3: 'Blocked by Safe Browsing',
 
   // 599 is set because Crawlee returns response status 100, 102, 103 as 599
   599: 'Uncommon Response Status Code Received',

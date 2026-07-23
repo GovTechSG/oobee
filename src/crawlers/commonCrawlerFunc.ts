@@ -23,6 +23,7 @@ import xPathToCss from './custom/xPathToCss.js';
 import type { Response as PlaywrightResponse } from 'playwright';
 import fs from 'fs';
 import { getStoragePath } from '../utils.js';
+import { ensureAndInjectSafeBrowsing } from '../safeBrowsingProfile.js';
 import path from 'path';
 
 // types
@@ -1265,6 +1266,14 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
         const destProfile = path.join(effectiveDir, profile.name);
         await fsp.mkdir(destProfile, { recursive: true }).catch(() => {});
 
+        // Copy Preferences so the Safe Browsing OHTTP key (hash_real_time_ohttp_key)
+        // is inherited from the base profile. injectSafeBrowsingDb() will merge
+        // enabled/enhanced on top, preserving the warmed-up key.
+        const prefsSrc = path.join(srcProfile, 'Preferences');
+        if (await fsp.stat(prefsSrc).catch(() => null)) {
+          await fsp.copyFile(prefsSrc, path.join(destProfile, 'Preferences')).catch(() => {});
+        }
+
         // Cookies (macOS layout: <Profile>/Cookies)
         const cookiesSrc = path.join(srcProfile, 'Cookies');
         if (await fsp.stat(cookiesSrc).catch(() => null)) {
@@ -1299,6 +1308,10 @@ export const getPreLaunchHook = (userDataDirectory: string) => {
     } catch {
       // Silent fallback: use empty profile if clone fails
     }
+
+    // Ensure Safe Browsing DB is warmed up (first call downloads it, subsequent
+    // calls are no-ops) then inject preferences into this pool browser's profile.
+    await ensureAndInjectSafeBrowsing(effectiveDir);
 
     // Clean any stale lock files that may block browser launches on Windows
     const lockFiles = [
@@ -1342,6 +1355,7 @@ export const getPostPageCloseHook = (userDataDirectory: string) => {
     }
   };
 };
+
 
 export const failedRequestHandler = async ({ request }: { request: Request }) => {
   guiInfoLog(guiInfoStatusTypes.ERROR, { numScanned: 0, urlScanned: request.url });

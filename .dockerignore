@@ -16,7 +16,9 @@ npm-debug.log
 .github
 screenshots/
 logs/
-results/
+results
+dist
+gsb-test
 ImageMagick-*/
 errors.txt
 oobee-scan-results.zip

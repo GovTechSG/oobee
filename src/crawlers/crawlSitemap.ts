@@ -251,6 +251,12 @@ const crawlSitemap = async ({
           } catch {}
         },
       ],
+      errorHandler: async ({ request }, error) => {
+        const msg = error?.message || '';
+        if (msg.includes('ERR_BLOCKED_BY_CLIENT') || msg.includes('ERR_BLOCKED_BY_RESPONSE')) {
+          request.noRetry = true;
+        }
+      },
       requestHandlerTimeoutSecs: 90,
       requestHandler: async ({ page, request, response, sendRequest, enqueueLinks }) => {
         // Log documents that are not supported
@@ -274,6 +280,21 @@ const crawlSitemap = async ({
           await waitForPageLoaded(page, 10000);
 
           const actualUrl = page.url() || request.loadedUrl || request.url;
+
+          if (actualUrl.startsWith('chrome-error:')) {
+            guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              numScanned: urlsCrawled.scanned.length,
+              urlScanned: request.url,
+            });
+            urlsCrawled.userExcluded.push({
+              url: request.url,
+              pageTitle: request.url,
+              actualUrl: request.url,
+              metadata: STATUS_CODE_METADATA[3],
+              httpStatusCode: 3,
+            });
+            return;
+          }
 
           const hasExceededDuration =
             scanDuration > 0 && Date.now() - crawlStartTime > scanDuration * 1000;
@@ -571,6 +592,27 @@ const crawlSitemap = async ({
           );
           isAbortingScan = true;
           crawler.autoscaledPool?.abort();
+          return;
+        }
+
+        const isSafeBrowsingBlock = !!process.env.GOOGLE_SAFE_BROWSING &&
+          request.errorMessages?.some((msg: string) =>
+            msg.includes('ERR_BLOCKED_BY_CLIENT') ||
+            msg.includes('ERR_BLOCKED_BY_RESPONSE'),
+          );
+
+        if (isSafeBrowsingBlock) {
+          guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+            numScanned: urlsCrawled.scanned.length,
+            urlScanned: request.url,
+          });
+          urlsCrawled.userExcluded.push({
+            url: request.url,
+            pageTitle: request.url,
+            actualUrl: request.url,
+            metadata: STATUS_CODE_METADATA[3],
+            httpStatusCode: 3,
+          });
           return;
         }
 

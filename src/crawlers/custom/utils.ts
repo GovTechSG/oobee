@@ -310,7 +310,12 @@ export const addOverlayMenu = async (
     collapsed: false,
   },
 ) => {
-  await page.waitForLoadState('domcontentloaded', { timeout: OVERLAY_OPERATION_TIMEOUT_MS });
+  try {
+    await page.waitForLoadState('domcontentloaded', { timeout: 2000 });
+  } catch {
+    // In CDP mode the load state may not resolve after script injection (e.g. axe-core).
+    // Proceed with injection anyway — the DOM is accessible if evaluate() succeeds.
+  }
   consoleLogger.info(`Overlay menu: adding to ${menuPos}...`);
 
   // Add the overlay menu with initial styling
@@ -1211,11 +1216,19 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       .then(async () => {
         if (refreshSeq !== overlayRefreshSeq || page.isClosed()) return;
 
+        // During an active scan, navigation events (framenavigated/domcontentloaded) can fire
+        // due to axe-core injection or page resource loading. In CDP mode, concurrent
+        // page.evaluate() calls conflict with the running scan. Skip overlay injection
+        // for non-scan triggers while scanning — the overlay will be re-added by the
+        // 'scan-click' trigger after the scan completes.
+        if (pagesDict[pageId]?.isScanning && trigger !== 'scan-click') return;
+
         try {
           // `framenavigated` can fire before the new document is ready for DOM inspection/injection.
-          await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
+          // Use a short timeout — in CDP mode, waitForLoadState can hang after script injection.
+          await page.waitForLoadState('domcontentloaded', { timeout: 2000 });
         } catch {
-          // Best effort only. The page may still be mid-navigation.
+          // Best effort only. The page may still be mid-navigation or state tracking confused.
         }
 
         try {
@@ -1306,6 +1319,18 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
       if (page.isClosed()) return;
       await reconcileOverlayMenu('scan-click');
+
+      // If the overlay still isn't present after the first attempt (can happen in
+      // CDP mode where waitForLoadState tracking is unreliable), retry once.
+      if (!page.isClosed()) {
+        const overlayPresent = await page.evaluate(() =>
+          Boolean(document.querySelector('#oobeeShadowHost')),
+        ).catch(() => false);
+        if (!overlayPresent) {
+          log('Overlay missing after scan-click reconcile, retrying...');
+          await reconcileOverlayMenu('scan-click');
+        }
+      }
     } catch (error) {
       log(`Scan failed ${error}`);
     }

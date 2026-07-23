@@ -16,6 +16,7 @@ import {
   isFilePath,
   convertLocalFileToPath,
   convertPathToLocalFile,
+  launchPersistentSafeContext,
 } from '../constants/common.js';
 import { runPdfScan, mapPdfScanResults, doPdfScreenshots } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
@@ -151,7 +152,7 @@ export const crawlLocalFile = async ({
     const effectiveUserDataDirectory =
       process.env.CRAWLEE_HEADLESS === '1' ? userDataDirectory : '';
 
-    const browserContext = await constants.launcher.launchPersistentContext(
+    const browserContext = await launchPersistentSafeContext(
       effectiveUserDataDirectory,
       {
         headless: process.env.CRAWLEE_HEADLESS === '1',
