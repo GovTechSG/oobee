@@ -1433,9 +1433,20 @@ export const getBrowserToRun = (
   const platform = os.platform();
 
   // Prioritise Chrome on Windows and Mac platforms if user does not specify a browser
-  if (!preferredBrowser && (os.platform() === 'win32' || os.platform() === 'darwin')) {
-    preferredBrowser = BrowserTypes.CHROME;
-  } else {
+  // On Linux, also prioritise Chrome if it's installed (for Safe Browsing support)
+  if (!preferredBrowser) {
+    if (os.platform() === 'win32' || os.platform() === 'darwin') {
+      preferredBrowser = BrowserTypes.CHROME;
+    } else if (os.platform() === 'linux') {
+      // Check if Chrome is installed on Linux
+      const chromeExists = fs.existsSync('/usr/bin/google-chrome') || fs.existsSync('/usr/bin/google-chrome-stable');
+      if (chromeExists) {
+        preferredBrowser = BrowserTypes.CHROME;
+      }
+    }
+  }
+  
+  if (preferredBrowser) {
     printMessage([`Preferred browser ${preferredBrowser}`], messageOptions);
   }
 

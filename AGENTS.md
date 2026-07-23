@@ -242,7 +242,6 @@ Google Safe Browsing protects users by blocking navigation to phishing/malware U
 
 - Chromium (Playwright's bundled browser) — lacks Safe Browsing entirely
 - Windows — not yet supported (prints warning)
-- ARM64 Linux Docker — Chrome .deb not published for arm64
 
 ## Testing
 
