@@ -117,9 +117,9 @@ export async function capturePageData(
       );
     }
 
+    const currentViewport = page.viewportSize();
     try {
       await fs.ensureDir(mobileDir);
-      const currentViewport = page.viewportSize();
 
       await page.setViewportSize({
         width: MOBILE_VIEWPORT_WIDTH,
@@ -130,14 +130,20 @@ export async function capturePageData(
       const mobilePath = await getUniqueFilePath(mobileDir, fileName, '.png');
       await page.screenshot({ path: mobilePath, fullPage: true });
       entry.mobileScreenshot = `pageDOMs/mobilePageScreenshots/${getRelativeName(mobilePath, mobileDir)}`;
-
-      if (currentViewport) {
-        await page.setViewportSize(currentViewport);
-      }
     } catch (err) {
       entry.errors.push(
         `Mobile screenshot failed: ${err instanceof Error ? err.message : String(err)}`,
       );
+    } finally {
+      if (currentViewport) {
+        try {
+          await page.setViewportSize(currentViewport);
+        } catch (err) {
+          entry.errors.push(
+            `Viewport restore failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
     }
   }
 
