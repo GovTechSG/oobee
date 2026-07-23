@@ -1601,6 +1601,23 @@ const copyFileWithRetry = (src: string, dest: string, maxRetries: number = 3): b
   return false;
 };
 
+// Patch the cloned Preferences so Chrome doesn't show "Restore pages?" on launch.
+// The real profile's Preferences almost always has exit_type != "Normal" while
+// Chrome is still running or was closed abruptly — that state is what triggers
+// the restore prompt, and it rides along when we copy Preferences verbatim.
+const markProfileCleanExit = (prefsPath: string): void => {
+  try {
+    if (!fs.existsSync(prefsPath)) return;
+    const raw = fs.readFileSync(prefsPath, 'utf8');
+    let prefs: any = {};
+    try { prefs = JSON.parse(raw); } catch { return; }
+    prefs.profile = { ...(prefs.profile || {}), exit_type: 'Normal', exited_cleanly: true };
+    fs.writeFileSync(prefsPath, JSON.stringify(prefs));
+  } catch {
+    // Best effort — a corrupt Preferences file just means the prompt may show.
+  }
+};
+
 const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, destDir: string) => {
   let profileCookiesDir;
   // Cookies file per profile is located in .../User Data/<profile name>/Network/Cookies for windows
@@ -1656,6 +1673,7 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
         if (fs.existsSync(srcPrefsPath) && !fs.existsSync(destPrefsPath)) {
           fs.mkdirSync(destProfileBaseDir, { recursive: true });
           copyFileWithRetry(srcPrefsPath, destPrefsPath);
+          markProfileCleanExit(destPrefsPath);
         }
       }
     });
