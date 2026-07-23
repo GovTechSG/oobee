@@ -40,8 +40,12 @@ ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
 
 # Add non-privileged user before app copy so ownership can be set during COPY.
+# Also pre-create the Safe Browsing profile directory owned by `purple` so the
+# warmup step below (which runs Chrome — Chrome refuses to launch as root
+# without --no-sandbox) can write to it without a later root switch.
 RUN groupadd -r purple && useradd -r -g purple purple && \
-  mkdir -p /home/purple /app/oobee && chown purple:purple /home/purple /app /app/oobee
+  mkdir -p /home/purple /app/oobee /data/chrome-profile && \
+  chown purple:purple /home/purple /app /app/oobee /data /data/chrome-profile
 
 WORKDIR /app/oobee
 
@@ -61,15 +65,11 @@ RUN npm run build || true # true exits with code 0 - workaround for TS errors
 
 # Pre-warm Safe Browsing DB at build time so concurrent scans don't each
 # trigger a 10 minutes warmup (or fight over a lock). The DB is baked into the image.
-# CACHEBUST forces this layer to re-run every build so the threat DB is always fresh.
-USER root
-ARG CACHEBUST=unset
+# Runs as `purple` (not root) so Chrome will launch — Chrome refuses to run as
+# root without --no-sandbox, which we intentionally dropped from the warmup args.
 RUN ARCH="$(dpkg --print-architecture)"; \
-    echo "Safe Browsing warmup cachebust: $CACHEBUST"; \
     if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "arm64" ]; then \
       GOOGLE_SAFE_BROWSING=1 OOBEE_VERBOSE=1 SB_PROFILE_DIR=/data/chrome-profile node scripts/warmup-safe-browsing.mjs --timeout 1200000; \
     else \
       echo "NOTICE: Skipping Safe Browsing warmup (unsupported architecture: $ARCH)"; \
     fi
-RUN chown -R purple:purple /data/chrome-profile 2>/dev/null || true
-USER purple
