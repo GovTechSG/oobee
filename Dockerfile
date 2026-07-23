@@ -18,18 +18,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #      matching to block phishing/malware pages.
 #      This is Chrome-only; Chromium lacks the required proprietary API keys.
 #
-# ARCHITECTURE LIMITATION:
-#   Chrome .deb packages are only available for amd64 (x86_64).
-#   On arm64 builds this step is skipped and Safe Browsing will not be available.
+# SUPPORTED ARCHITECTURES:
+#   Chrome .deb packages are available for amd64 (x86_64) and arm64 (aarch64).
+#   Other architectures will skip this step and Safe Browsing will not be available.
 #
 # TO ENABLE: Set env var GOOGLE_SAFE_BROWSING=1 when running the container.
 # =============================================================================
-RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
-      wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+RUN ARCH="$(dpkg --print-architecture)"; \
+    if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "arm64" ]; then \
+      wget -q -O /tmp/chrome.deb "https://dl.google.com/linux/direct/google-chrome-stable_current_${ARCH}.deb" && \
       apt-get update && apt-get install -y --no-install-recommends /tmp/chrome.deb && \
       rm -f /tmp/chrome.deb && rm -rf /var/lib/apt/lists/*; \
     else \
-      echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $(dpkg --print-architecture))"; \
+      echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $ARCH)"; \
     fi
 
 
@@ -65,10 +66,11 @@ RUN npm run build || true # true exits with code 0 - workaround for TS errors
 # Pre-warm Safe Browsing DB at build time so concurrent scans don't each
 # trigger a 10 minutes warmup (or fight over a lock). The DB is baked into the image.
 USER root
-RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+RUN ARCH="$(dpkg --print-architecture)"; \
+    if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "arm64" ]; then \
       GOOGLE_SAFE_BROWSING=1 OOBEE_VERBOSE=1 SB_PROFILE_DIR=/data/chrome-profile node scripts/warmup-safe-browsing.mjs --timeout 600000; \
     else \
-      echo "NOTICE: Skipping Safe Browsing warmup (not amd64)"; \
+      echo "NOTICE: Skipping Safe Browsing warmup (unsupported architecture: $ARCH)"; \
     fi
 RUN chown -R purple:purple /data/chrome-profile 2>/dev/null || true
 USER purple
