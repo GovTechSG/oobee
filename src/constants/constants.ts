@@ -1517,7 +1517,7 @@ export const a11yRuleStepByStepGuide: Record<string, { check: string; fix: strin
   },
   'aria-tab-name': {
     check: 'Find tab controls (elements with role="tab") on the page. Check: Does each have visible text, aria-label, aria-labelledby, or title describing its purpose?',
-    fix: '(Developer) Add an accessible name to each tab—inner text (e.g., "Settings"), aria-label="Settings", aria-labelledby pointing to a label element, or a title attribute.',
+    fix: '(Developer) Add an accessible name to each tab inner text (e.g., "Settings"), aria-label="Settings", aria-labelledby pointing to a label element, or a title attribute.',
     review: 'Use a screen reader to Tab through the tab controls and confirm each announces a clear, descriptive name.',
     learn: 'Review and learn more about this issue on A11y Playground',
   },
