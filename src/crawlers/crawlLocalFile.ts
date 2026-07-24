@@ -188,6 +188,22 @@ export const crawlLocalFile = async ({
 
     const actualUrl = page.url() || request.loadedUrl || url;
 
+    if (results.axeScanFailed) {
+      guiInfoLog(guiInfoStatusTypes.ERROR, {
+        numScanned: urlsCrawled.scanned.length,
+        urlScanned: url,
+      });
+      urlsCrawled.error.push({
+        url,
+        pageTitle: results.pageTitle,
+        actualUrl,
+        metadata: STATUS_CODE_METADATA[2],
+        httpStatusCode: 2,
+      });
+      await browserContext.close().catch(() => {});
+      return { urlsCrawled, durationExceeded };
+    }
+
     await capturePageData(page, actualUrl, randomToken);
 
     guiInfoLog(guiInfoStatusTypes.SCANNED, {

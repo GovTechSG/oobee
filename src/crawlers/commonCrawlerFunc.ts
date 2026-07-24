@@ -113,6 +113,18 @@ type FilteredResults = {
   needsReview: ResultCategory;
   passed: ResultCategory;
   actualUrl?: string;
+  axeScanFailed?: boolean;
+};
+
+// Playwright surfaces transient teardown as errors we must NOT convert into
+// axeScanFailed — rethrowing lets Crawlee's retry (maxRequestRetries) recover
+// on a fresh browser/context. Long crawls hit these on browser retirement
+// (retireBrowserAfterPageCount) and idle-close boundaries.
+const isTransientPageTeardown = (e: unknown): boolean => {
+  const msg = (e as Error)?.message ?? '';
+  return /Target (page, context or browser has been closed|closed)|Execution context was destroyed|page (has been |was )closed|Browser has been closed|Navigation failed because page (was|has been) closed/i.test(
+    msg,
+  );
 };
 
 const truncateHtml = (html: string, maxBytes = 1024, suffix = '…'): string => {
@@ -875,6 +887,60 @@ export const runAxeScript = async ({
   const browserContext: BrowserContext = page.context();
   const requestUrl = page.url();
 
+  // Some pages replace native constructors (Set, Map, WeakMap, ...) with
+  // incomplete polyfills. axe-core and even Playwright's own return-value
+  // serialization use these natives internally and blow up with unhelpful
+  // errors like `r.has is not a function` or `i.forEach is not a function`.
+  // Restore pristine constructors by stealing them from a fresh same-origin
+  // iframe (whose Realm the page hasn't touched) before doing any evaluation.
+  try {
+    await page.evaluate(() => {
+      // Probe first — only pay the iframe cost when the page has actually
+      // clobbered a native collection constructor. On clean pages this is a
+      // no-op that saves ~10ms per scan.
+      try {
+        const s = new Set();
+        const m = new Map();
+        const ws = new WeakSet();
+        const wm = new WeakMap();
+        if (
+          typeof s.has === 'function' &&
+          typeof s.add === 'function' &&
+          typeof m.has === 'function' &&
+          typeof m.get === 'function' &&
+          typeof ws.has === 'function' &&
+          typeof wm.has === 'function'
+        ) {
+          return;
+        }
+      } catch {
+        // fall through to restore
+      }
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.setAttribute('data-oobee-realm-restore', '1');
+      document.documentElement.appendChild(iframe);
+      const w = iframe.contentWindow as unknown as Record<string, unknown>;
+      if (!w) return;
+      for (const name of [
+        'Set', 'Map', 'WeakSet', 'WeakMap',
+        'Array', 'Object', 'Promise', 'Symbol',
+        'Number', 'String', 'Boolean', 'RegExp', 'Date',
+        'JSON', 'Math',
+      ]) {
+        try {
+          (window as unknown as Record<string, unknown>)[name] = w[name];
+        } catch {}
+      }
+      // Intentionally leave the iframe in the DOM — removing it invalidates
+      // its Realm and the constructors we just copied become dead references.
+    });
+  } catch {
+    // Page may not be ready or the eval itself may fail on hostile pages;
+    // best effort — continue with axe injection regardless.
+  }
+
   let pageTitle: string | null = null;
   try {
     pageTitle = await page.evaluate(() => document.title);
@@ -961,9 +1027,31 @@ export const runAxeScript = async ({
 
   const gradingReadabilityFlag = await extractAndGradeText(page); // Ensure flag is obtained before proceeding
 
-  await playwrightUtils.injectFile(page, axeScript);
+  try {
+    await playwrightUtils.injectFile(page, axeScript);
+  } catch (e) {
+    if (isTransientPageTeardown(e)) {
+      consoleLogger.info(
+        `axe injection aborted (page/browser closed) for ${requestUrl}; letting Crawlee retry: ${(e as Error)?.message ?? e}`,
+      );
+      throw e;
+    }
+    consoleLogger.error(`axe injection failed for ${requestUrl}: ${(e as Error)?.message ?? e}`);
+    return {
+      url: requestUrl,
+      pageTitle: pageTitle ?? requestUrl,
+      totalItems: 0,
+      mustFix: { totalItems: 0, rules: {} },
+      goodToFix: { totalItems: 0, rules: {} },
+      needsReview: { totalItems: 0, rules: {} },
+      passed: { totalItems: 0, rules: {} },
+      axeScanFailed: true,
+    };
+  }
 
-  const results = await page.evaluate(
+  let results;
+  try {
+    results = await page.evaluate(
     async ({
       selectors,
       saflyIconSelector,
@@ -1016,8 +1104,15 @@ export const runAxeScript = async ({
         // removed needsReview condition
         const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
 
+        // Exclude the realm-restore iframe (see runAxeScript preamble) so it
+        // doesn't inflate the "passed" tally with rules like aria-hidden-focus.
+        const axeContext: any = { exclude: [['[data-oobee-realm-restore]']] };
+        if (Array.isArray(selectors) && selectors.length > 0) {
+          axeContext.include = selectors;
+        }
+
         return axe
-          .run(selectors, {
+          .run(axeContext, {
             resultTypes: defaultResultTypes,
           })
           .then(async results => {
@@ -1120,6 +1215,25 @@ export const runAxeScript = async ({
       xPathToCssFunctionString: xPathToCss.toString(),
     },
   );
+  } catch (e) {
+    if (isTransientPageTeardown(e)) {
+      consoleLogger.info(
+        `axe.run aborted (page/browser closed) for ${requestUrl}; letting Crawlee retry: ${(e as Error)?.message ?? e}`,
+      );
+      throw e;
+    }
+    consoleLogger.error(`axe.run failed for ${requestUrl}: ${(e as Error)?.message ?? e}`);
+    return {
+      url: requestUrl,
+      pageTitle: pageTitle ?? requestUrl,
+      totalItems: 0,
+      mustFix: { totalItems: 0, rules: {} },
+      goodToFix: { totalItems: 0, rules: {} },
+      needsReview: { totalItems: 0, rules: {} },
+      passed: { totalItems: 0, rules: {} },
+      axeScanFailed: true,
+    };
+  }
 
   await enrichViolationMessages(results, page);
   await enrichColorContrastDOMContext(results.violations, page);
