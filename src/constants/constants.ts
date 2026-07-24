@@ -1017,7 +1017,7 @@ export default {
 
 export const rootPath = dirname;
 export const wcagWebPage = 'https://www.w3.org/TR/WCAG22/';
-const latestAxeVersion = '4.9';
+const latestAxeVersion = '4.11';
 export const axeVersion = latestAxeVersion;
 export const axeWebPage = `https://dequeuniversity.com/rules/axe/${latestAxeVersion}/`;
 
