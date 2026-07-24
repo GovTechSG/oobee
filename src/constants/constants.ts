@@ -648,6 +648,7 @@ export const a11yRuleShortDescriptionMap = {
   'aria-prohibited-attr': 'Remove ARIA attributes not allowed on these elements',
   'aria-required-attr': 'Add required ARIA attributes for accessibility roles',
   'aria-roles': 'Elements must use valid, supported accessibility roles',
+  'aria-tab-name': 'Tab controls must have accessible names',
   'aria-toggle-field-name':
     'Toggle switches, checkboxes and radio buttons must have descriptive labels',
   'aria-tooltip-name': 'Tooltips must have accessible names',
@@ -803,6 +804,8 @@ export const a11yRuleLongDescriptionMap = {
     "Certain accessibility roles require specific attributes to work correctly. e.g., a slider role needs aria-valuemin, aria-valuemax, and aria-valuenow to function properly. Without required attributes, screen readers cannot announce the element's current state or allow users to interact with it correctly.",
   'aria-roles':
     'Elements must use valid ARIA roles from the official list. Invalid, misspelled, or unsupported role names confuse screen readers and prevent them from announcing elements correctly. This causes screen reader users to misunderstand what elements do.',
+  'aria-tab-name':
+    'Tabs (custom tab controls with role="tab") need clear, descriptive labels so screen reader users know what each tab does. Without an accessible name (visible text, aria-label, aria-labelledby, or title), users cannot understand the purpose of tabs when navigating with a screen reader.',
   'aria-toggle-field-name':
     'Toggle switches and custom checkbox / radio button controls need clear labels that describe what is being toggled. e.g., a toggle should be labeled "Dark mode", not just "Toggle". This helps screen reader users understand what will change when they activate it.',
   'aria-tooltip-name':
@@ -942,6 +945,7 @@ export const disabilityBadgesMap = {
   'aria-prohibited-attr': ['Visual'],
   'aria-required-attr': ['Visual'],
   'aria-roles': ['Visual'],
+  'aria-tab-name': ['Visual'],
   'aria-toggle-field-name': ['Visual'],
   'aria-tooltip-name': ['Visual'],
   'aria-valid-attr': ['Visual'],
@@ -1509,6 +1513,12 @@ export const a11yRuleStepByStepGuide: Record<string, { check: string; fix: strin
     check: 'Find elements identified in the issue. Check: Do they have ARIA role attributes? Are those role names valid and supported (like "button", "link")? Or are they misspelled or unsupported?',
     fix: '(Developer) Replace invalid role names with valid, supported ones. If no valid role exists for the element, replace with a native HTML element (real <button>, <a>, <input>) instead.',
     review: "Use a screen reader and keyboard to test: Tab to the element and confirm it's announced correctly (as a button, link, or other expected type). Confirm keyboard activation works as expected.",
+    learn: 'Review and learn more about this issue on A11y Playground',
+  },
+  'aria-tab-name': {
+    check: 'Find tab controls (elements with role="tab") on the page. Check: Does each have visible text, aria-label, aria-labelledby, or title describing its purpose?',
+    fix: '(Developer) Add an accessible name to each tab—inner text (e.g., "Settings"), aria-label="Settings", aria-labelledby pointing to a label element, or a title attribute.',
+    review: 'Use a screen reader to Tab through the tab controls and confirm each announces a clear, descriptive name.',
     learn: 'Review and learn more about this issue on A11y Playground',
   },
   'aria-toggle-field-name': {
