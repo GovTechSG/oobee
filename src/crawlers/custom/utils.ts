@@ -6,7 +6,7 @@ import { getDomain } from 'tldts';
 import { runAxeScript } from '../commonCrawlerFunc.js';
 import { capturePageData } from '../pageCapture.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
-import { guiInfoStatusTypes } from '../../constants/constants.js';
+import { guiInfoStatusTypes, STATUS_CODE_METADATA } from '../../constants/constants.js';
 import { isSkippedUrl, validateCustomFlowLabel } from '../../constants/common.js';
 
 declare global {
@@ -159,6 +159,21 @@ export const runAxeScan = async (
   urlsCrawled,
 ) => {
   const result = await runAxeScript({ includeScreenshots, page, randomToken, customFlowDetails });
+
+  if (result.axeScanFailed) {
+    guiInfoLog(guiInfoStatusTypes.ERROR, {
+      numScanned: urlsCrawled.scanned.length,
+      urlScanned: page.url(),
+    });
+    urlsCrawled.error.push({
+      url: page.url(),
+      pageTitle: result.pageTitle,
+      actualUrl: page.url(),
+      metadata: STATUS_CODE_METADATA[2],
+      httpStatusCode: 2,
+    });
+    return;
+  }
 
   await capturePageData(page, page.url(), randomToken);
 

@@ -113,6 +113,7 @@ type FilteredResults = {
   needsReview: ResultCategory;
   passed: ResultCategory;
   actualUrl?: string;
+  axeScanFailed?: boolean;
 };
 
 const truncateHtml = (html: string, maxBytes = 1024, suffix = '…'): string => {
@@ -993,9 +994,25 @@ export const runAxeScript = async ({
 
   const gradingReadabilityFlag = await extractAndGradeText(page); // Ensure flag is obtained before proceeding
 
-  await playwrightUtils.injectFile(page, axeScript);
+  try {
+    await playwrightUtils.injectFile(page, axeScript);
+  } catch (e) {
+    consoleLogger.error(`axe injection failed for ${requestUrl}: ${(e as Error)?.message ?? e}`);
+    return {
+      url: requestUrl,
+      pageTitle: pageTitle ?? requestUrl,
+      totalItems: 0,
+      mustFix: { totalItems: 0, rules: {} },
+      goodToFix: { totalItems: 0, rules: {} },
+      needsReview: { totalItems: 0, rules: {} },
+      passed: { totalItems: 0, rules: {} },
+      axeScanFailed: true,
+    };
+  }
 
-  const results = await page.evaluate(
+  let results;
+  try {
+    results = await page.evaluate(
     async ({
       selectors,
       saflyIconSelector,
@@ -1152,6 +1169,19 @@ export const runAxeScript = async ({
       xPathToCssFunctionString: xPathToCss.toString(),
     },
   );
+  } catch (e) {
+    consoleLogger.error(`axe.run failed for ${requestUrl}: ${(e as Error)?.message ?? e}`);
+    return {
+      url: requestUrl,
+      pageTitle: pageTitle ?? requestUrl,
+      totalItems: 0,
+      mustFix: { totalItems: 0, rules: {} },
+      goodToFix: { totalItems: 0, rules: {} },
+      needsReview: { totalItems: 0, rules: {} },
+      passed: { totalItems: 0, rules: {} },
+      axeScanFailed: true,
+    };
+  }
 
   await enrichViolationMessages(results, page);
   await enrichColorContrastDOMContext(results.violations, page);

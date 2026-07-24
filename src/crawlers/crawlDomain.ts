@@ -698,6 +698,21 @@ const crawlDomain = async ({
 
             const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
+            if (results.axeScanFailed) {
+              guiInfoLog(guiInfoStatusTypes.ERROR, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              urlsCrawled.error.push({
+                url: request.url,
+                pageTitle: results.pageTitle,
+                actualUrl,
+                metadata: STATUS_CODE_METADATA[2],
+                httpStatusCode: 2,
+              });
+              return;
+            }
+
             await capturePageData(page, actualUrl, randomToken);
 
             // Detect JS redirects that fire during/after axe scan.
