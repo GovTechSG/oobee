@@ -895,6 +895,27 @@ export const runAxeScript = async ({
   // iframe (whose Realm the page hasn't touched) before doing any evaluation.
   try {
     await page.evaluate(() => {
+      // Probe first — only pay the iframe cost when the page has actually
+      // clobbered a native collection constructor. On clean pages this is a
+      // no-op that saves ~10ms per scan.
+      try {
+        const s = new Set();
+        const m = new Map();
+        const ws = new WeakSet();
+        const wm = new WeakMap();
+        if (
+          typeof s.has === 'function' &&
+          typeof s.add === 'function' &&
+          typeof m.has === 'function' &&
+          typeof m.get === 'function' &&
+          typeof ws.has === 'function' &&
+          typeof wm.has === 'function'
+        ) {
+          return;
+        }
+      } catch {
+        // fall through to restore
+      }
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
       iframe.setAttribute('aria-hidden', 'true');
