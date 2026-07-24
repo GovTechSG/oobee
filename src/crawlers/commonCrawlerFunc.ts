@@ -116,6 +116,17 @@ type FilteredResults = {
   axeScanFailed?: boolean;
 };
 
+// Playwright surfaces transient teardown as errors we must NOT convert into
+// axeScanFailed — rethrowing lets Crawlee's retry (maxRequestRetries) recover
+// on a fresh browser/context. Long crawls hit these on browser retirement
+// (retireBrowserAfterPageCount) and idle-close boundaries.
+const isTransientPageTeardown = (e: unknown): boolean => {
+  const msg = (e as Error)?.message ?? '';
+  return /Target (page, context or browser has been closed|closed)|Execution context was destroyed|page (has been |was )closed|Browser has been closed|Navigation failed because page (was|has been) closed/i.test(
+    msg,
+  );
+};
+
 const truncateHtml = (html: string, maxBytes = 1024, suffix = '…'): string => {
   const encoder = new TextEncoder();
   if (encoder.encode(html).length <= maxBytes) return html;
@@ -887,6 +898,7 @@ export const runAxeScript = async ({
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
       iframe.setAttribute('aria-hidden', 'true');
+      iframe.setAttribute('data-oobee-realm-restore', '1');
       document.documentElement.appendChild(iframe);
       const w = iframe.contentWindow as unknown as Record<string, unknown>;
       if (!w) return;
@@ -997,6 +1009,12 @@ export const runAxeScript = async ({
   try {
     await playwrightUtils.injectFile(page, axeScript);
   } catch (e) {
+    if (isTransientPageTeardown(e)) {
+      consoleLogger.info(
+        `axe injection aborted (page/browser closed) for ${requestUrl}; letting Crawlee retry: ${(e as Error)?.message ?? e}`,
+      );
+      throw e;
+    }
     consoleLogger.error(`axe injection failed for ${requestUrl}: ${(e as Error)?.message ?? e}`);
     return {
       url: requestUrl,
@@ -1065,8 +1083,15 @@ export const runAxeScript = async ({
         // removed needsReview condition
         const defaultResultTypes: resultGroups[] = ['violations', 'passes', 'incomplete'];
 
+        // Exclude the realm-restore iframe (see runAxeScript preamble) so it
+        // doesn't inflate the "passed" tally with rules like aria-hidden-focus.
+        const axeContext: any = { exclude: [['[data-oobee-realm-restore]']] };
+        if (Array.isArray(selectors) && selectors.length > 0) {
+          axeContext.include = selectors;
+        }
+
         return axe
-          .run(selectors, {
+          .run(axeContext, {
             resultTypes: defaultResultTypes,
           })
           .then(async results => {
@@ -1170,6 +1195,12 @@ export const runAxeScript = async ({
     },
   );
   } catch (e) {
+    if (isTransientPageTeardown(e)) {
+      consoleLogger.info(
+        `axe.run aborted (page/browser closed) for ${requestUrl}; letting Crawlee retry: ${(e as Error)?.message ?? e}`,
+      );
+      throw e;
+    }
     consoleLogger.error(`axe.run failed for ${requestUrl}: ${(e as Error)?.message ?? e}`);
     return {
       url: requestUrl,
