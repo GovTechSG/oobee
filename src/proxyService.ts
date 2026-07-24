@@ -53,6 +53,42 @@ export type ProxyResolution =
 function stripScheme(u: string): string {
   return u.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '');
 }
+/**
+ * Extract userinfo (username/password) from a proxy URL value.
+ * Accepts either full URL ("http://user:pass@host:port") or scheme-less ("user:pass@host:port").
+ * Returns the value with userinfo removed (scheme preserved if present) plus decoded creds.
+ * Playwright's proxy.server option rejects embedded credentials, so they must be split out.
+ */
+function splitUserinfo(value: string): {
+  value: string;
+  username?: string;
+  password?: string;
+} {
+  if (!value) return { value };
+  const schemeMatch = value.match(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)(.*)$/);
+  const scheme = schemeMatch ? schemeMatch[1] : '';
+  const rest = schemeMatch ? schemeMatch[2] : value;
+
+  // userinfo ends at the first '@' before any '/'
+  const pathStart = rest.indexOf('/');
+  const searchEnd = pathStart === -1 ? rest.length : pathStart;
+  const atIdx = rest.lastIndexOf('@', searchEnd - 1);
+  if (atIdx === -1) return { value };
+
+  const userinfo = rest.slice(0, atIdx);
+  const remainder = rest.slice(atIdx + 1);
+  const colonIdx = userinfo.indexOf(':');
+  const rawUser = colonIdx === -1 ? userinfo : userinfo.slice(0, colonIdx);
+  const rawPass = colonIdx === -1 ? '' : userinfo.slice(colonIdx + 1);
+
+  const decode = (s: string) => {
+    try { return decodeURIComponent(s); } catch { return s; }
+  };
+  const username = rawUser ? decode(rawUser) : undefined;
+  const password = rawPass ? decode(rawPass) : undefined;
+
+  return { value: `${scheme}${remainder}`, username, password };
+}
 function semiJoin(arr?: string[]): string | undefined {
   if (!arr) return undefined;
   const cleaned = arr.map(s => s.trim()).filter(Boolean);
@@ -88,13 +124,36 @@ function parseEnvProxyCommon(): ProxyInfo | null {
   const noProxy = process.env.NO_PROXY || process.env.no_proxy || '';
 
   const info: ProxyInfo = {};
-  if (http) info.http = stripScheme(http);
-  if (https) info.https = stripScheme(https);
-  if (socks) info.socks = socks; // keep original scheme so proxyInfoToResolution can use the right protocol
+  // Collect creds embedded in URL userinfo; env vars still win over them below.
+  let urlUser: string | undefined;
+  let urlPass: string | undefined;
+  const captureCreds = (u?: string, p?: string) => {
+    if (u && !urlUser) urlUser = u;
+    if (p && !urlPass) urlPass = p;
+  };
+
+  if (http) {
+    const parsed = splitUserinfo(http);
+    captureCreds(parsed.username, parsed.password);
+    info.http = stripScheme(parsed.value);
+  }
+  if (https) {
+    const parsed = splitUserinfo(https);
+    captureCreds(parsed.username, parsed.password);
+    info.https = stripScheme(parsed.value);
+  }
+  if (socks) {
+    const parsed = splitUserinfo(socks);
+    captureCreds(parsed.username, parsed.password);
+    info.socks = parsed.value; // keep original scheme so proxyInfoToResolution can use the right protocol
+  }
   if (noProxy) info.bypassList = semiJoin(noProxy.split(/[,;]/));
 
   const { username, password } = readCredsFromEnv();
-  if (username && password) { info.username = username; info.password = password; }
+  const finalUser = username || urlUser;
+  const finalPass = password || urlPass;
+  if (finalUser) info.username = finalUser;
+  if (finalPass) info.password = finalPass;
 
   return (info.http || info.https || info.socks || info.bypassList) ? info : null;
 }
