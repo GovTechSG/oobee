@@ -65,6 +65,38 @@ jobs:
           ignore-unfixed: false
           vuln-type: os,library
 
+      - name: Publish Trivy report to job summary
+        if: always()
+        run: |
+          if [ ! -f trivy-report.txt ]; then
+            echo "No Trivy report was generated." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Severity counts, derived by grepping the fixed-width Severity column
+          # of the trivy table report. Fragile if the table format changes, but
+          # good enough for an at-a-glance summary.
+          count() { grep -c "│ $1 " trivy-report.txt || true; }
+          {
+            echo "## Trivy vulnerability scan"
+            echo ""
+            echo "Image: \`${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}\`"
+            echo ""
+            echo "| Severity | Count |"
+            echo "|----------|-------|"
+            echo "| CRITICAL | $(count 'CRITICAL') |"
+            echo "| HIGH     | $(count 'HIGH    ') |"
+            echo "| MEDIUM   | $(count 'MEDIUM  ') |"
+            echo "| LOW      | $(count 'LOW     ') |"
+            echo ""
+            echo "<details><summary>Full vulnerability table (click to expand)</summary>"
+            echo ""
+            echo '```'
+            cat trivy-report.txt
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload Trivy report artifact
         if: always()
         uses: actions/upload-artifact@v4
