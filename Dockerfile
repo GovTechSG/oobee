@@ -52,7 +52,7 @@ RUN apt-get update && \
       'libde265-0' 'libopenexr*' 'libwavpack*' \
       'libx264-*' 'libvo-amrwbenc*' 'libopenh264-*' \
       'libzvbi0*' 'libsndfile1' \
-      'libsoup-3.0-*' 'libavahi-*' 'libduktape*' \
+      'libsoup-3.0-*' 'libduktape*' \
       || true; \
     rm -rf /var/lib/apt/lists/*
 
