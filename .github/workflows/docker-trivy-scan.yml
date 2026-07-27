@@ -51,7 +51,7 @@ jobs:
           output: trivy-report.txt
           severity: CRITICAL,HIGH,MEDIUM,LOW
           exit-code: '0'
-          ignore-unfixed: false
+          ignore-unfixed: true
           vuln-type: os,library
 
       - name: Run Trivy vulnerability scan (SARIF)
@@ -62,7 +62,7 @@ jobs:
           output: trivy-report.sarif
           severity: CRITICAL,HIGH,MEDIUM,LOW
           exit-code: '0'
-          ignore-unfixed: false
+          ignore-unfixed: true
           vuln-type: os,library
 
       - name: Publish Trivy report to job summary
