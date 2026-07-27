@@ -49,9 +49,9 @@ RUN apt-get update && \
       'libavcodec*' 'libavformat*' 'libavfilter*' 'libavutil*' \
       'libswresample*' 'libswscale*' 'libpostproc*' \
       'gstreamer1.0-plugins-bad' \
-      'libde265-0' 'libopenexr-3-1-30' 'libwavpack1' \
-      'libx264-164' 'libvo-amrwbenc0' 'libopenh264-8' \
-      'libzvbi0t64' 'libsndfile1' \
+      'libde265-0' 'libopenexr*' 'libwavpack*' \
+      'libx264-*' 'libvo-amrwbenc*' 'libopenh264-*' \
+      'libzvbi0*' 'libsndfile1' \
       || true; \
     rm -rf /var/lib/apt/lists/*
 
@@ -65,6 +65,11 @@ RUN npm install -g npm@latest && npm cache clean --force
 # Environment variables for node and Playwright
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
+# npm >=12 changed the default of `allow-git` from "all" to "none" as a
+# hardening. Oobee has one legitimate git dep (pdfjs-dist -> veraPDF fork), so
+# opt back in with "root" — only git deps declared in this project's own
+# package.json are permitted; transitive git deps remain blocked.
+ENV NPM_CONFIG_ALLOW_GIT=root
 
 # Add non-privileged user before app copy so ownership can be set during COPY.
 # Also pre-create the Safe Browsing profile directory owned by `purple` so the
