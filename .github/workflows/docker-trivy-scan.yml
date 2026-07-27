@@ -1,0 +1,76 @@
+name: Docker Trivy Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag to label the scanned image (e.g. 0.10.87)'
+        required: false
+        default: 'scan'
+        type: string
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-24.04-arm
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Lowercase repository name
+        id: repo
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image (load, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          load: true
+          tags: ${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scan (table report)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}
+          format: table
+          output: trivy-report.txt
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          exit-code: '0'
+          ignore-unfixed: false
+          vuln-type: os,library
+
+      - name: Run Trivy vulnerability scan (SARIF)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}
+          format: sarif
+          output: trivy-report.sarif
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          exit-code: '0'
+          ignore-unfixed: false
+          vuln-type: os,library
+
+      - name: Upload Trivy report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report-${{ env.RELEASE_TAG }}
+          path: |
+            trivy-report.txt
+            trivy-report.sarif
+          retention-days: 30
