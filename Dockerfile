@@ -3,8 +3,11 @@
 FROM mcr.microsoft.com/playwright:v1.61.1-noble
 
 
-# Installation of packages for oobee
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Installation of packages for oobee.
+# Also upgrade all pre-installed packages from the Playwright base image to pick
+# up security fixes available in the Ubuntu archive (remediates the bulk of
+# category-A CVEs surfaced by Trivy).
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     git \
     unzip \
     zip \
@@ -32,6 +35,30 @@ RUN ARCH="$(dpkg --print-architecture)"; \
     else \
       echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $ARCH)"; \
     fi
+
+# =============================================================================
+# Purge unused media / codec stacks pulled in by the Playwright base image.
+# Oobee scans with Chrome (bundled codecs) and does not use Playwright's video
+# recorder or ffmpeg pipeline, so these libraries are dead weight and account
+# for roughly half of the CVEs surfaced by Trivy (incl. the sole HIGH from
+# gstreamer-plugins-bad, CVE-2025-3887). "|| true" so a missing package on a
+# future base image bump doesn't fail the build.
+# =============================================================================
+RUN apt-get update && \
+    apt-get purge -y --auto-remove \
+      'libavcodec*' 'libavformat*' 'libavfilter*' 'libavutil*' \
+      'libswresample*' 'libswscale*' 'libpostproc*' \
+      'gstreamer1.0-plugins-bad' \
+      'libde265-0' 'libopenexr-3-1-30' 'libwavpack1' \
+      'libx264-164' 'libvo-amrwbenc0' 'libopenh264-8' \
+      'libzvbi0t64' 'libsndfile1' \
+      || true; \
+    rm -rf /var/lib/apt/lists/*
+
+# Update system npm to the latest release. The bundled npm under
+# /usr/lib/node_modules/npm ships older copies of tar, undici, brace-expansion,
+# and sigstore that Trivy flags; upgrading npm replaces all of them in one shot.
+RUN npm install -g npm@latest && npm cache clean --force
 
 # --- App code (changes here don't invalidate Chrome layers above) ---
 
