@@ -48,10 +48,11 @@ RUN apt-get update && \
     apt-get purge -y --auto-remove \
       'libavcodec*' 'libavformat*' 'libavfilter*' 'libavutil*' \
       'libswresample*' 'libswscale*' 'libpostproc*' \
-      'gstreamer1.0-plugins-bad' \
+      'libgstreamer-plugins-bad*' 'gstreamer1.0-plugins-bad*' \
       'libde265-0' 'libopenexr*' 'libwavpack*' \
       'libx264-*' 'libvo-amrwbenc*' 'libopenh264-*' \
       'libzvbi0*' 'libsndfile1' \
+      'libsoup-3.0-*' 'libavahi-*' 'libduktape*' \
       || true; \
     rm -rf /var/lib/apt/lists/*
 
@@ -87,6 +88,14 @@ USER purple
 # Install dependencies first (cached unless package.json/package-lock.json change)
 COPY --chown=purple:purple package.json package-lock.json ./
 RUN npm install --omit=dev
+
+# git is only needed at build time to resolve the pdfjs-dist git dependency
+# above. Removing it after `npm install` drops CVE-2024-52005 (sideband payload)
+# without affecting runtime — oobee does not shell out to git.
+USER root
+RUN apt-get purge -y --auto-remove git git-man || true; \
+    rm -rf /var/lib/apt/lists/*
+USER purple
 
 # Install Playwright browsers no longer needed since we are using Google Chrome for Safe Browsing
 # RUN npx playwright install chromium
