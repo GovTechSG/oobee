@@ -1,6 +1,6 @@
 MIT
 --------------
-@govtechsg/oobee
+@govtechsg/a11y-assist
 Copyright (c) 2024 Government Technology Agency
 
 

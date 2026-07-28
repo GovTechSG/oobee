@@ -2,11 +2,11 @@
 <!--
   testStaticJSScanner.html
   ========================
-  Demo page for oobee-client-scanner.js.
+  Demo page for a11y-assist-client-scanner.js.
 
   Steps to use:
-    1. Build oobee:          npm run build
-    2. Generate the bundle:  node dist/generateOobeeClientScanner.js
+    1. Build A11y Assist:          npm run build
+    2. Generate the bundle:  node dist/generateA11yAssistClientScanner.js
     3. Open this file in a browser (must be served, not file://, to avoid CORS on axe iframes):
          npx serve .
        Then visit: http://localhost:3000/testStaticJSScanner.html
@@ -18,7 +18,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Oobee Client Scanner — Test Page</title>
+  <title>A11y Assist Client Scanner — Test Page</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     body {
@@ -172,10 +172,10 @@
 </head>
 <body>
 
-  <h1>Oobee Client Scanner — Test Page</h1>
+  <h1>A11y Assist Client Scanner — Test Page</h1>
   <p>
     This page intentionally contains several accessibility violations so
-    <code>oobee-client-scanner.js</code> has something to detect.
+    <code>a11y-assist-client-scanner.js</code> has something to detect.
     Open the browser DevTools console for the full JSON output.
   </p>
 
@@ -186,17 +186,17 @@
       <li>
         <strong>Add the script</strong> — include the scanner before your closing
         <code>&lt;/body&gt;</code> tag:
-        <pre>&lt;script src="https://cdn.jsdelivr.net/gh/GovTechSG/oobee@0.10.86/oobee-client-scanner.js"&gt;&lt;/script&gt;</pre>
+        <pre>&lt;script src="https://cdn.jsdelivr.net/gh/GovTechSG/a11y-assist@0.10.86/a11y-assist-client-scanner.js"&gt;&lt;/script&gt;</pre>
         
         <br>This points to the <code>v0.10.86</code> release. Update the version tag as needed for newer releases.
       </li>
       <li>
-        <strong>Run the scan</strong> — call <code>window.oobee.scan()</code> in your own script,
+        <strong>Run the scan</strong> — call <code>window.a11yassist.scan()</code> in your own script,
         e.g. on a button click or on page load:
         <pre>&lt;script&gt;
-  window.oobee.scan({
+  window.a11yassist.scan({
     userInfo: { email: 'you@example.com', name: 'Your Name' },
-    // disableOobee:   false,  // true → skip oobee custom checks
+    // disableA11yAssist:   false,  // true → skip A11y Assist custom checks
     // enableWcagAaa:  true,  // true → also run WCAG AAA rules
     // elementsToScan: [],     // [] = full page; or pass CSS selectors / DOM nodes
   }).then(function(results) {
@@ -206,7 +206,7 @@
       </li>
       <li>
         <strong>Navigate to a flagged element</strong> — call
-        <code>window.oobee.scrollToElement(item.xpath)</code> with any
+        <code>window.a11yassist.scrollToElement(item.xpath)</code> with any
         <code>item.xpath</code> value from the scan results to scroll and highlight it.
       </li>
     </ol>
@@ -256,7 +256,7 @@
     <!-- Raw JSON: full scan results -->
     <h2>Raw JSON — Full Scan Results</h2>
     <p style="font-size:0.875rem; color:#6c757d;">
-      Complete output of <code>window.oobee.scan()</code>, including every occurrence per rule.
+      Complete output of <code>window.a11yassist.scan()</code>, including every occurrence per rule.
       Use this to build your own UI on top of the scanner.
     </p>
     <pre id="jsonFullOutput"></pre>
@@ -278,7 +278,7 @@
     <!-- 1. img with no alt → "image-alt" mustFix -->
     <img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" width="50" height="50">
 
-    <!-- 2. img with confusing alt → "oobee-confusing-alt-text" -->
+    <!-- 2. img with confusing alt → "a11yassist-confusing-alt-text" -->
     <img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="image" width="50" height="50">
 
     <!-- 3. button with no accessible label → "button-name" mustFix -->
@@ -294,8 +294,8 @@
     <p style="color:#ccc; background:#fff; font-size:12px">This text has low contrast.</p>
   </div>
 
-  <!-- ── oobee-client-scanner.js ──────────────────────────────────────────── -->
-  <script src="oobee-client-scanner.js"></script>
+  <!-- ── a11y-assist-client-scanner.js ──────────────────────────────────────────── -->
+  <script src="a11y-assist-client-scanner.js"></script>
 
   <!-- ── Run the scan ─────────────────────────────────────────────────────── -->
   <script>
@@ -317,15 +317,15 @@
       statusEl.style.display = 'block';
 
       try {
-        if (!window.oobee) {
+        if (!window.a11yassist) {
           throw new Error(
-            'window.oobee is not defined — make sure oobee-client-scanner.js loaded correctly.'
+            'window.a11yassist is not defined — make sure a11y-assist-client-scanner.js loaded correctly.'
           );
         }
 
         // ── Run the scan ──────────────────────────────────────────────────
-        const results = await window.oobee.scan({
-          disableOobee:   false,  // set true to skip oobee custom checks
+        const results = await window.a11yassist.scan({
+          disableA11yAssist:   false,  // set true to skip A11y Assist custom checks
           enableWcagAaa:  true,   // set true to also include WCAG AAA rules
           elementsToScan: [],     // empty = scan the entire page
           userInfo: {
@@ -335,7 +335,7 @@
         });
 
         // ── Log full JSON to console ──────────────────────────────────────
-        console.log('[oobee-client-scanner] Scan complete. Full results:');
+        console.log('[a11y-assist-client-scanner] Scan complete. Full results:');
         console.log(JSON.stringify(results, null, 2));
 
         // ── Update status ─────────────────────────────────────────────────
@@ -396,7 +396,7 @@
                 a.title       = item.xpath;
                 a.addEventListener('click', function (e) {
                   e.preventDefault();
-                  window.oobee.scrollToElement(item.xpath);
+                  window.a11yassist.scrollToElement(item.xpath);
                 });
                 tdEl.appendChild(a);
                 if (item.message) {
@@ -427,10 +427,10 @@
             }
             if (!tdEl.hasChildNodes()) tdEl.textContent = '—';
 
-            // Conformance tags — formatted via window.oobee.formatConformance
+            // Conformance tags — formatted via window.a11yassist.formatConformance
             const tdConf = document.createElement('td');
             if (rule.conformance && rule.conformance.length) {
-              const fmt = window.oobee.formatConformance(rule.conformance);
+              const fmt = window.a11yassist.formatConformance(rule.conformance);
               const parts = fmt.criteria.slice();
               if (fmt.level) parts.push('Level ' + fmt.level);
               tdConf.innerHTML = parts.length
@@ -514,7 +514,7 @@
         statusEl.className   = 'status error';
         statusEl.textContent = 'Scan error: ' + (err && err.message ? err.message : String(err));
         statusEl.style.display = 'block';
-        console.error('[oobee-client-scanner] Error:', err);
+        console.error('[a11y-assist-client-scanner] Error:', err);
       } finally {
         btn.disabled    = false;
         btn.textContent = 'Check Accessibility';

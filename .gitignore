@@ -3,7 +3,7 @@ node_modules
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
-.oobee_storage
+.a11yassist_storage
 results/
 logs/
 debug*.txt
@@ -21,7 +21,7 @@ nodejs-*
 amazon-corretto-*
 verapdf*
 ms-playwright/
-oobee-scan-results*.zip
+a11y-assist-scan-results*.zip
 PHScan_*/
 Upload Files/
 Chromium Support/
