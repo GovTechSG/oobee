@@ -2307,7 +2307,7 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   return options;
 };
 
-export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
+export const waitForPageLoaded = async (page: Page, timeout = 30000) => {
   const OBSERVER_TIMEOUT = timeout; // Ensure observer timeout does not exceed the main timeout
 
   return Promise.race([
