@@ -6,7 +6,7 @@
       "id": "color-contrast",
       "description": "Elements must have sufficient color contrast",
       "impact": "serious",
-      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/color-contrast?application=oobee",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/color-contrast?application=a11yassist",
       "fixes": [
         {
           "htmlElement": "<p class=\"date\">\n\n                Last Updated: 17 April 2020\n\n            </p>"
@@ -17,7 +17,7 @@
       "id": "html-has-lang",
       "description": "<html> element must have a lang attribute",
       "impact": "serious",
-      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/html-has-lang?application=oobee",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/html-has-lang?application=a11yassist",
       "fixes": [
         {
           "htmlElement": "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\">"
@@ -28,7 +28,7 @@
       "id": "landmark-one-main",
       "description": "Document should have one main landmark",
       "impact": "moderate",
-      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/landmark-one-main?application=oobee",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/landmark-one-main?application=a11yassist",
       "fixes": [
         {
           "htmlElement": "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\">"
@@ -39,7 +39,7 @@
       "id": "region",
       "description": "All page content should be contained by landmarks",
       "impact": "moderate",
-      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/region?application=oobee",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/region?application=a11yassist",
       "fixes": [
         {
           "htmlElement": "<div id=\"container\">"
@@ -53,7 +53,7 @@
       "id": "select-name",
       "description": "Select element must have an accessible name",
       "impact": "critical",
-      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/select-name?application=oobee",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.2/select-name?application=a11yassist",
       "fixes": [
         {
           "htmlElement": "<select id=\"lang\" name=\"lang\" onchange=\"return onLangChange(this)\" style=\"font-size: 10px;\">"
