@@ -1,30 +1,30 @@
 variables:
   # DOCKER_IMAGE: <GitLab URL>/<username>/<project name>:latest
   DOCKER_IMAGE: <GitLab URL>/<username>/<project name>:latest
-  # OOBEE_SCAN_URL: https://www.example.com
-  OOBEE_SCAN_URL: 'https://example.com'
-  # OOBEE_SCAN_TYPE: [choices: "sitemap", "website", "intelligent"]
-  OOBEE_SCAN_TYPE: 'website'
-  # OOBEE_SCAN_DEVICE: "Desktop"
-  # A full list of devices is available at https://github.com/GovTechSG/oobee#mobile-device-options
-  OOBEE_SCAN_DEVICE: 'Desktop'
-  # OOBEE_SCAN_MAX_NUM_PAGES: 100
-  OOBEE_SCAN_MAX_NUM_PAGES: 200
-  # OOBEE_MAX_CONCURRENT_PAGES: 25
+  # A11Y_ASSIST_SCAN_URL: https://www.example.com
+  A11Y_ASSIST_SCAN_URL: 'https://example.com'
+  # A11Y_ASSIST_SCAN_TYPE: [choices: "sitemap", "website", "intelligent"]
+  A11Y_ASSIST_SCAN_TYPE: 'website'
+  # A11Y_ASSIST_SCAN_DEVICE: "Desktop"
+  # A full list of devices is available at https://github.com/GovTechSG/a11y-assist#mobile-device-options
+  A11Y_ASSIST_SCAN_DEVICE: 'Desktop'
+  # A11Y_ASSIST_SCAN_MAX_NUM_PAGES: 100
+  A11Y_ASSIST_SCAN_MAX_NUM_PAGES: 200
+  # A11Y_ASSIST_MAX_CONCURRENT_PAGES: 25
   # If scan encounters blocked pages / error 403, reduce to 1
-  OOBEE_MAX_CONCURRENT_PAGES: 1
+  A11Y_ASSIST_MAX_CONCURRENT_PAGES: 1
   # Speed up tests by excluding screenshots
-  # OOBEE_INCLUDE_SCREENSHOTS: [choices: "screenshots", "none"]
-  OOBEE_INCLUDE_SCREENSHOTS: 'none'
+  # A11Y_ASSIST_INCLUDE_SCREENSHOTS: [choices: "screenshots", "none"]
+  A11Y_ASSIST_INCLUDE_SCREENSHOTS: 'none'
   # Safe Mode to prevent unexpected dynamic page behaviours
-  # OOBEE_SCAN_SAFE_MODE: [choices: "yes", "no"]
-  OOBEE_SCAN_SAFE_MODE: 'yes'
-  # OOBEE_SCAN_ARTIFACT_NAME: "oobee-scan-results.zip"
-  OOBEE_SCAN_ARTIFACT_NAME: 'oobee-scan-results.zip'
-  # OOBEE_SCAN_NAME_EMAIL: "John Doe:john@domain.com"
-  OOBEE_SCAN_NAME_EMAIL: ''
+  # A11Y_ASSIST_SCAN_SAFE_MODE: [choices: "yes", "no"]
+  A11Y_ASSIST_SCAN_SAFE_MODE: 'yes'
+  # A11Y_ASSIST_SCAN_ARTIFACT_NAME: "a11y-assist-scan-results.zip"
+  A11Y_ASSIST_SCAN_ARTIFACT_NAME: 'a11y-assist-scan-results.zip'
+  # A11Y_ASSIST_SCAN_NAME_EMAIL: "John Doe:john@domain.com"
+  A11Y_ASSIST_SCAN_NAME_EMAIL: ''
 
-oobee-scan:
+a11y-assist-scan:
   stage: test
   tags:
     # - some tag
@@ -35,7 +35,7 @@ oobee-scan:
     # Start in the app dir
     - cd /app
     # Run accessibility scan
-    - OOBEE_VERBOSE=true npm run build && npm run cli -- -b chromium -c "$OOBEE_SCAN_TYPE" -d "$OOBEE_SCAN_DEVICE" -o "$CI_PROJECT_DIR/$OOBEE_SCAN_ARTIFACT_NAME" -u "$OOBEE_SCAN_URL" -p "$OOBEE_SCAN_MAX_NUM_PAGES" -a "$OOBEE_INCLUDE_SCREENSHOTS" -f "$OOBEE_SCAN_SAFE_MODE" -k "$OOBEE_SCAN_NAME_EMAIL" || true
+    - A11Y_ASSIST_VERBOSE=true npm run build && npm run cli -- -b chromium -c "$A11Y_ASSIST_SCAN_TYPE" -d "$A11Y_ASSIST_SCAN_DEVICE" -o "$CI_PROJECT_DIR/$A11Y_ASSIST_SCAN_ARTIFACT_NAME" -u "$A11Y_ASSIST_SCAN_URL" -p "$A11Y_ASSIST_SCAN_MAX_NUM_PAGES" -a "$A11Y_ASSIST_INCLUDE_SCREENSHOTS" -f "$A11Y_ASSIST_SCAN_SAFE_MODE" -k "$A11Y_ASSIST_SCAN_NAME_EMAIL" || true
     # Move the results directory to artifacts
     - results_directory=$(find results -mindepth 1 -maxdepth 1 -type d -print -quit) # Get the first directory within ./results
     - if [ -n "$results_directory" ]; then mv "$results_directory" "$CI_PROJECT_DIR/artifacts"; fi # Move the directory to ./artifacts
@@ -51,4 +51,4 @@ oobee-scan:
       # Stores the reports folder so it can be accessed through Browse
       # - artifacts/
       # Uploads the results as zipped file
-      # - $OOBEE_SCAN_ARTIFACT_NAME
+      # - $A11Y_ASSIST_SCAN_ARTIFACT_NAME

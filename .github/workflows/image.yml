@@ -6,44 +6,44 @@ on:
     types: [published]
 
 jobs:
-  windows-install-oobee:
+  windows-install-a11y-assist:
     runs-on: windows-latest
 
     steps:
       - name: Check out repository code
         uses: actions/checkout@v3
         with:
-          path: oobee
+          path: a11y-assist
 
       - name: Copy scripts to parent directory
         run: |
-          cp ${{github.workspace}}/oobee/scripts/*.ps1 ${{github.workspace}}
-          cp ${{github.workspace}}/oobee/scripts/*.cmd ${{github.workspace}}      
-          cp ${{github.workspace}}/oobee/scripts/*.xml ${{github.workspace}}
+          cp ${{github.workspace}}/a11y-assist/scripts/*.ps1 ${{github.workspace}}
+          cp ${{github.workspace}}/a11y-assist/scripts/*.cmd ${{github.workspace}}
+          cp ${{github.workspace}}/a11y-assist/scripts/*.xml ${{github.workspace}}
 
       - name: Install Purple dependencies for Windows
         shell: pwsh
-        run: powershell.exe -NoProfile -ExecutionPolicy Bypass "& ${{github.workspace}}\install_oobee_dependencies.ps1"
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass "& ${{github.workspace}}\install_a11y_assist_dependencies.ps1"
         working-directory: ${{github.workspace}}
 
       - name: Zip entire Purple folder (Windows)
         shell: pwsh
-        run: Compress-Archive -Path ${{github.workspace}}/* -DestinationPath oobee-portable-windows.zip
+        run: Compress-Archive -Path ${{github.workspace}}/* -DestinationPath a11y-assist-portable-windows.zip
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: oobee-portable-windows
-          path: ./oobee-portable-windows.zip
+          name: a11y-assist-portable-windows
+          path: ./a11y-assist-portable-windows.zip
 
       - name: Release Windows artifact
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            oobee-portable-windows.zip
+            a11y-assist-portable-windows.zip
 
-  mac-install-oobee:
+  mac-install-a11y-assist:
     runs-on: macos-latest
     env:
       CER_B64:     ${{ secrets.ORG_DEVELOPER_ID_APPLICATION_CERT_CER }}
@@ -60,19 +60,19 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v3
         with:
-          path: oobee
+          path: a11y-assist
 
       - name: Grant execute permissions for user
         run: chmod ugo+rwx ./scripts/*.command ./scripts/*.sh
-        working-directory: oobee
+        working-directory: a11y-assist
 
       - name: Copy scripts to parent directory
         run: |
-          cp ./oobee/scripts/{*.command,*.sh,*.xml}  ${{ github.workspace }}
+          cp ./a11y-assist/scripts/{*.command,*.sh,*.xml}  ${{ github.workspace }}
 
       - name: Install Purple dependencies for MacOS
         run: |
-          ./install_oobee_dependencies.command
+          ./install_a11y_assist_dependencies.command
 
       - name: Decode & import certs into temporary keychain
         run: |
@@ -110,7 +110,7 @@ jobs:
 
           # --- delete entire tmp dir ---
           rm -rf -v /tmp/signing/* && rm -rf /tmp/signing
-          
+
       - name: Locate signing identity
         id: find_identity
         run: |
@@ -143,39 +143,39 @@ jobs:
           echo "Using identity: ${CERTIFICATE_NAME}"
 
           # Ensure we can re-sign files (node_modules sometimes read-only)
-          chmod -R u+w "$GITHUB_WORKSPACE/oobee"
+          chmod -R u+w "$GITHUB_WORKSPACE/a11y-assist"
 
           # Sign all Mach-O (exec bits OR dylib OR node native addons)
           while IFS= read -r f; do
             echo "Signing $f"
             codesign --force --options runtime --timestamp --sign "${CERTIFICATE_NAME}" "$f"
           done < <(
-            find "$GITHUB_WORKSPACE/oobee" -type f \
+            find "$GITHUB_WORKSPACE/a11y-assist" -type f \
               \( -perm -111 -o -name "*.dylib" -o -name "*.node" \) \
               ! -path "*/.git/*"
           )
 
           echo "Verifying signatures of Mach-O files..."
-          find "$GITHUB_WORKSPACE/oobee" -type f \( -perm -111 -o -name "*.dylib" -o -name "*.node" \) \
+          find "$GITHUB_WORKSPACE/a11y-assist" -type f \( -perm -111 -o -name "*.dylib" -o -name "*.node" \) \
             -exec codesign --verify --strict --verbose=2 {} \; || true
-          
+
       - name: Cleanup keychain
         if: always()
         run: security delete-keychain build.keychain
-        
+
       - name: Zip entire Purple folder (Mac)
         run: |
-          zip oobee-portable-mac.zip -y -r ./
+          zip a11y-assist-portable-mac.zip -y -r ./
 
       - name: Upload Mac artifact
         uses: actions/upload-artifact@v4
         with:
-          name: oobee-portable-mac
-          path: ./oobee-portable-mac.zip
+          name: a11y-assist-portable-mac
+          path: ./a11y-assist-portable-mac.zip
 
       - name: Release Mac artifact
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            oobee-portable-mac.zip
+            a11y-assist-portable-mac.zip

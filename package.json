@@ -1,11 +1,11 @@
 {
-  "name": "@govtechsg/oobee",
+  "name": "@govtechsg/a11y-assist",
   "main": "dist/npmIndex.js",
   "version": "0.11.5",
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
   "bin": {
-    "oobee": "./dist/cli.js"
+    "a11y-assist": "./dist/cli.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1049.0",
@@ -112,13 +112,13 @@
     "lint:fix": "eslint . --fix --report-unused-disable-directives --max-warnings 0"
   },
   "license": "MIT",
-  "description": "Oobee is a customisable, automated accessibility testing tool that allows software development teams to assess whether their products are user-friendly to persons with disabilities (PWDs).",
+  "description": "A11y Assist is a customisable, automated accessibility testing tool that allows software development teams to assess whether their products are user-friendly to persons with disabilities (PWDs).",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/GovTechSG/oobee.git"
+    "url": "git+https://github.com/GovTechSG/a11y-assist.git"
   },
   "bugs": {
-    "url": "https://github.com/GovTechSG/oobee/issues"
+    "url": "https://github.com/GovTechSG/a11y-assist/issues"
   },
-  "homepage": "https://github.com/GovTechSG/oobee#readme"
+  "homepage": "https://github.com/GovTechSG/a11y-assist#readme"
 }

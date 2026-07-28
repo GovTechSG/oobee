@@ -3,7 +3,7 @@
 FROM mcr.microsoft.com/playwright:v1.61.1-noble
 
 
-# Installation of packages for oobee
+# Installation of packages for a11y-assist
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
@@ -44,10 +44,10 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
 # warmup step below (which runs Chrome — Chrome refuses to launch as root
 # without --no-sandbox) can write to it without a later root switch.
 RUN groupadd -r purple && useradd -r -g purple purple && \
-  mkdir -p /home/purple /app/oobee /data/chrome-profile && \
-  chown purple:purple /home/purple /app /app/oobee /data /data/chrome-profile
+  mkdir -p /home/purple /app/a11y-assist /data/chrome-profile && \
+  chown purple:purple /home/purple /app /app/a11y-assist /data /data/chrome-profile
 
-WORKDIR /app/oobee
+WORKDIR /app/a11y-assist
 
 # Run app build steps as non-root to avoid a full recursive chown later.
 USER purple

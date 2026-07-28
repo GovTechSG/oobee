@@ -27,8 +27,8 @@ jobs:
       - run: npm run build
         continue-on-error: false
 
-      - name: Generate oobee-client-scanner.js
-        run: node dist/generateOobeeClientScanner.js
+      - name: Generate a11y-assist-client-scanner.js
+        run: node dist/generateA11yAssistClientScanner.js
 
       - name: Create and push git tags
         run: |

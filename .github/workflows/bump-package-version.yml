@@ -40,8 +40,8 @@ jobs:
           new_version=$(npm version patch --no-git-tag-version)
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Generate oobee-client-scanner.js
-        run: node dist/generateOobeeClientScanner.js
+      - name: Generate a11y-assist-client-scanner.js
+        run: node dist/generateA11yAssistClientScanner.js
 
       - name: Create branch and commit changes
         run: |
@@ -49,7 +49,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add package.json package-lock.json oobee-client-scanner.js
+          git add package.json package-lock.json a11y-assist-client-scanner.js
           git commit -m "chore: bump version ${{ steps.current.outputs.version }} → ${{ steps.bump.outputs.version }}"
           git push origin "$BRANCH"
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
