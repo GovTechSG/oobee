@@ -1,19 +1,19 @@
 # S3 Upload Integration
 
-This document explains how to use the S3 upload feature in the Oobee engine.
+This document explains how to use the S3 upload feature in the A11y Assist engine.
 
 ## Overview
 
-The Oobee engine can now automatically upload scan results to Amazon S3 after completing a scan. This enables integration with cloud-based workflows and event-driven architectures:
+The A11y Assist engine can now automatically upload scan results to Amazon S3 after completing a scan. This enables integration with cloud-based workflows and event-driven architectures:
 
-1. Oobee runs and generates scan results locally
+1. A11y Assist runs and generates scan results locally
 2. Results are automatically uploaded to S3 with metadata
 3. S3 events can trigger downstream processing (e.g., serverless functions)
 4. External systems can process results and update databases, send notifications, etc.
 
 ## Environment Variables
 
-To enable S3 upload, set the following environment variables before running Oobee:
+To enable S3 upload, set the following environment variables before running A11y Assist:
 
 ### Required Variables
 
@@ -22,12 +22,12 @@ To enable S3 upload, set the following environment variables before running Oobe
 export AWS_REGION="ap-southeast-1"                    # AWS region
 export AWS_ACCESS_KEY_ID="your-access-key"           # AWS credentials
 export AWS_SECRET_ACCESS_KEY="your-secret-key"       # AWS credentials
-export S3_BUCKET_NAME="oobee-scan-results"           # S3 bucket name
+export S3_BUCKET_NAME="a11y-assist-scan-results"           # S3 bucket name
 
 # Scan Metadata (provided by your orchestration system)
-export OOBEE_SCAN_ID="uuid-scan-id"                  # Unique scan identifier
-export OOBEE_USER_ID="uuid-user-id"                  # User identifier
-export OOBEE_USER_EMAIL="user@example.com"           # User email
+export A11Y_ASSIST_SCAN_ID="uuid-scan-id"                  # Unique scan identifier
+export A11Y_ASSIST_USER_ID="uuid-user-id"                  # User identifier
+export A11Y_ASSIST_USER_EMAIL="user@example.com"           # User email
 
 # Optional Variables
 export CLOUDFRONT_BASE_URL="https://cdn.example.com" # CloudFront distribution URL
@@ -37,33 +37,33 @@ export CLOUDFRONT_BASE_URL="https://cdn.example.com" # CloudFront distribution U
 
 Files will be uploaded to: `s3://{bucket}/users/{userId}/scans/{scanId}/`
 
-Example: `s3://oobee-scan-results/users/550e8400-e29b-41d4-a716-446655440000/scans/650e8400-e29b-41d4-a716-446655440001/`
+Example: `s3://a11y-assist-scan-results/users/550e8400-e29b-41d4-a716-446655440000/scans/650e8400-e29b-41d4-a716-446655440001/`
 
 ## Usage
 
 ### 1. Automated Workflow (Containerized/Orchestrated)
 
-When running Oobee in a containerized or orchestrated environment, pass the required environment variables to the container:
+When running A11y Assist in a containerized or orchestrated environment, pass the required environment variables to the container:
 
 ```bash
 # Docker example
-docker run -e OOBEE_SCAN_ID="650e8400-e29b-41d4-a716-446655440001" \
-           -e OOBEE_USER_ID="550e8400-e29b-41d4-a716-446655440000" \
-           -e OOBEE_USER_EMAIL="user@example.com" \
-           -e S3_BUCKET_NAME="oobee-scan-results" \
+docker run -e A11Y_ASSIST_SCAN_ID="650e8400-e29b-41d4-a716-446655440001" \
+           -e A11Y_ASSIST_USER_ID="550e8400-e29b-41d4-a716-446655440000" \
+           -e A11Y_ASSIST_USER_EMAIL="user@example.com" \
+           -e S3_BUCKET_NAME="a11y-assist-scan-results" \
            -e AWS_REGION="ap-southeast-1" \
-           oobee-engine:latest
+           a11y-assist-engine:latest
 
 # Kubernetes example
 env:
-  - name: OOBEE_SCAN_ID
+  - name: A11Y_ASSIST_SCAN_ID
     value: "650e8400-e29b-41d4-a716-446655440001"
-  - name: OOBEE_USER_ID
+  - name: A11Y_ASSIST_USER_ID
     value: "550e8400-e29b-41d4-a716-446655440000"
-  - name: OOBEE_USER_EMAIL
+  - name: A11Y_ASSIST_USER_EMAIL
     value: "user@example.com"
   - name: S3_BUCKET_NAME
-    value: "oobee-scan-results"
+    value: "a11y-assist-scan-results"
   - name: AWS_REGION
     value: "ap-southeast-1"
 ```
@@ -77,7 +77,7 @@ export AWS_ACCESS_KEY_ID="your-key"
 export AWS_SECRET_ACCESS_KEY="your-secret"
 ### 3. Without S3 Upload (Default Behavior)
 
-If environment variables are not set, Oobee works as before:
+If environment variables are not set, A11y Assist works as before:
 - Results are saved locally only
 - No S3 upload occurs
 - No errors (logs informational message)
@@ -86,7 +86,7 @@ If environment variables are not set, Oobee works as before:
 # Run normally without S3 variables
 npm run cli -- -c website -u https://example.com
 ```
-If environment variables are not set, Oobee will work as before:
+If environment variables are not set, A11y Assist will work as before:
 - Results are saved locally
 - No S3 upload occurs
 - No errors or warnings (except info log)
@@ -150,15 +150,15 @@ Uploads entire results folder to S3 with metadata.
 
 1. Create a test S3 bucket:
 ```bash
-aws s3 mb s3://oobee-test-scan-results
+aws s3 mb s3://a11y-assist-test-scan-results
 ```
 
 2. Set test environment variables:
 ```bash
-export S3_BUCKET_NAME="oobee-test-scan-results"
-export OOBEE_SCAN_ID="test-$(date +%s)"
-export OOBEE_USER_ID="test-user-123"
-export OOBEE_USER_EMAIL="test@example.com"
+export S3_BUCKET_NAME="a11y-assist-test-scan-results"
+export A11Y_ASSIST_SCAN_ID="test-$(date +%s)"
+export A11Y_ASSIST_USER_ID="test-user-123"
+export A11Y_ASSIST_USER_EMAIL="test@example.com"
 ```
 
 3. Run a test scan:
@@ -168,5 +168,5 @@ npm run cli -- -c website -u https://example.com -p 5
 
 4. Verify upload:
 ```bash
-aws s3 ls s3://oobee-test-scan-results/users/test-user-123/scans/
+aws s3 ls s3://a11y-assist-test-scan-results/users/test-user-123/scans/
 ```

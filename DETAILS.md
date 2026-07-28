@@ -16,7 +16,7 @@ Details of each issue and severity rating provided by the current scan engine.
 
 #### Definitions of Conformance Level, Must Fix, Good To Fix, Manual Review Required
 
-In Oobee, issues are grouped into one of three categories:
+In A11y Assist, issues are grouped into one of three categories:
 - **Must Fix** issues includes WCAG A & AA success criteria (excluding those requiring review). 
 - **Good To Fix** issues includes WCAG Level AAA success criteria issues and all best practice rules that do not necessarily conform to WCAG success criterion but are industry accepted practices that improve the user experience.
 - **Manual Review Required** occurrences could potentially be false positive, requiring human validation for accuracy.
@@ -131,8 +131,8 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | th-has-data-cells           | Ensure that `<th>` elements and elements with role=columnheader/rowheader have data cells they describe                                               | Must Fix    | WCAG 1.3.1             |
 | video-caption               | Ensures `<video>` elements have captions                                                                                                              | Must Fix    | WCAG 1.2.2             |
 | summary-name                | Ensure summary elements have discernible text                                                                                                         | Must Fix    | WCAG 4.1.2    
-| oobee-confusing-alt-text               | The image alt text set as 'img', 'image', 'picture', 'photo', or 'graphic' is confusing or not useful                                                                                                                            | Must Fix    | WCAG 1.1.1  
-| oobee-accessible-label               | Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.                                                                                                              | Must Fix    | WCAG 2.1.1, WCAG 4.1.2             |
+| a11yassist-confusing-alt-text               | The image alt text set as 'img', 'image', 'picture', 'photo', or 'graphic' is confusing or not useful                                                                                                                            | Must Fix    | WCAG 1.1.1  
+| a11yassist-accessible-label               | Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.                                                                                                              | Must Fix    | WCAG 2.1.1, WCAG 4.1.2             |
 
 ## WCAG 2.0 Level AA
 
@@ -162,7 +162,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 | color-contrast-enhanced      | Ensure the contrast between foreground and background colors meets WCAG 2 AAA enhanced contrast ratio thresholds | Good to Fix | WCAG 1.4.6             |
 | identical-links-same-purpose | Ensure that links with the same accessible name serve a similar purpose                                          | Good to Fix | WCAG 2.4.9             |
 | meta-refresh-no-exceptions   | Ensure <meta http-equiv="refresh"> is not used for delayed refresh                                               | Good to Fix | WCAG 2.2.4, WCAG 3.2.5 |
-| oobee-grading-text-contents               | Text content should be clear and plain to ensure that it is easily understood.                                                                                                              | Manual Review Required    | WCAG 3.1.5             |
+| a11yassist-grading-text-contents               | Text content should be clear and plain to ensure that it is easily understood.                                                                                                              | Manual Review Required    | WCAG 3.1.5             |
 
 ## Best Practice
 
@@ -201,7 +201,7 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 
 #### 1. Text Extraction
 
-During a page scan, Oobee extracts text from all `<p>` elements on the page (via extractAndGradeText.ts or extractText.ts). The raw text is split into individual **sentences** using the pattern `/[^.!?]*[.!?]+/g` — only text segments ending with `.`, `!`, or `?` are kept.
+During a page scan, A11y Assist extracts text from all `<p>` elements on the page (via extractAndGradeText.ts or extractText.ts). The raw text is split into individual **sentences** using the pattern `/[^.!?]*[.!?]+/g` — only text segments ending with `.`, `!`, or `?` are kept.
 
 #### 2. Flesch Reading Ease Scoring
 
@@ -216,7 +216,7 @@ The extracted sentences are joined into a single string and word-counted. If the
 
 #### 3. Flagging Criteria
 
-The `oobee-grading-text-contents` rule is **only enabled when WCAG AAA mode is on** (`enableWcagAaa = true`) and violations are flagged under **Manual Review Required** findings. It maps to **WCAG 3.1.5 (Reading Level)**.
+The `a11yassist-grading-text-contents` rule is **only enabled when WCAG AAA mode is on** (`enableWcagAaa = true`) and violations are flagged under **Manual Review Required** findings. It maps to **WCAG 3.1.5 (Reading Level)**.
 
 A page is **flagged** (incomplete) when the Flesch Reading Ease score is **50 or below**, indicating the text is potentially difficult to understand. The issue message reports the exact score and explains that the target passing score is above 50.
 

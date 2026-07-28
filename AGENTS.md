@@ -1,8 +1,8 @@
-# Oobee Developer Guide
+# A11y Assist Developer Guide
 
 > **Keep this file up to date.** When you make changes that affect architecture, crawl behavior, environment variables, or testing considerations described here, update the relevant section in the same commit.
 
-Oobee is a web accessibility scanner that crawls websites and runs axe-core + custom checks against each page, producing HTML/PDF/CSV/JSON reports.
+A11y Assist is a web accessibility scanner that crawls websites and runs axe-core + custom checks against each page, producing HTML/PDF/CSV/JSON reports.
 
 ## Architecture Overview
 
@@ -83,9 +83,9 @@ All crawlers use Crawlee's `PlaywrightCrawler` with:
 
 ### User-Agent
 
-`initModifiedUserAgent()` detects the default UA, replaces `HeadlessChrome` with `Chrome`, stores in `process.env.OOBEE_USER_AGENT`. This must be called before any browser context that talks to remote servers in headless mode, or bot-blocking WAFs will reject requests.
+`initModifiedUserAgent()` detects the default UA, replaces `HeadlessChrome` with `Chrome`, stores in `process.env.A11Y_ASSIST_USER_AGENT`. This must be called before any browser context that talks to remote servers in headless mode, or bot-blocking WAFs will reject requests.
 
-Contexts that need `userAgent: process.env.OOBEE_USER_AGENT`:
+Contexts that need `userAgent: process.env.A11Y_ASSIST_USER_AGENT`:
 - `getRobotsTxtViaPlaywright()` — robots.txt fetching
 - `findSitemap()` in `crawlIntelligentSitemap.ts` — sitemap path probing
 - `getDataUsingPlaywright()` in `getLinksFromSitemap()` — sitemap XML content fetching
@@ -133,19 +133,19 @@ The `constants` default export object holds runtime state:
 | Variable | Purpose |
 |----------|---------|
 | `CRAWLEE_HEADLESS` | `1` = headless, `0` = headful (set by `setHeadlessMode()`) |
-| `OOBEE_USER_AGENT` | Modified UA (set by `initModifiedUserAgent()`) |
-| `OOBEE_VERBOSE` | Enable verbose console logging |
-| `OOBEE_LOGS_PATH` | Custom log directory |
-| `OOBEE_SLOWMO` | Browser slowmo in ms |
-| `OOBEE_FAST_CRAWLER` | Experimental high-concurrency mode |
-| `OOBEE_DISABLE_BROWSER_DOWNLOAD` | Block browser file downloads |
-| `OOBEE_TAGGED_WEBSITE` | Tag to identify the website in Sentry telemetry (overridden by `--websiteTag` CLI flag) |
-| `OOBEE_SCAN_METADATA` | Overrides `entryUrl` tag in Sentry events |
-| `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
-| `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl (default 100) |
-| `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
-| `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML for desktop and mobile viewports to `pageDOMs/desktopPageDOMs/` and `pageDOMs/mobilePageDOMs/` in results directory. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
-| `OOBEE_SAVE_PAGE_SCREENSHOT` | `1` or `true` = save full-page desktop + mobile viewport screenshots to `pageDOMs/desktopPageScreenshots/` and `pageDOMs/mobilePageScreenshots/`. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
+| `A11Y_ASSIST_USER_AGENT` | Modified UA (set by `initModifiedUserAgent()`) |
+| `A11Y_ASSIST_VERBOSE` | Enable verbose console logging |
+| `A11Y_ASSIST_LOGS_PATH` | Custom log directory |
+| `A11Y_ASSIST_SLOWMO` | Browser slowmo in ms |
+| `A11Y_ASSIST_FAST_CRAWLER` | Experimental high-concurrency mode |
+| `A11Y_ASSIST_DISABLE_BROWSER_DOWNLOAD` | Block browser file downloads |
+| `A11Y_ASSIST_TAGGED_WEBSITE` | Tag to identify the website in Sentry telemetry (overridden by `--websiteTag` CLI flag) |
+| `A11Y_ASSIST_SCAN_METADATA` | Overrides `entryUrl` tag in Sentry events |
+| `A11Y_ASSIST_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
+| `A11Y_ASSIST_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl (default 100) |
+| `A11Y_ASSIST_VALIDATE_URL` | If set, exit after URL validation without scanning |
+| `A11Y_ASSIST_SAVE_DOM` | `1` or `true` = save full-page DOM HTML for desktop and mobile viewports to `pageDOMs/desktopPageDOMs/` and `pageDOMs/mobilePageDOMs/` in results directory. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
+| `A11Y_ASSIST_SAVE_PAGE_SCREENSHOT` | `1` or `true` = save full-page desktop + mobile viewport screenshots to `pageDOMs/desktopPageScreenshots/` and `pageDOMs/mobilePageScreenshots/`. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
 | `GOOGLE_SAFE_BROWSING` | `1` = enable Google Safe Browsing (requires Chrome, not Chromium) |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | Proxy configuration |
 | `NO_PROXY` / `INCLUDE_PROXY` | Proxy bypass/include lists |
@@ -172,7 +172,7 @@ The `constants` default export object holds runtime state:
 - Defaults to system Chrome if available, falls back to webkit (not Chromium)
 - Browser profiles at `~/Library/Application Support/Google/Chrome`
 - Typically headful (non-headless)
-- Logs at `~/Library/Application Support/Oobee/`
+- Logs at `~/Library/Application Support/A11y Assist/`
 
 ### Windows
 - Defaults to system Chrome, falls back to Edge
@@ -263,20 +263,20 @@ node dist/cli.js            # Run CLI
 
 Docker:
 ```bash
-docker build -t oobee .
-docker run oobee node dist/cli.js ...
+docker build -t a11y-assist .
+docker run a11y-assist node dist/cli.js ...
 ```
 
 ## Common Pitfalls
 
-1. **Bot-blocking in headless mode** — Any new browser context that fetches remote content in headless mode must pass `userAgent: process.env.OOBEE_USER_AGENT`. Without this, sites with WAFs block the request.
+1. **Bot-blocking in headless mode** — Any new browser context that fetches remote content in headless mode must pass `userAgent: process.env.A11Y_ASSIST_USER_AGENT`. Without this, sites with WAFs block the request.
 
 2. **`maxRequestsPerCrawl` semantics** — This counts *successfully scanned* pages, not total requests. The sitemap enqueues all discovered URLs; the crawler stops when enough succeed. Errored pages do not consume the budget.
 
 3. **Browser profile isolation** — Each scan clones browser profiles with a `randomToken` suffix. Profiles must be cleaned up after scan (`deleteClonedProfiles()`).
 
-    - If Chrome/Edge profile cloning fails (for example `EBUSY` while copying locked cookie/state files on Windows), Oobee now falls back to an empty cloned profile directory for that scan. This keeps browser launch stable, but authenticated session cookies may not be available.
-    - Crawlee's browser pool retires and re-launches browser instances after ~4 minutes. On Windows, reusing the same `--user-data-dir` causes Chrome exit code 21 (stale lock contention). `getPreLaunchHook()` in `commonCrawlerFunc.ts` assigns unique `_pool{N}` directories for each re-launch and performs a best-effort async clone of the base profile. Cleanup must glob `_pool*` directories alongside the base `oobee-{token}` dir.
+    - If Chrome/Edge profile cloning fails (for example `EBUSY` while copying locked cookie/state files on Windows), A11y Assist now falls back to an empty cloned profile directory for that scan. This keeps browser launch stable, but authenticated session cookies may not be available.
+    - Crawlee's browser pool retires and re-launches browser instances after ~4 minutes. On Windows, reusing the same `--user-data-dir` causes Chrome exit code 21 (stale lock contention). `getPreLaunchHook()` in `commonCrawlerFunc.ts` assigns unique `_pool{N}` directories for each re-launch and performs a best-effort async clone of the base profile. Cleanup must glob `_pool*` directories alongside the base `a11yassist-{token}` dir.
     - On Windows, Chrome writes files asynchronously during its shutdown sequence (`first_party_sets.db`, `optimization_guide_model_store/`, `segmentation_platform/`, `Local State`, `Profile N/`). Pool directory cleanup uses a 5s initial delay (vs 2s on other platforms) and retries up to 3 times in `getPostPageCloseHook()`. The final sweep in `cleanUp()` also retries after a 3s delay on Windows.
 
 4. **`constants.launcher` mutation** — When webkit is the fallback, `constants.launcher` is reassigned globally. This affects all subsequent browser launches in the same process.
@@ -365,7 +365,7 @@ When making changes, validate these areas which have well-established edge cases
 - Sites with WAFs (Cloudflare, Akamai, etc.) will start returning 403/503 after a certain number of concurrent requests — typically 200-300 pages in rapid succession.
 - Both crawlers use a shared `CrawlRateController` class (`src/crawlers/crawlRateController.ts`) that provides:
   1. **Strict maxPages**: `claimSlot()` is called at the moment of success (synchronously right before `urlsCrawled.scanned.push()`), not at the top of the request handler. `abort()` is called only after claiming the last slot (`isLimitReached()` becomes true post-claim). Never abort from the top of the handler — doing so kills in-flight pages that other handlers are scanning, causing undershoot.
-  2. **Circuit breaker**: After 100 consecutive HTTP 4xx/5xx failures (configurable via `OOBEE_CONSECUTIVE_MAX_RETRIES`), the crawl aborts gracefully.
+  2. **Circuit breaker**: After 100 consecutive HTTP 4xx/5xx failures (configurable via `A11Y_ASSIST_CONSECUTIVE_MAX_RETRIES`), the crawl aborts gracefully.
   3. **Adaptive concurrency**: On each 4xx/5xx failure, concurrency is halved (floor 1). After every 10 consecutive successes, concurrency recovers by +2 toward the original value. This automatically finds the site's rate limit threshold without manual tuning.
 - **Critical placement of `claimSlot()` and `abort()`**: `claimSlot()` must be synchronously right before `push()` — never at the top of the handler. `abort()` must be called only after the last slot is claimed — never from an early-exit check. Pages can be discarded mid-handler (redirect, dedup, robots.txt block), and aborting prematurely kills in-flight handlers that would have succeeded.
 - Only HTTP 4xx/5xx responses trigger rate adaptation and count toward the circuit breaker — timeouts and network errors do not.
@@ -394,7 +394,7 @@ When making changes, validate these areas which have well-established edge cases
 - **postNavigationHook DOM observer must be identical**: Both crawlers use a MutationObserver in `postNavigationHooks` to wait for DOM stabilization before proceeding to the request handler. The observer must call `observer.observe(root, { childList: true, subtree: true })` — without this call, the hook degrades to a fixed 5-second timeout (the `OBSERVER_TIMEOUT` fallback) and the DOM may be in a different state when scanning begins.
 - **`runAxeScript()` has its own secondary DOM observer** (in `commonCrawlerFunc.ts`) that additionally watches `attributes: true`. This is a second stabilization gate shared by all crawlers — it ensures attribute animations settle before axe runs.
 - **`waitForPageLoaded(page, 10000)` in the requestHandler** is the third stabilization check (waits for `load` event or 10s timeout). All crawlers call this at the top of their request handler.
-- **Parameters passed to `runAxeScript()` must match**: both must pass `ruleset` (controls `DISABLE_OOBEE` / `ENABLE_WCAG_AAA`). Any new parameter added to `runAxeScript()` must be propagated to all crawlers via `combine.ts`.
+- **Parameters passed to `runAxeScript()` must match**: both must pass `ruleset` (controls `DISABLE_A11Y_ASSIST` / `ENABLE_WCAG_AAA`). Any new parameter added to `runAxeScript()` must be propagated to all crawlers via `combine.ts`.
 - **Error handling in postNavigationHook**: wrap `page.evaluate()` in try/catch to handle pages destroyed during the DOM observer (navigation, timeout, crash). Without this, the error propagates and may affect Crawlee's retry logic differently between crawlers.
 
 ### Axe & Custom Checks
@@ -418,15 +418,15 @@ When making changes, validate these areas which have well-established edge cases
 ├── scanPagesSummary.json   # Page-level summary
 ├── sitemap.xml             # Discovered URLs
 ├── screenshots/            # Violation screenshots (if enabled)
-└── pageDOMs/              # Page capture (if OOBEE_SAVE_DOM or OOBEE_SAVE_PAGE_SCREENSHOT)
+└── pageDOMs/              # Page capture (if A11Y_ASSIST_SAVE_DOM or A11Y_ASSIST_SAVE_PAGE_SCREENSHOT)
     ├── domManifest.json                     # Maps URLs → hash, file paths, errors
-    ├── desktopPageDOMs/                    # Desktop viewport DOM HTML (OOBEE_SAVE_DOM)
+    ├── desktopPageDOMs/                    # Desktop viewport DOM HTML (A11Y_ASSIST_SAVE_DOM)
     │   └── {hash}-{truncated_path}.html
-    ├── mobilePageDOMs/                     # Mobile viewport DOM HTML (OOBEE_SAVE_DOM)
+    ├── mobilePageDOMs/                     # Mobile viewport DOM HTML (A11Y_ASSIST_SAVE_DOM)
     │   └── {hash}-{truncated_path}.html
-    ├── desktopPageScreenshots/             # Desktop viewport PNGs (OOBEE_SAVE_PAGE_SCREENSHOT)
+    ├── desktopPageScreenshots/             # Desktop viewport PNGs (A11Y_ASSIST_SAVE_PAGE_SCREENSHOT)
     │   └── {hash}-{truncated_path}.png
-    └── mobilePageScreenshots/              # Mobile viewport PNGs (OOBEE_SAVE_PAGE_SCREENSHOT)
+    └── mobilePageScreenshots/              # Mobile viewport PNGs (A11Y_ASSIST_SAVE_PAGE_SCREENSHOT)
         └── {hash}-{truncated_path}.png
 ```
 

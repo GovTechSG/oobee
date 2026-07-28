@@ -2,7 +2,7 @@
 
 Various types of reports are provided to help you to identify, manage, and understand the scale of accessibility for each website.  
 
-In order to generate JSON reports, you need to parse the switch `-g yes` in Oobee CLI.  For each of the JSON reports listed below, a compressed version with the file extension `json.gz.b64` is provided.  See below for steps on uncompressing the compressed JSON files.
+In order to generate JSON reports, you need to parse the switch `-g yes` in A11y Assist CLI.  For each of the JSON reports listed below, a compressed version with the file extension `json.gz.b64` is provided.  See below for steps on uncompressing the compressed JSON files.
 
 ## HTML, CSV and Summary Reports
 
@@ -51,7 +51,7 @@ This file contains a summary of accessibility issues found in a scan, categorize
 ### Sample JSON
 ```json
 {
-  "oobeeAppVersion": "<string>",
+  "a11yassistAppVersion": "<string>",
   "mustFix": { "totalItems": <number>, "totalRuleIssues": <number> },
   "goodToFix": { "totalItems": <number>, "totalRuleIssues": <number> },
   "needsReview": { "totalItems": <number>, "totalRuleIssues": <number> },
@@ -110,7 +110,7 @@ This file contains a summary of accessibility issues found in a scan, categorize
 
 | Variable | Description |
 |----------|-------------|
-| `oobeeAppVersion` | Version of the Oobee application used for the scan. |
+| `a11yassistAppVersion` | Version of the A11y Assist application used for the scan. |
 | `mustFix` | Summary of must-fix issues including `totalItems` and `totalRuleIssues`. |
 | `goodToFix` | Summary of good-to-fix issues including `totalItems` and `totalRuleIssues`. |
 | `needsReview` | Summary of needs-review issues including `totalItems` and `totalRuleIssues`. |
@@ -160,7 +160,7 @@ This file contains a summary of accessibility issues found in a scan, categorize
 ### Sample JSON
 ```json
 {
-  "oobeeAppVersion": "<string>",
+  "a11yassistAppVersion": "<string>",
   "mustFix": [],
   "goodToFix": [
     {
@@ -182,7 +182,7 @@ This file contains a summary of accessibility issues found in a scan, categorize
 
 | Variable | Description |
 |----------|-------------|
-| `oobeeAppVersion` | Version of the Oobee application used for the scan. |
+| `a11yassistAppVersion` | Version of the A11y Assist application used for the scan. |
 | `mustFix` | Array of must-fix issues. |
 | `goodToFix` | Array of good-to-fix issues. |
 | `needsReview` | Array of issues requiring human review. |
@@ -202,7 +202,7 @@ This file contains a summary of pages affected by accessibility issues.
 ### Sample JSON
 ```json
 {
-  "oobeeAppVersion": "<string>",
+  "a11yassistAppVersion": "<string>",
   "pagesAffected": [
     {
       "pageTitle": "<string>",
@@ -253,7 +253,7 @@ This file contains a summary of pages affected by accessibility issues.
 
 | Variable | Description |
 |----------|-------------|
-| `oobeeAppVersion` | Version of the Oobee application used for the scan. |
+| `a11yassistAppVersion` | Version of the A11y Assist application used for the scan. |
 | `pagesAffected` | Array of objects representing pages with accessibility issues. |
 | `pageTitle` | Title of the affected page. |
 | `url` | URL of the affected page. |
@@ -282,7 +282,7 @@ This file contains a summary of accessibility issues found in a scan, categorize
 
 ```json
 {
-  "oobeeAppVersion": "<string>",
+  "a11yassistAppVersion": "<string>",
   "pagesAffected": [
     {
       "pageTitle": "<string>",
@@ -377,7 +377,7 @@ In scanPagesSummary.json and scanPagesDetail,json, within each `pagesNotScanned`
 | 101  | 101 – Switching Protocols                      |
 | 102  | 102 – Processing                               |
 | 103  | 103 – Early Hints                              |
-| 200  | Oobee was not able to scan the page due to access restrictions or compatibility issues        |
+| 200  | A11y Assist was not able to scan the page due to access restrictions or compatibility issues        |
 | 204  | 204 – No Content                               |
 | 205  | 205 – Reset Content                            |
 | 300  | 300 – Multiple Choices                         |

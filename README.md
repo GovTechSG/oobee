@@ -1,10 +1,10 @@
-# Oobee (CLI)
+# A11y Assist (CLI)
 
-[Oobee](https://go.gov.sg/oobee-cli) (formerly known as Purple A11y) is a customisable, automated accessibility testing tool that allows software development teams to assess whether their products are user-friendly to persons with disabilities (PWDs).
+[A11y Assist](https://go.gov.sg/oobee-cli) (formerly known as Purple A11y) is a customisable, automated accessibility testing tool that allows software development teams to assess whether their products are user-friendly to persons with disabilities (PWDs).
 
-This is the engine and command-line interface (CLI) for Oobee. The official application can only be downloaded at [https://go.gov.sg/oobee-cli](https://go.gov.sg/oobee-cli). We recommend that you download the software only from the official link, as other sources and/or third party links may pose risks and/or compromise your system.
+This is the engine and command-line interface (CLI) for A11y Assist. The official application can only be downloaded at [https://go.gov.sg/oobee-cli](https://go.gov.sg/oobee-cli). We recommend that you download the software only from the official link, as other sources and/or third party links may pose risks and/or compromise your system.
 
-For the **user-friendly desktop application**, check out [Oobee](https://go.gov.sg/oobee).
+For the **user-friendly desktop application**, check out [A11y Assist](https://go.gov.sg/oobee).
 
 [![DPG Badge](https://img.shields.io/badge/Verified-DPG-3333AB?logo=data:image/svg%2bxml;base64,PHN2ZyB3aWR0aD0iMzEiIGhlaWdodD0iMzMiIHZpZXdCb3g9IjAgMCAzMSAzMyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE0LjIwMDggMjEuMzY3OEwxMC4xNzM2IDE4LjAxMjRMMTEuNTIxOSAxNi40MDAzTDEzLjk5MjggMTguNDU5TDE5LjYyNjkgMTIuMjExMUwyMS4xOTA5IDEzLjYxNkwxNC4yMDA4IDIxLjM2NzhaTTI0LjYyNDEgOS4zNTEyN0wyNC44MDcxIDMuMDcyOTdMMTguODgxIDUuMTg2NjJMMTUuMzMxNCAtMi4zMzA4MmUtMDVMMTEuNzgyMSA1LjE4NjYyTDUuODU2MDEgMy4wNzI5N0w2LjAzOTA2IDkuMzUxMjdMMCAxMS4xMTc3TDMuODQ1MjEgMTYuMDg5NUwwIDIxLjA2MTJMNi4wMzkwNiAyMi44Mjc3TDUuODU2MDEgMjkuMTA2TDExLjc4MjEgMjYuOTkyM0wxNS4zMzE0IDMyLjE3OUwxOC44ODEgMjYuOTkyM0wyNC44MDcxIDI5LjEwNkwyNC42MjQxIDIyLjgyNzdMMzAuNjYzMSAyMS4wNjEyTDI2LjgxNzYgMTYuMDg5NUwzMC42NjMxIDExLjExNzdMMjQuNjI0MSA5LjM1MTI3WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+Cg==)](https://digitalpublicgoods.net/r/oobee)
 
@@ -20,17 +20,17 @@ For the **user-friendly desktop application**, check out [Oobee](https://go.gov.
 
 ## How Scanning Works
 
-For a detailed explanation of how Oobee scans websites, what affects result accuracy, recommended hardware specs, and tips for getting the best coverage, see [CRAWL.md](./CRAWL.md). Recommended reading before running large scans.
+For a detailed explanation of how A11y Assist scans websites, what affects result accuracy, recommended hardware specs, and tips for getting the best coverage, see [CRAWL.md](./CRAWL.md). Recommended reading before running large scans.
 
-## Using Oobee as a NodeJS module
+## Using A11y Assist as a NodeJS module
 
-If you wish to use Oobee as a NodeJS module that can be integrated with end-to-end testing frameworks, refer to the [integration guide](./INTEGRATION.md) on how you can do so.
+If you wish to use A11y Assist as a NodeJS module that can be integrated with end-to-end testing frameworks, refer to the [integration guide](./INTEGRATION.md) on how you can do so.
 
 ## Prerequisites and Installations
 
-### Portable Oobee
+### Portable A11y Assist
 
-Portable Oobee is the recommended way to run Oobee as it reduces the difficulty for installation. Refer to [Installation Guide](./INSTALLATION.md) for step-by-step instructions for portable Oobee.
+Portable A11y Assist is the recommended way to run A11y Assist as it reduces the difficulty for installation. Refer to [Installation Guide](./INSTALLATION.md) for step-by-step instructions for portable A11y Assist.
 
 ### Manual Installation
 
@@ -89,19 +89,19 @@ verapdf --version
 #### Environment variables (Optional)
 | Variable Name | Description | Default |
 | ------------- | ----------- | ------- |
-| OOBEE_VERBOSE | When set to `true`, log output goes to console | `false` |
-| OOBEE_FAST_CRAWLER| When set to `true`, increases scan concurrency at a rapid rate.  Experimental, may cause system stability issues on low-powered devices. | `false`|
-| OOBEE_VALIDATE_URL| When set to `true`, validates if URLs are valid and exits. | `false` |
-| OOBEE_LOGS_PATH | When set, logs are written to this path. |  |
+| A11Y_ASSIST_VERBOSE | When set to `true`, log output goes to console | `false` |
+| A11Y_ASSIST_FAST_CRAWLER| When set to `true`, increases scan concurrency at a rapid rate.  Experimental, may cause system stability issues on low-powered devices. | `false`|
+| A11Y_ASSIST_VALIDATE_URL| When set to `true`, validates if URLs are valid and exits. | `false` |
+| A11Y_ASSIST_LOGS_PATH | When set, logs are written to this path. |  |
 | WARN_LEVEL | Only used in tests. |  |
-| OOBEE_DISABLE_BROWSER_DOWNLOAD | Experimental flag to disable file downloads on Chrome/Chromium/Edge.  Does not affect Local File scan | |
-| OOBEE_SLOWMO | Experimental flag to slow down web browser behaviour by specified duration (in miliseconds) | |
-| OOBEE_TAGGED_WEBSITE | Tag to identify the website in telemetry. Can also be set via `-z, --websiteTag` CLI flag (CLI flag takes precedence). | |
-| OOBEE_SCAN_METADATA | Overrides the `entryUrl` tag sent to telemetry. | |
-| OOBEE_SCAN_PRODUCT | Adds a `scanProduct` tag to telemetry events. | |
-| OOBEE_CONSECUTIVE_MAX_RETRIES | Max consecutive HTTP failures before the circuit breaker aborts the crawl. | `100` |
-| OOBEE_SAVE_DOM | Set to `1` or `true` to save full-page DOM HTML for each scanned page in both desktop and mobile viewports to the results directory. Mobile viewport width is determined from iPhone 11 device profile. Works with all scan types (Website, Sitemap, Intelligent, LocalFile, Custom). | |
-| OOBEE_SAVE_PAGE_SCREENSHOT | Set to `1` or `true` to save full-page desktop and mobile viewport screenshots for each scanned page. Mobile viewport width is determined from iPhone 11 device profile. Works with all scan types (Website, Sitemap, Intelligent, LocalFile, Custom). | |
+| A11Y_ASSIST_DISABLE_BROWSER_DOWNLOAD | Experimental flag to disable file downloads on Chrome/Chromium/Edge.  Does not affect Local File scan | |
+| A11Y_ASSIST_SLOWMO | Experimental flag to slow down web browser behaviour by specified duration (in miliseconds) | |
+| A11Y_ASSIST_TAGGED_WEBSITE | Tag to identify the website in telemetry. Can also be set via `-z, --websiteTag` CLI flag (CLI flag takes precedence). | |
+| A11Y_ASSIST_SCAN_METADATA | Overrides the `entryUrl` tag sent to telemetry. | |
+| A11Y_ASSIST_SCAN_PRODUCT | Adds a `scanProduct` tag to telemetry events. | |
+| A11Y_ASSIST_CONSECUTIVE_MAX_RETRIES | Max consecutive HTTP failures before the circuit breaker aborts the crawl. | `100` |
+| A11Y_ASSIST_SAVE_DOM | Set to `1` or `true` to save full-page DOM HTML for each scanned page in both desktop and mobile viewports to the results directory. Mobile viewport width is determined from iPhone 11 device profile. Works with all scan types (Website, Sitemap, Intelligent, LocalFile, Custom). | |
+| A11Y_ASSIST_SAVE_PAGE_SCREENSHOT | Set to `1` or `true` to save full-page desktop and mobile viewport screenshots for each scanned page. Mobile viewport width is determined from iPhone 11 device profile. Works with all scan types (Website, Sitemap, Intelligent, LocalFile, Custom). | |
 | HTTP_PROXY | URL of the proxy server to be used for HTTP requests (e.g. `http://proxy.example.com:8080`). | |
 | HTTPS_PROXY | URL of the proxy server to be used for HTTPS requests (e.g. `https://proxy.example.com:8080`). | |
 | ALL_PROXY | URL of the proxy server to be used for all requests, typically used for SOCKS5 proxies (e.g. `socks5://proxy.example.com:1080`. Note: IPv6 direct connections may still continue even though socks5 proxy is specified due to a known issue with Chrome/Chromium. (Recommended workaround is to turn off IPv6 at host-level). | |
@@ -125,19 +125,19 @@ Please refer to [Troubleshooting section](#troubleshooting) for more information
 
 ## Features
 
-Oobee can perform the following to scan the target URL.
+A11y Assist can perform the following to scan the target URL.
 
-- To **run** Oobee in **terminal**, run `npm start`. Questions will be prompted to assist you in providing the right inputs.
+- To **run** A11y Assist in **terminal**, run `npm start`. Questions will be prompted to assist you in providing the right inputs.
 - Results will be compiled in JSON format, followed by generating a HTML report.
 
-> NOTE: For your initial scan, there may be some loading time required before use. Oobee will also ask for your name and email address and collect your app usage data to personalise your experience. Your information fully complies with [GovTech’s Privacy Policy](https://www.tech.gov.sg/privacy/).
+> NOTE: For your initial scan, there may be some loading time required before use. A11y Assist will also ask for your name and email address and collect your app usage data to personalise your experience. Your information fully complies with [GovTech’s Privacy Policy](https://www.tech.gov.sg/privacy/).
 
 #### Delete/Edit Details
 
 > You may delete and edit your cached name and e-mail address by running the following command to delete `userData.txt`:
 
-> - Windows (PowerShell): `rm "$env:APPDATA\Oobee\userData.txt"`
-> - MacOS (Terminal): `rm "$HOME/Library/Application Support/Oobee/userData.txt"`
+> - Windows (PowerShell): `rm "$env:APPDATA\A11y Assist\userData.txt"`
+> - MacOS (Terminal): `rm "$HOME/Library/Application Support/A11y Assist/userData.txt"`
 
 If `userData.txt` does not exists just run `npm start`.
 
@@ -148,7 +148,7 @@ You can interact via your arrow keys.
 ```shell
 % npm start
 ┌────────────────────────────────────────────────────────────┐
-│  Oobee (ver      )                                   │
+│  A11y Assist (ver      )                                   │
 │  We recommend using Chrome browser for the best experience.│
 │                                                            │
 │ Welcome back User!                                       │
@@ -167,14 +167,14 @@ Headless mode would allow you to run the scan in the background. If you would li
 ```shell
  % npm start
 ┌────────────────────────────────────────────────────────────┐
-│ Oobee (ver      )                                    │
+│ A11y Assist (ver      )                                    │
 │ We recommend using Chrome browser for the best experience. │
 │                                                            │
 │ Welcome back User!                                         │
 │ (Refer to readme.txt on how to change your profile)        │
 └────────────────────────────────────────────────────────────┘
 ? What would you like to scan? Sitemap
-? Do you want oobee to run in the background? (Y/n) No
+? Do you want A11y Assist to run in the background? (Y/n) No
 ```
 
 ### Sitemap Scan
@@ -182,14 +182,14 @@ Headless mode would allow you to run the scan in the background. If you would li
 ```shell
 % npm start
 ┌────────────────────────────────────────────────────────────┐
-│ Oobee (ver      )                                     │
+│ A11y Assist (ver      )                                     │
 │ We recommend using Chrome browser for the best experience. │
 │                                                            │
 │ Welcome back User!                                         │
 │ (Refer to readme.txt on how to change your profile)        │
 └────────────────────────────────────────────────────────────┘
 ? What would you like to scan? Sitemap
-? Do you want oobee to run in the background? No
+? Do you want A11y Assist to run in the background? No
 ? Which screen size would you like to scan? (Use arrow keys) Desktop
 ? Please enter URL or file path to sitemap, or drag and drop a sitemap file here:  https://www.sitemaps.org/sitemap.xml
 
@@ -202,7 +202,7 @@ Headless mode would allow you to run the scan in the background. If you would li
 
 Scanning website...
 
-#oobee will then start scraping from the file link provided above.
+# A11y Assist will then start scraping from the file link provided above.
 #Console results
 
 ```
@@ -218,14 +218,14 @@ If the sitemap URL provided is invalid, an error message will be prompted for yo
 ```shell
 % npm start
 ┌────────────────────────────────────────────────────────────┐
-│ Oobee (ver      )                                    │
+│ A11y Assist (ver      )                                    │
 │ We recommend using Chrome browser for the best experience. │
 │                                                            │
 │ Welcome back User!                                         │
 │ (Refer to readme.txt on how to change your profile)        │
 └────────────────────────────────────────────────────────────┘
 ? What would you like to scan? Website
-? Do you want oobee to run in the background? Yes
+? Do you want A11y Assist to run in the background? Yes
 ? Which screen size would you like to scan? (Use arrow keys) Desktop
 ? Please enter URL of website:  https://www.domain.org
 
@@ -242,14 +242,14 @@ If the website URL provided is invalid, an error message will be prompted for yo
 ```shell
 % npm start
 ┌────────────────────────────────────────────────────────────┐
-│ Oobee (ver      )                                   │
+│ A11y Assist (ver      )                                   │
 │ We recommend using Chrome browser for the best experience. │
 │                                                            │
 │ Welcome back User!                                         │
 │ (Refer to readme.txt on how to change your profile)        │
 └────────────────────────────────────────────────────────────┘
 ? What would you like to scan? Website
-? Do you want oobee to run in the background? No
+? Do you want A11y Assist to run in the background? No
 ? Which screen size would you like to scan? (Use arrow keys) (Use arrow keys)
 ❯ Desktop
   Mobile
@@ -267,7 +267,7 @@ Custom flow allows you to specify a user journey by enabling you to click the sc
 ```shell
 % npm start
 ┌────────────────────────────────────────────────────────────┐
-│ Oobee (ver      )                                   │
+│ A11y Assist (ver      )                                   │
 │ We recommend using Chrome browser for the best experience. │
 │                                                            │
 │ Welcome back User!                                         │
@@ -381,7 +381,7 @@ Options:
                                      ss to restricted resources.        [string]
   -y, --ruleset                      Specify scan ruleset for accessibility chec
                                      ks
-  [string] [choices: "default", "disable-oobee", "enable-wcag-aaa", "disable-oob
+  [string] [choices: "default", "disable-a11yassist", "enable-wcag-aaa", "disable-oob
                                        ee,enable-wcag-aaa"] [default: "default"]
   -g, --generateJsonFiles            Generate two gzipped and base64-encoded
                                      JSON files containing the results of the
@@ -412,7 +412,7 @@ Options:
   -l, --scanDuration                 Maximum scan duration in seconds (0 means u
                                      nlimited)             [number] [default: 0]
   -z, --websiteTag                   Tag to identify the website in telemetry.
-                                     Overrides OOBEE_TAGGED_WEBSITE env var.
+                                     Overrides A11Y_ASSIST_TAGGED_WEBSITE env var.
                                                                        [string]
 
 Examples:
@@ -568,18 +568,18 @@ You need to run the command as `npm run cli -- --` (with the extra set of `--`) 
 If the device name contains `(` and `)`, wrap the device name in single quotes when entered into the CLI.
 Please note that `-d` and `-w` are mutually exclusive. If none are specified, the default device used for the CLI scan is Desktop.
 
-For example, to conduct a website scan to the URL "http://localhost:8000" and write to "oobee-scan-results.zip" with an 'iPad (gen 7) landscape' screen, run
+For example, to conduct a website scan to the URL "http://localhost:8000" and write to "a11y-assist-scan-results.zip" with an 'iPad (gen 7) landscape' screen, run
 
 ```shell
-npm run cli -- -c 2 -o oobee-scan-results.zip -u http://localhost:8000 -d 'iPad (gen 7) landscape'
+npm run cli -- -c 2 -o a11y-assist-scan-results.zip -u http://localhost:8000 -d 'iPad (gen 7) landscape'
 ```
 
 If the site you want to scan has a query string wrap the link in single quotes when entered into the CLI.
 
-For example, to conduct a website scan to the URL "http://localhost:8000" and write to "oobee-scan-results.zip" with a custom screen width '360', run
+For example, to conduct a website scan to the URL "http://localhost:8000" and write to "a11y-assist-scan-results.zip" with a custom screen width '360', run
 
 ```shell
-npm run cli -- -c 2 -o oobee-scan-results.zip -u "http://localhost:8000" -w 360
+npm run cli -- -c 2 -o a11y-assist-scan-results.zip -u "http://localhost:8000" -w 360
 ```
 
 ## Report
@@ -606,16 +606,16 @@ The following URL and file validation error codes are provided to troubleshoot t
 | 0    | success              | (undefined)                                                                     | No action needed. Connection successful. |
 | 11   | invalidUrl           | Invalid URL. Please check and try again.                                | • Ensure the URL starts with `http://` or `https://`.<br>• Check for typos in the URL. |
 | 12   | cannotBeResolved     | URL cannot be accessed. Please verify whether the website exists.     | • Confirm the domain name is correct.<br>• Check DNS resolution with `ping` or `nslookup`.<br>• Ensure the site is publicly accessible (not behind VPN/firewall). |
-| 14   | systemError          | Something went wrong when verifying the URL. Please try again in a few minutes. If this issue persists, please contact the Oobee team.          | • Retry after a few minutes.<br>• Check internet connection.<br>• If persistent, report as a system issue. |
+| 14   | systemError          | Something went wrong when verifying the URL. Please try again in a few minutes. If this issue persists, please contact the A11y Assist team.          | • Retry after a few minutes.<br>• Check internet connection.<br>• If persistent, report as a system issue. |
 | 15   | notASitemap          | Invalid sitemap URL format. Please enter a valid sitemap URL ending with .XML or .TXT e.g. https://www.example.com/sitemap.xml.                                                | • Ensure the URL points to a valid XML sitemap.<br>• View [Examples of sitemaps sitemaps.org - Protocol](https://www.sitemaps.org/protocol.html)<br>• Test the URL in a browser to confirm it returns XML. |
-| 16   | unauthorised         | Login required. Please enter your credentials and try again.                                       | • Check if the site requires username/password.<br>• Provide credentials in Oobee if supported. |
+| 16   | unauthorised         | Login required. Please enter your credentials and try again.                                       | • Check if the site requires username/password.<br>• Provide credentials in A11y Assist if supported. |
 | 17   | browserError         | Incompatible browser. Please ensure you are using Chrome or Edge browser. | • Install the latest version of Chrome or Edge.|
 | 18   | sslProtocolError     | SSL certificate  error. Please check the SSL configuration of your website and try again. | • Verify SSL certificate validity (not expired, issued by trusted CA).<br>• Check for mismatched TLS versions or cipher issues.<br>• Use an SSL checker tool (e.g., Qualys SSL Labs). |
 | 19   | notALocalFile        | Uploaded file format is incorrect. Please upload a HTML, PDF, XML or TXT file.                  | • Verify the file format.<br>• Ensure you are selecting `.html`, `.pdf`, `.xml`, or `.txt`. |
 | 20   | notAPdf              | URL/file format is incorrect. Please upload a PDF file.                                       | • Ensure the file ends with `.pdf`.<br>• Open the file manually to confirm it is a valid PDF. |
 | 21   | notASupportedDocument| Uploaded file format is incorrect. Please upload a HTML, PDF, XML or TXT file.                 | • Confirm file format.<br>• Convert to a supported type if necessary. |
-| 22   | connectionRefused    | Connection refused. Please try again in a few minutes. If this issue persists, please contact the Oobee team.                                   | • Check if the server is running.<br>• Verify firewall settings.<br>• Retry after a short interval. |
-| 23   | timedOut             | Request timed out. Please try again in a few minutes. If this issue persists, please contact the Oobee team.                                    | • Check your internet speed and stability.<br>• Retry when the server load is lower. |
+| 22   | connectionRefused    | Connection refused. Please try again in a few minutes. If this issue persists, please contact the A11y Assist team.                                   | • Check if the server is running.<br>• Verify firewall settings.<br>• Retry after a short interval. |
+| 23   | timedOut             | Request timed out. Please try again in a few minutes. If this issue persists, please contact the A11y Assist team.                                    | • Check your internet speed and stability.<br>• Retry when the server load is lower. |
 
 
 ### Incompatible Node.js versions
@@ -635,7 +635,7 @@ SyntaxError: Invalid regular expression: /https?://(www\.)?[\p{L}0-9][-\p{L}0-9@
 **Issue**: When you switch between different versions of Node.js in your environment, you may face the following error.
 
 ```shell
-<user_path>/oobee/node_modules/bindings/bindings.js:91
+<user_path>/a11y-assist/node_modules/bindings/bindings.js:91
         throw e
         ^
 
@@ -648,12 +648,12 @@ the module (for instance, using `npm rebuild` or `npm install`).
 
 **Solution**: As recommended in the error message, run `npm rebuild` or `npm install`
 
-### Oobee Exits Without An Error
+### A11y Assist Exits Without An Error
 
-**Issue**: Oobee does not start a scan as shown below
+**Issue**: A11y Assist does not start a scan as shown below
 
 ```shell
-> @govtechsg/oobee@0.10.68 cli
+> @govtechsg/a11y-assist@0.10.68 cli
 > node --max-old-space-size=10000 dist/cli.js -c -u https://example.com
 ```
 
@@ -661,24 +661,24 @@ the module (for instance, using `npm rebuild` or `npm install`).
 
 1. Delete existing `node_modules` folder and re-install the npm packages with `npm install`.
 
-2. Set Oobee Verbose mode so more errors are shown during a scan 
+2. Set A11y Assist Verbose mode so more errors are shown during a scan 
 #### On MacOS:
 ```
-export OOBEE_VERBOSE=1
+export A11Y_ASSIST_VERBOSE=1
 ```
 #### On Windows
 ```
-$env:OOBEE_VERBOSE=1
+$env:A11Y_ASSIST_VERBOSE=1
 ```
 
 3. Re-run a scan and see if the issue is resolved.
 
 4. Get the error log information. Error log is available at the log file that is written to `<uuid>.txt`
 ```
-{"timestamp":"2025-09-26 11:13:57","level":"info","message":"Logger writing to: /Users/.../Oobee/...txt"}
+{"timestamp":"2025-09-26 11:13:57","level":"info","message":"Logger writing to: /Users/.../A11y Assist/...txt"}
 ```
 
-5. Open an [https://github.com/GovTechSG/oobee/issues](issue). Describe the steps to the problem and paste a copy of the error log.
+5. Open an [https://github.com/GovTechSG/a11y-assist/issues](issue). Describe the steps to the problem and paste a copy of the error log.
 
 
 ### Element Screenshot Limitation
@@ -699,13 +699,13 @@ We recommend looking at our **Technology Stack** to understand the usage of each
 
 ## Additional Information on Data
 
-Oobee uses third-party open-source tools that may be downloaded over the Internet during the installation process of Oobee. Users should be aware of the libraries used by examining `package.json`.
+A11y Assist uses third-party open-source tools that may be downloaded over the Internet during the installation process of A11y Assist. Users should be aware of the libraries used by examining `package.json`.
 
-Oobee may send information to the website or URL where the user chooses to initiate a Oobee scan. Limited user information such as e-mail address, name, and basic analytics is collected for the purpose of knowing our usage patterns better.
+A11y Assist may send information to the website or URL where the user chooses to initiate a A11y Assist scan. Limited user information such as e-mail address, name, and basic analytics is collected for the purpose of knowing our usage patterns better.
 
 ## Development and Testing Helpers
 
-Useful helpers for Oobee developers
+Useful helpers for A11y Assist developers
 ### Generate new HTML
 When working on EJS (HTML, CSS, JS), use the following helper script to test your changes so that you do not need to run a full scan to get the new report in results directory.
 

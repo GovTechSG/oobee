@@ -146,7 +146,7 @@ Fix all of the following:
 
 ---
 
-## 5. `oobee-grading-text-contents` (WCAG AAA — needsReview)
+## 5. `a11yassist-grading-text-contents` (WCAG AAA — needsReview)
 
 **Element:**
 ```html
@@ -175,4 +175,4 @@ Only scores in the range 1–50 trigger a violation (scores > 50 pass, scores �
 - **color-contrast** and **color-contrast-enhanced** messages include computed color recommendations using WCAG relative luminance math with a binary search on HSL lightness.
 - **target-size** appends `Computed hit area` and, when `box-sizing: border-box` with explicit inline dimensions is detected, a `Tip` explaining why padding won't help.
 - **valid-lang** appends a `NOTE` when the lang value uses a private-use `x-*` prefix, plus the element's text content (up to 120 chars) to help identify the correct language code.
-- **oobee-grading-text-contents** now appends a plain-language interpretation of the Flesch-Kincaid score immediately after the numeric value.
+- **a11yassist-grading-text-contents** now appends a plain-language interpretation of the Flesch-Kincaid score immediately after the numeric value.

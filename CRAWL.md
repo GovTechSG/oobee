@@ -1,9 +1,9 @@
-# How Oobee Scanning Works
+# How A11y Assist Scanning Works
 
 ## Table of Contents
 
 **Part 1: How Scanning Affects Accessibility Results**
-- [What Oobee Does](#what-oobee-does)
+- [What A11y Assist Does](#what-a11y-assist-does)
 - [What Gets Scanned](#what-gets-scanned)
 - [Scan Strategy](#scan-strategy)
 - [Why Some Pages Are Not Scanned](#why-some-pages-are-not-scanned)
@@ -27,16 +27,16 @@
 
 ## Part 1: How Scanning Affects Accessibility Results
 
-### What Oobee Does
+### What A11y Assist Does
 
-Oobee visits web pages using a real browser (Chrome/Chromium) and runs automated accessibility checks against each page. It produces a report of issues found, organized by severity (must fix, good to fix, needs review).
+A11y Assist visits web pages using a real browser (Chrome/Chromium) and runs automated accessibility checks against each page. It produces a report of issues found, organized by severity (must fix, good to fix, needs review).
 
 ### What Gets Scanned
 
-Oobee supports three main scan modes:
+A11y Assist supports three main scan modes:
 
 - **Intelligent** (recommended): Automatically finds your sitemap via robots.txt, scans all sitemap pages, then follows links to discover any pages the sitemap missed. This gives the most complete and predictable coverage — the sitemap ensures known pages are scanned in a consistent order, while link discovery catches pages the sitemap doesn't list.
-- **Sitemap**: Scans only the pages listed in your website's sitemap XML file. You provide the sitemap URL, and Oobee visits each page listed in it. Good when you know your sitemap is comprehensive.
+- **Sitemap**: Scans only the pages listed in your website's sitemap XML file. You provide the sitemap URL, and A11y Assist visits each page listed in it. Good when you know your sitemap is comprehensive.
 - **Website**: Starts at one page and follows links to discover more pages on the same site. Discovers pages organically by extracting links from each page it visits. Coverage depends heavily on site navigation structure.
 
 Not all pages on a site will necessarily be scanned. The scanner stops when it reaches the page limit, time limit, or runs out of discoverable pages.
@@ -121,7 +121,7 @@ Scanning is CPU and memory intensive — each page runs in a real browser with f
 | 1,000 pages | ECS Fargate, 2 vCPU / 4 GB RAM | 10 (`-t 10`) | 2-3 hours |
 | 5,000 pages | Recent Core Ultra or Snapdragon X Series Laptop/Desktop, 8 cores / 12 threads, 24 GB RAM | 25 (`-t 25`) | 2-3 hours |
 
-**Oobee Desktop** runs with `OOBEE_FAST_CRAWLER=true`, which means concurrency scales up aggressively to the maximum (25) as fast as possible. This is suitable for desktop machines with adequate CPU and RAM, but may cause stability issues on low-powered devices.
+**A11y Assist Desktop** runs with `A11Y_ASSIST_FAST_CRAWLER=true`, which means concurrency scales up aggressively to the maximum (25) as fast as possible. This is suitable for desktop machines with adequate CPU and RAM, but may cause stability issues on low-powered devices.
 
 Setting concurrency above 25 (e.g. `-t 50`) is possible but generally provides no speed improvement — either the target website rate-limits the extra requests, or the machine itself becomes the bottleneck (CPU saturation, memory pressure). In practice, 25 is the sweet spot for most hardware and most sites.
 
@@ -133,7 +133,7 @@ These estimates assume the target site doesn't aggressively rate-limit. Actual t
 
 **Disk space**: Ensure at least 20 GB free for a 5,000-page scan. This accounts for browser pool directories (~30-50 MB active at any time, but accumulates if cleanup is delayed), intermediate per-page JSON results (~2-5 KB each, ~10-25 MB total), uncompressed report artifacts (HTML report with embedded data can reach 500 MB+ before compression), and temporary PDF/screenshot storage if enabled. Smaller scans (1,000 pages) can get by with 5-10 GB free. Running out of disk space mid-scan causes hard failures (ENOSPC).
 
-**Slow machines degrade both coverage and accuracy**: Oobee has fixed timeouts — 30 seconds for a page to start loading, 90 seconds total for the page to load and be scanned. On an underpowered machine, Chromium itself runs slowly, which means:
+**Slow machines degrade both coverage and accuracy**: A11y Assist has fixed timeouts — 30 seconds for a page to start loading, 90 seconds total for the page to load and be scanned. On an underpowered machine, Chromium itself runs slowly, which means:
 
 - **Dropped pages**: Pages that would load fine on a fast machine may hit the 30s navigation timeout simply because the CPU can't parse JavaScript fast enough. These pages are retried 3 times and then recorded as errors.
 - **Inaccurate DOM state**: Poorly-coded websites that rely on JavaScript to render content (SPAs, lazy-loaded components, deferred widgets) may not finish rendering before the scanner checks them. On a fast machine, the DOM mutation observer (5s quiet window) catches most dynamic content. On a slow machine, JavaScript execution is delayed — the DOM appears "settled" (no mutations detected) even though rendering hasn't started yet. This means the accessibility scan runs against an incomplete page, producing false negatives (missing issues that exist on the fully-rendered page) or false positives (flagging placeholder content that would normally be replaced).
@@ -193,7 +193,7 @@ The `CrawlRateController` manages concurrency dynamically:
 
 - **On HTTP 4xx/5xx**: Concurrency halved (floor 1). Consecutive failure counter incremented.
 - **On success**: After 10 consecutive successes, concurrency increases by 2 (up to original max). Counter reset.
-- **Circuit breaker**: After 100 consecutive failures (`OOBEE_CONSECUTIVE_MAX_RETRIES`), the crawl aborts gracefully.
+- **Circuit breaker**: After 100 consecutive failures (`A11Y_ASSIST_CONSECUTIVE_MAX_RETRIES`), the crawl aborts gracefully.
 - **403 retry**: First 403 re-enqueued with `rateLimitRetried` flag (doesn't count toward circuit breaker). Second 403 is permanent failure.
 
 Crawlee's `retryOnBlocked: true` detects blocked responses (403, 429) and rotates sessions automatically before the request reaches the handler.
@@ -238,7 +238,7 @@ The report splits "Pages Not Scanned" further:
 Key `STATUS_CODE_METADATA` values:
 - `[1]` = "Not A Supported Document"
 - `[2]` = "Web Crawler Errored"
-- `[200]` = "Oobee was not able to scan the page due to access restrictions or compatibility issues"
+- `[200]` = "A11y Assist was not able to scan the page due to access restrictions or compatibility issues"
 - `[403]` = "403 - Forbidden"
 - `[599]` = "Uncommon Response Status Code Received"
 
