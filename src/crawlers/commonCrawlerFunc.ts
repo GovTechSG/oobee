@@ -657,6 +657,17 @@ export const enrichViolationMessages = async (results: AxeResults, page: Page): 
       if (!cssSelector) continue;
 
       if (violation.id === 'target-size') {
+        // Axe's target-size check records the actual hit-area sub-rect it
+        // evaluated (partiallyObscured/largestInnerRect cases can be much
+        // smaller than the element's bounding box). Prefer those stored
+        // dimensions; re-measuring the element from the DOM reports the full
+        // size and misrepresents the violation.
+        const axeCheck = (node.any || []).find(c => c.id === 'target-size') as
+          | { data?: { width?: number; height?: number } }
+          | undefined;
+        const axeWidth = axeCheck?.data?.width;
+        const axeHeight = axeCheck?.data?.height;
+
         const ctx = await page
           .evaluate((sel: string) => {
             try {
@@ -678,25 +689,30 @@ export const enrichViolationMessages = async (results: AxeResults, page: Page): 
           }, cssSelector)
           .catch(() => null);
 
-        if (ctx) {
-          const spacingMatch = node.failureSummary?.match(/diameter of (\d+)px/);
-          const spacing = spacingMatch ? spacingMatch[1] : null;
+        const width = axeWidth !== undefined ? axeWidth : ctx?.renderedWidth;
+        const height = axeHeight !== undefined ? axeHeight : ctx?.renderedHeight;
 
-          let message = `Insufficient target size: ${ctx.renderedWidth}px by ${ctx.renderedHeight}px (box-sizing: ${ctx.boxSizing}).\n  Ensure it is at least 24px by 24px.`;
+        if (width === undefined || height === undefined) continue;
 
-          if (spacing) {
-            message += `\n  Target has insufficient space to its adjacent element of ${spacing}px. Ensure it has a safe clickable space of at least 24px.`;
-          }
+        const spacingMatch = node.failureSummary?.match(/diameter of (\d+)px/);
+        const spacing = spacingMatch ? spacingMatch[1] : null;
 
-          if (
-            ctx.boxSizing === 'border-box' &&
-            (ctx.inlineWidth !== null || ctx.inlineHeight !== null)
-          ) {
-            message += `\n  Current button style code snippet does not increase the hit area.\n  Remove the explicit width/height and use min-width: 24px; min-height: 24px instead.\n  Or place the visual content in a child <span> element.`;
-          }
+        const boxSizingLabel = ctx ? ` (box-sizing: ${ctx.boxSizing})` : '';
+        let message = `Insufficient target size: ${width}px by ${height}px${boxSizingLabel}.\n  Ensure it is at least 24px by 24px.`;
 
-          node.failureSummary = message;
+        if (spacing) {
+          message += `\n  Target has insufficient space to its adjacent element of ${spacing}px. Ensure it has a safe clickable space of at least 24px.`;
         }
+
+        if (
+          ctx &&
+          ctx.boxSizing === 'border-box' &&
+          (ctx.inlineWidth !== null || ctx.inlineHeight !== null)
+        ) {
+          message += `\n  Current button style code snippet does not increase the hit area.\n  Remove the explicit width/height and use min-width: 24px; min-height: 24px instead.\n  Or place the visual content in a child <span> element.`;
+        }
+
+        node.failureSummary = message;
       } else if (violation.id === 'valid-lang') {
         const ctx = await page
           .evaluate((sel: string) => {
