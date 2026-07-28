@@ -2332,10 +2332,10 @@ export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
         let timeout: NodeJS.Timeout;
         let mutationCount = 0;
         const MAX_MUTATIONS = 500;
-        const mutationHash: Record<string, number> = {};
+        const NOVELTY_THRESHOLD = 3;
+        const signatureCounts = new WeakMap<Element, Map<string, number>>();
 
         const observer = new MutationObserver(mutationsList => {
-          clearTimeout(timeout);
           mutationCount++;
           if (mutationCount > MAX_MUTATIONS) {
             observer.disconnect();
@@ -2343,27 +2343,37 @@ export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
             return;
           }
 
+          // Only reset the quiet timer for novel mutations. Repeated mutations on
+          // the same (element, attribute) — e.g. a dropdown flipping class during
+          // page init — are treated as churn, not as a signal the DOM is still
+          // loading. See related discussion for background.
+          let sawNovel = false;
           for (const mutation of mutationsList) {
-            if (mutation.target instanceof Element) {
-              for (const attr of Array.from(mutation.target.attributes)) {
-                const key = `${mutation.target.nodeName}-${attr.name}`;
-                mutationHash[key] = (mutationHash[key] || 0) + 1;
-                if (mutationHash[key] >= 10) {
-                  observer.disconnect();
-                  resolve(`Repeated mutation detected for ${key}, exiting.`);
-                  return;
-                }
-              }
+            if (!(mutation.target instanceof Element)) continue;
+            const key =
+              mutation.type === 'attributes'
+                ? `attr:${mutation.attributeName}`
+                : mutation.type;
+            let perElement = signatureCounts.get(mutation.target);
+            if (!perElement) {
+              perElement = new Map<string, number>();
+              signatureCounts.set(mutation.target, perElement);
             }
+            const count = (perElement.get(key) || 0) + 1;
+            perElement.set(key, count);
+            if (count <= NOVELTY_THRESHOLD) sawNovel = true;
           }
 
+          if (!sawNovel) return;
+
+          clearTimeout(timeout);
           timeout = setTimeout(() => {
             observer.disconnect();
             resolve('DOM stabilized after mutations.');
           }, 1000);
         });
 
-        // Final timeout to avoid infinite waiting
+        // Initial timeout: fires if the page never mutates.
         timeout = setTimeout(() => {
           observer.disconnect();
           resolve('Observer timeout reached, exiting.');
