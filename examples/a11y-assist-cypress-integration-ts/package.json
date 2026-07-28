@@ -1,0 +1,12 @@
+{
+  "name": "a11y-assist-cypress-integration-ts",
+  "version": "1.0.0",
+  "description": "A11y Assist Cypress integration example (TypeScript)",
+  "type": "module",
+  "devDependencies": {
+    "@govtechsg/a11y-assist": "^0.10.69",
+    "@types/jest": "^30.0.0",
+    "cypress": "^15.3.0",
+    "typescript": "^5.9.3"
+  }
+}

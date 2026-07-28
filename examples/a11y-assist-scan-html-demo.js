@@ -32,7 +32,7 @@ const htmlContent2 = `
 (async () => {
   console.log("Scanning HTML string...");
   try {
-    // Run scanHTML without needing full Oobee init
+    // Run scanHTML without needing full A11y Assist init
     // Pass an array of HTML strings to demonstrate batch scanning
     const results = await scanHTML(
       [htmlContent, htmlContent2], 

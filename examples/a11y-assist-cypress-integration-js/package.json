@@ -1,0 +1,13 @@
+{
+  "name": "a11y-assist-cypress-integration-js",
+  "version": "1.0.0",
+  "description": "A11y Assist Cypress integration example (JavaScript)",
+  "type": "module",
+  "scripts": {
+    "test": "cypress run"
+  },
+  "devDependencies": {
+    "cypress": "^13.0.0",
+    "@govtechsg/a11y-assist": "^0.10.69"
+  }
+}

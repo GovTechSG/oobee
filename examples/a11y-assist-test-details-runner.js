@@ -3,7 +3,7 @@
  *
  * Runs scanPage against intentionally non-compliant test pages to capture the
  * enriched Details messages for: color-contrast, color-contrast-enhanced,
- * target-size, valid-lang, and oobee-grading-text-contents.
+ * target-size, valid-lang, and a11yassist-grading-text-contents.
  *
  * Usage: node examples/details-runner.js
  */
@@ -174,8 +174,8 @@ function extractMessages(result, ruleId) {
     await page.close();
   } catch (e) { console.error("valid-lang error:", e.message); }
 
-  // 5. Readability (oobee-grading-text-contents)
-  console.log("Scanning: oobee-grading-text-contents...");
+  // 5. Readability (a11yassist-grading-text-contents)
+  console.log("Scanning: a11yassist-grading-text-contents...");
   try {
     const page = await browser.newPage();
     await page.setContent(readabilityHTML);
@@ -192,9 +192,9 @@ function extractMessages(result, ruleId) {
       if (score > 30) interpretation = 'It is targeted for junior college (JC) level comprehension and above.';
       else interpretation = 'It is targeted for university graduate level comprehension and above.';
 
-      output['oobee-grading-text-contents'] = [{
+      output['a11yassist-grading-text-contents'] = [{
         category: 'needsReview',
-        rule: 'oobee-grading-text-contents',
+        rule: 'a11yassist-grading-text-contents',
         description: 'Page content must use clear, plain language',
         items: [{
           html: '<html lang="en">...</html>',

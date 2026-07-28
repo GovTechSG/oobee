@@ -1,4 +1,4 @@
-Cypress.Commands.add("injectOobeeA11yScripts", () => {
+Cypress.Commands.add("injectA11yAssistA11yScripts", () => {
     cy.task("getAxeScript").then((s) => {
         cy.window().then((win) => {
             try {
@@ -19,7 +19,7 @@ Cypress.Commands.add("injectOobeeA11yScripts", () => {
             }
         });
     });
-    cy.task("getOobeeA11yScripts").then((s) => {
+    cy.task("getA11yAssistA11yScripts").then((s) => {
         cy.window().then((win) => {
             try {
                 win.eval(s);
@@ -41,7 +41,7 @@ Cypress.Commands.add("injectOobeeA11yScripts", () => {
     });
 });
 
-Cypress.Commands.add("runOobeeA11yScan", (items = {}) => {
+Cypress.Commands.add("runA11yAssistA11yScan", (items = {}) => {
   cy.window().then(async (win) => {
     const { elementsToScan, elementsToClick, metadata } = items;
 
@@ -62,7 +62,7 @@ Cypress.Commands.add("runOobeeA11yScan", (items = {}) => {
                if (node.target && node.target.length > 0) {
                    const selector = node.target[0];
                    // Generate a unique filename
-                   const filename = `oobee-screenshot-${Date.now()}-${Math.floor(Math.random() * 1000)}-${index}.png`;
+                   const filename = `a11yassist-screenshot-${Date.now()}-${Math.floor(Math.random() * 1000)}-${index}.png`;
                    
                    // Check existence to prevent failure, then screenshot
                    cy.get("body").then($body => {
@@ -84,7 +84,7 @@ Cypress.Commands.add("runOobeeA11yScan", (items = {}) => {
 
         // Ensure screenshots are done before pushing results
         cy.then(() => {
-            cy.task("pushOobeeA11yScanResults", {
+            cy.task("pushA11yAssistA11yScanResults", {
               res,
               metadata,
               elementsToClick,
@@ -94,10 +94,10 @@ Cypress.Commands.add("runOobeeA11yScan", (items = {}) => {
         });
       },
     );
-    cy.task("finishOobeeA11yTestCase"); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
+    cy.task("finishA11yAssistA11yTestCase"); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate a11yassistA11y instance.
   });
 });
 
-Cypress.Commands.add("terminateOobeeA11y", () => {
-  cy.task("terminateOobeeA11y");
+Cypress.Commands.add("terminateA11yAssistA11y", () => {
+  cy.task("terminateA11yAssistA11y");
 });

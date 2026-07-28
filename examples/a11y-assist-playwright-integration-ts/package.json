@@ -1,0 +1,15 @@
+{
+  "name": "a11y-assist-playwright-integration-ts",
+  "version": "1.0.0",
+  "description": "A11y Assist Playwright integration example (TypeScript)",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node dist/a11yassist-playwright-demo.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0",
+    "@govtechsg/a11y-assist": "^0.10.69",
+    "typescript": "^5.9.3"
+  }
+}

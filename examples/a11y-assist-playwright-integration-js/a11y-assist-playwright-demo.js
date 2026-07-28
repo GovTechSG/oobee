@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
-import oobeeA11yInit from "@govtechsg/oobee";
-import { extractText } from "@govtechsg/oobee/dist/crawlers/custom/extractText.js";
+import a11yassistA11yInit from "@govtechsg/a11y-assist";
+import { extractText } from "@govtechsg/a11y-assist/dist/crawlers/custom/extractText.js";
 
 // viewport used in tests to optimise screenshots
 const viewportSettings = { width: 1920, height: 1040 };
@@ -9,9 +9,9 @@ const thresholds = { mustFix: 20, goodToFix: 25 };
 // additional information to include in the "Scan About" section of the report
 const scanAboutMetadata = { browser: 'Chrome (Desktop)' };
 // name of the generated zip of the results at the end of scan
-const resultsZipName = "oobee-scan-results.zip";
+const resultsZipName = "a11y-assist-scan-results.zip";
 
-const oobeeA11y = await oobeeA11yInit({
+const a11yassistA11y = await a11yassistA11yInit({
   entryUrl: "https://govtechsg.github.io", // initial url to start scan
   testLabel: "Demo Playwright Scan", // label for test
   name: "Your Name",
@@ -35,31 +35,31 @@ const oobeeA11y = await oobeeA11yInit({
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  const runOobeeA11yScan = async (elementsToScan, gradingReadabilityFlag) => {
+  const runA11yAssistA11yScan = async (elementsToScan, gradingReadabilityFlag) => {
     const scanRes = await page.evaluate(
       async ({ elementsToScan, gradingReadabilityFlag }) => await runA11yScan(elementsToScan, gradingReadabilityFlag),
       { elementsToScan, gradingReadabilityFlag },
     );
     // Pass page object to allow screenshot reuse
-    await oobeeA11y.pushScanResults(scanRes, undefined, undefined, page);
-    oobeeA11y.testThresholds(); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate oobeeA11y instance.
+    await a11yassistA11y.pushScanResults(scanRes, undefined, undefined, page);
+    a11yassistA11y.testThresholds(); // test the accumulated number of issue occurrences against specified thresholds. If exceed, terminate a11yassistA11y instance.
   };
 
   await page.goto('https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm');
-  await page.evaluate(oobeeA11y.getAxeScript());
-  await page.evaluate(oobeeA11y.getOobeeFunctions());
+  await page.evaluate(a11yassistA11y.getAxeScript());
+  await page.evaluate(a11yassistA11y.getA11yAssistFunctions());
 
   const sentences = await page.evaluate(() => extractText());
-  const gradingReadabilityFlag = await oobeeA11y.gradeReadability(sentences);
+  const gradingReadabilityFlag = await a11yassistA11y.gradeReadability(sentences);
 
-  await runOobeeA11yScan([], gradingReadabilityFlag);
+  await runA11yAssistA11yScan([], gradingReadabilityFlag);
 
   await page.getByRole('button', { name: 'Click Me' }).click();
   // Run a scan on <input> and <button> elements
-  await runOobeeA11yScan(['input', 'button'])
+  await runA11yAssistA11yScan(['input', 'button'])
 
   // ---------------------
   await context.close();
   await browser.close();
-  await oobeeA11y.terminate();
+  await a11yassistA11y.terminate();
 })();

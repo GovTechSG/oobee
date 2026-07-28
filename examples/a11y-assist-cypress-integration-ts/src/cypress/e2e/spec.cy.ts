@@ -1,18 +1,18 @@
 /// <reference types="cypress" />
 
 describe("template spec", () => {
-    it("should run oobee A11y", () => {
+    it("should run a11yassist A11y", () => {
         cy.visit("https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm");
-        cy.injectOobeeA11yScripts();
-        cy.runOobeeA11yScan();
+        cy.injectA11yAssistA11yScripts();
+        cy.runA11yAssistA11yScan();
          cy.get("button[onclick=\"toggleSecondSection()\"]").click();
         // Run a scan on <input> and <button> elements
-        cy.runOobeeA11yScan({
+        cy.runA11yAssistA11yScan({
             elementsToScan: ["input", "button"],
             elementsToClick: ["button[onclick=\"toggleSecondSection()\"]"],
             metadata: "Clicked button"
         });
 
-        cy.terminateOobeeA11y();
+        cy.terminateA11yAssistA11y();
     });
 });

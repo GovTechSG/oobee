@@ -1,5 +1,5 @@
 import { defineConfig } from "cypress";
-import oobeeA11yInit from "@govtechsg/oobee";
+import a11yassistA11yInit from "@govtechsg/a11y-assist";
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -10,9 +10,9 @@ const thresholds = { mustFix: 20, goodToFix: 25 };
 // additional information to include in the "Scan About" section of the report
 const scanAboutMetadata = { browser: 'Chrome (Desktop)' };
 // name of the generated zip of the results at the end of scan
-const resultsZipName = "oobee-scan-results.zip";
+const resultsZipName = "a11y-assist-scan-results.zip";
 
-const oobeeA11y = await oobeeA11yInit({
+const a11yassistA11y = await a11yassistA11yInit({
   entryUrl: "https://govtechsg.github.io/purple-banner-embeds/purple-integrated-scan-example.htm", // initial url to start scan
   testLabel: "Demo Cypress Scan", // label for test
   name: "Your Name",
@@ -24,7 +24,7 @@ const oobeeA11y = await oobeeA11yInit({
   zip: resultsZipName,
   deviceChosen: "E2E Test Device",
   strategy: undefined,
-  ruleset: ["enable-wcag-aaa"], // add "disable-oobee" to disable Oobee custom checks
+  ruleset: ["enable-wcag-aaa"], // add "disable-a11yassist" to disable A11y Assist custom checks
   specifiedMaxConcurrency: undefined,
   followRobots: undefined,
 });
@@ -37,16 +37,16 @@ export default defineConfig({
     setupNodeEvents(on, _config) {
       on("task", {
         getAxeScript() {
-          return oobeeA11y.getAxeScript();
+          return a11yassistA11y.getAxeScript();
         },
-        getOobeeA11yScripts() {
-          return oobeeA11y.getOobeeFunctions();
+        getA11yAssistA11yScripts() {
+          return a11yassistA11y.getA11yAssistFunctions();
         },
         gradeReadability(sentences) {
-          return oobeeA11y.gradeReadability(sentences);
+          return a11yassistA11y.gradeReadability(sentences);
         },
-        async pushOobeeA11yScanResults({ res, metadata, elementsToClick }) {
-          if (oobeeA11y.scanDetails.isIncludeScreenshots) {
+        async pushA11yAssistA11yScanResults({ res, metadata, elementsToClick }) {
+          if (a11yassistA11y.scanDetails.isIncludeScreenshots) {
               const moveScreenshots = (items) => {
                   if (!items) return;
                   items.forEach(item => {
@@ -71,11 +71,11 @@ export default defineConfig({
 
                               const srcPath = findFile(searchDir, node.screenshotFilename);
                               if (srcPath) {
-                                  const destDir = `results/${oobeeA11y.randomToken}/screenshots`;
+                                  const destDir = `results/${a11yassistA11y.randomToken}/screenshots`;
                                   if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
                                   const destPath = path.join(destDir, node.screenshotFilename);
                                   fs.copyFileSync(srcPath, destPath);
-                                  // Set screenshot path for Oobee report
+                                  // Set screenshot path for A11y Assist report
                                   node.screenshotPath = node.screenshotFilename; 
                               }
                           }
@@ -88,17 +88,17 @@ export default defineConfig({
           }
 
           // Pass disableScreenshots=true to avoid opening a new Playwright browser
-          return await oobeeA11y.pushScanResults(res, metadata, elementsToClick, undefined, true);
+          return await a11yassistA11y.pushScanResults(res, metadata, elementsToClick, undefined, true);
         },
         returnResultsDir() {
-          return `results/${oobeeA11y.randomToken}_${oobeeA11y.scanDetails.urlsCrawled.scanned.length}pages/report.html`;
+          return `results/${a11yassistA11y.randomToken}_${a11yassistA11y.scanDetails.urlsCrawled.scanned.length}pages/report.html`;
         },
-        finishOobeeA11yTestCase() {
-          oobeeA11y.testThresholds();
+        finishA11yAssistA11yTestCase() {
+          a11yassistA11y.testThresholds();
           return null;
         },
-        async terminateOobeeA11y() {
-          return await oobeeA11y.terminate();
+        async terminateA11yAssistA11y() {
+          return await a11yassistA11y.terminate();
         },
       });
     },

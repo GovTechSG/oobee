@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
 
-export interface OobeeScanOptions {
+export interface A11yAssistScanOptions {
   elementsToScan?: string[];
   elementsToClick?: string[];
   metadata?: string;
@@ -9,9 +9,9 @@ export interface OobeeScanOptions {
 declare global {
   namespace Cypress {
     interface Chainable<Subject = any> {
-      injectOobeeA11yScripts(): Chainable<void>;
-      runOobeeA11yScan(options?: OobeeScanOptions): Chainable<void>;
-      terminateOobeeA11y(): Chainable<any>;
+      injectA11yAssistA11yScripts(): Chainable<void>;
+      runA11yAssistA11yScan(options?: A11yAssistScanOptions): Chainable<void>;
+      terminateA11yAssistA11y(): Chainable<any>;
     }
   }
 
