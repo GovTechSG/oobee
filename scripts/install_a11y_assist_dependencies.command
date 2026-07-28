@@ -31,7 +31,7 @@ if ! [ -f nodejs-mac-x64/bin/node ]; then
   rm node-*-darwin-x64.tar.gz
 fi
 
-export CORRETTO_BASEDIR="$HOME/Library/Application Support/Oobee"
+export CORRETTO_BASEDIR="$HOME/Library/Application Support/A11y Assist"
 mkdir -p "$CORRETTO_BASEDIR" 
 
 echo "INFO: Set path to Corretto-11 JDK"
@@ -60,7 +60,7 @@ if ! [ -f verapdf/verapdf ]; then
   echo "Downloading VeraPDF"
   if [ -d "./verapdf" ]; then rm -Rf ./verapdf; fi
   if [ -d "./verapdf-installer" ]; then rm -Rf ./verapdf-installer; fi
-  curl -L -o ./verapdf-installer.zip https://github.com/GovTechSG/oobee/releases/download/cache/verapdf-installer.zip
+  curl -L -o ./verapdf-installer.zip https://github.com/GovTechSG/a11y-assist/releases/download/cache/verapdf-installer.zip
   unzip -j ./verapdf-installer.zip -d ./verapdf-installer
   ./verapdf-installer/verapdf-install "${__dir}/verapdf-auto-install-macos.xml"
   cp -r /tmp/verapdf .
@@ -73,10 +73,10 @@ if [ -d "/Applications/Cloudflare WARP.app" ]; then
   export NODE_EXTRA_CA_CERTS="/tmp/Cloudflare_CA.pem"
 fi
 
-source "${__dir}/oobee_shell.sh"
+source "${__dir}/a11y_assist_shell.sh"
 
-if ! [ -f package.json ] && [ -d oobee ]; then
-  cd oobee
+if ! [ -f package.json ] && [ -d a11y-assist ]; then
+  cd a11y-assist
 fi
 
 if [ -d "node_modules" ]; then

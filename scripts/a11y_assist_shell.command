@@ -8,4 +8,4 @@ CURR_FOLDERNAME="$(dirname "$0")"
 
 cd "$CURR_FOLDERNAME"
 
-$SHELL_NAME "$CURR_FOLDERNAME/oobee_shell.sh" $SHELL_NAME
+$SHELL_NAME "$CURR_FOLDERNAME/a11y_assist_shell.sh" $SHELL_NAME

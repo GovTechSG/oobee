@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Standalone Safe Browsing warmup script for Docker build stage.
- * Calls the warmup function from the compiled oobee source.
+ * Calls the warmup function from the compiled a11y-assist source.
  *
  * Usage: node scripts/warmup-safe-browsing.mjs [--profile-dir /path] [--timeout 180000]
  */

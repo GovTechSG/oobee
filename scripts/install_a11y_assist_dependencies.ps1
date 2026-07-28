@@ -40,7 +40,7 @@ if (-Not (Test-Path jre\bin\java.exe)) {
 # Install VeraPDF
 if (-Not (Test-Path verapdf\verapdf.bat)) {
     Write-Output "INFO: Downloading VeraPDF"
-    Invoke-WebRequest -o .\verapdf-installer.zip "https://github.com/GovTechSG/oobee/releases/download/cache/verapdf-installer.zip"
+    Invoke-WebRequest -o .\verapdf-installer.zip "https://github.com/GovTechSG/a11y-assist/releases/download/cache/verapdf-installer.zip"
     Expand-Archive .\verapdf-installer.zip -DestinationPath .
     Get-ChildItem ./verapdf-greenfield-* -Directory | Rename-Item -NewName verapdf-installer
 
@@ -62,24 +62,24 @@ if (Test-Path -Path .\jdk -PathType Container) {
 }
 
 # Install Node dependencies
-if (Test-Path oobee) {
+if (Test-Path a11y-assist) {
     Write-Output "Installing node dependencies"
-    & ".\oobee_shell_ps.ps1" "cd oobee;npm install --force --omit=dev;cd .."
+    & ".\a11y_assist_shell_ps.ps1" "cd a11y-assist;npm install --force --omit=dev;cd .."
 
     # Omit installing Playwright browsers as it is not reuqired
     # Write-Output "Install Playwright browsers"
-    # & ".\oobee_shell_ps.ps1" "npx playwright install chromium"
+    # & ".\a11y_assist_shell_ps.ps1" "npx playwright install chromium"
     
     try {
 	Write-Output "Building Typescript" 
-	& ".\oobee_shell_ps.ps1" "cd oobee;npm run build" 
+	& ".\a11y_assist_shell_ps.ps1" "cd a11y-assist;npm run build" 
     } catch {
 	Write-Output "Build with some errors but continuing. $_.Exception.Message" 
     } 
     
-    if (Test-Path oobee\.git) {
+    if (Test-Path a11y-assist\.git) {
         Write-Output "Unhide .git folder"
-        attrib -s -h oobee\.git
+        attrib -s -h a11y-assist\.git
     }
 
 } else {
@@ -87,7 +87,7 @@ if (Test-Path oobee) {
 
     if (Test-Path package.json) {
         Write-Output "Installing node dependencies"
-        & ".\oobee_shell_ps.ps1" "npm install --force --omit=dev" 
+        & ".\a11y_assist_shell_ps.ps1" "npm install --force --omit=dev" 
 
         Write-Output "Install Playwright browsers"
         & "npx playwright install chromium"
@@ -105,6 +105,6 @@ if (Test-Path oobee) {
 	} 
 
     } else {
-        Write-Output "Could not find oobee"
+        Write-Output "Could not find A11y Assist"
     }
 }

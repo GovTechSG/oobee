@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "oobee Shell - Created By younglim - NO WARRANTY PROVIDED"
+echo "A11y Assist Shell - Created By younglim - NO WARRANTY PROVIDED"
 echo "================================================================"
 echo ""
 
@@ -31,8 +31,8 @@ fi
 export PATH="$PATH_TO_NODE:$PATH"
 
 echo "INFO: Set path to node_modules for this session"
-if find ./oobee -name "node_modules" -maxdepth 1 -type l -ls &> /dev/null; then
-    export PATH="$PWD/oobee/node_modules/.bin:$PATH"
+if find ./a11y-assist -name "node_modules" -maxdepth 1 -type l -ls &> /dev/null; then
+    export PATH="$PWD/a11y-assist/node_modules/.bin:$PATH"
 else
     export PATH="$PWD/node_modules/.bin:$PATH"
 fi
