@@ -192,9 +192,9 @@ Desktop machines or cloud instances with adequate cooling and dedicated CPU core
 The `CrawlRateController` manages concurrency dynamically:
 
 - **On HTTP 4xx/5xx**: Concurrency halved (floor 1). Consecutive failure counter incremented.
-- **On success**: After 10 consecutive successes, concurrency increases by 2 (up to original max). Counter reset.
+- **On success**: After 10 successes since the last concurrency reduction, concurrency increases by 2 (up to original max). Only 4xx/5xx failures reset this counter — non-HTTP failures (timeouts, download errors) do not erase recovery progress.
 - **Circuit breaker**: After 100 consecutive failures (`OOBEE_CONSECUTIVE_MAX_RETRIES`), the crawl aborts gracefully.
-- **403 retry**: First 403 re-enqueued with `rateLimitRetried` flag (doesn't count toward circuit breaker). Second 403 is permanent failure.
+- **403 retry**: First 403 halves concurrency once and re-enqueues with `rateLimitRetried` flag. Second 403 falls through to the circuit-breaker path with `skipConcurrencyReduction: true` — it counts toward consecutive failures but does not halve concurrency again for the same URL.
 
 Crawlee's `retryOnBlocked: true` detects blocked responses (403, 429) and rotates sessions automatically before the request reaches the handler.
 
