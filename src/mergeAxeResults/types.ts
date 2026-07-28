@@ -52,7 +52,7 @@ type Category = {
 
 export type AllIssues = {
   storagePath: string;
-  oobeeAi: {
+  a11yassistAi: {
     htmlETL: any;
     rules: string[];
   };
@@ -74,7 +74,7 @@ export type AllIssues = {
   topTenIssues: Array<any>;
   wcagViolations: string[];
   customFlowLabel: string;
-  oobeeAppVersion: string;
+  a11yassistAppVersion: string;
   items: {
     mustFix: Category;
     goodToFix: Category;

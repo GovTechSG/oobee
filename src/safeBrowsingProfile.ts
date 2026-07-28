@@ -6,7 +6,7 @@ import printMessage from 'print-message';
 import { consoleLogger } from './logs.js';
 import { messageOptions } from './constants/common.js';
 
-const BASE_PROFILE_DIR = process.env.SB_PROFILE_DIR || path.join(os.homedir(), '.oobee', 'safe-browsing-profile');
+const BASE_PROFILE_DIR = process.env.SB_PROFILE_DIR || path.join(os.homedir(), '.a11yassist', 'safe-browsing-profile');
 const SB_DIR = path.join(BASE_PROFILE_DIR, 'Safe Browsing');
 const SEEDED_MARKER = '.sb-seeded';
 const FAILED_MARKER = path.join(BASE_PROFILE_DIR, '.sb-warmup-failed');
@@ -52,8 +52,8 @@ function findPrePopulatedSource(): string | null {
   const zipCandidates = [
     process.env.SB_PREPOPULATED_ZIP,
     '/data/safe-browsing-db.zip',
-    '/opt/oobee-safe-browsing/safe-browsing-db.zip',
-    path.join(os.homedir(), '.oobee', 'safe-browsing-db.zip'),
+    '/opt/a11yassist-safe-browsing/safe-browsing-db.zip',
+    path.join(os.homedir(), '.a11yassist', 'safe-browsing-db.zip'),
   ].filter(Boolean) as string[];
 
   for (const zipPath of zipCandidates) {
@@ -79,7 +79,7 @@ function findPrePopulatedSource(): string | null {
   } else {
     dirCandidates.push(
       '/data/chrome-profile/Safe Browsing',
-      '/opt/oobee-safe-browsing/Safe Browsing',
+      '/opt/a11yassist-safe-browsing/Safe Browsing',
       path.join(os.homedir(), '.config', 'google-chrome', 'Safe Browsing'),
       path.join(os.homedir(), '.config', 'chromium', 'Safe Browsing'),
     );

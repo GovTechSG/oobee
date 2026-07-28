@@ -1,6 +1,6 @@
 // Purple AI rules to process axe outputted HTML into basicFormHTML snippets
 // for sending to backend services to query GPT
-export const oobeeAiRules = [
+export const a11yassistAiRules = [
   'aria-allowed-attr',
   'aria-hidden-focus',
   'aria-input-field-name',
@@ -24,7 +24,7 @@ export const oobeeAiRules = [
   'autocomplete-valid',
 ];
 
-export const oobeeAiHtmlETL = (htmlSnippet: string) => {
+export const a11yassistAiHtmlETL = (htmlSnippet: string) => {
   // Whitelisted attributes (to not drop)
   // i.e. any other attribute will be dropped
   const whitelistedAttributes = [

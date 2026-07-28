@@ -126,7 +126,7 @@ const runScan = async (answers: Answers) => {
 if (userData) {
   printMessage(
     [
-      `Oobee (ver ${getVersion()})`,
+      `A11y Assist (ver ${getVersion()})`,
       'We recommend using Chrome browser for the best experience.',
       '',
       `Welcome back ${userData.name}!`,
@@ -144,7 +144,7 @@ if (userData) {
   });
 } else {
   printMessage(
-    [`Oobee (ver ${getVersion()})`, 'We recommend using Chrome browser for the best experience.'],
+    [`A11y Assist (ver ${getVersion()})`, 'We recommend using Chrome browser for the best experience.'],
     {
       // Note that the color is based on kleur NPM package
       border: true,

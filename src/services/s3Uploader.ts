@@ -152,9 +152,9 @@ export const uploadFolderToS3 = async (
 export const isS3UploadEnabled = (): boolean => {
   return !!(
     process.env.S3_BUCKET_NAME &&
-    process.env.OOBEE_SCAN_ID &&
-    process.env.OOBEE_USER_ID &&
-    process.env.OOBEE_USER_EMAIL
+    process.env.A11Y_ASSIST_SCAN_ID &&
+    process.env.A11Y_ASSIST_USER_ID &&
+    process.env.A11Y_ASSIST_USER_EMAIL
   );
 };
 
@@ -162,9 +162,9 @@ export const getS3MetadataFromEnv = (
   siteName: string | undefined,
   durationExceeded: boolean,
 ): ScanMetadata | null => {
-  const scanId = process.env.OOBEE_SCAN_ID;
-  const userId = process.env.OOBEE_USER_ID;
-  const email = process.env.OOBEE_USER_EMAIL;
+  const scanId = process.env.A11Y_ASSIST_SCAN_ID;
+  const userId = process.env.A11Y_ASSIST_USER_ID;
+  const email = process.env.A11Y_ASSIST_USER_EMAIL;
 
   if (!scanId || !userId || !email) {
     return null;
@@ -174,19 +174,19 @@ export const getS3MetadataFromEnv = (
     scanId,
     userId,
     email,
-    messageId: process.env.OOBEE_MESSAGE_ID,
-    amplitudeUserId: process.env.OOBEE_AMPLITUDE_USER_ID,
-    deviceId: process.env.OOBEE_DEVICE_ID,
-    orgId: process.env.OOBEE_ORG_ID,
-    userRole: process.env.OOBEE_USER_ROLE,
+    messageId: process.env.A11Y_ASSIST_MESSAGE_ID,
+    amplitudeUserId: process.env.A11Y_ASSIST_AMPLITUDE_USER_ID,
+    deviceId: process.env.A11Y_ASSIST_DEVICE_ID,
+    orgId: process.env.A11Y_ASSIST_ORG_ID,
+    userRole: process.env.A11Y_ASSIST_USER_ROLE,
     siteName,
     durationExceeded: durationExceeded ? 'true' : undefined,
   };
 };
 
 export const getS3UploadPrefix = (): string | null => {
-  const scanId = process.env.OOBEE_SCAN_ID;
-  const userId = process.env.OOBEE_USER_ID;
+  const scanId = process.env.A11Y_ASSIST_SCAN_ID;
+  const userId = process.env.A11Y_ASSIST_USER_ID;
 
   if (!scanId || !userId) {
     return null;

@@ -30,7 +30,7 @@ import { gradeReadability } from './crawlers/custom/gradeReadability.js';
 import { BrowserContext, Page } from 'playwright';
 import { filter } from 'jszip';
 
-// Define global window properties for Oobee injection functions
+// Define global window properties for A11y Assist injection functions
 declare global {
   interface Window {
     runA11yScan: (
@@ -44,7 +44,7 @@ declare global {
     axe: any;
     getAxeConfiguration: any;
     flagUnlabelledClickableElements: any;
-    disableOobee: boolean;
+    disableA11yAssist: boolean;
     enableWcagAaa: boolean;
     xPathToCss: any;
     evaluateAltText: any;
@@ -62,7 +62,7 @@ const getAxeScriptContent = () => {
   return axe.source;
 };
 
-const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) => {
+const getA11yAssistFunctionsScript = (disableA11yAssist: boolean, enableWcagAaa: boolean) => {
   return `
       // Fix for missing __name function used by bundler
       if (typeof __name === 'undefined') {
@@ -97,15 +97,15 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
       function getAxeConfiguration({
         enableWcagAaa = false,
         gradingReadabilityFlag = '',
-        disableOobee = false,
+        disableA11yAssist = false,
       }) {
         return {
           branding: {
-            application: 'oobee',
+            application: 'a11yassist',
           },
           checks: [
             {
-              id: 'oobee-confusing-alt-text',
+              id: 'a11yassist-confusing-alt-text',
               metadata: {
                 impact: 'serious',
                 messages: {
@@ -116,7 +116,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
               evaluate: window.evaluateAltText,
             },
             {
-              id: 'oobee-accessible-label',
+              id: 'a11yassist-accessible-label',
               metadata: {
                 impact: 'serious',
                 messages: {
@@ -128,10 +128,10 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
                 return !node.dataset.flagged; // fail any element with a data-flagged attribute set to true
               },
             },
-            ...((enableWcagAaa && !disableOobee && gradingReadabilityFlag !== '')
+            ...((enableWcagAaa && !disableA11yAssist && gradingReadabilityFlag !== '')
               ? [
                   {
-                    id: 'oobee-grading-text-contents',
+                    id: 'a11yassist-grading-text-contents',
                     metadata: {
                       impact: 'moderate',
                       messages: {
@@ -148,10 +148,10 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
           rules: [
             { id: 'target-size', enabled: true },
             {
-              id: 'oobee-confusing-alt-text',
+              id: 'a11yassist-confusing-alt-text',
               selector: 'img[alt]',
               enabled: true,
-              any: ['oobee-confusing-alt-text'],
+              any: ['a11yassist-confusing-alt-text'],
               tags: ['wcag2a', 'wcag111'],
               metadata: {
                 description: 'Ensures image alt text is clear and useful.',
@@ -160,10 +160,10 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
               },
             },
             {
-              id: 'oobee-accessible-label',
+              id: 'a11yassist-accessible-label',
               // selector: '*', // to be set with the checker function output xpaths converted to css selectors
               enabled: true,
-              any: ['oobee-accessible-label'],
+              any: ['a11yassist-accessible-label'],
               tags: ['wcag2a', 'wcag211', 'wcag412'],
               metadata: {
                 description: 'Ensures clickable elements have an accessible label.',
@@ -171,13 +171,13 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
                 helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
               },
             },
-            ...((enableWcagAaa && !disableOobee && gradingReadabilityFlag !== '')
+            ...((enableWcagAaa && !disableA11yAssist && gradingReadabilityFlag !== '')
               ? [
                   {
-                    id: 'oobee-grading-text-contents',
+                    id: 'a11yassist-grading-text-contents',
                     selector: 'html',
                     enabled: true,
-                    any: ['oobee-grading-text-contents'],
+                    any: ['a11yassist-grading-text-contents'],
                     tags: ['wcag2aaa', 'wcag315'],
                     metadata: {
                       description:
@@ -189,7 +189,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
                 ]
               : []),
           ]
-            .filter(rule => (disableOobee ? !rule.id.startsWith('oobee') : true))
+            .filter(rule => (disableA11yAssist ? !rule.id.startsWith('a11yassist') : true))
             .concat(
               enableWcagAaa
                 ? [
@@ -214,17 +214,17 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
 
       async function runA11yScan(elementsToScan = [], gradingReadabilityFlag = '') {
 
-        const oobeeAccessibleLabelFlaggedXpaths = (window).disableOobee
+        const a11yassistAccessibleLabelFlaggedXpaths = (window).disableA11yAssist
           ? []
           : (await (window).flagUnlabelledClickableElements()).map(item => item.xpath);
-        console.log('OOBEE DEBUG: Flagged XPaths count:', oobeeAccessibleLabelFlaggedXpaths.length);
-        console.log('OOBEE DEBUG: Flagged XPaths:', oobeeAccessibleLabelFlaggedXpaths);
-        
+        console.log('A11y Assist DEBUG: Flagged XPaths count:', a11yassistAccessibleLabelFlaggedXpaths.length);
+        console.log('A11y Assist DEBUG: Flagged XPaths:', a11yassistAccessibleLabelFlaggedXpaths);
+
         // Force visibility of the result in Cypress by adding to page title temporarily
         const originalTitle = document.title;
-        document.title = '[OOBEE: ' + oobeeAccessibleLabelFlaggedXpaths.length + ' flagged] ' + originalTitle;
+        document.title = '[A11y Assist: ' + a11yassistAccessibleLabelFlaggedXpaths.length + ' flagged] ' + originalTitle;
         setTimeout(function() { document.title = originalTitle; }, 1000);
-        const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
+        const a11yassistAccessibleLabelFlaggedCssSelectors = a11yassistAccessibleLabelFlaggedXpaths
           .map(xpath => {
             try {
               const cssSelector = (window).xPathToCss(xpath);
@@ -236,7 +236,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
           })
           .filter(item => item !== '');
   
-        (window).axe.configure((window).getAxeConfiguration({ disableOobee: (window).disableOobee, enableWcagAaa: (window).enableWcagAaa, gradingReadabilityFlag }));
+        (window).axe.configure((window).getAxeConfiguration({ disableA11yAssist: (window).disableA11yAssist, enableWcagAaa: (window).enableWcagAaa, gradingReadabilityFlag }));
         const axeScanResults = await (window).axe.run(elementsToScan, {
           resultTypes: ['violations', 'passes', 'incomplete'],
         });
@@ -266,14 +266,14 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
           });
         }
   
-        // add custom Oobee violations
-        if (!(window).disableOobee) {
+        // add custom A11y Assist violations
+        if (!(window).disableA11yAssist) {
           // handle css id selectors that start with a digit
-          const escapedCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.map((window).escapeCssSelector);
+          const escapedCssSelectors = a11yassistAccessibleLabelFlaggedCssSelectors.map((window).escapeCssSelector);
   
-          // Add oobee violations to Axe's report
-          const oobeeAccessibleLabelViolations = {
-            id: 'oobee-accessible-label',
+          // Add a11yassist violations to Axe's report
+          const a11yassistAccessibleLabelViolations = {
+            id: 'a11yassist-accessible-label',
             impact: 'serious',
             tags: ['wcag2a', 'wcag211', 'wcag412'],
             description: 'Ensures clickable elements have an accessible label.',
@@ -288,7 +288,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
                   'Fix any of the following:\\n  The clickable element does not have an accessible label.',
                 any: [
                   {
-                    id: 'oobee-accessible-label',
+                    id: 'a11yassist-accessible-label',
                     data: null,
                     relatedNodes: [],
                     impact: 'serious',
@@ -301,7 +301,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
               .filter(item => item.html),
           };
   
-          axeScanResults.violations = [...axeScanResults.violations, oobeeAccessibleLabelViolations];
+          axeScanResults.violations = [...axeScanResults.violations, a11yassistAccessibleLabelViolations];
         }
   
         return {
@@ -310,7 +310,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
           axeScanResults,
         };
       }
-      window.disableOobee=${disableOobee};
+      window.disableA11yAssist=${disableA11yAssist};
       window.enableWcagAaa=${enableWcagAaa};
       window.runA11yScan = runA11yScan;
     `;
@@ -325,7 +325,7 @@ export const init = async ({
   viewportSettings = { width: 1000, height: 660 }, // cypress' default viewport settings
   thresholds = { mustFix: undefined, goodToFix: undefined },
   scanAboutMetadata = undefined,
-  zip = 'oobee-scan-results',
+  zip = 'a11yassist-scan-results',
   deviceChosen,
   strategy = EnqueueStrategy.All,
   ruleset = [RuleFlags.DEFAULT],
@@ -350,14 +350,14 @@ export const init = async ({
   specifiedMaxConcurrency?: number;
   followRobots?: boolean;
 }) => {
-  consoleLogger.info('Starting Oobee');
+  consoleLogger.info('Starting A11y Assist');
 
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
   const domain = new URL(entryUrl).hostname;
   const sanitisedLabel = testLabel ? `_${testLabel.replaceAll(' ', '_')}` : '';
   const randomToken = `${date}_${time}${sanitisedLabel}_${domain}`;
 
-  const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
+  const disableA11yAssist = ruleset.includes(RuleFlags.DISABLE_A11Y_ASSIST);
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
 
   // max numbers of mustFix/goodToFix occurrences before test returns a fail
@@ -392,7 +392,7 @@ export const init = async ({
 
   const throwErrorIfTerminated = () => {
     if (isInstanceTerminated) {
-      throw new Error('This instance of Oobee was terminated. Please start a new instance.');
+      throw new Error('This instance of A11y Assist was terminated. Please start a new instance.');
     }
   };
 
@@ -401,14 +401,14 @@ export const init = async ({
     return getAxeScriptContent();
   };
 
-  const getOobeeFunctions = () => {
+  const getA11yAssistFunctions = () => {
     throwErrorIfTerminated();
-    return getOobeeFunctionsScript(disableOobee, enableWcagAaa);
+    return getA11yAssistFunctionsScript(disableA11yAssist, enableWcagAaa);
   };
 
   // Helper script for manually copy-paste testing in Chrome browser
   /*
-  const scripts = `${getAxeScript()}\n${getOobeeFunctions()}`;
+  const scripts = `${getAxeScript()}\n${getA11yAssistFunctions()}`;
   fs.writeFileSync(path.join(dirname, 'testScripts.txt'), scripts);
   */
  
@@ -501,7 +501,7 @@ export const init = async ({
 
   const terminate = async () => {
     throwErrorIfTerminated();
-    consoleLogger.info('Stopping Oobee');
+    consoleLogger.info('Stopping A11y Assist');
     isInstanceTerminated = true;
     scanDetails.endTime = new Date();
     scanDetails.urlsCrawled = urlsCrawled;
@@ -581,7 +581,7 @@ export const init = async ({
 
   return {
     getAxeScript,
-    getOobeeFunctions,
+    getA11yAssistFunctions,
     gradeReadability,
     pushScanResults,
     terminate,
@@ -710,10 +710,10 @@ const processAndSubmitResults = async (
     }
   });
 
-  const oobeeAppVersion = getVersion();
+  const a11yassistAppVersion = getVersion();
   
   await sendWcagBreakdownToSentry(
-    oobeeAppVersion,
+    a11yassistAppVersion,
     wcagOccurrencesMap,
     basicFormHTMLSnippet,
     {
@@ -843,17 +843,17 @@ export const scanPage = async (
     ruleset = [RuleFlags.DEFAULT],
   } = config;
 
-  const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
+  const disableA11yAssist = ruleset.includes(RuleFlags.DISABLE_A11Y_ASSIST);
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
 
   const axeScript = getAxeScriptContent();
-  const oobeeFunctions = getOobeeFunctionsScript(disableOobee, enableWcagAaa);
+  const a11yassistFunctions = getA11yAssistFunctionsScript(disableA11yAssist, enableWcagAaa);
 
   const pagesArray = Array.isArray(pages) ? pages : [pages];
   const scanData = [];
 
   for (const page of pagesArray) {
-    await page.evaluate(`${axeScript}\n${oobeeFunctions}`);
+    await page.evaluate(`${axeScript}\n${a11yassistFunctions}`);
 
     // Run the scan inside the page
     const consoleListener = (msg: any) => {
@@ -894,5 +894,5 @@ export const scanPage = async (
   );
 };
 
-export { RuleFlags, a11yRuleLongDescriptionMap, a11yRuleStepByStepGuide, getOobeeFunctionsScript };
+export { RuleFlags, a11yRuleLongDescriptionMap, a11yRuleStepByStepGuide, getA11yAssistFunctionsScript };
 

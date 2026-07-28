@@ -35,7 +35,7 @@ const yargs = _yargs(hideBin(process.argv));
 const options = yargs
   .version(false)
   .usage(
-    `Oobee version: ${appVersion}
+    `A11y Assist version: ${appVersion}
 Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
   )
   .strictOptions(true)
@@ -229,7 +229,7 @@ if (!options.strategy) {
 }
 
 if (options.websiteTag) {
-  process.env.OOBEE_TAGGED_WEBSITE = options.websiteTag;
+  process.env.A11Y_ASSIST_TAGGED_WEBSITE = options.websiteTag;
 }
 
 const scanInit = async (argvs: Answers): Promise<string> => {
@@ -270,7 +270,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
       data.entryUrl = res.url;
       data.url = res.url;
     }
-    if (process.env.OOBEE_VALIDATE_URL) {
+    if (process.env.A11Y_ASSIST_VALIDATE_URL) {
       consoleLogger.info('Url is valid');
       cleanUpAndExit(0, data.randomToken);
       return;
@@ -285,7 +285,7 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     return;
   }
 
-  if (process.env.OOBEE_VERBOSE) {
+  if (process.env.A11Y_ASSIST_VERBOSE) {
     const randomTokenMessage = {
       type: 'randomToken',
       payload: `${data.randomToken}`,
@@ -297,8 +297,8 @@ const scanInit = async (argvs: Answers): Promise<string> => {
 
   const screenToScan = getScreenToScan(data.deviceChosen, data.customDevice, data.viewportWidth);
 
-  printMessage([`Oobee version: ${appVersion}`, 'Starting scan...'], messageOptions);
-  consoleLogger.info(`Oobee version: ${appVersion}`);
+  printMessage([`A11y Assist version: ${appVersion}`, 'Starting scan...'], messageOptions);
+  consoleLogger.info(`A11y Assist version: ${appVersion}`);
 
   await combineRun(data, screenToScan);
 

@@ -158,7 +158,7 @@ export const crawlLocalFile = async ({
         headless: process.env.CRAWLEE_HEADLESS === '1',
         ...getPlaywrightLaunchOptions(browser),
         ...playwrightDeviceDetailsObject,
-        ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
+        ...(process.env.A11Y_ASSIST_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
       },
     );
 

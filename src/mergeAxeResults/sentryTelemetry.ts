@@ -140,12 +140,12 @@ const sendWcagBreakdownToSentry = async (
         event_type: 'accessibility_scan',
         scanType: scanInfo.scanType,
         browser: scanInfo.browser,
-        entryUrl: process.env.OOBEE_SCAN_METADATA ?? scanInfo.entryUrl,
-        ...(process.env.OOBEE_SCAN_PRODUCT && {
-          scanProduct: process.env.OOBEE_SCAN_PRODUCT,
+        entryUrl: process.env.A11Y_ASSIST_SCAN_METADATA ?? scanInfo.entryUrl,
+        ...(process.env.A11Y_ASSIST_SCAN_PRODUCT && {
+          scanProduct: process.env.A11Y_ASSIST_SCAN_PRODUCT,
         }),
-        ...(process.env.OOBEE_TAGGED_WEBSITE && {
-          websiteTag: process.env.OOBEE_TAGGED_WEBSITE,
+        ...(process.env.A11Y_ASSIST_TAGGED_WEBSITE && {
+          websiteTag: process.env.A11Y_ASSIST_TAGGED_WEBSITE,
         }),
       },
       user: {

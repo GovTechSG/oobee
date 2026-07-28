@@ -75,8 +75,8 @@ export const getDefaultChromeDataDir = (): string => {
     }
 
     // Check for environment override (used when GSB profile is pre-warmed in Docker)
-    if (process.env.OOBEE_CHROME_DATA_DIR && fs.existsSync(process.env.OOBEE_CHROME_DATA_DIR)) {
-      return process.env.OOBEE_CHROME_DATA_DIR;
+    if (process.env.A11Y_ASSIST_CHROME_DATA_DIR && fs.existsSync(process.env.A11Y_ASSIST_CHROME_DATA_DIR)) {
+      return process.env.A11Y_ASSIST_CHROME_DATA_DIR;
     }
 
     let defaultChromeDataDir = null;
@@ -367,7 +367,7 @@ suppressTlsRejectWarning();
 
 export const sentryConfig = {
   dsn:
-    process.env.OOBEE_SENTRY_DSN ||
+    process.env.A11Y_ASSIST_SENTRY_DSN ||
     'https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168',
   tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
   profilesSampleRate: 1.0, // Capture 100% of profiles
@@ -486,7 +486,7 @@ export const wcagCriteriaLabels: Record<string, string> = {
  *
  * Non-numeric tags (e.g. wcag2a, best-practice) are returned unchanged.
  * NOTE: Uses string concatenation so Function.toString() embeds safely in
- * backtick template strings inside generateOobeeClientScanner.ts.
+ * backtick template strings inside generateA11yAssistClientScanner.ts.
  */
 export function formatWcagId(wcag: string): string {
   if (!wcag) return '';
@@ -509,7 +509,7 @@ const urlCheckStatuses = {
     code: 13,
     message: 'Provided URL cannot be accessed. Server responded with code ', // append it with the response code received,
   },
-  systemError: { code: 14, message: 'Something went wrong when verifying the URL. Please try again in a few minutes. If this issue persists, please contact the Oobee team.'},
+  systemError: { code: 14, message: 'Something went wrong when verifying the URL. Please try again in a few minutes. If this issue persists, please contact the A11y Assist team.'},
   notASitemap: { code: 15, message: 'Invalid sitemap URL format. Please enter a valid sitemap URL ending with .XML or .TXT e.g. https://www.example.com/sitemap.xml.' },
   unauthorised: { code: 16, message: 'Login required. Please enter your credentials and try again.' },
   // browserError means engine could not find a browser to run the scan
@@ -534,17 +534,17 @@ const urlCheckStatuses = {
   connectionRefused: {
     code: 22,
     message:
-      'Connection refused. Please try again in a few minutes. If this issue persists, please contact the Oobee team.',
+      'Connection refused. Please try again in a few minutes. If this issue persists, please contact the A11y Assist team.',
   },
   timedOut: {
     code: 23,
     message:
-      'Request timed out. Please try again in a few minutes. If this issue persists, please contact the Oobee team.',
+      'Request timed out. Please try again in a few minutes. If this issue persists, please contact the A11y Assist team.',
   },
   blockedByClient: {
     code: 24,
     message:
-      'Something went wrong when verifying the URL. If this issue persists, please contact the Oobee team.',
+      'Something went wrong when verifying the URL. If this issue persists, please contact the A11y Assist team.',
   },
 };
 
@@ -597,7 +597,7 @@ export const a11yRuleShortDescriptionMap = {
   'image-alt': 'Meaningful images need text descriptions',
   'input-image-alt': 'Image buttons need action labels',
   'object-alt': 'Embedded objects need identifying labels',
-  'oobee-confusing-alt-text': 'Replace vague image descriptions with meaningful text',
+  'a11yassist-confusing-alt-text': 'Replace vague image descriptions with meaningful text',
   'role-img-alt': 'Elements marked as images need text descriptions',
   'svg-img-alt': 'Vector graphics marked as images need text descriptions',
   'video-caption': 'Videos need captions with transcript tracks',
@@ -619,7 +619,7 @@ export const a11yRuleShortDescriptionMap = {
     'Frames and iframes with interactive content must be keyboard accessible',
   'server-side-image-map': 'Replace server-side image maps with client-side image maps',
   'scrollable-region-focusable': 'Elements within scrollable regions must be keyboard accessible',
-  'oobee-accessible-label': 'Clickable elements must have accessible labels',
+  'a11yassist-accessible-label': 'Clickable elements must have accessible labels',
   'meta-refresh': 'Pages must not use timed automatic refresh',
   blink: 'Blinking elements must not be used',
   marquee: 'Marquee animated elements must not be used',
@@ -635,7 +635,7 @@ export const a11yRuleShortDescriptionMap = {
   'html-lang-valid': 'Page language declaration must use valid language codes',
   'html-xml-lang-mismatch': 'Make different page language settings match',
   'valid-lang': 'Elements in different languages must use valid language codes',
-  'oobee-grading-text-contents': 'Page content must use clear, plain language',
+  'a11yassist-grading-text-contents': 'Page content must use clear, plain language',
   'form-field-multiple-labels': 'Form fields must have only one label element',
   'aria-allowed-attr': 'ARIA attributes must be used with appropriate roles',
   'aria-braille-equivalent': 'Braille abbreviated labels must have full text equivalents',
@@ -706,7 +706,7 @@ export const a11yRuleLongDescriptionMap = {
     'When a button uses only an image instead of text, that image needs a label that describes the button\'s action (called an "accessible name"). e.g., a delete button with a trash can icon should be labeled "Delete" not just "trash can". This helps people using screen readers know what action the button performs.',
   'object-alt':
     'Embedded content, such as PDFs, videos, interactive maps, or other objects need a label that identifies what it is (called an "accessible name"). This helps people using screen readers understand what the object is and what it does. e.g., "View the 2024 annual report (PDF)" or "Video: Company overview (3 minutes)."',
-  'oobee-confusing-alt-text':
+  'a11yassist-confusing-alt-text':
     'Images that already have alt text (text descriptions for images) but use vague words like "image" "photo", need to be rewritten with actual descriptions of what the image shows. e.g., instead of alt text that says "photo," it should describe what the photo shows: "Team members at the 2024 conference".',
   'role-img-alt':
     'When design elements are marked with image role (a technical way to treat elements as images), they need text descriptions (called "accessible names"). This helps people using screen readers understand what each element represents. e.g., an icon marked as an image needs a description like "Settings icon" not just "image".',
@@ -747,7 +747,7 @@ export const a11yRuleLongDescriptionMap = {
     "Image maps that use server-side clicking (where the server determines what was clicked based on coordinates) don't work with keyboard navigation. Replace them with client-side image maps (HTML-based maps) so everyone can use them via keyboard or any input method.",
   'scrollable-region-focusable':
     "Scrollable sections that contain interactive elements need to be accessible by keyboard and screen reader. Users should be able to scroll using the keyboard or a screen reader to reach/read all contents inside the scrollable regions. This helps people who can't use a mouse or those using screen readers.",
-  'oobee-accessible-label':
+  'a11yassist-accessible-label':
     'Clickable elements (buttons, links, etc) need clear, accessible labels that describe what will happen when clicked. This helps screen reader users understand the purpose of each clickable element.',
   'meta-refresh':
     'Pages should not automatically refresh using timed refresh (meta refresh with delays under 20 hours). Automatic page refreshes interrupt users while reading and frustrate those trying to focus on content. If refresh is necessary, users should control it with a button or link.',
@@ -777,7 +777,7 @@ export const a11yRuleLongDescriptionMap = {
     'Language declarations using different formats (HTML and XML) need to match. If they disagree (e.g., lang="en" and xml:lang="fr" on the same element), screen readers and translation tools become confused about the content language.',
   'valid-lang':
     'When parts of a page use different languages (like a Spanish quote in an English article), those elements must be tagged with valid language codes. Invalid language codes prevent screen readers from switching to the correct pronunciation for that language.',
-  'oobee-grading-text-contents':
+  'a11yassist-grading-text-contents':
     'Text on the page should be clear and use simple language. This helps people with cognitive disabilities and non-native speakers understand content. Avoid jargon, long complex sentences, and unclear references.',
   'form-field-multiple-labels':
     "Form fields should only have one label element associated with them. Multiple label elements cause screen readers to announce conflicting information and confuse users about the field's purpose.",
@@ -840,7 +840,7 @@ export const a11yRuleLongDescriptionMap = {
   'empty-table-header':
     'Table header cells (<th> elements) must contain text that describes the column or row. Empty headers make tables unreadable for screen reader users who cannot see the visual layout to infer what each column represents.',
   'frame-tested':
-    'All frames and iframes on a page should be tested with accessibility scanning tools (Oobee) to ensure embedded content is accessible. Testing tools need access to frame content to identify issues. Without testing frames, accessibility problems inside them may be missed.',
+    'All frames and iframes on a page should be tested with accessibility scanning tools (A11y Assist) to ensure embedded content is accessible. Testing tools need access to frame content to identify issues. Without testing frames, accessibility problems inside them may be missed.',
   'heading-order':
     "Headings must follow a logical, hierarchical order: H1 (page title), then H2 (main sections), then H3 (subsections), etc. Headings should increase by only one level at a time. e.g., you shouldn't jump from H1 directly to H3. This helps screen reader users understand the page structure and navigate it correctly.",
   'image-redundant-alt':
@@ -893,7 +893,7 @@ export const disabilityBadgesMap = {
   'image-alt': ['Visual'],
   'input-image-alt': ['Visual'],
   'object-alt': ['Visual'],
-  'oobee-confusing-alt-text': ['Visual', 'Learning'],
+  'a11yassist-confusing-alt-text': ['Visual', 'Learning'],
   'role-img-alt': ['Visual'],
   'svg-img-alt': ['Visual'],
   'video-caption': ['Hearing'],
@@ -914,7 +914,7 @@ export const disabilityBadgesMap = {
   'frame-focusable-content': ['Motor', 'Visual'],
   'server-side-image-map': ['Motor', 'Visual'],
   'scrollable-region-focusable': ['Motor', 'Visual'],
-  'oobee-accessible-label': ['Motor', 'Visual'],
+  'a11yassist-accessible-label': ['Motor', 'Visual'],
   'meta-refresh': ['Learning'],
   blink: ['Learning', 'Visual'],
   marquee: ['Learning', 'Visual'],
@@ -929,7 +929,7 @@ export const disabilityBadgesMap = {
   'html-lang-valid': ['Learning'],
   'html-xml-lang-mismatch': ['Learning'],
   'valid-lang': ['Learning'],
-  'oobee-grading-text-contents': ['Learning', 'Visual'],
+  'a11yassist-grading-text-contents': ['Learning', 'Visual'],
   'form-field-multiple-labels': ['Visual'],
   'aria-allowed-attr': ['Visual'],
   'aria-braille-equivalent': ['Visual'],
@@ -986,7 +986,7 @@ export const disabilityBadgesMap = {
 };
 
 export default {
-  cliZipFileName: 'oobee-scan-results.zip',
+  cliZipFileName: 'a11yassist-scan-results.zip',
   exportDirectory: undefined,
   maxRequestsPerCrawl,
   maxConcurrency: 25,
@@ -1031,13 +1031,13 @@ export const cssQuerySelectors = [
 
 export enum RuleFlags {
   DEFAULT = 'default',
-  DISABLE_OOBEE = 'disable-oobee',
+  DISABLE_A11Y_ASSIST = 'disable-a11yassist',
   ENABLE_WCAG_AAA = 'enable-wcag-aaa',
 }
 
 // Note: Not all status codes will appear as Crawler will handle it as best effort first. E.g. try to handle redirect
 export const STATUS_CODE_METADATA: Record<number, string> = {
-  // Custom Codes for Oobee's use
+  // Custom Codes for A11y Assist's use
   0: 'Page Excluded',
   1: 'Not A Supported Document',
   2: 'Web Crawler Errored',
@@ -1047,7 +1047,7 @@ export const STATUS_CODE_METADATA: Record<number, string> = {
   599: 'Uncommon Response Status Code Received',
 
   // This is Status OK but thrown when the crawler cannot scan the page
-  200: 'Oobee was not able to scan the page due to access restrictions or compatibility issues',
+  200: 'A11y Assist was not able to scan the page due to access restrictions or compatibility issues',
 
   // 1xx - Informational
   100: '100 - Continue',
@@ -1217,7 +1217,7 @@ export const a11yRuleStepByStepGuide: Record<string, { check: string; fix: strin
     review: 'Use a screen reader to navigate to each embedded object and confirm the screen reader announces: (1) What the object is (PDF, video, map, etc.) (2) What it contains (3) Any relevant additional info (like duration for videos, file size for PDFs).',
     learn: 'Review and learn more about this issue on A11y Playground',
   },
-  'oobee-confusing-alt-text': {
+  'a11yassist-confusing-alt-text': {
     check: 'Find images that already have descriptions but the descriptions are too vague or unhelpful. Look for descriptions that just say: "image"',
     fix: '(Developer) Rewrite each vague description to actually describe what the image shows.',
     review: "Use a screen reader to read the updated descriptions and confirm they now adequately convey what the image shows and its purpose. A person listening should understand the image's content and why it matters.",
@@ -1343,7 +1343,7 @@ export const a11yRuleStepByStepGuide: Record<string, { check: string; fix: strin
     review: 'Test with keyboard: Use Tab to reach elements in the scrollable region. Use arrow keys or other keyboard controls to scroll within the region. Confirm all interactive content is accessible.',
     learn: 'Review and learn more about this issue on A11y Playground',
   },
-  'oobee-accessible-label': {
+  'a11yassist-accessible-label': {
     check: 'Find clickable elements on the page (buttons, links, custom buttons created with code). Check if each has a clear label or text describing its action.',
     fix: '(Developer) Add visible labels or programmatic names that match the action. For elements that should not be keyboard accessible (like decorative interactive elements), use tabindex=-1 to remove them from keyboard navigation.',
     review: 'Use Tab to navigate to each clickable element and confirm a meaningful name is announced by screen readers.',
@@ -1433,7 +1433,7 @@ export const a11yRuleStepByStepGuide: Record<string, { check: string; fix: strin
     review: 'Test with a screen reader: Navigate to content in different languages and confirm the screen reader switches to correct pronunciation for each language.',
     learn: 'Review and learn more about this issue on A11y Playground',
   },
-  'oobee-grading-text-contents': {
+  'a11yassist-grading-text-contents': {
     check: 'Identify the pages with the most complex or dense text content. Highlight sentences that are very long or use jargon/technical terms unfamiliar to general audiences.',
     fix: 'Rewrite complex sections using shorter sentences, common words, and one idea per sentence. Define any necessary technical terms. Remove or simplify jargon.',
     review: 'Ask a colleague unfamiliar with the topic to read the revised content and explain it back in their own words. If they struggle to understand, simplify further.',
@@ -1621,8 +1621,8 @@ export const a11yRuleStepByStepGuide: Record<string, { check: string; fix: strin
   },
   'frame-tested': {
     check: 'Open a page containing embedded frames or iframes (videos, widgets etc). Run a scan and check: Does it report issues in the frames? Or is frame content being skipped?',
-    fix: '(Developer) Test frames with Oobee to surface any issues inside them. Configure tools to scan frames when possible. Fix accessibility issues found within frames. Ensure third-party content meets accessibility standards.',
-    review: 'Test keyboard navigation across the page: Tab into and out of frames. Confirm all interactive content in frames is keyboard accessible. Retest with Oobee to confirm frame content is now properly analyzed and accessible.',
+    fix: '(Developer) Test frames with A11y Assist to surface any issues inside them. Configure tools to scan frames when possible. Fix accessibility issues found within frames. Ensure third-party content meets accessibility standards.',
+    review: 'Test keyboard navigation across the page: Tab into and out of frames. Confirm all interactive content in frames is keyboard accessible. Retest with A11y Assist to confirm frame content is now properly analyzed and accessible.',
     learn: 'Review and learn more about this issue on A11y Playground',
   },
   'heading-order': {

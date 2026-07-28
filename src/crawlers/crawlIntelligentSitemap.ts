@@ -69,7 +69,7 @@ const crawlIntelligentSitemap = async (
         ...launchOptions,
         ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
         ...(httpCredentials && { httpCredentials }),
-        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
+        ...(process.env.A11Y_ASSIST_USER_AGENT && { userAgent: process.env.A11Y_ASSIST_USER_AGENT }),
       });
       register(context);
     } else {
@@ -78,7 +78,7 @@ const crawlIntelligentSitemap = async (
       context = await browserInstance.newContext({
         ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
         ...(httpCredentials && { httpCredentials }),
-        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
+        ...(process.env.A11Y_ASSIST_USER_AGENT && { userAgent: process.env.A11Y_ASSIST_USER_AGENT }),
       });
     }
 

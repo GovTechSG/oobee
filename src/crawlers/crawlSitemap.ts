@@ -162,8 +162,8 @@ const crawlSitemap = async ({
               ...launchContext.launchOptions,
               ignoreHTTPSErrors: true,
               ...playwrightDeviceDetailsObject,
-              ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
-              ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
+              ...(process.env.A11Y_ASSIST_USER_AGENT && { userAgent: process.env.A11Y_ASSIST_USER_AGENT }),
+              ...(process.env.A11Y_ASSIST_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
               ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
               ...(httpCredentials && { httpCredentials }),
             };

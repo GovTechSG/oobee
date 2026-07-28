@@ -264,7 +264,7 @@ export const cliOptions: { [key: string]: Options } = {
     alias: 'ruleset',
     describe: 'Specify scan ruleset for accessibility checks',
     type: 'string',
-    choices: ['default', 'disable-oobee', 'enable-wcag-aaa', 'disable-oobee,enable-wcag-aaa'],
+    choices: ['default', 'disable-a11yassist', 'enable-wcag-aaa', 'disable-a11yassist,enable-wcag-aaa'],
     demandOption: false,
     requiresArg: true,
     default: 'default',
@@ -343,7 +343,7 @@ To obtain the JSON files, you need to base64-decode the file followed by gunzip.
   },
   z: {
     alias: 'websiteTag',
-    describe: 'Tag to identify the website in telemetry. Overrides OOBEE_TAGGED_WEBSITE env var.',
+    describe: 'Tag to identify the website in telemetry. Overrides A11Y_ASSIST_TAGGED_WEBSITE env var.',
     type: 'string',
     requiresArg: true,
     demandOption: false,

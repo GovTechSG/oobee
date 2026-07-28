@@ -315,13 +315,13 @@
       const buttonAIId = `${ruleInCategory.rule}-${category}-button-AI-html-${index}-${itemIndex}`;
       const errorAIId = `${ruleInCategory.rule}-${category}-error-AI-html-${index}-${itemIndex}`;
 
-      const isPurpleAiRule = oobeeAiRules.includes(ruleInCategory.rule);
-      let oobeeAiQueryLabel;
+      const isPurpleAiRule = a11yassistAiRules.includes(ruleInCategory.rule);
+      let a11yassistAiQueryLabel;
       if (isPurpleAiRule) {
-        oobeeAiQueryLabel = await checkPurpleAiQueryLabel(ruleInCategory.rule, item.html);
+        a11yassistAiQueryLabel = await checkPurpleAiQueryLabel(ruleInCategory.rule, item.html);
       }
 
-      const itemCard = createHtmlGroupedItemCard(item, isPurpleAiRule, oobeeAiQueryLabel, {
+      const itemCard = createHtmlGroupedItemCard(item, isPurpleAiRule, a11yassistAiQueryLabel, {
         accordionDivToAppendAI: accordionAIId,
         buttonDivForAiFeedback: buttonAIId,
         aiErrorDiv: errorAIId,
@@ -360,7 +360,7 @@
     renderItem(0);
   }
 
-  function createHtmlGroupedItemCard(item, isPurpleAiRule, oobeeAiQueryLabel, aiConfig, htmlElement) {
+  function createHtmlGroupedItemCard(item, isPurpleAiRule, a11yassistAiQueryLabel, aiConfig, htmlElement) {
     return createElementFromString(`
       <div>
         <div class="d-flex gap-3 flex-column">
@@ -394,7 +394,7 @@
 
           ${
             (() => {
-              const showDetails = item.displayNeedsReview || ['color-contrast', 'color-contrast-enhanced', 'oobee-grading-text-contents', 'target-size', 'valid-lang'].includes(aiConfig.ruleInCategory.rule);
+              const showDetails = item.displayNeedsReview || ['color-contrast', 'color-contrast-enhanced', 'a11yassist-grading-text-contents', 'target-size', 'valid-lang'].includes(aiConfig.ruleInCategory.rule);
               return showDetails && item.message
                 ? `<div class="d-flex justify-content-between g-one modal-view">
             <div class="fw-semibold page-item-card-section-title">Details</div>
@@ -405,7 +405,7 @@
                 : '';
             })()
           }
-          ${isPurpleAiRule ? createAiSuggestionSection(item, oobeeAiQueryLabel, aiConfig) : ''}
+          ${isPurpleAiRule ? createAiSuggestionSection(item, a11yassistAiQueryLabel, aiConfig) : ''}
         </div>
       </div>
     `);

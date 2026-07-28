@@ -397,11 +397,11 @@ const checkUrlConnectivityWithBrowser = async (
     ...(Object.keys(nonAuthHeaders).length > 0 && { extraHTTPHeaders: nonAuthHeaders }),
     ...(httpCredentials && { httpCredentials }),
     ignoreHTTPSErrors: true,
-    ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
+    ...(process.env.A11Y_ASSIST_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
   };
 
   // Keep UA emulation explicitly.
-  contextOptions.userAgent = process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined);
+  contextOptions.userAgent = process.env.A11Y_ASSIST_USER_AGENT || (deviceUserAgent as string | undefined);
 
   const launchPersistent = async (effectiveLaunchOptions: LaunchOptions) => {
     browserContext = await launchPersistentSafeContext(clonedDataDir, {
@@ -948,7 +948,7 @@ const getRobotsTxtViaPlaywright = async (
       browserContext = await launchPersistentSafeContext(robotsDataDir, {
         ...getPlaywrightLaunchOptions(browser),
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
-        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
+        ...(process.env.A11Y_ASSIST_USER_AGENT && { userAgent: process.env.A11Y_ASSIST_USER_AGENT }),
       });
       register(browserContext);
     } else {
@@ -959,7 +959,7 @@ const getRobotsTxtViaPlaywright = async (
 
       browserContext = await browserInstance.newContext({
         ...(extraHTTPHeaders && { extraHTTPHeaders }),
-        ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
+        ...(process.env.A11Y_ASSIST_USER_AGENT && { userAgent: process.env.A11Y_ASSIST_USER_AGENT }),
       });
     }
 
@@ -1175,7 +1175,7 @@ export const getLinksFromSitemap = async (
               // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
               ...(process.env.CRAWLEE_HEADLESS === '1' && { userDataDir: userDataDirectory }),
               ...(extraHTTPHeaders && { extraHTTPHeaders }),
-              ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
+              ...(process.env.A11Y_ASSIST_USER_AGENT && { userAgent: process.env.A11Y_ASSIST_USER_AGENT }),
             },
           );
 
@@ -1188,7 +1188,7 @@ export const getLinksFromSitemap = async (
 
           browserContext = await browserInstance.newContext({
             ...(extraHTTPHeaders && { extraHTTPHeaders }),
-            ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
+            ...(process.env.A11Y_ASSIST_USER_AGENT && { userAgent: process.env.A11Y_ASSIST_USER_AGENT }),
           });
         }
 
@@ -1626,14 +1626,14 @@ const cloneChromeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, d
   if (os.platform() === 'win32') {
     profileCookiesDir = globSync('**/Network/Cookies', {
       ...options,
-      ignore: ['oobee*/**'],
+      ignore: ['a11yassist*/**'],
     });
     profileNamesRegex = /User Data\\(.*?)\\Network/;
   } else if (os.platform() === 'darwin') {
-    // maxDepth 2 to avoid copying cookies from the oobee directory if it exists
+    // maxDepth 2 to avoid copying cookies from the a11yassist directory if it exists
     profileCookiesDir = globSync('**/Cookies', {
       ...options,
-      ignore: 'oobee*/**',
+      ignore: 'a11yassist*/**',
     });
     profileNamesRegex = /Chrome\/(.*?)\/Cookies/;
   } else {
@@ -1690,18 +1690,18 @@ const cloneEdgeProfileCookieFiles = (options: GlobOptionsWithFileTypesFalse, des
   // Cookies file per profile is located in .../User Data/<profile name>/Network/Cookies for windows
   // and ../Chrome/<profile name>/Cookies for mac
   let profileNamesRegex: RegExp;
-  // Ignores the cloned oobee directory if exists
+  // Ignores the cloned a11yassist directory if exists
   if (os.platform() === 'win32') {
     profileCookiesDir = globSync('**/Network/Cookies', {
       ...options,
-      ignore: 'oobee*/**',
+      ignore: 'a11yassist*/**',
     });
     profileNamesRegex = /User Data\\(.*?)\\Network/;
   } else if (os.platform() === 'darwin') {
-    // Ignores copying cookies from the oobee directory if it exists
+    // Ignores copying cookies from the a11yassist directory if it exists
     profileCookiesDir = globSync('**/Cookies', {
       ...options,
-      ignore: 'oobee*/**',
+      ignore: 'a11yassist*/**',
     });
     profileNamesRegex = /Microsoft Edge\/(.*?)\/Cookies/;
   }
@@ -1773,7 +1773,7 @@ const cloneLocalStateFile = (options: GlobOptionsWithFileTypesFalse, destDir: st
 
 /**
  * Checks if the Chrome data directory exists and creates a clone
- * of all profile within the oobee directory located in the
+ * of all profile within the a11yassist directory located in the
  * .../User Data directory for Windows and
  * .../Chrome directory for Mac.
  * @param {string} randomToken - random token to append to the cloned directory
@@ -1788,7 +1788,7 @@ export const cloneChromeProfiles = (randomToken: string): string => {
 
   let destDir;
 
-  destDir = path.join(baseDir, `oobee-${randomToken}`);
+  destDir = path.join(baseDir, `a11yassist-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
     // Don't delete since it will be handled at the end of the scan
@@ -1836,7 +1836,7 @@ export const cloneChromiumProfiles = (randomToken: string): string => {
 
   let destDir: string;
 
-  destDir = path.join(baseDir, `oobee-${randomToken}`);
+  destDir = path.join(baseDir, `a11yassist-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
     // Don't delete since it will be handled at the end of the scan
@@ -1851,7 +1851,7 @@ export const cloneChromiumProfiles = (randomToken: string): string => {
 
 /**
  * Checks if the Edge data directory exists and creates a clone
- * of all profile within the oobee directory located in the
+ * of all profile within the a11yassist directory located in the
  * .../User Data directory for Windows and
  * .../Microsoft Edge directory for Mac.
  * @param {string} randomToken - random token to append to the cloned directory
@@ -1866,7 +1866,7 @@ export const cloneEdgeProfiles = (randomToken: string): string => {
 
   let destDir;
 
-  destDir = path.join(baseDir, `oobee-${randomToken}`);
+  destDir = path.join(baseDir, `a11yassist-${randomToken}`);
 
   if (fs.existsSync(destDir)) {
     // Don't delete since it will be handled at the end of the scan
@@ -1916,7 +1916,7 @@ export const deleteClonedProfiles = (browser: string, randomToken: string): void
 };
 
 /**
- * Deletes all the cloned oobee directories in the Chrome data directory
+ * Deletes all the cloned a11yassist directories in the Chrome data directory
  * @returns null
  */
 export const deleteClonedChromeProfiles = (randomToken?: string): void => {
@@ -1928,16 +1928,16 @@ export const deleteClonedChromeProfiles = (randomToken?: string): void => {
   let destDir: string[];
   if (randomToken) {
     // Also match _pool* directories created by browser pool re-launches
-    destDir = globSync(`oobee-${randomToken}*`, {
+    destDir = globSync(`a11yassist-${randomToken}*`, {
       cwd: baseDir,
       absolute: true,
     });
     if (destDir.length === 0) {
-      destDir = [`${baseDir}/oobee-${randomToken}`];
+      destDir = [`${baseDir}/a11yassist-${randomToken}`];
     }
   } else {
-    // Find all the oobee directories in the Chrome data directory
-    destDir = globSync('**/oobee*', {
+    // Find all the a11yassist directories in the Chrome data directory
+    destDir = globSync('**/a11yassist*', {
       cwd: baseDir,
       absolute: true,
     });
@@ -1958,12 +1958,12 @@ export const deleteClonedChromeProfiles = (randomToken?: string): void => {
     return;
   }
 
-  consoleLogger.warn('Unable to find oobee directory in the Chrome data directory.');
-  console.warn('Unable to find oobee directory in the Chrome data directory.');
+  consoleLogger.warn('Unable to find a11yassist directory in the Chrome data directory.');
+  console.warn('Unable to find a11yassist directory in the Chrome data directory.');
 };
 
 /**
- * Deletes all the cloned oobee directories in the Edge data directory
+ * Deletes all the cloned a11yassist directories in the Edge data directory
  * @returns null
  */
 export const deleteClonedEdgeProfiles = (randomToken?: string): void => {
@@ -1976,16 +1976,16 @@ export const deleteClonedEdgeProfiles = (randomToken?: string): void => {
   let destDir: string[];
   if (randomToken) {
     // Also match _pool* directories created by browser pool re-launches
-    destDir = globSync(`oobee-${randomToken}*`, {
+    destDir = globSync(`a11yassist-${randomToken}*`, {
       cwd: baseDir,
       absolute: true,
     });
     if (destDir.length === 0) {
-      destDir = [`${baseDir}/oobee-${randomToken}`];
+      destDir = [`${baseDir}/a11yassist-${randomToken}`];
     }
   } else {
-    // Find all the oobee directories in the Edge data directory
-    destDir = globSync('**/oobee*', {
+    // Find all the a11yassist directories in the Edge data directory
+    destDir = globSync('**/a11yassist*', {
       cwd: baseDir,
       absolute: true,
     });
@@ -2014,10 +2014,10 @@ export const deleteClonedChromiumProfiles = (randomToken?: string): void => {
   }
   let destDir: string[];
   if (randomToken) {
-    destDir = [`${baseDir}/oobee-${randomToken}`];
+    destDir = [`${baseDir}/a11yassist-${randomToken}`];
   } else {
-    // Find all the oobee directories in the Chrome data directory
-    destDir = globSync('**/oobee*', {
+    // Find all the a11yassist directories in the Chrome data directory
+    destDir = globSync('**/a11yassist*', {
       cwd: baseDir,
       absolute: true,
     });
@@ -2038,8 +2038,8 @@ export const deleteClonedChromiumProfiles = (randomToken?: string): void => {
     return;
   }
 
-  consoleLogger.warn('Unable to find oobee directory in Chromium support directory');
-  console.warn('Unable to find oobee directory in Chromium support directory');
+  consoleLogger.warn('Unable to find a11yassist directory in Chromium support directory');
+  console.warn('Unable to find a11yassist directory in Chromium support directory');
 };
 
 export const getPlaywrightDeviceDetailsObject = (
@@ -2188,14 +2188,14 @@ export async function initModifiedUserAgent(
       : defaultUA;
 
     // Do not mutate global CLI args with --user-agent=
-    process.env.OOBEE_USER_AGENT = modifiedUA;
+    process.env.A11Y_ASSIST_USER_AGENT = modifiedUA;
   } catch (error) {
     const fallbackUA =
       (typeof (_playwrightDeviceDetailsObject as any)?.userAgent === 'string' &&
         (_playwrightDeviceDetailsObject as any).userAgent) ||
       devices['Desktop Chrome'].userAgent;
 
-    process.env.OOBEE_USER_AGENT = fallbackUA.includes('HeadlessChrome')
+    process.env.A11Y_ASSIST_USER_AGENT = fallbackUA.includes('HeadlessChrome')
       ? fallbackUA.replace('HeadlessChrome', 'Chrome')
       : fallbackUA;
 
@@ -2228,7 +2228,7 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
   const resolution = proxyInfoToResolution(cacheProxyInfo);
   const shouldIgnoreMuteAudio =
-    process.env.OOBEE_PLAYWRIGHT_IGNORE_DEFAULT_ARGS === '--mute-audio';
+    process.env.A11Y_ASSIST_PLAYWRIGHT_IGNORE_DEFAULT_ARGS === '--mute-audio';
 
   // Start with your base args and sanitise
   const finalArgs = [...constants.launchOptionsArgs].filter(
@@ -2298,10 +2298,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
     ...(proxyOpt ? { proxy: proxyOpt } : {}),
   };
 
-  // SlowMo for debugging, can be set via env variable OOBEE_SLOWMO to avoid adding it as a CLI argument and causing confusion for users who don't need it
-  if (!options.slowMo && process.env.OOBEE_SLOWMO && Number(process.env.OOBEE_SLOWMO) >= 1) {
-    options.slowMo = Number(process.env.OOBEE_SLOWMO);
-    consoleLogger.info(`Enabled browser slowMo with value: ${process.env.OOBEE_SLOWMO}ms`);
+  // SlowMo for debugging, can be set via env variable A11Y_ASSIST_SLOWMO to avoid adding it as a CLI argument and causing confusion for users who don't need it
+  if (!options.slowMo && process.env.A11Y_ASSIST_SLOWMO && Number(process.env.A11Y_ASSIST_SLOWMO) >= 1) {
+    options.slowMo = Number(process.env.A11Y_ASSIST_SLOWMO);
+    consoleLogger.info(`Enabled browser slowMo with value: ${process.env.A11Y_ASSIST_SLOWMO}ms`);
   }
 
   return options;

@@ -239,7 +239,7 @@ include('./pageAccordionBuilder') %> <%- include('./constants') %>
       disabilitySection.style.display = 'none';
     }
 
-    if (oobeeAiRules.includes(selectedRule.rule)) {
+    if (a11yassistAiRules.includes(selectedRule.rule)) {
       document.querySelector('#expandedRuleAiFeedback').style.display = 'block';
     } else {
       document.querySelector('#expandedRuleAiFeedback').style.display = 'none';

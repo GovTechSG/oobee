@@ -13,9 +13,9 @@ declare global {
   interface Window {
     handleOnScanClick?: () => Promise<void> | void;
     handleOnStopClick?: () => Promise<void> | void;
-    oobeeSetCollapsed?: (val: boolean) => void;
-    oobeeShowStopModal?: () => Promise<{ confirmed: boolean; label: string }>;
-    oobeeHideStopModal?: () => void;
+    a11yassistSetCollapsed?: (val: boolean) => void;
+    a11yassistShowStopModal?: () => Promise<{ confirmed: boolean; label: string }>;
+    a11yassistHideStopModal?: () => void;
     updateMenuPos?: (pos: 'LEFT' | 'RIGHT') => void;
   }
 }
@@ -302,9 +302,9 @@ export const updateMenu = async (page, urlsCrawled) => {
   log(`Overlay menu: updating: ${page.url()}`);
   await page.evaluate(
     vars => {
-      const shadowHost = document.querySelector('#oobeeShadowHost');
+      const shadowHost = document.querySelector('#a11yassistShadowHost');
       if (shadowHost) {
-        const p = shadowHost.shadowRoot.querySelector('#oobee-p-pages-scanned');
+        const p = shadowHost.shadowRoot.querySelector('#a11yassist-p-pages-scanned');
         if (p) {
           p.textContent = `Pages Scanned: ${vars.urlsCrawled.scanned.length || 0}`;
         }
@@ -342,15 +342,15 @@ export const addOverlayMenu = async (
         const collapsedOption = !!(vars?.opts && vars.opts.collapsed);
 
         const panel = document.createElement('aside');
-        panel.className = 'oobee-panel';
+        panel.className = 'a11yassist-panel';
 
         const minBtn = document.createElement('button');
         minBtn.type = 'button';
-        minBtn.className = 'oobee-minbtn';
+        minBtn.className = 'a11yassist-minbtn';
         minBtn.setAttribute('aria-label', 'Minimize/expand panel');
 
         const MINBTN_SVG = `
-          <svg class="oobee-minbtn__icon" xmlns="http://www.w3.org/2000/svg"
+          <svg class="a11yassist-minbtn__icon" xmlns="http://www.w3.org/2000/svg"
               width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
             <g clip-path="url(#clip0_59_3691)">
               <path d="M6.41 6L5 7.41L9.58 12L5 16.59L6.41 18L12.41 12L6.41 6Z" fill="#9021A6"/>
@@ -386,32 +386,32 @@ export const addOverlayMenu = async (
           const willCollapse = typeof force === 'boolean' ? force : !isCollapsed();
           if (willCollapse) {
             panel.classList.add('collapsed');
-            localStorage.setItem('oobee:overlay-collapsed', '1');
-            customWindow.oobeeSetCollapsed?.(true);
+            localStorage.setItem('a11yassist:overlay-collapsed', '1');
+            customWindow.a11yassistSetCollapsed?.(true);
           } else {
             panel.classList.remove('collapsed');
-            localStorage.setItem('oobee:overlay-collapsed', '0');
-            customWindow.oobeeSetCollapsed?.(false);
+            localStorage.setItem('a11yassist:overlay-collapsed', '0');
+            customWindow.a11yassistSetCollapsed?.(false);
           }
           positionMinimizeBtn();
           setDraggableSidebarMenu();
         };
 
         setPosClass(currentPos);
-        const persisted = localStorage.getItem('oobee:overlay-collapsed');
+        const persisted = localStorage.getItem('a11yassist:overlay-collapsed');
         const startCollapsed = persisted != null ? persisted === '1' : collapsedOption;
         if (startCollapsed) panel.classList.add('collapsed');
 
         const header = document.createElement('div');
-        header.className = 'oobee-header';
+        header.className = 'a11yassist-header';
 
         const grip = document.createElement('button');
         grip.type = 'button';
-        grip.className = 'oobee-grip';
+        grip.className = 'a11yassist-grip';
         grip.setAttribute('aria-label', 'Drag to move panel left or right');
 
         const GRIP_SVG = `
-          <svg class="oobee-grip__icon" xmlns="http://www.w3.org/2000/svg"
+          <svg class="a11yassist-grip__icon" xmlns="http://www.w3.org/2000/svg"
               width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
             <path d="M6 11C4.9 11 4 10.1 4 9C4 7.9 4.9 7 6 7C7.1 7 8 7.9 8 9C8 10.1 7.1 11 6 11ZM14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9C10 10.1 10.9 11 12 11C13.1 11 14 10.1 14 9ZM20 9C20 7.9 19.1 7 18 7C16.9 7 16 7.9 16 9C16 10.1 16.9 11 18 11C19.1 11 20 10.1 20 9ZM16 15C16 16.1 16.9 17 18 17C19.1 17 20 16.1 20 15C20 13.9 19.1 13 18 13C16.9 13 16 13.9 16 15ZM14 15C14 13.9 13.1 13 12 13C10.9 13 10 13.9 10 15C10 16.1 10.9 17 12 17C13.1 17 14 16.1 14 15ZM8 15C8 13.9 7.1 13 6 13C4.9 13 4 13.9 4 15C4 16.1 4.9 17 6 17C7.1 17 8 16.1 8 15Z" fill="#AFAFB0"/>
           </svg>
@@ -419,24 +419,24 @@ export const addOverlayMenu = async (
         grip.innerHTML = GRIP_SVG;
 
         const leftSpacer = document.createElement('div');
-        leftSpacer.className = 'oobee-spacer';
+        leftSpacer.className = 'a11yassist-spacer';
         const rightSpacer = document.createElement('div');
-        rightSpacer.className = 'oobee-spacer';
+        rightSpacer.className = 'a11yassist-spacer';
 
         header.appendChild(leftSpacer);
         header.appendChild(grip);
         header.appendChild(rightSpacer);
 
         const body = document.createElement('div');
-        body.className = 'oobee-body';
+        body.className = 'a11yassist-body';
 
         const h2 = document.createElement('h2');
-        h2.id = 'oobeeHPagesScanned';
-        h2.className = 'oobee-section-title';
+        h2.id = 'a11yassistHPagesScanned';
+        h2.className = 'a11yassist-section-title';
         h2.textContent = `Pages Scanned (${vars.urlsCrawled.scanned.length || 0})`;
 
         const scanIcon = document.createElement('span');
-        scanIcon.className = 'oobee-btn-icon';
+        scanIcon.className = 'a11yassist-btn-icon';
 
         const SCAN_SVG = `
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -461,20 +461,20 @@ export const addOverlayMenu = async (
         
         scanIcon.innerHTML = SCAN_SVG; 
         const scanBtn = document.createElement('button');
-        scanBtn.id = 'oobeeBtnScan';
-        scanBtn.className = 'oobee-btn oobee-btn-primary';
+        scanBtn.id = 'a11yassistBtnScan';
+        scanBtn.className = 'a11yassist-btn a11yassist-btn-primary';
         scanBtn.disabled = inProgress;
         scanBtn.appendChild(scanIcon);
 
         const scanText = document.createElement('span');
-        scanText.className = 'oobee-btn-text';
+        scanText.className = 'a11yassist-btn-text';
         scanText.innerText = 'Scan page';
         scanBtn.appendChild(scanText);
 
         scanBtn.addEventListener('click', async () => customWindow.handleOnScanClick?.());
 
         const endScanIcon = document.createElement('span');
-        endScanIcon.className = 'oobee-btn-icon';
+        endScanIcon.className = 'a11yassist-btn-icon';
 
         const ENDSCAN_SVG = 
           `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -484,25 +484,25 @@ export const addOverlayMenu = async (
 
         endScanIcon.innerHTML = ENDSCAN_SVG;
         const endScanBtn = document.createElement('button');
-        endScanBtn.id = 'oobeeBtnEndScan';
-        endScanBtn.className = 'oobee-btn oobee-btn-secondary';
+        endScanBtn.id = 'a11yassistBtnEndScan';
+        endScanBtn.className = 'a11yassist-btn a11yassist-btn-secondary';
         endScanBtn.appendChild(endScanIcon);
         
         const endScanText = document.createElement('span');
-        endScanText.className = 'oobee-btn-text';
+        endScanText.className = 'a11yassist-btn-text';
         endScanText.innerText = 'End scan';
         endScanBtn.appendChild(endScanText);
 
         endScanBtn.addEventListener('click', async () => customWindow.handleOnStopClick?.());
 
         const btnGroup = document.createElement('div');
-        btnGroup.className = 'oobee-actions';
+        btnGroup.className = 'a11yassist-actions';
         btnGroup.appendChild(scanBtn);
         btnGroup.appendChild(endScanBtn);
 
         const listWrap = document.createElement('div');
-        listWrap.id = 'oobeeList';
-        listWrap.className = 'oobee-list';
+        listWrap.id = 'a11yassistList';
+        listWrap.className = 'a11yassist-list';
 
         const renderList = () => {
           const scanned = vars.urlsCrawled.scanned || [];
@@ -510,25 +510,25 @@ export const addOverlayMenu = async (
 
           if (scanned.length === 0) {
             const empty = document.createElement('div');
-            empty.className = 'oobee-empty';
+            empty.className = 'a11yassist-empty';
             empty.textContent = 'Scan a page to start';
             listWrap.appendChild(empty);
             return;
           }
 
           const ol = document.createElement('ol');
-          ol.className = 'oobee-ol';
+          ol.className = 'a11yassist-ol';
 
           scanned.forEach(item => {
             const li = document.createElement('li');
-            li.className = 'oobee-li';
+            li.className = 'a11yassist-li';
 
             const title = document.createElement('div');
-            title.className = 'oobee-item-title';
+            title.className = 'a11yassist-item-title';
             title.textContent = item.pageTitle && item.pageTitle.trim() ? item.pageTitle : item.url;
 
             const url = document.createElement('div');
-            url.className = 'oobee-item-url';
+            url.className = 'a11yassist-item-url';
             url.textContent = item.url;
 
             li.appendChild(title);
@@ -550,7 +550,7 @@ export const addOverlayMenu = async (
         const sheet = new CSSStyleSheet();
         // TODO: separate out into css file if this gets too big
         sheet.replaceSync(`
-          .oobee-panel{
+          .a11yassist-panel{
             position: fixed;
             top: 0;
             height: 100vh;
@@ -565,26 +565,26 @@ export const addOverlayMenu = async (
             box-shadow: 0 6px 24px rgba(0,0,0,.08);
             transition: width .16s ease,left .16s ease,right .16s ease
           }
-          .oobee-panel.pos-right {
+          .a11yassist-panel.pos-right {
             right: 0;
             border-left: 1px solid rgba(0,0,0,.08)
           }
-          .oobee-panel.pos-left {
+          .a11yassist-panel.pos-left {
             left: 0;
             border-right: 1px solid rgba(0,0,0,.08)
           }
-          .oobee-panel.collapsed {
+          .a11yassist-panel.collapsed {
             width: 58px;
             overflow: hidden
           }
 
           :host {
-            --oobee-gap: 8px;                 /* distance from panel edge */
-            --oobee-panel-offset: 320px;      /* overwritten by JS to actual width */
+            --a11yassist-gap: 8px;                 /* distance from panel edge */
+            --a11yassist-panel-offset: 320px;      /* overwritten by JS to actual width */
           }
 
           /* external minimize button (always OUTSIDE the panel) */
-          .oobee-minbtn {
+          .a11yassist-minbtn {
             position: fixed;
             top: 0;
             z-index: 2147483647;
@@ -596,47 +596,47 @@ export const addOverlayMenu = async (
           }
 
           /* right-docked: button sits to the LEFT of the panel */
-          .oobee-minbtn.pos-right{
-            right: calc(var(--oobee-panel-offset) + var(--oobee-gap));
+          .a11yassist-minbtn.pos-right{
+            right: calc(var(--a11yassist-panel-offset) + var(--a11yassist-gap));
           }
           /* left-docked: button sits to the RIGHT of the panel */
-          .oobee-minbtn.pos-left{
-            left: calc(var(--oobee-panel-offset) + var(--oobee-gap));
+          .a11yassist-minbtn.pos-left{
+            left: calc(var(--a11yassist-panel-offset) + var(--a11yassist-gap));
           }
-          .oobee-minbtn:hover {
+          .a11yassist-minbtn:hover {
             box-shadow:0 4px 12px rgba(0,0,0,.12);
           }
-          .oobee-minbtn:active {
+          .a11yassist-minbtn:active {
             transform:translateY(1px);
           }
-          .oobee-minbtn:focus-visible {
+          .a11yassist-minbtn:focus-visible {
             outline: 2px solid #7b4dff;
             outline-offset: 2px;
           }
 
-          .oobee-header {
+          .a11yassist-header {
             position: relative;
             display: flex;
             align-items: center;
             justify-content: space-between;
           }
 
-          .oobee-spacer {
+          .a11yassist-spacer {
             width:28px;
             height:28px;
           }
 
-          .oobee-grip{
+          .a11yassist-grip{
             border: 0;
             background: #FFFFFF;
             cursor: grab;
             margin-top: 0.4rem;
           }
-          .oobee-grip:active {
+          .a11yassist-grip:active {
             cursor:grabbing;
           }
 
-          .oobee-body {
+          .a11yassist-body {
             display: flex;
             flex-direction: column;
             flex: 1;
@@ -644,21 +644,21 @@ export const addOverlayMenu = async (
             overflow: hidden;
           }
 
-          .oobee-actions {
+          .a11yassist-actions {
             display: flex;
             flex-direction: column;
             gap: 12px;
             padding: 1rem;
           }
 
-          .oobee-panel.collapsed .oobee-actions {
+          .a11yassist-panel.collapsed .a11yassist-actions {
             display: flex;
             justify-content: center;
             padding: 1rem 0.7rem;
           }
 
           /* Base button */
-          .oobee-btn {
+          .a11yassist-btn {
             width: 100%;
             min-height: 44px;
             border-radius: 999px;
@@ -679,12 +679,12 @@ export const addOverlayMenu = async (
               border-color .12s ease;
             }
           }
-          .oobee-btn:disabled {
+          .a11yassist-btn:disabled {
             opacity:.6;
             cursor:not-allowed
           }
 
-          .oobee-panel.collapsed .oobee-btn {
+          .a11yassist-panel.collapsed .a11yassist-btn {
             width: 44px !important;
             height: 44px !important;
             min-width: 44px !important;
@@ -698,38 +698,38 @@ export const addOverlayMenu = async (
           }
 
           /* Primary (filled) */
-          .oobee-btn-primary {
+          .a11yassist-btn-primary {
             background: #9021a6;
             color: #fff;
             border: 1px solid transparent;
           }
-          .oobee-btn-primary:hover:not(:disabled) {
+          .a11yassist-btn-primary:hover:not(:disabled) {
             box-shadow:0 2px 10px rgba(0,0,0,.12);
           }
-          .oobee-btn-primary:active:not(:disabled) {
+          .a11yassist-btn-primary:active:not(:disabled) {
             transform:translateY(1px);
           }
-          .oobee-btn-primary:focus-visible {
+          .a11yassist-btn-primary:focus-visible {
             outline:2px solid #7b4dff;
             outline-offset:2px;
           }
 
           /* Stop button */
-          .oobee-btn-secondary{
+          .a11yassist-btn-secondary{
             background: #fff;
             color: #9021A6;
             border: 1px solid #9021A6;
           }
-          .oobee-btn-secondary:active:not(:disabled) {
+          .a11yassist-btn-secondary:active:not(:disabled) {
             transform:translateY(1px);
           }
-          .oobee-btn-secondary:focus-visible{
+          .a11yassist-btn-secondary:focus-visible{
             outline: 2px solid #7b4dff;
             outline-offset:2px;
           }
 
           /* Text for empty scans */
-          .oobee-empty{
+          .a11yassist-empty{
             display: flex;
             justify-content: center;
             align-items: center;
@@ -738,7 +738,7 @@ export const addOverlayMenu = async (
             color: #555555;
           }
 
-          .oobee-list {
+          .a11yassist-list {
             flex: 1;
             min-height: 0;
             overflow-y: auto;
@@ -748,11 +748,11 @@ export const addOverlayMenu = async (
             padding-top: 0;
           }
 
-          .oobee-panel.collapsed .oobee-list {
+          .a11yassist-panel.collapsed .a11yassist-list {
             display: none;
           }
 
-          .oobee-btn-icon {
+          .a11yassist-btn-icon {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -761,24 +761,24 @@ export const addOverlayMenu = async (
             vertical-align: middle;
           }
 
-          .oobee-btn-text {
+          .a11yassist-btn-text {
             display: inline;
             white-space: nowrap;
             vertical-align: middle;
           }
           
-          .oobee-panel.collapsed .oobee-btn-text {
+          .a11yassist-panel.collapsed .a11yassist-btn-text {
             display: none;
           }
 
-          #oobeeStopOverlay[hidden] {
+          #a11yassistStopOverlay[hidden] {
             display:none !important;
           }
-          #oobeeStopOverlay {
+          #a11yassistStopOverlay {
             display:grid;
           }
 
-          .oobee-section-title {
+          .a11yassist-section-title {
             font-size: 16px;
             font-weight: 700;
             color: #161616;
@@ -787,14 +787,14 @@ export const addOverlayMenu = async (
             margin: 0;
           }
 
-          .oobee-panel.collapsed .oobee-section-title {
+          .a11yassist-panel.collapsed .a11yassist-section-title {
             font-size: 14px;
             display: flex;
             justify-content: center;
             text-align: center;
           }
 
-          .oobee-ol {
+          .a11yassist-ol {
             margin: 0;
             padding-left: 1.25rem;
             display: flex;
@@ -802,12 +802,12 @@ export const addOverlayMenu = async (
             gap: 10px;
           }
 
-          .oobee-li {
+          .a11yassist-li {
             list-style: decimal;
             font-size: 14px;
           }
 
-          .oobee-item-title {
+          .a11yassist-item-title {
             font-size: 14px;
             color: #161616;
             white-space: nowrap;
@@ -815,7 +815,7 @@ export const addOverlayMenu = async (
             text-overflow: ellipsis;
           }
 
-          .oobee-item-url {
+          .a11yassist-item-url {
             font-size: 12px;
             color: #6b7280;
             white-space: nowrap;
@@ -825,31 +825,31 @@ export const addOverlayMenu = async (
             text-align: left;
           }
 
-          .oobee-minbtn__icon {
+          .a11yassist-minbtn__icon {
             transition: transform .18s ease;
             transform: rotate(0deg);
           }
-          .oobee-minbtn__icon.is-left {
+          .a11yassist-minbtn__icon.is-left {
             transform: rotate(180deg);
           }
 
-          :host-context(.oobee-snap) .oobee-panel,
-          :host-context(.oobee-snap) .oobee-minbtn { display:none !important; }
+          :host-context(.a11yassist-snap) .a11yassist-panel,
+          :host-context(.a11yassist-snap) .a11yassist-minbtn { display:none !important; }
 
           @media (max-width:1024px) {
-            .oobee-panel {
+            .a11yassist-panel {
               width:280px
             }
           }
           @media (max-width:768px) {
-            .oobee-panel {
+            .a11yassist-panel {
               width: 92vw;
               height: 100vh;
               top: 0;
               bottom: 0;
               border-radius: 0;
             }
-            .oobee-panel.collapsed {
+            .a11yassist-panel.collapsed {
               width: auto;
               height: auto;
               padding: 0;
@@ -864,9 +864,9 @@ export const addOverlayMenu = async (
           }
         `);
 
-        document.documentElement.classList.remove('oobee-snap');
+        document.documentElement.classList.remove('a11yassist-snap');
         const shadowHost = document.createElement('div');
-        shadowHost.id = 'oobeeShadowHost';
+        shadowHost.id = 'a11yassistShadowHost';
         const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
 
         shadowRoot.adoptedStyleSheets = [sheet];
@@ -875,7 +875,7 @@ export const addOverlayMenu = async (
         shadowRoot.appendChild(minBtn);
 
         function setDraggableSidebarMenu() {
-          const icon = minBtn.querySelector<SVGElement>('.oobee-minbtn__icon');
+          const icon = minBtn.querySelector<SVGElement>('.a11yassist-minbtn__icon');
           if (!icon) return;
 
           const closed = isCollapsed();
@@ -934,7 +934,7 @@ export const addOverlayMenu = async (
         });
 
         const stopDialog = document.createElement('dialog');
-        stopDialog.id = 'oobeeStopDialog';
+        stopDialog.id = 'a11yassistStopDialog';
         Object.assign(stopDialog.style, {
           width: 'min(560px, calc(100vw - 32px))',
           border: 'none',
@@ -946,29 +946,29 @@ export const addOverlayMenu = async (
         });
         const dialogSheet = new CSSStyleSheet();
         dialogSheet.replaceSync(`
-          #oobeeStopDialog::backdrop {
+          #a11yassistStopDialog::backdrop {
             background: rgba(0,0,0,.55);
           }
 
           /* primary button hover/focus */
-          .oobee-stop-primary:hover {
+          .a11yassist-stop-primary:hover {
             filter: brightness(0.95);
           }
-          .oobee-stop-primary:focus-visible {
+          .a11yassist-stop-primary:focus-visible {
             outline: 2px solid #7b4dff; outline-offset: 2px;
           }
 
           /* cancel link hover */
-          .oobee-stop-cancel {
+          .a11yassist-stop-cancel {
             color: #9021A6;
             text-decoration: underline;
           }
-          .oobee-stop-cancel:hover {
+          .a11yassist-stop-cancel:hover {
             filter: brightness(0.95);
           }
 
           /* close “X” hover ring */
-          .oobee-stop-close:hover {
+          .a11yassist-stop-close:hover {
             background: #f3f4f6;
           }
         `);
@@ -984,7 +984,7 @@ export const addOverlayMenu = async (
         });
 
         const title = document.createElement('h2');
-        title.id = 'oobee-stop-title';
+        title.id = 'a11yassist-stop-title';
         title.textContent = 'Are you sure you want to stop this scan?';
         Object.assign(title.style, {
           margin: '0',
@@ -997,7 +997,7 @@ export const addOverlayMenu = async (
         closeX.type = 'button';
         closeX.setAttribute('aria-label', 'Close');
         closeX.textContent = '×';
-        closeX.className = 'oobee-stop-close';
+        closeX.className = 'a11yassist-stop-close';
         Object.assign(closeX.style, {
           border: 'none',
           background: 'transparent',
@@ -1029,12 +1029,12 @@ export const addOverlayMenu = async (
         });
 
         const label = document.createElement('label');
-        label.setAttribute('for', 'oobee-stop-input');
+        label.setAttribute('for', 'a11yassist-stop-input');
         label.textContent = 'Enter a name for this scan';
         Object.assign(label.style, { fontSize: '15px', fontWeight: '600' });
 
         const input = document.createElement('input');
-        input.id = 'oobeeStopInput';
+        input.id = 'a11yassistStopInput';
         input.type = 'text';
         Object.assign(input.style, {
           width: '100%',
@@ -1060,7 +1060,7 @@ export const addOverlayMenu = async (
         const primary = document.createElement('button');
         primary.type = 'submit';
         primary.textContent = 'Stop scan';
-        primary.className = 'oobee-stop-primary';
+        primary.className = 'a11yassist-stop-primary';
         Object.assign(primary.style, {
           border: 'none',
           borderRadius: '999px',
@@ -1075,7 +1075,7 @@ export const addOverlayMenu = async (
         const cancel = document.createElement('button');
         cancel.type = 'button';
         cancel.textContent = 'No, continue scan';
-        cancel.className = 'oobee-stop-cancel';
+        cancel.className = 'a11yassist-stop-cancel';
         Object.assign(cancel.style, {
           border: 'none',
           background: 'transparent',
@@ -1139,12 +1139,12 @@ export const addOverlayMenu = async (
           if (stopResolver) stopResolver({ confirmed: false, label: '' });
           hideStop();
         });
-        (customWindow as Window).oobeeShowStopModal = () =>
+        (customWindow as Window).a11yassistShowStopModal = () =>
           new Promise<{ confirmed: boolean; label: string }>(resolve => {
             stopResolver = resolve;
             showStop();
           });
-        (customWindow as Window).oobeeHideStopModal = hideStop;
+        (customWindow as Window).a11yassistHideStopModal = hideStop;
 
         if (document.body) {
           document.body.appendChild(shadowHost);
@@ -1174,7 +1174,7 @@ export const addOverlayMenu = async (
 export const removeOverlayMenu = async page => {
   await page
     .evaluate(() => {
-      const existingOverlay = document.querySelector('#oobeeShadowHost');
+      const existingOverlay = document.querySelector('#a11yassistShadowHost');
       if (existingOverlay) {
         existingOverlay.remove();
         return true;
@@ -1302,7 +1302,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         }
 
         const hasOverlay = await page.evaluate(() =>
-          Boolean(document.querySelector('#oobeeShadowHost')),
+          Boolean(document.querySelector('#a11yassistShadowHost')),
         );
 
         consoleLogger.info(`Overlay state (${trigger}): ${hasOverlay}`);
@@ -1353,7 +1353,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
       // CDP mode where waitForLoadState tracking is unreliable), retry once.
       if (!page.isClosed()) {
         const overlayPresent = await page.evaluate(() =>
-          Boolean(document.querySelector('#oobeeShadowHost')),
+          Boolean(document.querySelector('#a11yassistShadowHost')),
         ).catch(() => false);
         if (!overlayPresent) {
           log('Overlay missing after scan-click reconcile, retrying...');
@@ -1381,8 +1381,8 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
     try {
       const inputValue = await page.evaluate(async () => {
         const win = window as Window;
-        if (typeof win.oobeeShowStopModal === 'function') {
-          return await win.oobeeShowStopModal();
+        if (typeof win.a11yassistShowStopModal === 'function') {
+          return await win.a11yassistShowStopModal();
         }
         const ok = window.confirm('Are you sure you want to stop this scan?');
         return { confirmed: ok, label: '' };
@@ -1390,7 +1390,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
       if (!inputValue?.confirmed) {
         await page.evaluate(() => {
-          const endScanBtn = document.getElementById('oobeeBtnEndScan') as HTMLButtonElement | null;
+          const endScanBtn = document.getElementById('a11yassistBtnEndScan') as HTMLButtonElement | null;
           if (endScanBtn) {
             endScanBtn.disabled = false;
             endScanBtn.textContent = 'Stop';

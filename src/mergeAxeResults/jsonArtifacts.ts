@@ -295,11 +295,11 @@ const writeJsonAndBase64Files = async (
   // Disk space: passed items excluded from scanItems.json to reduce disk usage.
   // Passed counts are still in scanData.json and the embedded report payload (scanItems-light).
   // To revert, remove the destructure line and restore the original argument:
-  // { oobeeAppVersion: allIssues.oobeeAppVersion, ...items }
+  // { a11yassistAppVersion: allIssues.a11yassistAppVersion, ...items }
   const { passed: _passedItems, ...itemsWithoutPassed } = items;
   const { jsonFilePath: scanItemsJsonFilePath, base64FilePath: scanItemsBase64FilePath } =
     await writeJsonFileAndCompressedJsonFile(
-      { oobeeAppVersion: allIssues.oobeeAppVersion, ...itemsWithoutPassed },
+      { a11yassistAppVersion: allIssues.a11yassistAppVersion, ...itemsWithoutPassed },
       storagePath,
       'scanItems',
       itemsStore,
@@ -340,7 +340,7 @@ const writeJsonAndBase64Files = async (
     jsonFilePath: scanIssuesSummaryJsonFilePath,
     base64FilePath: scanIssuesSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(
-    { oobeeAppVersion: allIssues.oobeeAppVersion, ...scanIssuesSummary },
+    { a11yassistAppVersion: allIssues.a11yassistAppVersion, ...scanIssuesSummary },
     storagePath,
     'scanIssuesSummary',
   );
@@ -409,7 +409,7 @@ const writeJsonAndBase64Files = async (
     jsonFilePath: scanItemsSummaryJsonFilePath,
     base64FilePath: scanItemsSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(
-    { oobeeAppVersion: allIssues.oobeeAppVersion, ...summaryItems },
+    { a11yassistAppVersion: allIssues.a11yassistAppVersion, ...summaryItems },
     storagePath,
     'scanItemsSummary',
   );
@@ -418,7 +418,7 @@ const writeJsonAndBase64Files = async (
     jsonFilePath: scanPagesDetailJsonFilePath,
     base64FilePath: scanPagesDetailBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(
-    { oobeeAppVersion: allIssues.oobeeAppVersion, ...allIssues.scanPagesDetail },
+    { a11yassistAppVersion: allIssues.a11yassistAppVersion, ...allIssues.scanPagesDetail },
     storagePath,
     'scanPagesDetail',
   );
@@ -427,7 +427,7 @@ const writeJsonAndBase64Files = async (
     jsonFilePath: scanPagesSummaryJsonFilePath,
     base64FilePath: scanPagesSummaryBase64FilePath,
   } = await writeJsonFileAndCompressedJsonFile(
-    { oobeeAppVersion: allIssues.oobeeAppVersion, ...allIssues.scanPagesSummary },
+    { a11yassistAppVersion: allIssues.a11yassistAppVersion, ...allIssues.scanPagesSummary },
     storagePath,
     'scanPagesSummary',
   );

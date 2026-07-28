@@ -10,8 +10,8 @@ import {
   getProgressPercentage,
   getIssuesPercentage,
   itemTypeDescription,
-  oobeeAiHtmlETL,
-  oobeeAiRules,
+  a11yassistAiHtmlETL,
+  a11yassistAiRules,
   formatAboutStartTime,
   convertItemsToReferences,
 } from './mergeAxeResults.js';
@@ -161,7 +161,7 @@ export const generateHtmlReport = async (
 
     const allIssues: any = {
       storagePath,
-      oobeeAi: { htmlETL: oobeeAiHtmlETL, rules: oobeeAiRules },
+      a11yassistAi: { htmlETL: a11yassistAiHtmlETL, rules: a11yassistAiRules },
       siteName: (scanData.siteName || (pagesScanned[0]?.pageTitle ?? ''))
         .toString()
         .replace(/^\d+\s*:\s*/, '')
@@ -194,7 +194,7 @@ export const generateHtmlReport = async (
       topTenIssues: Array.isArray(scanData.topTenIssues) ? scanData.topTenIssues : [],
       wcagViolations: Array.isArray(scanData.wcagViolations) ? scanData.wcagViolations : [],
       customFlowLabel: scanData.customFlowLabel || '',
-      oobeeAppVersion: scanData.oobeeAppVersion || 'dev',
+      a11yassistAppVersion: scanData.a11yassistAppVersion || 'dev',
       items,
       cypressScanAboutMetadata: scanData.cypressScanAboutMetadata || {},
       wcagLinks: scanData.wcagLinks || constants.wcagLinks,
@@ -235,7 +235,7 @@ export const generateHtmlReport = async (
     allIssues.issuesPercentage = await getIssuesPercentage(
       allIssues.scanPagesDetail,
       allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa,
-      (allIssues as any).advancedScanOptionsSummaryItems?.disableOobee,
+      (allIssues as any).advancedScanOptionsSummaryItems?.disableA11yAssist,
     );
 
     await writeHTML(allIssues, storagePath, htmlFilename, scanDataB64Path, scanItemsB64Path);

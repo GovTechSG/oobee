@@ -4,11 +4,11 @@ import { evaluateAltText } from "./evaluateAltText.js";
 export function getAxeConfiguration({
   enableWcagAaa = false,
   gradingReadabilityFlag = '',
-  disableOobee = false,
+  disableA11yAssist = false,
 }: {
   enableWcagAaa?: boolean;
   gradingReadabilityFlag?: string;
-  disableOobee?: boolean;
+  disableA11yAssist?: boolean;
 }) {
   function getReadabilityInterpretation(score: string): string {
     const num = parseFloat(score);
@@ -18,11 +18,11 @@ export function getAxeConfiguration({
   }
   return {
     branding: {
-      application: 'oobee',
+      application: 'a11yassist',
     },
     checks: [
       {
-        id: 'oobee-confusing-alt-text',
+        id: 'a11yassist-confusing-alt-text',
         metadata: {
           impact: 'serious' as ImpactValue,
           messages: {
@@ -33,7 +33,7 @@ export function getAxeConfiguration({
         evaluate: evaluateAltText,
       },
       {
-        id: 'oobee-accessible-label',
+        id: 'a11yassist-accessible-label',
         metadata: {
           impact: 'serious' as ImpactValue,
           messages: {
@@ -48,7 +48,7 @@ export function getAxeConfiguration({
       ...((enableWcagAaa && gradingReadabilityFlag !== '')
         ? [
           {
-            id: 'oobee-grading-text-contents',
+            id: 'a11yassist-grading-text-contents',
             metadata: {
               impact: 'moderate' as ImpactValue,
               messages: {
@@ -65,10 +65,10 @@ export function getAxeConfiguration({
     rules: [
       { id: 'target-size', enabled: true },
       {
-        id: 'oobee-confusing-alt-text',
+        id: 'a11yassist-confusing-alt-text',
         selector: 'img[alt]',
         enabled: true,
-        any: ['oobee-confusing-alt-text'],
+        any: ['a11yassist-confusing-alt-text'],
         tags: ['wcag2a', 'wcag111'],
         metadata: {
           description: 'Ensures image alt text is clear and useful.',
@@ -77,10 +77,10 @@ export function getAxeConfiguration({
         },
       },
       {
-        id: 'oobee-accessible-label',
+        id: 'a11yassist-accessible-label',
         // selector: '*', // to be set with the checker function output xpaths converted to css selectors
         enabled: true,
-        any: ['oobee-accessible-label'],
+        any: ['a11yassist-accessible-label'],
         tags: ['wcag2a', 'wcag211', 'wcag412'],
         metadata: {
           description: 'Ensures clickable elements have an accessible label.',
@@ -90,10 +90,10 @@ export function getAxeConfiguration({
       },
       ...((enableWcagAaa && gradingReadabilityFlag !== '')
         ? [{
-            id: 'oobee-grading-text-contents',
+            id: 'a11yassist-grading-text-contents',
             selector: 'html',
             enabled: true,
-            any: ['oobee-grading-text-contents'],
+            any: ['a11yassist-grading-text-contents'],
             tags: ['wcag2aaa', 'wcag315'],
             metadata: {
               description:
@@ -104,7 +104,7 @@ export function getAxeConfiguration({
           }]
         : []),
     ]
-      .filter(rule => (disableOobee ? !rule.id.startsWith('oobee') : true))
+      .filter(rule => (disableA11yAssist ? !rule.id.startsWith('a11yassist') : true))
       .concat(
         enableWcagAaa
           ? [

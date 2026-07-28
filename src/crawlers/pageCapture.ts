@@ -59,13 +59,13 @@ function getRelativeName(filePath: string, baseDir: string): string {
 }
 
 export function isSaveDomEnabled(): boolean {
-  return process.env.OOBEE_SAVE_DOM === '1' || process.env.OOBEE_SAVE_DOM === 'true';
+  return process.env.A11Y_ASSIST_SAVE_DOM === '1' || process.env.A11Y_ASSIST_SAVE_DOM === 'true';
 }
 
 export function isSavePageScreenshotEnabled(): boolean {
   return (
-    process.env.OOBEE_SAVE_PAGE_SCREENSHOT === '1' ||
-    process.env.OOBEE_SAVE_PAGE_SCREENSHOT === 'true'
+    process.env.A11Y_ASSIST_SAVE_PAGE_SCREENSHOT === '1' ||
+    process.env.A11Y_ASSIST_SAVE_PAGE_SCREENSHOT === 'true'
   );
 }
 

@@ -76,8 +76,8 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   process.env.CRAWLEE_STORAGE_DIR = randomToken;
   constants.sitemapFetchedLinks = null;
 
-  if (isPageCaptureEnabled() && !process.env.OOBEE_SCAN_PRODUCT) {
-    process.env.OOBEE_SCAN_PRODUCT = 'U&A';
+  if (isPageCaptureEnabled() && !process.env.A11Y_ASSIST_SCAN_PRODUCT) {
+    process.env.A11Y_ASSIST_SCAN_PRODUCT = 'U&A';
   }
 
   if (process.env.CRAWLEE_SYSTEM_INFO_V2 === undefined) {

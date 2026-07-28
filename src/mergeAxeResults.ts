@@ -30,7 +30,7 @@ import {
 } from './utils.js';
 import { consoleLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
-import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
+import { a11yassistAiHtmlETL, a11yassistAiRules } from './constants/a11yassistAi.js';
 import { buildHtmlGroups, convertItemsToReferences } from './mergeAxeResults/itemReferences.js';
 import { ItemsStore } from './mergeAxeResults/itemsStore.js';
 import {
@@ -230,7 +230,7 @@ const writeHTML = async (
     // Initialize GenAI feature flag
     outputStream.write(`
   // Fetch GenAI feature flag from backend
-  window.oobeeGenAiFeatureEnabled = false;
+  window.a11yassistGenAiFeatureEnabled = false;
   if (proxyUrl !== "" && proxyUrl !== undefined && proxyUrl !== null) {
     (async () => {
       try {
@@ -241,8 +241,8 @@ const writeHTML = async (
         });
         if (response.ok) {
           const features = await response.json();
-          window.oobeeGenAiFeatureEnabled = features.genai_ui_enabled || false;
-          console.log('GenAI UI feature flag:', window.oobeeGenAiFeatureEnabled);
+          window.a11yassistGenAiFeatureEnabled = features.genai_ui_enabled || false;
+          console.log('GenAI UI feature flag:', window.a11yassistGenAiFeatureEnabled);
         } else {
           console.warn('Failed to fetch GenAI feature flag:', response.status);
         }
@@ -602,7 +602,7 @@ const getTopTenIssues = allIssues => {
       rulesWithCounts.push({
         category,
         ruleId: rule.rule,
-        // Replace description with new Oobee short description if available
+        // Replace description with new A11y Assist short description if available
         description: a11yRuleShortDescriptionMap[rule.rule] || rule.description,
         axeImpact: rule.axeImpact,
         conformance: rule.conformance,
@@ -685,11 +685,11 @@ const extractRuleAiData = (
 ) => {
   let snippets = [];
 
-  if (oobeeAiRules.includes(ruleId)) {
+  if (a11yassistAiRules.includes(ruleId)) {
     const snippetsSet = new Set();
     if (items) {
       items.forEach(item => {
-        snippetsSet.add(oobeeAiHtmlETL(item.html));
+        snippetsSet.add(a11yassistAiHtmlETL(item.html));
       });
     }
     snippets = [...snippetsSet];
@@ -812,14 +812,14 @@ const generateArtifacts = async (
 
   const storagePath = getStoragePath(randomToken);
   const intermediateDatasetsPath = `${storagePath}/crawlee`;
-  const oobeeAppVersion = getVersion();
+  const a11yassistAppVersion = getVersion();
   const isCustomFlow = scanType === ScannerTypes.CUSTOM;
 
   const allIssues: AllIssues = {
     storagePath,
-    oobeeAi: {
-      htmlETL: oobeeAiHtmlETL,
-      rules: oobeeAiRules,
+    a11yassistAi: {
+      htmlETL: a11yassistAiHtmlETL,
+      rules: a11yassistAiRules,
     },
     siteName: (pagesScanned[0]?.pageTitle ?? '').replace(/^\d+\s*:\s*/, '').trim(),
     startTime: scanDetails.startTime ? scanDetails.startTime : new Date(),
@@ -842,7 +842,7 @@ const generateArtifacts = async (
     topTenIssues: [],
     wcagViolations: [],
     customFlowLabel,
-    oobeeAppVersion,
+    a11yassistAppVersion,
     items: {
       mustFix: {
         description: itemTypeDescription.mustFix,
@@ -920,7 +920,7 @@ const generateArtifacts = async (
 
   printMessage([
     'Scan Summary',
-    `Oobee App Version: ${allIssues.oobeeAppVersion}`,
+    `A11y Assist App Version: ${allIssues.a11yassistAppVersion}`,
     '',
     `Site Name: ${allIssues.siteName}`,
     `URL: ${allIssues.urlScanned}`,
@@ -970,7 +970,7 @@ const generateArtifacts = async (
   allIssues.issuesPercentage = await getIssuesPercentage(
     allIssues.scanPagesDetail,
     allIssues.advancedScanOptionsSummaryItems.showEnableWcagAaa,
-    allIssues.advancedScanOptionsSummaryItems.disableOobee,
+    allIssues.advancedScanOptionsSummaryItems.disableA11yAssist,
   );
 
   consoleLogger.info(`Site Name: ${allIssues.siteName}`);
@@ -1012,7 +1012,7 @@ const generateArtifacts = async (
     return impactCount;
   };
 
-  if (process.env.OOBEE_VERBOSE) {
+  if (process.env.A11Y_ASSIST_VERBOSE) {
     const axeImpactCount = getAxeImpactCount(allIssues);
     const { items, startTime, endTime, ...rest } = allIssues;
 
@@ -1139,7 +1139,7 @@ const generateArtifacts = async (
 
   try {
     await sendWcagBreakdownToSentry(
-      oobeeAppVersion,
+      a11yassistAppVersion,
       wcagOccurrencesMap,
       ruleIdJson,
       {
@@ -1182,7 +1182,7 @@ const generateArtifacts = async (
       `Results directory is at ${storagePath}`,
     ];
 
-    if (process.send && process.env.OOBEE_VERBOSE) {
+    if (process.send && process.env.A11Y_ASSIST_VERBOSE) {
       const zipFileNameMessage = {
         type: 'zipFileName',
         payload: `${constants.cliZipFileName}`,
@@ -1202,7 +1202,7 @@ const generateArtifacts = async (
     printMessage([`Error in zipping results: ${error}`]);
   }
 
-  if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE)
+  if (process.env.RUNNING_FROM_PH_GUI || process.env.A11Y_ASSIST_VERBOSE)
     console.log('Report generated successfully');
 
   return ruleIdJson;
@@ -1219,8 +1219,8 @@ export {
   getProgressPercentage,
   getIssuesPercentage,
   itemTypeDescription,
-  oobeeAiHtmlETL,
-  oobeeAiRules,
+  a11yassistAiHtmlETL,
+  a11yassistAiRules,
   formatAboutStartTime,
 };
 

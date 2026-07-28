@@ -11,7 +11,7 @@ export class CrawlRateController {
 
   constructor(maxRequestsPerCrawl: number, maxConcurrency: number) {
     this.maxPages = maxRequestsPerCrawl;
-    this.maxConsecutiveFailures = Number(process.env.OOBEE_CONSECUTIVE_MAX_RETRIES) || 100;
+    this.maxConsecutiveFailures = Number(process.env.A11Y_ASSIST_CONSECUTIVE_MAX_RETRIES) || 100;
     this.originalMaxConcurrency = maxConcurrency;
   }
 

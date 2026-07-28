@@ -25,12 +25,12 @@ const logFormat = printf(({ timestamp, level, message }) => {
 const uuid = randomUUID();
 let basePath: string;
 
-if (process.env.OOBEE_LOGS_PATH) {
-  basePath = process.env.OOBEE_LOGS_PATH;
+if (process.env.A11Y_ASSIST_LOGS_PATH) {
+  basePath = process.env.A11Y_ASSIST_LOGS_PATH;
 } else if (process.platform === 'win32') {
-  basePath = path.join(process.env.APPDATA, 'Oobee');
+  basePath = path.join(process.env.APPDATA, 'A11y Assist');
 } else if (process.platform === 'darwin') {
-  basePath = path.join(process.env.HOME, 'Library', 'Application Support', 'Oobee');
+  basePath = path.join(process.env.HOME, 'Library', 'Application Support', 'A11y Assist');
 } else {
   basePath = path.join(process.cwd());
 }
@@ -38,7 +38,7 @@ if (process.env.OOBEE_LOGS_PATH) {
 export const errorsTxtPath = path.join(basePath, `${uuid}.txt`);
 
 const consoleLogger = createLogger({
-  silent: !(process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE),
+  silent: !(process.env.RUNNING_FROM_PH_GUI || process.env.A11Y_ASSIST_VERBOSE),
   // exitOnError: false — Winston logs uncaught exceptions but does not call process.exit().
   // Process lifecycle is controlled by psTreeHandler in combine.ts, which suppresses known
   // benign errors (e.g. Playwright post-close connection errors) and rethrows real ones.
@@ -71,7 +71,7 @@ const silentLogger = createLogger({
 
 // guiInfoLogger feeds the gui information via console log and is mainly used for scanning process
 export const guiInfoLog = (status: string, data: { numScanned?: number; urlScanned?: string }) => {
-  if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE) {
+  if (process.env.RUNNING_FROM_PH_GUI || process.env.A11Y_ASSIST_VERBOSE) {
     switch (status) {
       case guiInfoStatusTypes.COMPLETED:
         console.log('Scan completed');

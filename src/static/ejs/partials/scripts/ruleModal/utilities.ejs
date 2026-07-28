@@ -84,7 +84,7 @@
   const generateGenAiSuggestFix = async (ruleId, accordionDiv, html, buttonDiv, errorDiv) => {
     console.log('Gen AI Suggest Fix called:', { ruleId, accordionDiv, html, buttonDiv, errorDiv });
 
-    const SUPPORTED_RULES = ['color-contrast', 'oobee-accessible-label', 'image-alt', 'listitem', 'link-in-text-block', 'target-size'];
+    const SUPPORTED_RULES = ['color-contrast', 'a11yassist-accessible-label', 'image-alt', 'listitem', 'link-in-text-block', 'target-size'];
     if (!SUPPORTED_RULES.includes(ruleId)) {
       console.warn(`Gen AI Suggest Fix not yet available for ${ruleId}`);
       return;
@@ -111,8 +111,8 @@
       let elementContext = null;
 
       // Attempt to get violation context from embedded JSON data
-      if (window.oobeeJsonContextParser && window.oobeeJsonContextParser.jsonData) {
-        violationContext = window.oobeeJsonContextParser.getViolationContextByHtml(html, ruleId);
+      if (window.a11yassistJsonContextParser && window.a11yassistJsonContextParser.jsonData) {
+        violationContext = window.a11yassistJsonContextParser.getViolationContextByHtml(html, ruleId);
 
         if (violationContext) {
           console.log('Found violation context from embedded JSON:', violationContext);
@@ -169,7 +169,7 @@
 
       const violationTypeMap = {
         'color-contrast': 'color-contrast',
-        'oobee-accessible-label': 'accessible-label',
+        'a11yassist-accessible-label': 'accessible-label',
         'image-alt': 'image-alt',
         'listitem': 'listitem',
         'target-size': 'target-size'
@@ -205,7 +205,7 @@
 
       console.log('Sending request to wcag-eval API:', apiPayload);
 
-      // Call wcag-eval API (now in oobee-web-proxy)
+      // Call wcag-eval API (now in a11yassist-web-proxy)
       const wcagEvalApiUrl = `${proxyUrl}/api/ai/generate-fix` || 'http://localhost:3002/api/ai/generate-fix';
       const response = await fetch(wcagEvalApiUrl, {
         method: 'POST',
@@ -249,7 +249,7 @@
 
       // Reset button to regenerate state
       button.disabled = false;
-      button.style = 'border: 1px solid var(--oobee-blue-100); color: var(--oobee-blue-100);';
+      button.style = 'border: 1px solid var(--a11yassist-blue-100); color: var(--a11yassist-blue-100);';
       button.textContent = 'Regenerate Fix';
 
     } catch (error) {
@@ -257,7 +257,7 @@
 
       // Reset button to initial state
       button.disabled = false;
-      button.style = 'border: 1px solid var(--oobee-blue-100); color: var(--oobee-blue-100);';
+      button.style = 'border: 1px solid var(--a11yassist-blue-100); color: var(--a11yassist-blue-100);';
       button.textContent = 'Gen AI Suggest Fix';
 
       if (errorContainer) {

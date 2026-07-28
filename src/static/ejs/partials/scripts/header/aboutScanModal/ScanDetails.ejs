@@ -41,8 +41,8 @@
     ? `${scanData.viewport.split('_')[1]} Custom Width View`
     : scanData.viewport + ' View';
 
-  const phAppVersionElement = document.getElementById('oobeeAppVersion');
-  const versionContent = 'Oobee Version ' + scanData.oobeeAppVersion;
+  const phAppVersionElement = document.getElementById('a11yassistAppVersion');
+  const versionContent = 'A11y Assist Version ' + scanData.a11yassistAppVersion;
   phAppVersionElement.innerHTML = versionContent;
 
   const cypressScanAboutMetadata = scanData.cypressScanAboutMetadata;

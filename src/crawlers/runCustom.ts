@@ -121,7 +121,7 @@ const runCustom = async (
       serviceWorkers: 'block' as const,
       viewport: null,
       ...(hasCustomViewport ? contextDeviceOptions : {}),
-      userAgent: process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined),
+      userAgent: process.env.A11Y_ASSIST_USER_AGENT || (deviceUserAgent as string | undefined),
       ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
       ...(httpCredentials && { httpCredentials }),
     });

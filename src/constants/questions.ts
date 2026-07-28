@@ -36,7 +36,7 @@ const startScanQuestions = [
   {
     type: 'confirm',
     name: 'headless',
-    message: 'Do you want Oobee to run in the background?',
+    message: 'Do you want A11y Assist to run in the background?',
     choices: ['Yes', 'No'],
   },
   {

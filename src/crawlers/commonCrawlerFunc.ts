@@ -919,7 +919,7 @@ export const runAxeScript = async ({
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
       iframe.setAttribute('aria-hidden', 'true');
-      iframe.setAttribute('data-oobee-realm-restore', '1');
+      iframe.setAttribute('data-a11yassist-realm-restore', '1');
       document.documentElement.appendChild(iframe);
       const w = iframe.contentWindow as unknown as Record<string, unknown>;
       if (!w) return;
@@ -1022,7 +1022,7 @@ export const runAxeScript = async ({
   });
   */
 
-  const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
+  const disableA11yAssist = ruleset.includes(RuleFlags.DISABLE_A11Y_ASSIST);
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
 
   const gradingReadabilityFlag = await extractAndGradeText(page); // Ensure flag is obtained before proceeding
@@ -1055,7 +1055,7 @@ export const runAxeScript = async ({
     async ({
       selectors,
       saflyIconSelector,
-      disableOobee,
+      disableA11yAssist,
       enableWcagAaa,
       gradingReadabilityFlag,
       evaluateAltTextFunctionString,
@@ -1078,10 +1078,10 @@ export const runAxeScript = async ({
         // remove so that axe does not scan
         document.querySelector(saflyIconSelector)?.remove();
 
-        const oobeeAccessibleLabelFlaggedXpaths = disableOobee
+        const a11yassistAccessibleLabelFlaggedXpaths = disableA11yAssist
           ? []
           : (await flagUnlabelledClickableElements()).map(item => item.xpath);
-        const oobeeAccessibleLabelFlaggedCssSelectors = oobeeAccessibleLabelFlaggedXpaths
+        const a11yassistAccessibleLabelFlaggedCssSelectors = a11yassistAccessibleLabelFlaggedXpaths
           .map(xpath => {
             try {
               const cssSelector = xPathToCss(xpath);
@@ -1096,7 +1096,7 @@ export const runAxeScript = async ({
         const axeConfig = getAxeConfiguration({
           enableWcagAaa,
           gradingReadabilityFlag,
-          disableOobee,
+          disableA11yAssist,
         });
 
         axe.configure(axeConfig);
@@ -1106,7 +1106,7 @@ export const runAxeScript = async ({
 
         // Exclude the realm-restore iframe (see runAxeScript preamble) so it
         // doesn't inflate the "passed" tally with rules like aria-hidden-focus.
-        const axeContext: any = { exclude: [['[data-oobee-realm-restore]']] };
+        const axeContext: any = { exclude: [['[data-a11yassist-realm-restore]']] };
         if (Array.isArray(selectors) && selectors.length > 0) {
           axeContext.include = selectors;
         }
@@ -1151,16 +1151,16 @@ export const runAxeScript = async ({
               }
             }
 
-            if (disableOobee) {
+            if (disableA11yAssist) {
               return results;
             }
             // handle css id selectors that start with a digit
             const escapedCssSelectors =
-              oobeeAccessibleLabelFlaggedCssSelectors.map(escapeCssSelector);
+              a11yassistAccessibleLabelFlaggedCssSelectors.map(escapeCssSelector);
 
-            // Add oobee violations to Axe's report
-            const oobeeAccessibleLabelViolations = {
-              id: 'oobee-accessible-label',
+            // Add a11yassist violations to Axe's report
+            const a11yassistAccessibleLabelViolations = {
+              id: 'a11yassist-accessible-label',
               impact: 'serious' as ImpactValue,
               tags: ['wcag2a', 'wcag211', 'wcag412'],
               description: 'Ensures clickable elements have an accessible label.',
@@ -1175,7 +1175,7 @@ export const runAxeScript = async ({
                     'Fix any of the following:\n  The clickable element does not have an accessible label.',
                   any: [
                     {
-                      id: 'oobee-accessible-label',
+                      id: 'a11yassist-accessible-label',
                       data: null,
                       relatedNodes: [],
                       impact: 'serious',
@@ -1188,7 +1188,7 @@ export const runAxeScript = async ({
                 .filter(item => item.html),
             };
 
-            results.violations = [...results.violations, oobeeAccessibleLabelViolations];
+            results.violations = [...results.violations, a11yassistAccessibleLabelViolations];
             return results;
           })
           .catch(e => {
@@ -1203,7 +1203,7 @@ export const runAxeScript = async ({
     {
       selectors,
       saflyIconSelector,
-      disableOobee,
+      disableA11yAssist,
       enableWcagAaa,
       gradingReadabilityFlag,
       evaluateAltTextFunctionString: evaluateAltText.toString(),
