@@ -2311,7 +2311,9 @@ export const waitForPageLoaded = async (page: Page, timeout = 30000) => {
   const OBSERVER_TIMEOUT = timeout; // Ensure observer timeout does not exceed the main timeout
 
   return Promise.race([
-    page.waitForLoadState('load'), // Ensure page load completes
+    // Intentionally NOT racing page.waitForLoadState('load'): on JS-heavy
+    // sites the `load` event fires before hydration/SPA rendering, and
+    // Promise.race would resolve prematurely against a half-built DOM.
     page.waitForLoadState('networkidle'), // Wait for network requests to settle
     new Promise(resolve => setTimeout(resolve, timeout)), // Hard timeout as a fallback
     page.evaluate(OBSERVER_TIMEOUT => {
