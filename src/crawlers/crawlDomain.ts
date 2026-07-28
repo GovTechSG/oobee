@@ -909,7 +909,11 @@ const crawlDomain = async ({
           return;
         }
 
-        if (rateController.onFailure(status, crawler.autoscaledPool)) {
+        if (
+          rateController.onFailure(status, crawler.autoscaledPool, {
+            skipConcurrencyReduction: request.userData?.rateLimitRetried === true,
+          })
+        ) {
           consoleLogger.info(
             `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
           );
