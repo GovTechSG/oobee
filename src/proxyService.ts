@@ -15,6 +15,7 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
+import { startCfProxyWorker, isCfProxyWorkerConfigured } from './cfProxyWorker.js';
 
 export interface ProxyInfo {
   // http/https: host:port OR user:pass@host:port (no scheme)
@@ -421,6 +422,16 @@ function parseWindowsRegistry(): ProxyInfo | null {
 /* ============================ Public API ============================ */
 
 export function getProxyInfo(): ProxyInfo | null {
+  // Cloudflare Worker proxy takes precedence over all other proxy detection.
+  // Starts a local SOCKS5 tunnel to the configured worker and routes Chromium
+  // through 127.0.0.1:<port>. DNS resolution happens inside the worker.
+  if (isCfProxyWorkerConfigured()) {
+    const cf = startCfProxyWorker();
+    if (cf) {
+      return { socks: cf.server };
+    }
+  }
+
   const plat = os.platform();
   let info: ProxyInfo | null;
   if (plat === 'win32') info = parseEnvProxyCommon() || parseWindowsRegistry();
