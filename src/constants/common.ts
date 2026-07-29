@@ -2284,8 +2284,13 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   // start under default seccomp, so we leave --no-sandbox in place AND add
   // --test-type, which tells Chrome this is a test harness and suppresses the
   // yellow banner (and the "controlled by automated test software" one).
+  // Playwright injects --host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE <host>"
+  // whenever a SOCKS5 proxy is set, which triggers Chrome's yellow
+  // "unsupported command-line flag" banner. --test-type suppresses it (and the
+  // automation info bar), matching what we already do in Docker.
   const inDocker = fs.existsSync('/.dockerenv');
-  if (inDocker && !finalArgs.includes('--test-type')) {
+  const usingProxy = resolution.kind === 'manual' || resolution.kind === 'pac';
+  if ((inDocker || usingProxy) && !finalArgs.includes('--test-type')) {
     finalArgs.push('--test-type');
   }
 
