@@ -425,18 +425,16 @@ export function getProxyInfo(): ProxyInfo | null {
   // Cloudflare Worker proxy takes precedence over all other proxy detection.
   // Starts a local SOCKS5 tunnel to the configured worker and routes Chromium
   // through 127.0.0.1:<port>. DNS resolution happens inside the worker.
+  let info: ProxyInfo | null;
   if (isCfProxyWorkerConfigured()) {
     const cf = startCfProxyWorker();
-    if (cf) {
-      return { socks: cf.server };
-    }
+    info = cf ? { socks: cf.server } : null;
+  } else {
+    const plat = os.platform();
+    if (plat === 'win32') info = parseEnvProxyCommon() || parseWindowsRegistry();
+    else if (plat === 'darwin') info = parseEnvProxyCommon() || parseMacScutil();
+    else info = parseEnvProxyCommon(); // Linux/others
   }
-
-  const plat = os.platform();
-  let info: ProxyInfo | null;
-  if (plat === 'win32') info = parseEnvProxyCommon() || parseWindowsRegistry();
-  else if (plat === 'darwin') info = parseEnvProxyCommon() || parseMacScutil();
-  else info = parseEnvProxyCommon(); // Linux/others
 
   // Apply INCLUDE_PROXY env: semicolon-separated domain globs that SHOULD use the proxy
   const includeProxy = process.env.INCLUDE_PROXY;

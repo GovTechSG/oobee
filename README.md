@@ -107,6 +107,9 @@ verapdf --version
 | ALL_PROXY | URL of the proxy server to be used for all requests, typically used for SOCKS5 proxies (e.g. `socks5://proxy.example.com:1080`. Note: IPv6 direct connections may still continue even though socks5 proxy is specified due to a known issue with Chrome/Chromium. (Recommended workaround is to turn off IPv6 at host-level). | |
 | NO_PROXY | Comma-separated list of domains that should bypass the proxy (e.g. `localhost,127.0.0.1,.example.com`). | |
 | INCLUDE_PROXY | Comma-separated list of domains that should specifically be routed through the proxy. | |
+| CF_WORKER_PROXY | **Experimental.** URL of a Cloudflare Worker (e.g. `https://your-worker.your-subdomain.workers.dev`) that proxies Chromium traffic via a local SOCKS5 tunnel over WebSocket. TLS stays end-to-end (no MITM) and DNS resolves inside the worker. May help unblock some sites. Overrides `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`. See [examples/cf-worker-proxy.example.js](./examples/cf-worker-proxy.example.js) for the reference worker. | |
+| CF_WORKER_PROXY_AUTH_TOKEN | Optional. Sent as the `Authorization` header on the WebSocket upgrade to `CF_WORKER_PROXY`. | |
+| CF_WORKER_PROXY_PORT | Optional. Local SOCKS5 bind port for the tunnel. | `8877` |
 | GOOGLE_SAFE_BROWSING | When set, enables Google Safe Browsing URL protection. Blocks phishing, malware, and unwanted software URLs — blocked pages are classified as "Blocked by Safe Browsing" in reports. Requires Google Chrome (not Chromium or Edge). On macOS and Windows, copies the threat database from your system Chrome profile. On Docker Linux, connects to a pre-warmed Chrome instance. | |
 
 #### Environment variables used internally (Do not set)
