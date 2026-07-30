@@ -521,7 +521,7 @@ const crawlDomain = async ({
       }) => {
         const browserContext: BrowserContext = page.context();
         try {
-          await waitForPageLoaded(page, 10000);
+          await waitForPageLoaded(page);
           let actualUrl = page.url() || request.loadedUrl || request.url;
 
           if (page.url() !== 'about:blank') {

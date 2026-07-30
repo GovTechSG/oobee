@@ -2307,86 +2307,106 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   return options;
 };
 
-export const waitForPageLoaded = async (page: Page, timeout = 10000) => {
-  const OBSERVER_TIMEOUT = timeout; // Ensure observer timeout does not exceed the main timeout
+export const waitForPageLoaded = async (page: Page) => {
+  // Budgets are stacked (load, then stability), not shared, so a slow-loading
+  // page still gets a fresh window to hydrate. Overridable via env vars for
+  // environments with CPU contention (e.g. busy Docker containers) where the
+  // defaults may be too tight.
+  const loadTimeout      = Number(process.env.OOBEE_LOAD_TIMEOUT_MS)      || 10000;
+  const stabilityTimeout = Number(process.env.OOBEE_STABILITY_TIMEOUT_MS) || 5000;
+  const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 750;
 
+  // Phase 1 — wait for the `load` event (or its own hard deadline).
+  //
+  // Previously `load` was raced against the mutation observer inside a single
+  // Promise.race, which meant `load` almost always won and the observer never
+  // got to see hydration mutations. That produced intermittent findings like
+  // aria-required-children on tablists whose role="tab" children are injected
+  // client-side after load.
+  await Promise.race([
+    page.waitForLoadState('load').catch(() => {}),
+    new Promise(resolve => setTimeout(resolve, loadTimeout)),
+  ]);
+
+  // Phase 2 — wait for the DOM to stabilize OR networkidle OR the stability
+  // budget. This is the window that closes hydration-timing false positives.
   return Promise.race([
-    page.waitForLoadState('load'), // Ensure page load completes
-    page.waitForLoadState('networkidle'), // Wait for network requests to settle
-    new Promise(resolve => setTimeout(resolve, timeout)), // Hard timeout as a fallback
-    page.evaluate(OBSERVER_TIMEOUT => {
-      return new Promise<string>(resolve => {
-        // Skip mutation check for PDFs
-        if (document.contentType === 'application/pdf') {
-          resolve('Skipping DOM mutation check for PDF.');
-          return;
-        }
-
-        const root = document.documentElement || document.body;
-        if (!(root instanceof Node)) {
-          // Not a valid DOM root—treat as loaded
-          resolve('No valid root to observe; treating as loaded.');
-          return;
-        }
-
-        let timeout: NodeJS.Timeout;
-        let mutationCount = 0;
-        const MAX_MUTATIONS = 500;
-        const NOVELTY_THRESHOLD = 3;
-        const signatureCounts = new WeakMap<Element, Map<string, number>>();
-
-        const observer = new MutationObserver(mutationsList => {
-          mutationCount++;
-          if (mutationCount > MAX_MUTATIONS) {
-            observer.disconnect();
-            resolve('Too many mutations detected, exiting.');
+    page.waitForLoadState('networkidle').catch(() => {}),
+    new Promise(resolve => setTimeout(resolve, stabilityTimeout)),
+    page.evaluate(
+      ({ stabilityTimeout: OBSERVER_TIMEOUT, quietMs: QUIET_MS }) => {
+        return new Promise<string>(resolve => {
+          if (document.contentType === 'application/pdf') {
+            resolve('Skipping DOM mutation check for PDF.');
             return;
           }
 
-          // Only reset the quiet timer for novel mutations. Repeated mutations on
-          // the same (element, attribute) — e.g. a dropdown flipping class during
-          // page init — are treated as churn, not as a signal the DOM is still
-          // loading. See related discussion for background.
-          let sawNovel = false;
-          for (const mutation of mutationsList) {
-            if (!(mutation.target instanceof Element)) continue;
-            const key =
-              mutation.type === 'attributes'
-                ? `attr:${mutation.attributeName}`
-                : mutation.type;
-            let perElement = signatureCounts.get(mutation.target);
-            if (!perElement) {
-              perElement = new Map<string, number>();
-              signatureCounts.set(mutation.target, perElement);
-            }
-            const count = (perElement.get(key) || 0) + 1;
-            perElement.set(key, count);
-            if (count <= NOVELTY_THRESHOLD) sawNovel = true;
+          const root = document.documentElement || document.body;
+          if (!(root instanceof Node)) {
+            resolve('No valid root to observe; treating as loaded.');
+            return;
           }
 
-          if (!sawNovel) return;
+          let timeout: ReturnType<typeof setTimeout>;
+          let mutationCount = 0;
+          const MAX_MUTATIONS = 500;
+          const NOVELTY_THRESHOLD = 3;
+          const signatureCounts = new WeakMap<Element, Map<string, number>>();
 
-          clearTimeout(timeout);
+          const observer = new MutationObserver(mutationsList => {
+            mutationCount++;
+            if (mutationCount > MAX_MUTATIONS) {
+              observer.disconnect();
+              resolve('Too many mutations detected, exiting.');
+              return;
+            }
+
+            // Only reset the quiet timer for novel mutations. Repeated mutations on
+            // the same (element, attribute) — e.g. a dropdown flipping class during
+            // page init — are treated as churn, not as a signal the DOM is still
+            // loading.
+            let sawNovel = false;
+            for (const mutation of mutationsList) {
+              if (!(mutation.target instanceof Element)) continue;
+              const key =
+                mutation.type === 'attributes'
+                  ? `attr:${mutation.attributeName}`
+                  : mutation.type;
+              let perElement = signatureCounts.get(mutation.target);
+              if (!perElement) {
+                perElement = new Map<string, number>();
+                signatureCounts.set(mutation.target, perElement);
+              }
+              const count = (perElement.get(key) || 0) + 1;
+              perElement.set(key, count);
+              if (count <= NOVELTY_THRESHOLD) sawNovel = true;
+            }
+
+            if (!sawNovel) return;
+
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+              observer.disconnect();
+              resolve('DOM stabilized after mutations.');
+            }, QUIET_MS);
+          });
+
+          // Initial quiet window: even if no mutations fire, hold for QUIET_MS
+          // after load so hydration that starts slightly late still gets caught.
           timeout = setTimeout(() => {
             observer.disconnect();
-            resolve('DOM stabilized after mutations.');
-          }, 1000);
-        });
+            resolve('Initial quiet window elapsed.');
+          }, Math.min(QUIET_MS, OBSERVER_TIMEOUT));
 
-        // Initial timeout: fires if the page never mutates.
-        timeout = setTimeout(() => {
-          observer.disconnect();
-          resolve('Observer timeout reached, exiting.');
-        }, OBSERVER_TIMEOUT);
-
-        // Only observe if root is a Node
-        observer.observe(root, {
-          childList: true,
-          subtree: true,
-          attributes: true,
+          observer.observe(root, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+          });
         });
-      });
-    }, OBSERVER_TIMEOUT), // Pass OBSERVER_TIMEOUT dynamically to the browser context
+      },
+      { stabilityTimeout, quietMs },
+    ),
   ]);
 };
 

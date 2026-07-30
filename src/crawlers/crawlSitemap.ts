@@ -277,7 +277,7 @@ const crawlSitemap = async ({
         }
 
         try {
-          await waitForPageLoaded(page, 10000);
+          await waitForPageLoaded(page);
 
           const actualUrl = page.url() || request.loadedUrl || request.url;
 
