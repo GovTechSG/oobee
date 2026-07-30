@@ -17,6 +17,7 @@ import {
   convertLocalFileToPath,
   convertPathToLocalFile,
   launchPersistentSafeContext,
+  waitForPageLoaded,
 } from '../constants/common.js';
 import { runPdfScan, mapPdfScanResults, doPdfScreenshots } from './pdfScanFunc.js';
 import { guiInfoLog } from '../logs.js';
@@ -176,6 +177,7 @@ export const crawlLocalFile = async ({
     const page = await browserContext.newPage();
     url = convertPathToLocalFile(url);
     await page.goto(url);
+    await waitForPageLoaded(page);
 
     if (shouldAbort) {
       console.warn('Scan aborted due to timeout before page scan.');
