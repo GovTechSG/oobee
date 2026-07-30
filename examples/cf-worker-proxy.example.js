@@ -13,6 +13,54 @@
 
 const AUTH_TOKEN = '';
 
+// -----------------------------------------------------------------------------
+// Feature toggles.
+// -----------------------------------------------------------------------------
+
+// When true, `?bypass-ips` includes Cloudflare's live IP ranges (v4+v6),
+// telling the oobee client to connect DIRECT for hosts resolving to CF.
+// When false, only PRIVATE_RANGES + EXTRA_BYPASS_RANGES are returned and
+// CF-fronted targets go through this worker like everything else.
+const BYPASS_CLOUDFLARE = true;
+
+// When true, this worker does not open TCP directly to the target. It opens
+// a TCP (or TLS) socket to the UPSTREAM_PROXY endpoint below, issues an
+// HTTP CONNECT with Basic auth, and tunnels bytes end-to-end. The browser's
+// TLS still terminates at the real target — the upstream proxy only sees
+// the target hostname, not the request contents.
+//
+// Use this to give the worker a stable, non-Cloudflare egress IP via a
+// third-party proxy service (residential/ISP/datacenter).
+const USE_UPSTREAM_PROXY = false;
+
+// -----------------------------------------------------------------------------
+// Upstream forward proxy config (only used when USE_UPSTREAM_PROXY = true).
+// Fill in and redeploy. Do not commit real credentials — prefer
+// `wrangler secret put` and read via env bindings.
+// -----------------------------------------------------------------------------
+const UPSTREAM_PROXY = {
+  HOST: '',        // e.g. 'gate.smartproxy.com' or 'proxy.mycorp.com'
+  PORT: 0,         // e.g. 7000 for HTTP proxy, 443 for HTTPS proxy
+  TLS: false,      // true = HTTPS proxy (TLS to the proxy itself); false = plain HTTP CONNECT
+  USERNAME: '',    // basic auth username (empty for no auth)
+  PASSWORD: '',    // basic auth password
+};
+
+// Filter for which target hostnames/IPs should route via the upstream proxy
+// (only consulted when USE_UPSTREAM_PROXY = true). Anything not matched here
+// falls back to a direct connect() from the worker.
+//
+// Supported entry forms:
+//   '*'                         — match everything (default)
+//   'example.com'               — exact hostname / IP literal (case-insensitive)
+//   '*.example.com'             — glob with wildcard (matches sub.example.com,
+//                                 a.b.example.com, etc.)
+//   '203.0.113.0/24'            — CIDR (matched only when the target is an IP
+//                                 literal, i.e. the SOCKS client resolved DNS
+//                                 locally and sent atyp=0x01/0x04)
+//   '2001:db8::/32'             — IPv6 CIDR
+const INCLUDE_PROXY_FOR_UPSTREAM = ['*'];
+
 // Inbound IP allowlist. Each entry is either a bare IPv4/IPv6 address or a
 // CIDR block. '0.0.0.0' is a magic entry meaning "allow all" — replace with
 // your actual client IPs to lock the worker down. Examples:
@@ -90,6 +138,103 @@ async function fetchCloudflareRanges() {
 }
 
 import { connect } from 'cloudflare:sockets';
+
+// Decide whether a given target hostname/IP should be routed via the upstream
+// proxy per INCLUDE_PROXY_FOR_UPSTREAM. Only called when USE_UPSTREAM_PROXY.
+function shouldRouteViaUpstream(hostname) {
+  const targetIsIp = ipToBytes(hostname) !== null;
+  for (const raw of INCLUDE_PROXY_FOR_UPSTREAM) {
+    if (typeof raw !== 'string' || !raw) continue;
+    const pattern = raw.trim();
+    if (pattern === '*') return true;
+
+    // CIDR — only meaningful when the SOCKS client sent an IP literal.
+    if (pattern.includes('/')) {
+      const base = pattern.split('/')[0];
+      if (ipToBytes(base) && targetIsIp && cidrMatch(hostname, pattern)) return true;
+      continue;
+    }
+
+    // Glob (with '*')
+    if (pattern.includes('*')) {
+      const re = new RegExp(
+        '^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$',
+        'i',
+      );
+      if (re.test(hostname)) return true;
+      continue;
+    }
+
+    // Exact match (case-insensitive)
+    if (pattern.toLowerCase() === hostname.toLowerCase()) return true;
+  }
+  return false;
+}
+
+// Open a socket to the target via the configured upstream HTTP/HTTPS forward
+// proxy using CONNECT + Basic auth. Returns { socket, leftover } where
+// leftover is any bytes read past the CONNECT response terminator (unlikely
+// for CONNECT but possible; must be forwarded to the WS client before piping
+// begins).
+async function connectViaUpstreamProxy(targetHost, targetPort) {
+  const socket = connect(
+    { hostname: UPSTREAM_PROXY.HOST, port: UPSTREAM_PROXY.PORT },
+    UPSTREAM_PROXY.TLS ? { secureTransport: 'on' } : {},
+  );
+
+  const authHeader =
+    UPSTREAM_PROXY.USERNAME || UPSTREAM_PROXY.PASSWORD
+      ? `Proxy-Authorization: Basic ${btoa(`${UPSTREAM_PROXY.USERNAME}:${UPSTREAM_PROXY.PASSWORD}`)}\r\n`
+      : '';
+  const req =
+    `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\n` +
+    `Host: ${targetHost}:${targetPort}\r\n` +
+    authHeader +
+    `Proxy-Connection: Keep-Alive\r\n` +
+    `\r\n`;
+
+  const writer = socket.writable.getWriter();
+  try {
+    await writer.write(new TextEncoder().encode(req));
+  } finally {
+    writer.releaseLock();
+  }
+
+  const reader = socket.readable.getReader();
+  let buf = new Uint8Array(0);
+  const MAX_HEADER_BYTES = 8192;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error('upstream closed before CONNECT response');
+      const merged = new Uint8Array(buf.length + value.length);
+      merged.set(buf);
+      merged.set(value, buf.length);
+      buf = merged;
+
+      // Find \r\n\r\n (end of headers)
+      let idx = -1;
+      for (let i = 0; i + 3 < buf.length; i++) {
+        if (buf[i] === 0x0d && buf[i + 1] === 0x0a && buf[i + 2] === 0x0d && buf[i + 3] === 0x0a) {
+          idx = i;
+          break;
+        }
+      }
+      if (idx !== -1) {
+        const head = new TextDecoder().decode(buf.subarray(0, idx));
+        const statusLine = head.split('\r\n')[0] || '';
+        if (!/^HTTP\/1\.[01]\s+200\b/i.test(statusLine)) {
+          throw new Error(`upstream CONNECT refused: ${statusLine.slice(0, 120)}`);
+        }
+        const leftover = buf.subarray(idx + 4);
+        return { socket, leftover: leftover.length ? leftover : null };
+      }
+      if (buf.length > MAX_HEADER_BYTES) throw new Error('CONNECT response too large');
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 function ipAllowed(ip) {
   if (!ip) return false;
@@ -195,7 +340,7 @@ export default {
     // revisited. Uses the same live CF list + fallback as `?bypass-ips`.
     if (url.searchParams.has('pac')) {
       const socksPort = Number(url.searchParams.get('socks-port')) || 8877;
-      const cfRanges = await fetchCloudflareRanges();
+      const cfRanges = BYPASS_CLOUDFLARE ? await fetchCloudflareRanges() : [];
       const combined = [...cfRanges, ...PRIVATE_RANGES, ...EXTRA_BYPASS_RANGES];
       const pac = buildPacScript(combined, socksPort);
       return new Response(pac, {
@@ -211,7 +356,7 @@ export default {
       return new Response('Unauthorized', { status: 401 });
     }
     if (url.searchParams.has('bypass-ips')) {
-      const cfRanges = await fetchCloudflareRanges();
+      const cfRanges = BYPASS_CLOUDFLARE ? await fetchCloudflareRanges() : [];
       const combined = [...cfRanges, ...PRIVATE_RANGES, ...EXTRA_BYPASS_RANGES];
       return new Response(JSON.stringify(combined), {
         status: 200,
@@ -254,8 +399,15 @@ export default {
         }
 
         let socket;
+        let leftover = null;
         try {
-          socket = connect({ hostname, port });
+          if (USE_UPSTREAM_PROXY && shouldRouteViaUpstream(hostname)) {
+            const res = await connectViaUpstreamProxy(hostname, port);
+            socket = res.socket;
+            leftover = res.leftover;
+          } else {
+            socket = connect({ hostname, port });
+          }
         } catch (e) {
           server.close(1011, `connect() threw: ${(e && e.message) || 'unknown'}`);
           return;
@@ -271,6 +423,14 @@ export default {
 
         // Signal handshake completion so the client can start writing.
         try { server.send(JSON.stringify({ type: 'ready' })); } catch {}
+
+        // If the CONNECT handshake consumed bytes past the header terminator,
+        // forward them to the WS client before the tcp->ws pipe starts.
+        if (leftover) {
+          try {
+            server.send(leftover.buffer.slice(leftover.byteOffset, leftover.byteOffset + leftover.byteLength));
+          } catch {}
+        }
 
         // WS -> TCP: enqueue every subsequent binary message into a stream
         // piped at socket.writable.
