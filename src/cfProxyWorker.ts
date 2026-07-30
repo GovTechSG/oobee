@@ -12,9 +12,48 @@
 
 import net from 'net';
 import dns from 'dns/promises';
+import { spawnSync } from 'child_process';
 import { URL } from 'url';
 import WebSocket from 'ws';
 import { consoleLogger } from './logs.js';
+
+const PORT_HUNT_MAX_ATTEMPTS = 20;
+
+// Sync probe used at module init to pick a free local port before net.Server
+// binds. Node has no sync socket API, so we shell out to lsof (POSIX) or
+// netstat (Windows). Async EADDRINUSE from server.listen() still acts as a
+// safety net for the TOCTOU window between probe and bind.
+function isPortInUse(port: number): boolean {
+  try {
+    if (process.platform === 'win32') {
+      const out = spawnSync('netstat', ['-an', '-p', 'tcp'], {
+        encoding: 'utf8',
+        windowsHide: true,
+        shell: false,
+      });
+      if (out.error || out.status !== 0 || !out.stdout) return false;
+      return new RegExp(`[:.]${port}\\s+.*LISTENING`, 'i').test(out.stdout);
+    }
+    const out = spawnSync('lsof', [`-iTCP:${port}`, '-sTCP:LISTEN', '-t'], {
+      encoding: 'utf8',
+      windowsHide: true,
+      shell: false,
+    });
+    return out.status === 0 && !!(out.stdout && out.stdout.trim());
+  } catch {
+    return false;
+  }
+}
+
+function findFreePort(startPort: number, maxAttempts: number = PORT_HUNT_MAX_ATTEMPTS): number {
+  for (let i = 0; i < maxAttempts; i++) {
+    const p = startPort + i;
+    if (!isPortInUse(p)) return p;
+  }
+  throw new Error(
+    `[cfProxyWorker] No free local port found in range ${startPort}-${startPort + maxAttempts - 1}`,
+  );
+}
 
 // Bypass IP ranges are maintained on the worker side (single source of truth)
 // and fetched lazily via `?bypass-ips=1`. Hosts resolving to any of these are
@@ -408,7 +447,13 @@ export function startCfProxyWorker(): CfProxyWorker | null {
   if (cached) return cached;
 
   const authToken = process.env.CF_WORKER_PROXY_AUTH_TOKEN?.trim() || undefined;
-  const port = parseInt(process.env.CF_WORKER_PROXY_PORT || '8877', 10);
+  const requestedPort = parseInt(process.env.CF_WORKER_PROXY_PORT || '8877', 10);
+  const port = findFreePort(requestedPort);
+  if (port !== requestedPort) {
+    consoleLogger.info(
+      `[cfProxyWorker] Port ${requestedPort} in use; falling back to ${port}`,
+    );
+  }
   const wsUrl = buildWsUrl(workerUrl);
 
   // Warm the bypass-ranges cache so the first connection doesn't pay the fetch latency.
@@ -424,17 +469,38 @@ export function startCfProxyWorker(): CfProxyWorker | null {
     });
   });
 
-  server.on('error', err => {
-    consoleLogger.error(
-      `[cfProxyWorker] SOCKS5 server error: ${(err as Error).message}`,
-    );
-  });
-
-  server.listen(port, '127.0.0.1', () => {
-    consoleLogger.info(
-      `[cfProxyWorker] SOCKS5 tunnel listening on 127.0.0.1:${port} -> ${wsUrl}`,
-    );
-  });
+  // Async retry loop: the sync probe above narrows the TOCTOU window but does
+  // not eliminate it. If bind still fails with EADDRINUSE, walk up ports.
+  let listenAttempts = 0;
+  const onBindError = (err: NodeJS.ErrnoException): void => {
+    const p = cached?.port ?? port;
+    if (err.code === 'EADDRINUSE' && listenAttempts < PORT_HUNT_MAX_ATTEMPTS) {
+      consoleLogger.warn(
+        `[cfProxyWorker] Port ${p} raced (EADDRINUSE); retrying on ${p + 1}`,
+      );
+      if (cached) {
+        cached.port = p + 1;
+        cached.server = `socks5://127.0.0.1:${p + 1}`;
+      }
+      attemptListen(p + 1);
+      return;
+    }
+    consoleLogger.error(`[cfProxyWorker] SOCKS5 server error: ${err.message}`);
+  };
+  const attemptListen = (p: number): void => {
+    listenAttempts++;
+    server.once('error', onBindError);
+    server.listen(p, '127.0.0.1', () => {
+      server.off('error', onBindError);
+      server.on('error', (err: Error) => {
+        consoleLogger.error(`[cfProxyWorker] SOCKS5 server error: ${err.message}`);
+      });
+      consoleLogger.info(
+        `[cfProxyWorker] SOCKS5 tunnel listening on 127.0.0.1:${p} -> ${wsUrl}`,
+      );
+    });
+  };
+  attemptListen(port);
 
   cached = {
     server: `socks5://127.0.0.1:${port}`,
