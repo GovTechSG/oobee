@@ -84,6 +84,47 @@ function cidrMatch(ip, cidr) {
   return (ipBytes[fullBytes] & mask) === (rangeBytes[fullBytes] & mask);
 }
 
+// Build a PAC (Proxy Auto-Config) script for Chromium. Hosts resolving to any
+// listed IPv4 range return DIRECT (Chromium uses its native networking stack,
+// including HTTP/3 and connection reuse — critical for bot-detection engines
+// that fingerprint proxy-triggered behavior). Everything else routes through
+// the caller's local SOCKS5 tunnel. IPv6 CIDRs are omitted because Chromium's
+// PAC lacks an interoperable IPv6 primitive; IPv6-only hosts fall through to
+// SOCKS5 where the server-side bypass logic still handles them.
+function buildPacScript(bypassRanges, socksPort) {
+  const v4Pairs = [];
+  for (const cidr of bypassRanges) {
+    if (typeof cidr !== 'string' || !cidr.includes('/') || cidr.includes(':')) continue;
+    const [base, bitsStr] = cidr.split('/');
+    const bits = parseInt(bitsStr, 10);
+    if (!Number.isInteger(bits) || bits < 0 || bits > 32) continue;
+    const parts = base.split('.').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) continue;
+    const maskInt = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+    const mask = [
+      (maskInt >>> 24) & 0xff,
+      (maskInt >>> 16) & 0xff,
+      (maskInt >>> 8) & 0xff,
+      maskInt & 0xff,
+    ].join('.');
+    v4Pairs.push([base, mask]);
+  }
+  const rangesLiteral = JSON.stringify(v4Pairs);
+  const socks = `SOCKS5 127.0.0.1:${socksPort}`;
+  return `function FindProxyForURL(url, host) {
+  var ranges = ${rangesLiteral};
+  var ip = "";
+  try { ip = dnsResolve(host) || ""; } catch (e) { ip = ""; }
+  if (ip) {
+    for (var i = 0; i < ranges.length; i++) {
+      if (isInNet(ip, ranges[i][0], ranges[i][1])) return "DIRECT";
+    }
+  }
+  return ${JSON.stringify(socks)};
+}
+`;
+}
+
 function ipToBytes(ip) {
   if (ip.includes('.')) {
     const parts = ip.split('.').map(Number);
@@ -115,10 +156,26 @@ export default {
     if (!ipAllowed(clientIp)) {
       return new Response('Forbidden', { status: 403 });
     }
+    const url = new URL(request.url);
+
+    // PAC endpoint. Public (no auth) — Chromium fetches this before proxy
+    // config is active and won't attach an Authorization header. The list is
+    // effectively public information (mostly Cloudflare's own ranges).
+    if (url.searchParams.has('pac')) {
+      const socksPort = Number(url.searchParams.get('socks-port')) || 8877;
+      const pac = buildPacScript(BYPASS_IP_RANGES, socksPort);
+      return new Response(pac, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/x-ns-proxy-autoconfig',
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
     if (AUTH_TOKEN && request.headers.get('Authorization') !== AUTH_TOKEN) {
       return new Response('Unauthorized', { status: 401 });
     }
-    const url = new URL(request.url);
     if (url.searchParams.has('bypass-ips')) {
       return new Response(JSON.stringify(BYPASS_IP_RANGES), {
         status: 200,

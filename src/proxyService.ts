@@ -423,12 +423,15 @@ function parseWindowsRegistry(): ProxyInfo | null {
 
 export function getProxyInfo(): ProxyInfo | null {
   // Cloudflare Worker proxy takes precedence over all other proxy detection.
-  // Starts a local SOCKS5 tunnel to the configured worker and routes Chromium
-  // through 127.0.0.1:<port>. DNS resolution happens inside the worker.
+  // Starts a local SOCKS5 tunnel and a companion PAC HTTP server. Chromium is
+  // configured via PAC (not a direct SOCKS5 proxy) so that hosts resolving to
+  // bypass IP ranges are served with DIRECT — using Chromium's native network
+  // stack (HTTP/3, connection reuse) instead of anything proxy-flagged, which
+  // matters for CF-fronted targets running Turnstile.
   let info: ProxyInfo | null;
   if (isCfProxyWorkerConfigured()) {
     const cf = startCfProxyWorker();
-    info = cf ? { socks: cf.server } : null;
+    info = cf ? { pacUrl: cf.pacUrl } : null;
   } else {
     const plat = os.platform();
     if (plat === 'win32') info = parseEnvProxyCommon() || parseWindowsRegistry();
