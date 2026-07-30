@@ -2314,55 +2314,70 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
 
 export const waitForPageLoaded = async (page: Page) => {
   // Budgets are stacked (load, then stability), not shared, so a slow-loading
-  // page still gets a fresh window to hydrate. Overridable via env vars for
-  // environments with CPU contention (e.g. busy Docker containers) where the
-  // defaults may be too tight.
-  const loadTimeout      = Number(process.env.OOBEE_LOAD_TIMEOUT_MS)      || 10000;
-  const stabilityTimeout = Number(process.env.OOBEE_STABILITY_TIMEOUT_MS) || 5000;
-  const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 750;
+  // page still gets a fresh window to hydrate. Defaults are sized for busy
+  // Docker containers under CPU contention; lower them locally via env vars
+  // if crawl throughput matters more than tail-end hydration coverage.
+  const loadTimeout      = Number(process.env.OOBEE_LOAD_TIMEOUT_MS)      || 30000;
+  const stabilityTimeout = Number(process.env.OOBEE_STABILITY_TIMEOUT_MS) || 15000;
+  const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 1500;
+  const maxMutations     = Number(process.env.OOBEE_MAX_MUTATIONS)        || 5000;
 
   // Phase 1 — wait for the `load` event (or its own hard deadline).
-  //
-  // Previously `load` was raced against the mutation observer inside a single
-  // Promise.race, which meant `load` almost always won and the observer never
-  // got to see hydration mutations. That produced intermittent findings like
-  // aria-required-children on tablists whose role="tab" children are injected
-  // client-side after load.
-  await Promise.race([
-    page.waitForLoadState('load').catch(() => {}),
-    new Promise(resolve => setTimeout(resolve, loadTimeout)),
+  const phase1Start = Date.now();
+  const loadReason = await Promise.race([
+    page.waitForLoadState('load').then(() => 'load event fired').catch(() => 'load errored'),
+    new Promise<string>(resolve =>
+      setTimeout(() => resolve('load hard deadline'), loadTimeout),
+    ),
   ]);
 
-  // Phase 2 — wait for the DOM to stabilize OR networkidle OR the stability
-  // budget. This is the window that closes hydration-timing false positives.
-  return Promise.race([
-    page.waitForLoadState('networkidle').catch(() => {}),
-    new Promise(resolve => setTimeout(resolve, stabilityTimeout)),
+  // Phase 2 — wait for the DOM to stabilize OR the stability budget.
+  //
+  // networkidle used to be one of the racers here, but it's a false signal for
+  // hydration: it fires after 500ms of no in-flight requests, which can happen
+  // while pure-JS hydration is still mutating the DOM (e.g. injecting
+  // role="tab" children into a role="tablist" container). The observer's own
+  // initial quiet window is the correct "no work in progress" signal.
+  const phase2Start = Date.now();
+  const stabilityReason = await Promise.race([
+    new Promise<string>(resolve =>
+      setTimeout(() => resolve('stability hard deadline'), stabilityTimeout),
+    ),
     page.evaluate(
-      ({ stabilityTimeout: OBSERVER_TIMEOUT, quietMs: QUIET_MS }) => {
+      ({
+        stabilityTimeout: OBSERVER_TIMEOUT,
+        quietMs: QUIET_MS,
+        maxMutations: MAX_MUTATIONS,
+      }) => {
         return new Promise<string>(resolve => {
           if (document.contentType === 'application/pdf') {
-            resolve('Skipping DOM mutation check for PDF.');
+            resolve('pdf short-circuit');
             return;
           }
 
           const root = document.documentElement || document.body;
           if (!(root instanceof Node)) {
-            resolve('No valid root to observe; treating as loaded.');
+            resolve('no root to observe');
             return;
           }
 
           let timeout: ReturnType<typeof setTimeout>;
           let mutationCount = 0;
-          const MAX_MUTATIONS = 500;
           const NOVELTY_THRESHOLD = 3;
           const signatureCounts = new WeakMap<Element, Map<string, number>>();
 
           const observer = new MutationObserver(mutationsList => {
             mutationCount++;
             if (mutationCount > MAX_MUTATIONS) {
+              // Hitting the cap during heavy hydration would previously resolve
+              // as "loaded" mid-storm — the exact race we're trying to close.
+              // Instead, disconnect the observer (stop the runaway) and let the
+              // outer stability deadline (or the pending quiet timer) decide
+              // when to release. The page is either genuinely animating (in
+              // which case we'll hit the deadline and scan what we have) or
+              // still hydrating heavily (in which case the deadline gives it
+              // as long as the budget allows).
               observer.disconnect();
-              resolve('Too many mutations detected, exiting.');
               return;
             }
 
@@ -2392,7 +2407,7 @@ export const waitForPageLoaded = async (page: Page) => {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
               observer.disconnect();
-              resolve('DOM stabilized after mutations.');
+              resolve('dom stabilized after mutations');
             }, QUIET_MS);
           });
 
@@ -2400,7 +2415,7 @@ export const waitForPageLoaded = async (page: Page) => {
           // after load so hydration that starts slightly late still gets caught.
           timeout = setTimeout(() => {
             observer.disconnect();
-            resolve('Initial quiet window elapsed.');
+            resolve('initial quiet window elapsed');
           }, Math.min(QUIET_MS, OBSERVER_TIMEOUT));
 
           observer.observe(root, {
@@ -2410,9 +2425,27 @@ export const waitForPageLoaded = async (page: Page) => {
           });
         });
       },
-      { stabilityTimeout, quietMs },
-    ),
+      { stabilityTimeout, quietMs, maxMutations },
+    ).catch(() => 'observer errored'),
   ]);
+
+  const phase1Ms = phase2Start - phase1Start;
+  const phase2Ms = Date.now() - phase2Start;
+  // Log at debug level so operators can spot pages that need bigger budgets
+  // (i.e. pages resolving via a hard deadline rather than a stability signal).
+  // Emit warn only when we time out on stability — that's the case that most
+  // often produces the intermittent hydration-timing findings.
+  if (stabilityReason === 'stability hard deadline') {
+    consoleLogger.warn(
+      `waitForPageLoaded: stability hard deadline hit after ${phase1Ms}ms load + ${phase2Ms}ms stability. ` +
+        `Page may still be hydrating. Consider raising OOBEE_STABILITY_TIMEOUT_MS (current: ${stabilityTimeout}) ` +
+        `or OOBEE_QUIET_MS (current: ${quietMs}).`,
+    );
+  } else {
+    consoleLogger.debug(
+      `waitForPageLoaded: load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms)`,
+    );
+  }
 };
 
 function isValidHttpUrl(urlString: string) {
