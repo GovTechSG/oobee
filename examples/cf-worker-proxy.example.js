@@ -22,33 +22,14 @@ const AUTH_TOKEN = '';
 const ALLOWED_IPS = ['0.0.0.0'];
 
 // Hostnames resolving to any of these ranges should skip the worker tunnel and
-// connect directly from the local SOCKS proxy. Kept here (single source of
-// truth) so the oobee client can fetch this list via `?bypass-ips=1`.
-let BYPASS_IP_RANGES = [
-  // --- Cloudflare IPv4 ---
-  '173.245.48.0/20',
-  '103.21.244.0/22',
-  '103.22.200.0/22',
-  '103.31.4.0/22',
-  '141.101.64.0/18',
-  '108.162.192.0/18',
-  '190.93.240.0/20',
-  '188.114.96.0/20',
-  '197.234.240.0/22',
-  '198.41.128.0/17',
-  '162.158.0.0/15',
-  '104.16.0.0/13',
-  '104.24.0.0/14',
-  '172.64.0.0/13',
-  '131.0.72.0/22',
-  // --- Cloudflare IPv6 ---
-  '2400:cb00::/32',
-  '2606:4700::/32',
-  '2803:f800::/32',
-  '2405:b500::/32',
-  '2405:8100::/32',
-  '2a06:98c0::/29',
-  '2c0f:f248::/32',
+// connect directly from the local SOCKS proxy. The oobee client fetches the
+// combined list via `?bypass-ips=1`.
+//
+// Cloudflare's own edge IP ranges are fetched live from cloudflare.com so the
+// worker tracks CF's current POPs without a redeploy. If the fetch fails and
+// no cached value is available, the CF portion is omitted (the caller still
+// gets private ranges + user extras).
+const PRIVATE_RANGES = [
   // --- Local / Private Network (RFC 1918) ---
   '127.0.0.0/8',
   '10.0.0.0/8',
@@ -57,6 +38,56 @@ let BYPASS_IP_RANGES = [
   '::1/128',
   'fc00::/7',
 ];
+
+// User-supplied extra bypass ranges. Any IP or CIDR added here is merged into
+// the list served via `?bypass-ips=1` alongside the Cloudflare + private
+// ranges. Use for corporate CDN edges, on-prem hosts, or anything else that
+// should skip the worker tunnel. Bogon examples left in place for reference —
+// replace with your own or empty the array.
+const EXTRA_BYPASS_RANGES = [
+  // '192.0.2.0/24',        // TEST-NET-1 (bogon example)
+  // '198.51.100.0/24',     // TEST-NET-2 (bogon example)
+  // '203.0.113.0/24',      // TEST-NET-3 (bogon example)
+  // '2001:db8::/32',       // IPv6 documentation (bogon example)
+];
+
+const CF_IPS_V4_URL = 'https://www.cloudflare.com/ips-v4';
+const CF_IPS_V6_URL = 'https://www.cloudflare.com/ips-v6';
+const CF_IPS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+// In-isolate cache. Cloudflare recycles isolates freely, so this is a
+// best-effort cache; every new isolate warms it once on first request.
+let cfRangesCache = null; // { ranges: string[], expiresAt: number }
+
+function parseCidrList(text) {
+  return text
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter((s) => s && !s.startsWith('#'));
+}
+
+async function fetchCloudflareRanges() {
+  const now = Date.now();
+  if (cfRangesCache && cfRangesCache.expiresAt > now) return cfRangesCache.ranges;
+  try {
+    const [v4Res, v6Res] = await Promise.all([
+      fetch(CF_IPS_V4_URL, { cf: { cacheEverything: true, cacheTtl: 3600 } }),
+      fetch(CF_IPS_V6_URL, { cf: { cacheEverything: true, cacheTtl: 3600 } }),
+    ]);
+    if (!v4Res.ok || !v6Res.ok) throw new Error(`HTTP ${v4Res.status}/${v6Res.status}`);
+    const [v4Text, v6Text] = await Promise.all([v4Res.text(), v6Res.text()]);
+    const ranges = [...parseCidrList(v4Text), ...parseCidrList(v6Text)];
+    if (ranges.length === 0) throw new Error('empty CIDR list from cloudflare.com');
+    cfRangesCache = { ranges, expiresAt: now + CF_IPS_TTL_MS };
+    return ranges;
+  } catch (err) {
+    // Serve stale cache if we have one; otherwise CF ranges are omitted from
+    // this response (private + extras still returned by the caller).
+    if (cfRangesCache) return cfRangesCache.ranges;
+    console.warn(`[cf-worker-proxy] Live CF IP fetch failed: ${err && err.message}. Omitting CF ranges from bypass list.`);
+    return [];
+  }
+}
 
 import { connect } from 'cloudflare:sockets';
 
@@ -159,11 +190,14 @@ export default {
     const url = new URL(request.url);
 
     // PAC endpoint. Public (no auth) — Chromium fetches this before proxy
-    // config is active and won't attach an Authorization header. The list is
-    // effectively public information (mostly Cloudflare's own ranges).
+    // config is active and won't attach an Authorization header. Not used by
+    // the current oobee client; kept for posterity in case PAC routing is
+    // revisited. Uses the same live CF list + fallback as `?bypass-ips`.
     if (url.searchParams.has('pac')) {
       const socksPort = Number(url.searchParams.get('socks-port')) || 8877;
-      const pac = buildPacScript(BYPASS_IP_RANGES, socksPort);
+      const cfRanges = await fetchCloudflareRanges();
+      const combined = [...cfRanges, ...PRIVATE_RANGES, ...EXTRA_BYPASS_RANGES];
+      const pac = buildPacScript(combined, socksPort);
       return new Response(pac, {
         status: 200,
         headers: {
@@ -177,7 +211,9 @@ export default {
       return new Response('Unauthorized', { status: 401 });
     }
     if (url.searchParams.has('bypass-ips')) {
-      return new Response(JSON.stringify(BYPASS_IP_RANGES), {
+      const cfRanges = await fetchCloudflareRanges();
+      const combined = [...cfRanges, ...PRIVATE_RANGES, ...EXTRA_BYPASS_RANGES];
+      return new Response(JSON.stringify(combined), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
