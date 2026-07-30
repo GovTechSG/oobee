@@ -11,9 +11,135 @@
 // port (default 8877).
 
 import net from 'net';
+import dns from 'dns/promises';
 import { URL } from 'url';
 import WebSocket from 'ws';
 import { consoleLogger } from './logs.js';
+
+// Bypass IP ranges are maintained on the worker side (single source of truth)
+// and fetched lazily via `?bypass-ips=1`. Hosts resolving to any of these are
+// connected directly rather than tunneled through the worker.
+let bypassRangesPromise: Promise<string[]> | null = null;
+
+async function fetchBypassRanges(workerUrl: string, authToken?: string): Promise<string[]> {
+  const httpUrl = new URL(workerUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:'));
+  httpUrl.searchParams.set('bypass-ips', '1');
+  const headers: Record<string, string> = {};
+  if (authToken) headers.Authorization = authToken;
+  const res = await fetch(httpUrl.toString(), { headers });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error('response is not an array');
+  return data.filter((x): x is string => typeof x === 'string');
+}
+
+function getBypassRanges(workerUrl: string, authToken?: string): Promise<string[]> {
+  if (!bypassRangesPromise) {
+    bypassRangesPromise = fetchBypassRanges(workerUrl, authToken)
+      .then((ranges) => {
+        consoleLogger.info(`[cfProxyWorker] Loaded ${ranges.length} bypass IP range(s) from worker`);
+        return ranges;
+      })
+      .catch((err) => {
+        consoleLogger.warn(
+          `[cfProxyWorker] Failed to fetch bypass IP ranges from worker: ${(err as Error).message}`,
+        );
+        bypassRangesPromise = null; // allow retry on next connection
+        return [];
+      });
+  }
+  return bypassRangesPromise;
+}
+
+function cidrMatch(ip: string, cidr: string): boolean {
+  const [range, bitsStr] = cidr.split('/');
+  const bits = parseInt(bitsStr, 10);
+  const ipBytes = ipToBytes(ip);
+  const rangeBytes = ipToBytes(range);
+  if (!ipBytes || !rangeBytes || ipBytes.length !== rangeBytes.length) return false;
+  const fullBytes = bits >> 3;
+  const remBits = bits & 7;
+  for (let i = 0; i < fullBytes; i++) if (ipBytes[i] !== rangeBytes[i]) return false;
+  if (remBits === 0) return true;
+  const mask = 0xff << (8 - remBits) & 0xff;
+  return (ipBytes[fullBytes] & mask) === (rangeBytes[fullBytes] & mask);
+}
+
+function ipToBytes(ip: string): number[] | null {
+  if (ip.includes('.')) {
+    const parts = ip.split('.').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+    return parts;
+  }
+  if (ip.includes(':')) {
+    // Minimal IPv6 parse (supports :: compression).
+    const [head, tail] = ip.split('::');
+    const headParts = head ? head.split(':') : [];
+    const tailParts = tail ? tail.split(':') : [];
+    const missing = 8 - headParts.length - tailParts.length;
+    if (missing < 0) return null;
+    const groups = [...headParts, ...Array(missing).fill('0'), ...tailParts];
+    const bytes = [];
+    for (const g of groups) {
+      const n = parseInt(g || '0', 16);
+      if (Number.isNaN(n) || n < 0 || n > 0xffff) return null;
+      bytes.push(n >> 8, n & 0xff);
+    }
+    return bytes;
+  }
+  return null;
+}
+
+function ipInRanges(ip: string, ranges: string[]): boolean {
+  for (const cidr of ranges) {
+    if (cidr.includes('/') ? cidrMatch(ip, cidr) : ip === cidr) return true;
+  }
+  return false;
+}
+
+function isIpLiteral(s: string): boolean {
+  return ipToBytes(s) !== null;
+}
+
+async function resolveHostname(
+  hostname: string,
+  bypassRanges: string[],
+): Promise<{ ip: string; bypass: boolean } | null> {
+  // The SOCKS5 client may have already resolved DNS locally and passed an IP
+  // literal (atyp 0x01/0x04). Skip DNS in that case and check the list directly.
+  if (isIpLiteral(hostname)) {
+    return { ip: hostname, bypass: ipInRanges(hostname, bypassRanges) };
+  }
+  try {
+    const addresses = await dns.resolve4(hostname);
+    for (const addr of addresses) {
+      if (ipInRanges(addr, bypassRanges)) {
+        consoleLogger.info(`[cfProxyWorker] Bypass IP matched ${addr} for ${hostname}`);
+        return { ip: addr, bypass: true };
+      }
+    }
+    if (addresses.length > 0) {
+      return { ip: addresses[0], bypass: false };
+    }
+  } catch (e) {
+    // IPv4 failed, try IPv6
+    try {
+      const addresses = await dns.resolve6(hostname);
+      for (const addr of addresses) {
+        if (ipInRanges(addr, bypassRanges)) {
+          consoleLogger.info(`[cfProxyWorker] Bypass IPv6 matched ${addr} for ${hostname}`);
+          return { ip: addr, bypass: true };
+        }
+      }
+      if (addresses.length > 0) {
+        return { ip: addresses[0], bypass: false };
+      }
+    } catch (err) {
+      consoleLogger.warn(`[cfProxyWorker] DNS resolution failed for ${hostname}: ${(err as Error).message}`);
+    }
+  }
+  return null;
+}
 
 export interface CfProxyWorker {
   server: string; // e.g. socks5://127.0.0.1:8877
@@ -74,6 +200,7 @@ function readExact(socket: net.Socket, n: number): Promise<Buffer> {
 async function handleSocks5(
   clientSocket: net.Socket,
   wsUrl: string,
+  workerUrl: string,
   authToken: string | undefined,
 ): Promise<void> {
   clientSocket.on('error', () => {
@@ -124,6 +251,61 @@ async function handleSocks5(
     } catch {
       /* ignore */
     }
+    return;
+  }
+
+  // Resolve hostname and check whether it falls in the worker-provided bypass list
+  const bypassRanges = await getBypassRanges(workerUrl, authToken);
+  const resolution = await resolveHostname(hostname, bypassRanges);
+  if (!resolution) {
+    consoleLogger.warn(`[cfProxyWorker] Failed to resolve hostname: ${hostname}`);
+    clientSocket.write(socksReply(0x04)); // host unreachable
+    clientSocket.end();
+    return;
+  }
+
+  // Bypass listed ranges - transparently forward TCP connection using Node's net module
+  if (resolution.bypass) {
+    consoleLogger.info(`[cfProxyWorker] Bypassing Worker for ${hostname} (${resolution.ip}) - connecting directly`);
+
+    const directSocket = net.createConnection({ host: resolution.ip, port }, () => {
+      try {
+        // Send SOCKS5 success reply with bound address
+        clientSocket.write(socksReply(0x00));
+
+        // Resume the client socket (was paused during handshake)
+        clientSocket.resume();
+
+        // Transparently pipe the connections bidirectionally
+        directSocket.pipe(clientSocket);
+        clientSocket.pipe(directSocket);
+      } catch (err) {
+        directSocket.destroy();
+      }
+    });
+
+    directSocket.on('error', (err) => {
+      consoleLogger.debug(`[cfProxyWorker] Direct connection failed for ${hostname}: ${err.message}`);
+      // If we haven't successfully connected yet, tell the SOCKS client
+      if (directSocket.connecting) {
+        try { clientSocket.write(socksReply(0x05)); } catch {} // Connection refused
+      }
+      try { clientSocket.end(); } catch {}
+    });
+
+    directSocket.on('close', () => {
+      try { clientSocket.end(); } catch {}
+    });
+
+    clientSocket.on('close', () => {
+      try { directSocket.destroy(); } catch {}
+    });
+
+    clientSocket.on('error', () => {
+      try { directSocket.destroy(); } catch {}
+    });
+
+    // Return early so we skip all the WebSocket setup below
     return;
   }
 
@@ -229,8 +411,11 @@ export function startCfProxyWorker(): CfProxyWorker | null {
   const port = parseInt(process.env.CF_WORKER_PROXY_PORT || '8877', 10);
   const wsUrl = buildWsUrl(workerUrl);
 
+  // Warm the bypass-ranges cache so the first connection doesn't pay the fetch latency.
+  void getBypassRanges(workerUrl, authToken);
+
   const server = net.createServer(socket => {
-    handleSocks5(socket, wsUrl, authToken).catch(() => {
+    handleSocks5(socket, wsUrl, workerUrl, authToken).catch(() => {
       try {
         socket.destroy();
       } catch {
