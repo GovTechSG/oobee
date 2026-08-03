@@ -2169,8 +2169,7 @@ export async function initModifiedUserAgent(
   _userDataDirectory?: string,
 ) {
   // If the caller already set OOBEE_USER_AGENT, respect it and skip the
-  // browser bootstrap. Useful when the container's native UA is undesirable
-  // (e.g. Linux Chrome tripping anti-fraud on a residential-proxy egress).
+  // browser bootstrap.
   const preset = process.env.OOBEE_USER_AGENT?.trim();
   if (preset) {
     process.env.OOBEE_USER_AGENT = preset;

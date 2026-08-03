@@ -85,6 +85,8 @@ All crawlers use Crawlee's `PlaywrightCrawler` with:
 
 `initModifiedUserAgent()` detects the default UA, replaces `HeadlessChrome` with `Chrome`, stores in `process.env.OOBEE_USER_AGENT`. This must be called before any browser context that talks to remote servers in headless mode, or bot-blocking WAFs will reject requests.
 
+**Caller-provided override**: if `OOBEE_USER_AGENT` is already set at entry, `initModifiedUserAgent()` respects it and skips the browser bootstrap. Callers can use this to customise the UA string to match a target site's requirements. Note that Client Hints (`Sec-CH-UA-Platform`, etc.) are still set by the browser from the actual OS and are not covered by this override.
+
 Contexts that need `userAgent: process.env.OOBEE_USER_AGENT`:
 - `getRobotsTxtViaPlaywright()` — robots.txt fetching
 - `findSitemap()` in `crawlIntelligentSitemap.ts` — sitemap path probing
@@ -133,7 +135,7 @@ The `constants` default export object holds runtime state:
 | Variable | Purpose |
 |----------|---------|
 | `CRAWLEE_HEADLESS` | `1` = headless, `0` = headful (set by `setHeadlessMode()`) |
-| `OOBEE_USER_AGENT` | Modified UA (set by `initModifiedUserAgent()`) |
+| `OOBEE_USER_AGENT` | Modified UA. Normally set by `initModifiedUserAgent()`; if pre-set by the caller, `initModifiedUserAgent()` respects it and skips the browser bootstrap. |
 | `OOBEE_VERBOSE` | Enable verbose console logging |
 | `OOBEE_LOGS_PATH` | Custom log directory |
 | `OOBEE_SLOWMO` | Browser slowmo in ms |
@@ -149,6 +151,10 @@ The `constants` default export object holds runtime state:
 | `GOOGLE_SAFE_BROWSING` | `1` = enable Google Safe Browsing (requires Chrome, not Chromium) |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | Proxy configuration |
 | `NO_PROXY` / `INCLUDE_PROXY` | Proxy bypass/include lists |
+| `CF_WORKER_PROXY` | URL of a Cloudflare Worker acting as a SOCKS-over-WebSocket relay. When set, `proxyService.getProxyInfo()` starts a local SOCKS5 listener that tunnels through the Worker. |
+| `CF_WORKER_PROXY_AUTH_TOKEN` | Bearer token sent to the Worker for authentication and for its `?bypass-ips=1` endpoint (the Worker returns IP ranges that must be direct-forwarded, bypassing the tunnel). |
+| `CF_WORKER_PROXY_FORCE_TUNNEL_HOSTS` | Client-side glob allowlist (comma/semicolon separated, `*` wildcards). Matched hostnames skip the bypass-IP / DoH resolution branch and are always sent to the Worker as `{hostname, port}`, preserving the Worker's hostname-based routing (e.g. its `INCLUDE_PROXY_FOR_UPSTREAM` allowlist). |
+| `CF_FAMILY_DNS` | `1`/`true` enables Cloudflare Family DoH (`family.cloudflare-dns.com`, 1.1.1.3) pre-resolution inside the SOCKS5 layer. Composes with `CF_WORKER_PROXY` (Worker + Family DoH) or runs standalone (local SOCKS5 only). Blocked hostnames return SOCKS reply `0x02`. |
 
 ### Internal (set by code)
 | Variable | Purpose |
@@ -356,6 +362,15 @@ When making changes, validate these areas which have well-established edge cases
 
 ### Proxy & Network
 - Proxy detection must handle `ALL_PROXY` on Windows. The proxy resolution logic should be tested on all platforms.
+
+#### Cloudflare Worker SOCKS tunnel (`src/cfProxyWorker.ts`)
+When `CF_WORKER_PROXY` is set, `proxyService.getProxyInfo()` starts a local SOCKS5 listener that tunnels traffic through the Worker over WebSocket. Key behaviours:
+
+- **Payload shape**: the SOCKS5 CONNECT is forwarded as JSON `{hostname, port}`. The Worker performs its own resolution (and may route via an upstream proxy based on its server-side allowlist). Do not substitute the resolved IP for the hostname — the Worker's hostname-based routing depends on receiving the original name.
+- **Bypass IP list**: the Worker exposes `?bypass-ips=1` which returns IP CIDR ranges that must be direct-forwarded (i.e. not sent through the Worker). `handleSocks5()` resolves the target hostname, checks the result against the bypass ranges, and if matched calls `directForward()` instead of opening a Worker WebSocket. This is the fast path for hosts the Worker itself would just proxy back to the origin.
+- **Force-tunnel allowlist (`CF_WORKER_PROXY_FORCE_TUNNEL_HOSTS`)**: some target hostnames are also present in the Worker's server-side "route via upstream proxy" list. For those, the client must skip the bypass-IP check and send the connection through the Worker unconditionally, so the Worker can apply its upstream-proxy routing. The env var is a comma/semicolon-separated glob list (`*` wildcards). `shouldForceTunnel(hostname)` gates the bypass check in `handleSocks5()`. Log line for a match: `[cfProxyWorker] Force-tunnel match for <host> — sending to Worker`.
+- **Family DoH (`CF_FAMILY_DNS`)**: enables Cloudflare Family DoH pre-resolution inside the SOCKS5 layer. This runs regardless of Chromium's own DoH state (Chromium disables its DoH client whenever a proxy is configured, so filtering must live in the SOCKS layer). Composes with the Worker path (Worker tunnel + pre-resolution) or runs standalone (`startFamilyDnsLocalProxy()` — local SOCKS5, no Worker, no WebSocket). Blocked hostnames (Family DoH answers `0.0.0.0`/`::`) get SOCKS reply `0x02`.
+- **Shared helpers**: `readSocks5Request()` is a pure SOCKS5 greeting/CONNECT parser; `directForward()` is the reusable direct-TCP forwarder used by both the bypass-IP path and the standalone Family DoH local proxy.
 
 ### Strategy & Filtering in Sitemap Crawls
 - The `-s` (strategy) flag must be passed through to `crawlSitemap` and `getLinksFromSitemap`. For sitemap-only scans the default is `'ignore'` (all URLs); for domain/intelligent crawls it's `'same-domain'`.
