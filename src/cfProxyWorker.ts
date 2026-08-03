@@ -151,8 +151,7 @@ function isIpLiteral(s: string): boolean {
 // reach the worker and can be routed through the upstream proxy.
 //
 // Configured via CF_WORKER_PROXY_FORCE_TUNNEL_HOSTS as a comma/semicolon
-// separated glob list. Patterns support '*' wildcards, e.g.
-// "*.singpass.gov.sg;singpass.gov.sg,*.whatismyipaddress.com".
+// separated glob list. Patterns support '*' wildcards.
 
 let forceTunnelRegexesCache: RegExp[] | null = null;
 function getForceTunnelRegexes(): RegExp[] {
