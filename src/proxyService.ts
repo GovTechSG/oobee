@@ -15,7 +15,12 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
-import { startCfProxyWorker, isCfProxyWorkerConfigured } from './cfProxyWorker.js';
+import {
+  startCfProxyWorker,
+  isCfProxyWorkerConfigured,
+  startFamilyDnsLocalProxy,
+  isFamilyDnsLocalProxyConfigured,
+} from './cfProxyWorker.js';
 
 export interface ProxyInfo {
   // http/https: host:port OR user:pass@host:port (no scheme)
@@ -425,10 +430,17 @@ export function getProxyInfo(): ProxyInfo | null {
   // Cloudflare Worker proxy takes precedence over all other proxy detection.
   // Starts a local SOCKS5 tunnel and points Chromium at it; the tunnel itself
   // handles bypass IPs by connecting directly (see cfProxyWorker.ts).
+  //
+  // If CF_FAMILY_DNS is set without CF_WORKER_PROXY, start a local SOCKS5
+  // proxy that enforces Family DoH filtering and forwards directly. When both
+  // are set, the worker path already applies Family DoH pre-resolution.
   let info: ProxyInfo | null;
   if (isCfProxyWorkerConfigured()) {
     const cf = startCfProxyWorker();
     info = cf ? { socks: cf.server } : null;
+  } else if (isFamilyDnsLocalProxyConfigured()) {
+    const fam = startFamilyDnsLocalProxy();
+    info = fam ? { socks: fam.server } : null;
   } else {
     const plat = os.platform();
     if (plat === 'win32') info = parseEnvProxyCommon() || parseWindowsRegistry();
