@@ -357,8 +357,15 @@ export default {
     }
     if (url.searchParams.has('bypass-ips')) {
       const cfRanges = BYPASS_CLOUDFLARE ? await fetchCloudflareRanges() : [];
-      const combined = [...cfRanges, ...PRIVATE_RANGES, ...EXTRA_BYPASS_RANGES];
-      return new Response(JSON.stringify(combined), {
+      const bypassRanges = [...cfRanges, ...PRIVATE_RANGES, ...EXTRA_BYPASS_RANGES];
+      // Also publish the upstream-proxy hostname allowlist so the client can
+      // force-tunnel matching hosts (skip its bypass-IP short-circuit) without
+      // hardcoding the list on its side. Only meaningful when the worker is
+      // actually routing via an upstream proxy.
+      const upstreamHosts = USE_UPSTREAM_PROXY
+        ? INCLUDE_PROXY_FOR_UPSTREAM.filter((s) => typeof s === 'string' && s && s !== '*')
+        : [];
+      return new Response(JSON.stringify({ bypassRanges, upstreamHosts }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });

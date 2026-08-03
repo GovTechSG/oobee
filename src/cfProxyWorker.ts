@@ -55,12 +55,18 @@ function findFreePort(startPort: number, maxAttempts: number = PORT_HUNT_MAX_ATT
   );
 }
 
-// Bypass IP ranges are maintained on the worker side (single source of truth)
-// and fetched lazily via `?bypass-ips=1`. Hosts resolving to any of these are
-// connected directly rather than tunneled through the worker.
-let bypassRangesPromise: Promise<string[]> | null = null;
+// Worker-side runtime config: bypass IP ranges + upstream-proxy hostname
+// allowlist. Both are maintained on the worker side as the single source of
+// truth and fetched lazily via `?bypass-ips=1`. The response shape is
+// `{ bypassRanges, upstreamHosts }`; a legacy array response (older worker
+// deploys) is treated as `{ bypassRanges: [...], upstreamHosts: [] }`.
+interface WorkerConfig {
+  bypassRanges: string[];
+  upstreamHosts: string[];
+}
+let workerConfigPromise: Promise<WorkerConfig> | null = null;
 
-async function fetchBypassRanges(workerUrl: string, authToken?: string): Promise<string[]> {
+async function fetchWorkerConfig(workerUrl: string, authToken?: string): Promise<WorkerConfig> {
   const httpUrl = new URL(workerUrl.replace(/^wss:/i, 'https:').replace(/^ws:/i, 'http:'));
   httpUrl.searchParams.set('bypass-ips', '1');
   const headers: Record<string, string> = {};
@@ -68,26 +74,43 @@ async function fetchBypassRanges(workerUrl: string, authToken?: string): Promise
   const res = await fetch(httpUrl.toString(), { headers });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  if (!Array.isArray(data)) throw new Error('response is not an array');
-  return data.filter((x): x is string => typeof x === 'string');
+  if (Array.isArray(data)) {
+    return {
+      bypassRanges: data.filter((x): x is string => typeof x === 'string'),
+      upstreamHosts: [],
+    };
+  }
+  if (data && typeof data === 'object') {
+    const obj = data as { bypassRanges?: unknown; upstreamHosts?: unknown };
+    const bypassRanges = Array.isArray(obj.bypassRanges)
+      ? obj.bypassRanges.filter((x): x is string => typeof x === 'string')
+      : [];
+    const upstreamHosts = Array.isArray(obj.upstreamHosts)
+      ? obj.upstreamHosts.filter((x): x is string => typeof x === 'string')
+      : [];
+    return { bypassRanges, upstreamHosts };
+  }
+  throw new Error('unexpected response shape');
 }
 
-function getBypassRanges(workerUrl: string, authToken?: string): Promise<string[]> {
-  if (!bypassRangesPromise) {
-    bypassRangesPromise = fetchBypassRanges(workerUrl, authToken)
-      .then((ranges) => {
-        consoleLogger.info(`[cfProxyWorker] Loaded ${ranges.length} bypass IP range(s) from worker`);
-        return ranges;
+function getWorkerConfig(workerUrl: string, authToken?: string): Promise<WorkerConfig> {
+  if (!workerConfigPromise) {
+    workerConfigPromise = fetchWorkerConfig(workerUrl, authToken)
+      .then((cfg) => {
+        consoleLogger.info(
+          `[cfProxyWorker] Loaded worker config: ${cfg.bypassRanges.length} bypass range(s), ${cfg.upstreamHosts.length} force-tunnel host pattern(s)`,
+        );
+        return cfg;
       })
       .catch((err) => {
         consoleLogger.warn(
-          `[cfProxyWorker] Failed to fetch bypass IP ranges from worker: ${(err as Error).message}`,
+          `[cfProxyWorker] Failed to fetch worker config: ${(err as Error).message}`,
         );
-        bypassRangesPromise = null; // allow retry on next connection
-        return [];
+        workerConfigPromise = null; // allow retry on next connection
+        return { bypassRanges: [], upstreamHosts: [] };
       });
   }
-  return bypassRangesPromise;
+  return workerConfigPromise;
 }
 
 function cidrMatch(ip: string, cidr: string): boolean {
@@ -147,22 +170,16 @@ function isIpLiteral(s: string): boolean {
 // hosts resolving into it — with BYPASS_CLOUDFLARE=true that includes every
 // CF-fronted target. But the worker also has its own INCLUDE_PROXY_FOR_UPSTREAM
 // allowlist that only takes effect if the request actually reaches the worker.
-// Hostnames listed here escape the bypass check on the client side so they
-// reach the worker and can be routed through the upstream proxy.
+// Hostnames matched here escape the client-side bypass check so they reach the
+// worker and can be routed through the upstream proxy.
 //
-// Configured via CF_WORKER_PROXY_FORCE_TUNNEL_HOSTS as a comma/semicolon
-// separated glob list. Patterns support '*' wildcards.
+// Source of truth: the worker publishes its INCLUDE_PROXY_FOR_UPSTREAM list in
+// the `?bypass-ips=1` response (`upstreamHosts`). CF_WORKER_PROXY_FORCE_TUNNEL_HOSTS
+// remains as an optional override (comma/semicolon separated glob list) — set
+// it to bypass the worker-supplied list for testing or emergencies.
 
-let forceTunnelRegexesCache: RegExp[] | null = null;
-function getForceTunnelRegexes(): RegExp[] {
-  if (forceTunnelRegexesCache !== null) return forceTunnelRegexesCache;
-  const raw = process.env.CF_WORKER_PROXY_FORCE_TUNNEL_HOSTS?.trim();
-  if (!raw) {
-    forceTunnelRegexesCache = [];
-    return forceTunnelRegexesCache;
-  }
-  forceTunnelRegexesCache = raw
-    .split(/[,;]/)
+function compileGlobs(patterns: string[]): RegExp[] {
+  return patterns
     .map((s) => s.trim())
     .filter(Boolean)
     .map(
@@ -172,11 +189,23 @@ function getForceTunnelRegexes(): RegExp[] {
           'i',
         ),
     );
-  return forceTunnelRegexesCache;
 }
 
-function shouldForceTunnel(hostname: string): boolean {
-  const regexes = getForceTunnelRegexes();
+let forceTunnelOverrideCache: RegExp[] | null | undefined;
+function getForceTunnelOverride(): RegExp[] | null {
+  if (forceTunnelOverrideCache !== undefined) return forceTunnelOverrideCache;
+  const raw = process.env.CF_WORKER_PROXY_FORCE_TUNNEL_HOSTS?.trim();
+  if (!raw) {
+    forceTunnelOverrideCache = null;
+    return null;
+  }
+  forceTunnelOverrideCache = compileGlobs(raw.split(/[,;]/));
+  return forceTunnelOverrideCache;
+}
+
+function shouldForceTunnel(hostname: string, upstreamHosts: string[]): boolean {
+  const override = getForceTunnelOverride();
+  const regexes = override ?? compileGlobs(upstreamHosts);
   if (regexes.length === 0) return false;
   return regexes.some((re) => re.test(hostname));
 }
@@ -479,15 +508,15 @@ async function handleSocks5(
   if (!req) return;
   const { hostname, port } = req;
 
+  const workerCfg = await getWorkerConfig(workerUrl, authToken);
+
   // Force-tunnel allowlist: skip bypass/DoH checks so the hostname reaches
   // the worker where INCLUDE_PROXY_FOR_UPSTREAM can route it via the upstream
   // proxy. Worker handles resolution and any blocking on its side.
-  if (!isIpLiteral(hostname) && shouldForceTunnel(hostname)) {
+  if (!isIpLiteral(hostname) && shouldForceTunnel(hostname, workerCfg.upstreamHosts)) {
     consoleLogger.info(`[cfProxyWorker] Force-tunnel match for ${hostname} — sending to Worker`);
   } else {
-    // Resolve hostname and check whether it falls in the worker-provided bypass list
-    const bypassRanges = await getBypassRanges(workerUrl, authToken);
-    const resolution = await resolveHostname(hostname, bypassRanges);
+    const resolution = await resolveHostname(hostname, workerCfg.bypassRanges);
     if (!resolution) {
       consoleLogger.warn(`[cfProxyWorker] Failed to resolve hostname: ${hostname}`);
       clientSocket.write(socksReply(0x04)); // host unreachable
@@ -622,8 +651,8 @@ export function startCfProxyWorker(): CfProxyWorker | null {
   }
   const wsUrl = buildWsUrl(workerUrl);
 
-  // Warm the bypass-ranges cache so the first connection doesn't pay the fetch latency.
-  void getBypassRanges(workerUrl, authToken);
+  // Warm the worker-config cache so the first connection doesn't pay the fetch latency.
+  void getWorkerConfig(workerUrl, authToken);
 
   const server = net.createServer(socket => {
     handleSocks5(socket, wsUrl, workerUrl, authToken).catch(() => {
