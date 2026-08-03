@@ -28,6 +28,37 @@ export const getVersion = () => {
 
 export const getHost = (url: string): string => new URL(url).host;
 
+// Pick the scanned page whose URL matches the entry URL the user provided,
+// so downstream siteName / report title reflects the requested page rather
+// than whichever page the crawler happened to process first (which for
+// intelligent-sitemap scans is often a deep sitemap entry).
+export const getEntryPageTitle = (
+  pagesScanned: Array<{ url?: string; actualUrl?: string; pageTitle?: string }> | undefined,
+  entryUrl: string | undefined,
+): string => {
+  if (!pagesScanned || pagesScanned.length === 0) return '';
+
+  const normalize = (raw?: string): string => {
+    if (!raw) return '';
+    try {
+      const parsed = new URL(raw);
+      const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+      return `${parsed.protocol}//${parsed.host.toLowerCase()}${pathname}${parsed.search}`;
+    } catch {
+      return raw;
+    }
+  };
+
+  const normEntry = normalize(entryUrl);
+  const match = normEntry
+    ? pagesScanned.find(
+        p => normalize(p.url) === normEntry || normalize(p.actualUrl) === normEntry,
+      )
+    : undefined;
+
+  return (match ?? pagesScanned[0])?.pageTitle ?? '';
+};
+
 export const getCurrentDate = () => {
   const date = new Date();
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;

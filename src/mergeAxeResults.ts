@@ -27,6 +27,7 @@ import {
   zipResults,
   getIssuesPercentage,
   register,
+  getEntryPageTitle,
 } from './utils.js';
 import { consoleLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
@@ -821,7 +822,7 @@ const generateArtifacts = async (
       htmlETL: oobeeAiHtmlETL,
       rules: oobeeAiRules,
     },
-    siteName: (pagesScanned[0]?.pageTitle ?? '').replace(/^\d+\s*:\s*/, '').trim(),
+    siteName: getEntryPageTitle(pagesScanned, urlScanned).replace(/^\d+\s*:\s*/, '').trim(),
     startTime: scanDetails.startTime ? scanDetails.startTime : new Date(),
     endTime: scanDetails.endTime ? scanDetails.endTime : new Date(),
     urlScanned,

@@ -5,7 +5,7 @@ import crawlDomain from './crawlers/crawlDomain.js';
 import crawlLocalFile from './crawlers/crawlLocalFile.js';
 import crawlIntelligentSitemap from './crawlers/crawlIntelligentSitemap.js';
 import generateArtifacts from './mergeAxeResults.js';
-import { getHost, createAndUpdateResultsFolders, cleanUpAndExit, getStoragePath } from './utils.js';
+import { getHost, createAndUpdateResultsFolders, cleanUpAndExit, getStoragePath, getEntryPageTitle } from './utils.js';
 import constants, { ScannerTypes, UrlsCrawled } from './constants/constants.js';
 import { getBlackListedPatterns, submitForm } from './constants/common.js';
 import { consoleLogger, silentLogger } from './logs.js';
@@ -321,7 +321,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
       // Upload results to S3 if environment variables are set
       if (isS3UploadEnabled()) {
-        const siteName = (urlsCrawledObj.scanned[0]?.pageTitle ?? '')
+        const siteName = getEntryPageTitle(urlsCrawledObj.scanned, url)
           .replace(/^\d+\s*:\s*/, '')
           .trim();
         const scanMetadata = getS3MetadataFromEnv(siteName, durationExceeded);
