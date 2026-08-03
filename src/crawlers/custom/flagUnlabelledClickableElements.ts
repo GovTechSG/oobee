@@ -82,6 +82,35 @@ function hasPointerCursor(node: Node): boolean {
     return hasPointerStyle || hasOnClick || hasEventListeners || isClickableRole || isNativeClickableElement || hasTabIndex;
 }
 
+  // Returns true only when the element itself carries an interactive marker.
+  // Excludes signals that can be inherited or ambient (e.g. cursor:pointer
+  // inherited from an interactive ancestor), so decorative overlays and empty
+  // icon spans nested inside a labeled anchor are not treated as clickable.
+  function hasOwnInteractivity(node: Element): boolean {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+    const el = node as HTMLElement;
+
+    const tag = el.nodeName.toLowerCase();
+    if (tag === 'button' || tag === 'input' || tag === 'select' || tag === 'textarea') return true;
+    if (tag === 'a' && el.hasAttribute('href')) return true;
+
+    if (el.hasAttribute('onclick')) return true;
+    if (el.hasAttribute('jsaction') || el.hasAttribute('jscontroller')) return true;
+
+    const tabindex = el.getAttribute('tabindex');
+    if (tabindex !== null && tabindex !== '-1') return true;
+
+    const role = el.getAttribute('role');
+    if (role && ['button', 'link', 'menuitem', 'tab', 'checkbox', 'radio', 'switch', 'option'].includes(role)) {
+      return true;
+    }
+
+    // Inline cursor:pointer is explicitly set on this element (not inherited).
+    if (el.style && el.style.cursor === 'pointer') return true;
+
+    return false;
+  }
+
 
   function isAccessibleText(value: string) {
     if (!value || value.trim().length === 0) {
@@ -90,10 +119,10 @@ function hasPointerCursor(node: Node): boolean {
 
     const trimmedValue = value.trim();
 
-    // Check if the text is a URL/link or a CSS url() pattern.
-    const linkRegex = /^(https?:\/\/|file:\/\/|[a-zA-Z]:[\\/]|\/)[^\s]+$/i;
+    // Treat CSS url() patterns as non-accessible. URL strings themselves are
+    // allowed to serve as accessible text (e.g. `<a><i>https://example.com</i></a>`).
     const cssUrlRegex = /^url\(.*\)$/i;
-    if (linkRegex.test(trimmedValue) || cssUrlRegex.test(trimmedValue)) {
+    if (cssUrlRegex.test(trimmedValue)) {
         return false;
     }
 
@@ -717,6 +746,30 @@ function hasPointerCursor(node: Node): boolean {
         if (!hasPointerCursor(element)) {
             customConsoleWarn("Empty div or span without accessible text and without pointer cursor, skipping flagging.");
             return false;
+        }
+
+        // Only flag when the element itself is interactive. Cursor:pointer
+        // inherits through the DOM, so a decorative overlay or icon span
+        // nested under a labeled interactive ancestor should not be flagged.
+        if (!hasOwnInteractivity(element)) {
+            customConsoleWarn("Empty div or span has only inherited cursor:pointer with no own interactive marker, skipping flagging.");
+            return false;
+        }
+
+        // Focusable scroll containers (tabindex=0 + overflow auto/scroll) are a
+        // legitimate keyboard-a11y pattern; do not flag them just for lacking
+        // a name.
+        {
+            const overflow = computedStyle.overflow;
+            const overflowX = computedStyle.overflowX;
+            const overflowY = computedStyle.overflowY;
+            const isScrollable = [overflow, overflowX, overflowY].some(
+                v => v === 'auto' || v === 'scroll'
+            );
+            if (isScrollable) {
+                customConsoleWarn("Empty scroll container, skipping flagging.");
+                return false;
+            }
         }
 
         // **New background-image check**
