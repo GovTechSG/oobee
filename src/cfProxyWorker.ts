@@ -141,6 +141,48 @@ function isIpLiteral(s: string): boolean {
 }
 
 // -----------------------------------------------------------------------------
+// Force-tunnel allowlist.
+// -----------------------------------------------------------------------------
+// The worker's bypass-IP list (?bypass-ips=1) short-circuits the tunnel for
+// hosts resolving into it — with BYPASS_CLOUDFLARE=true that includes every
+// CF-fronted target. But the worker also has its own INCLUDE_PROXY_FOR_UPSTREAM
+// allowlist that only takes effect if the request actually reaches the worker.
+// Hostnames listed here escape the bypass check on the client side so they
+// reach the worker and can be routed through the upstream proxy.
+//
+// Configured via CF_WORKER_PROXY_FORCE_TUNNEL_HOSTS as a comma/semicolon
+// separated glob list. Patterns support '*' wildcards, e.g.
+// "*.singpass.gov.sg;singpass.gov.sg,*.whatismyipaddress.com".
+
+let forceTunnelRegexesCache: RegExp[] | null = null;
+function getForceTunnelRegexes(): RegExp[] {
+  if (forceTunnelRegexesCache !== null) return forceTunnelRegexesCache;
+  const raw = process.env.CF_WORKER_PROXY_FORCE_TUNNEL_HOSTS?.trim();
+  if (!raw) {
+    forceTunnelRegexesCache = [];
+    return forceTunnelRegexesCache;
+  }
+  forceTunnelRegexesCache = raw
+    .split(/[,;]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(
+      (pattern) =>
+        new RegExp(
+          '^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$',
+          'i',
+        ),
+    );
+  return forceTunnelRegexesCache;
+}
+
+function shouldForceTunnel(hostname: string): boolean {
+  const regexes = getForceTunnelRegexes();
+  if (regexes.length === 0) return false;
+  return regexes.some((re) => re.test(hostname));
+}
+
+// -----------------------------------------------------------------------------
 // Cloudflare Family DoH egress filtering.
 // -----------------------------------------------------------------------------
 // Chrome's DoH policy is disabled whenever a proxy is configured, so the
@@ -438,27 +480,34 @@ async function handleSocks5(
   if (!req) return;
   const { hostname, port } = req;
 
-  // Resolve hostname and check whether it falls in the worker-provided bypass list
-  const bypassRanges = await getBypassRanges(workerUrl, authToken);
-  const resolution = await resolveHostname(hostname, bypassRanges);
-  if (!resolution) {
-    consoleLogger.warn(`[cfProxyWorker] Failed to resolve hostname: ${hostname}`);
-    clientSocket.write(socksReply(0x04)); // host unreachable
-    clientSocket.end();
-    return;
-  }
-  if (resolution.blocked) {
-    consoleLogger.info(`[cfProxyWorker] Refusing SOCKS connect to ${hostname} — blocked by Family DNS`);
-    clientSocket.write(socksReply(0x02)); // connection not allowed by ruleset
-    clientSocket.end();
-    return;
-  }
+  // Force-tunnel allowlist: skip bypass/DoH checks so the hostname reaches
+  // the worker where INCLUDE_PROXY_FOR_UPSTREAM can route it via the upstream
+  // proxy. Worker handles resolution and any blocking on its side.
+  if (!isIpLiteral(hostname) && shouldForceTunnel(hostname)) {
+    consoleLogger.info(`[cfProxyWorker] Force-tunnel match for ${hostname} — sending to Worker`);
+  } else {
+    // Resolve hostname and check whether it falls in the worker-provided bypass list
+    const bypassRanges = await getBypassRanges(workerUrl, authToken);
+    const resolution = await resolveHostname(hostname, bypassRanges);
+    if (!resolution) {
+      consoleLogger.warn(`[cfProxyWorker] Failed to resolve hostname: ${hostname}`);
+      clientSocket.write(socksReply(0x04)); // host unreachable
+      clientSocket.end();
+      return;
+    }
+    if (resolution.blocked) {
+      consoleLogger.info(`[cfProxyWorker] Refusing SOCKS connect to ${hostname} — blocked by Family DNS`);
+      clientSocket.write(socksReply(0x02)); // connection not allowed by ruleset
+      clientSocket.end();
+      return;
+    }
 
-  // Bypass listed ranges - transparently forward TCP connection using Node's net module
-  if (resolution.bypass) {
-    consoleLogger.info(`[cfProxyWorker] Bypassing Worker for ${hostname} (${resolution.ip}) - connecting directly`);
-    directForward(clientSocket, resolution.ip, port, hostname);
-    return;
+    // Bypass listed ranges - transparently forward TCP connection using Node's net module
+    if (resolution.bypass) {
+      consoleLogger.info(`[cfProxyWorker] Bypassing Worker for ${hostname} (${resolution.ip}) - connecting directly`);
+      directForward(clientSocket, resolution.ip, port, hostname);
+      return;
+    }
   }
 
   const wsHeaders = authToken ? { Authorization: authToken } : undefined;
@@ -468,12 +517,13 @@ async function handleSocks5(
   let ready = false;
   const preBuffer: Buffer[] = [];
 
-  // When Family DoH is enabled we've already resolved and validated the
-  // hostname; hand the IP to the worker so its own connect() doesn't re-resolve
-  // via Cloudflare's default (non-family) resolver. TLS SNI stays end-to-end.
-  const targetForWorker = isFamilyDnsEnabled() && !isIpLiteral(hostname) ? resolution.ip : hostname;
+  // Always send the original hostname so the worker can apply its own
+  // hostname-based routing (INCLUDE_PROXY_FOR_UPSTREAM globs). The worker's
+  // connect() will re-resolve via Cloudflare's internal resolver — same
+  // Cloudflare infra as Family DoH, no cross-provider leak. Client-side
+  // Family DoH blocking (SOCKS 0x02) is what enforces the filter.
   ws.on('open', () => {
-    ws.send(JSON.stringify({ hostname: targetForWorker, port }));
+    ws.send(JSON.stringify({ hostname, port }));
   });
 
   ws.on('message', (data: WebSocket.RawData) => {
