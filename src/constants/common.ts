@@ -2460,11 +2460,15 @@ export const waitForPageLoaded = async (page: Page) => {
             return;
           }
           // Focus on elements whose bounding rect drives axe geometry rules:
-          // interactive controls (target-size) + landmarks (region/sticky-
-          // header shifts). Cap to avoid pathological perf on huge pages.
+          // interactive controls (target-size) + header/nav landmarks (sticky-
+          // header shifts). Deliberately exclude `main` and `footer` — on
+          // content-heavy SPAs those resize continuously as lazy images/
+          // components hydrate below the fold, which never lets the counter
+          // settle even though the header state is long stable. Cap to avoid
+          // pathological perf on huge pages.
           const sel =
             'a, button, input, select, textarea, [role="button"], [role="link"], ' +
-            'header, nav, main, footer, [role="banner"], [role="navigation"]';
+            'header, nav, [role="banner"]';
           const nodes = document.querySelectorAll(sel);
           const targets: Element[] = [];
           for (let i = 0; i < nodes.length && targets.length < maxTargets; i++) {
@@ -2475,10 +2479,29 @@ export const waitForPageLoaded = async (page: Page) => {
             return;
           }
 
+          // Ignore sub-pixel jitter: browsers occasionally emit fractional
+          // ResizeObserver entries during scroll/zoom or on fractional device
+          // pixel ratios. Only deltas ≥ SIGNIFICANT_PX reset the stability
+          // counter. Below that, treat the element as unchanged.
+          const SIGNIFICANT_PX = 1;
+          const lastSize = new WeakMap<Element, { w: number; h: number }>();
           let stableFrames = 0;
           let done = false;
-          const ro = new ResizeObserver(() => {
-            stableFrames = 0;
+          const ro = new ResizeObserver(entries => {
+            let significant = false;
+            for (const entry of entries) {
+              const rect = entry.contentRect;
+              const prev = lastSize.get(entry.target);
+              if (
+                !prev ||
+                Math.abs(rect.width - prev.w) >= SIGNIFICANT_PX ||
+                Math.abs(rect.height - prev.h) >= SIGNIFICANT_PX
+              ) {
+                significant = true;
+                lastSize.set(entry.target, { w: rect.width, h: rect.height });
+              }
+            }
+            if (significant) stableFrames = 0;
           });
           try {
             targets.forEach(el => ro.observe(el));
