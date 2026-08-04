@@ -2329,6 +2329,7 @@ export const waitForPageLoaded = async (page: Page) => {
   const stabilityTimeout = Number(process.env.OOBEE_STABILITY_TIMEOUT_MS) || 15000;
   const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 1500;
   const maxMutations     = Number(process.env.OOBEE_MAX_MUTATIONS)        || 5000;
+  const assetWaitMs      = Number(process.env.OOBEE_ASSET_WAIT_MS)        || 2000;
 
   // Phase 1 — wait for the `load` event (or its own hard deadline).
   const phase1Start = Date.now();
@@ -2437,21 +2438,57 @@ export const waitForPageLoaded = async (page: Page) => {
     ).catch(() => 'observer errored'),
   ]);
 
+  // Phase 2.5 — wait for fonts and images (raster + SVG-as-<img>) to finish
+  // loading. Both are deterministic browser signals: font swap reflows every
+  // text-bearing element (color-contrast), and image/SVG load resolves the
+  // intrinsic dimensions that anchor tags depend on (target-size). MutationObserver
+  // in phase 2 doesn't catch these — a font swap or SVG paint doesn't necessarily
+  // produce a DOM mutation, but it does change measured geometry.
+  const phase25Start = Date.now();
+  const phase25Reason = await Promise.race([
+    new Promise<string>(resolve =>
+      setTimeout(() => resolve('asset hard deadline'), assetWaitMs),
+    ),
+    page
+      .evaluate(
+        () =>
+          Promise.all([
+            'fonts' in document && document.fonts?.ready
+              ? document.fonts.ready.then(() => undefined)
+              : Promise.resolve(),
+            Promise.all(
+              (Array.from(document.images) as HTMLImageElement[])
+                .filter(img => !img.complete)
+                .map(
+                  img =>
+                    new Promise<void>(res => {
+                      const done = () => res();
+                      img.addEventListener('load', done, { once: true });
+                      img.addEventListener('error', done, { once: true });
+                    }),
+                ),
+            ).then(() => undefined),
+          ]).then(() => 'assets loaded'),
+      )
+      .catch(() => 'asset probe errored'),
+  ]);
+
   const phase1Ms = phase2Start - phase1Start;
-  const phase2Ms = Date.now() - phase2Start;
+  const phase2Ms = phase25Start - phase2Start;
+  const phase25Ms = Date.now() - phase25Start;
   // Log at debug level so operators can spot pages that need bigger budgets
   // (i.e. pages resolving via a hard deadline rather than a stability signal).
   // Emit warn only when we time out on stability — that's the case that most
   // often produces the intermittent hydration-timing findings.
   if (stabilityReason === 'stability hard deadline') {
     consoleLogger.warn(
-      `waitForPageLoaded: stability hard deadline hit after ${phase1Ms}ms load + ${phase2Ms}ms stability. ` +
+      `waitForPageLoaded: stability hard deadline hit after ${phase1Ms}ms load + ${phase2Ms}ms stability + ${phase25Ms}ms assets. ` +
         `Page may still be hydrating. Consider raising OOBEE_STABILITY_TIMEOUT_MS (current: ${stabilityTimeout}) ` +
         `or OOBEE_QUIET_MS (current: ${quietMs}).`,
     );
   } else {
     consoleLogger.debug(
-      `waitForPageLoaded: load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms)`,
+      `waitForPageLoaded: load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms) assets="${phase25Reason}" (${phase25Ms}ms)`,
     );
   }
 };
