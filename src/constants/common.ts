@@ -2326,7 +2326,7 @@ export const waitForPageLoaded = async (page: Page) => {
   // Docker containers under CPU contention; lower them locally via env vars
   // if crawl throughput matters more than tail-end hydration coverage.
   const loadTimeout      = Number(process.env.OOBEE_LOAD_TIMEOUT_MS)      || 30000;
-  const stabilityTimeout = Number(process.env.OOBEE_STABILITY_TIMEOUT_MS) || 15000;
+  const stabilityTimeout = Number(process.env.OOBEE_STABILITY_TIMEOUT_MS) || 30000;
   const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 1500;
   const maxMutations     = Number(process.env.OOBEE_MAX_MUTATIONS)        || 5000;
   const assetWaitMs      = Number(process.env.OOBEE_ASSET_WAIT_MS)        || 5000;

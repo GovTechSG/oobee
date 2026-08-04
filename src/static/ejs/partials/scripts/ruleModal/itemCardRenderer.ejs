@@ -240,7 +240,7 @@
           ${createElementSection(item)}
           ${
             (() => {
-              const showDetails = item.displayNeedsReview || ['color-contrast', 'color-contrast-enhanced', 'oobee-grading-text-contents', 'target-size', 'valid-lang', 'aria-valid-attr-value', 'aria-required-children', 'aria-prohibited-attr'].includes(aiConfig.ruleInCategory.rule);
+              const showDetails = item.displayNeedsReview || ['color-contrast', 'color-contrast-enhanced', 'oobee-grading-text-contents', 'target-size', 'valid-lang', 'aria-valid-attr-value', 'aria-required-children', 'aria-prohibited-attr', 'aria-allowed-attr'].includes(aiConfig.ruleInCategory.rule);
               return showDetails && item.message
                 ? `<div class="d-flex justify-content-between g-one">
             <div class="fw-semibold page-item-card-section-title">Details</div>
