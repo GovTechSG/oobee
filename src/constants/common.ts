@@ -2329,7 +2329,7 @@ export const waitForPageLoaded = async (page: Page) => {
   const stabilityTimeout = Number(process.env.OOBEE_STABILITY_TIMEOUT_MS) || 15000;
   const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 1500;
   const maxMutations     = Number(process.env.OOBEE_MAX_MUTATIONS)        || 5000;
-  const assetWaitMs      = Number(process.env.OOBEE_ASSET_WAIT_MS)        || 2000;
+  const assetWaitMs      = Number(process.env.OOBEE_ASSET_WAIT_MS)        || 5000;
 
   // Phase 1 — wait for the `load` event (or its own hard deadline).
   const phase1Start = Date.now();
