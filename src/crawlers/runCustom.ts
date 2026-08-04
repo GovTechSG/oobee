@@ -190,7 +190,17 @@ const runCustom = async (
           return Promise.resolve(true);
         });
 
-    await allPagesClosedPromise(pageClosePromises);
+    // Race the page-close wait against context 'close'. When the caller sends
+    // SIGUSR1 (or otherwise triggers softCloseBrowserAndContext), context.close()
+    // tears the browser down; individual pages may not fire their own 'close'
+    // event before the context is gone. Without this race, pageClosePromises
+    // stays pending, this await never resolves, and Node exits the process with
+    // code 13 ("Unfinished Top-Level Await") from cli.ts's top-level await.
+    const contextClosedPromise = new Promise<true>(resolve => {
+      context.once('close', () => resolve(true));
+    });
+
+    await Promise.race([allPagesClosedPromise(pageClosePromises), contextClosedPromise]);
   } catch (error) {
     log(`PLAYWRIGHT EXECUTION ERROR ${error}`);
     cleanUpAndExit(1, randomToken, true);
