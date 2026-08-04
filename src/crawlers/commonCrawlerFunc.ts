@@ -1132,83 +1132,164 @@ export const runAxeScript = async ({
             resultTypes: defaultResultTypes,
           })
           .then(async results => {
-            // Re-verify target-size violations against the live DOM. SPA
-            // frameworks (notably Salesforce Lightning, but also any site
-            // whose interactive elements get their final layout from async
-            // hydration or late CSS-driven reflow) can resize an anchor or
-            // button after axe measured boundingClientRect but before the
-            // finding is written. If the element's current rect meets the
-            // rule's minSize, treat axe's smaller measurement as stale and
-            // drop the finding. Scoped to the "element too small" cases
-            // (no messageKey, or contentOverflow — which only fires when
-            // the element itself is too small); partially-obscured findings
-            // depend on neighbor geometry and are left alone.
-            const targetSizeViolation = results.violations.find(
-              v => v.id === 'target-size',
-            );
-            if (targetSizeViolation) {
-              await new Promise(resolve => setTimeout(resolve, 0));
-              const DEFAULT_MIN_SIZE = 24;
-              targetSizeViolation.nodes = targetSizeViolation.nodes.filter(node => {
-                const selector = node.target && node.target[0];
-                if (typeof selector !== 'string') return true;
-                const axeCheck = (node.any || []).find(c => c.id === 'target-size') as
-                  | { data?: { minSize?: number; messageKey?: string } }
-                  | undefined;
-                const data = axeCheck && axeCheck.data;
-                if (!data) return true;
-                const mk = data.messageKey;
-                if (mk && mk !== 'contentOverflow') return true;
-                const minSize =
-                  typeof data.minSize === 'number' ? data.minSize : DEFAULT_MIN_SIZE;
-                try {
-                  const el = document.querySelector(selector);
-                  if (!el) return true;
-                  const rect = el.getBoundingClientRect();
-                  return !(rect.width >= minSize && rect.height >= minSize);
-                } catch {
-                  return true;
-                }
-              });
-              if (targetSizeViolation.nodes.length === 0) {
+            // ==== Re-verify select violations against the live DOM ====
+            //
+            // Some rules produce false positives when axe evaluates an
+            // element whose state hasn't finished settling (mid-hydration
+            // reflow, late aria-attribute injection, CSS-variable theme
+            // swap). For those rules we re-check each flagged node after a
+            // microtask yield and drop findings whose failure condition no
+            // longer holds. All logic below runs in the browser context.
+
+            // One yield lets any pending microtasks (post-axe layout /
+            // hydration continuations) flush before we re-inspect.
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            // ---- Shared helpers -----------------------------------------
+
+            // Extract axe's per-node selector (first entry of node.target).
+            const getSelector = (n: NodeResult): string | null => {
+              const s = n.target && n.target[0];
+              return typeof s === 'string' ? s : null;
+            };
+
+            // Extract check data (e.g. { minSize, messageKey }) for a given
+            // check id from an axe node result.
+            const getCheckData = <T>(n: NodeResult, checkId: string): T | null => {
+              const c = (n.any || []).find(x => x.id === checkId) as
+                | { data?: T }
+                | undefined;
+              return c && c.data != null ? c.data : null;
+            };
+
+            // Filter a violation's nodes with a keep predicate. If nodes
+            // empty out, remove the violation entirely.
+            const pruneViolation = (
+              ruleId: string,
+              keep: (n: NodeResult) => boolean,
+            ): void => {
+              const v = results.violations.find(x => x.id === ruleId);
+              if (!v) return;
+              v.nodes = v.nodes.filter(keep);
+              if (v.nodes.length === 0) {
                 results.violations = results.violations.filter(
-                  v => v.id !== 'target-size',
+                  x => x.id !== ruleId,
                 );
               }
-            }
+            };
 
-            // Re-verify aria-hidden-focus violations against the live DOM to
-            // handle race conditions with JS that sets tabindex="-1" after
-            // aria-hidden (common in carousel/slider libraries like slick)
-            const ariaHiddenViolation = results.violations.find(
-              v => v.id === 'aria-hidden-focus',
-            );
-            if (ariaHiddenViolation) {
-              await new Promise(resolve => setTimeout(resolve, 0));
-              ariaHiddenViolation.nodes = ariaHiddenViolation.nodes.filter(node => {
-                const selector = node.target && node.target[0];
-                if (typeof selector !== 'string') return true;
-                try {
-                  const el = document.querySelector(selector);
-                  if (!el) return true;
-                  const focusables = el.querySelectorAll(
-                    'a[href], area[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]',
-                  );
-                  if (focusables.length === 0) return false;
-                  return Array.from(focusables).some(child => {
-                    const tabindex = child.getAttribute('tabindex');
-                    if (tabindex === null) return true;
-                    const parsed = parseInt(tabindex, 10);
-                    return isNaN(parsed) || parsed >= 0;
-                  });
-                } catch {
-                  return true;
-                }
+            // Resolve a selector to an Element, suppressing invalid-selector
+            // exceptions (axe can emit selectors the browser refuses).
+            const resolveElement = (sel: string): Element | null => {
+              try {
+                return document.querySelector(sel);
+              } catch {
+                return null;
+              }
+            };
+
+            // ---- target-size --------------------------------------------
+            // SPA frameworks (notably Salesforce Lightning) can resize an
+            // interactive element after axe measured boundingClientRect.
+            // Drop the finding if the element now meets the rule's minSize.
+            // Scoped to the "element too small" cases (no messageKey, or
+            // contentOverflow — which only fires when the element itself
+            // is too small); partially-obscured findings depend on
+            // neighbor geometry and are left alone.
+            const DEFAULT_TARGET_MIN_SIZE = 24;
+            pruneViolation('target-size', node => {
+              const sel = getSelector(node);
+              if (!sel) return true;
+              const data = getCheckData<{ minSize?: number; messageKey?: string }>(
+                node,
+                'target-size',
+              );
+              if (!data) return true;
+              if (data.messageKey && data.messageKey !== 'contentOverflow') return true;
+              const minSize =
+                typeof data.minSize === 'number' ? data.minSize : DEFAULT_TARGET_MIN_SIZE;
+              const el = resolveElement(sel);
+              if (!el) return true;
+              const rect = el.getBoundingClientRect();
+              return !(rect.width >= minSize && rect.height >= minSize);
+            });
+
+            // ---- aria-hidden-focus --------------------------------------
+            // Handle race conditions with JS that sets tabindex="-1" after
+            // aria-hidden (common in carousel/slider libraries like slick).
+            const FOCUSABLE_SELECTOR =
+              'a[href], area[href], button:not([disabled]), ' +
+              'input:not([disabled]):not([type="hidden"]), ' +
+              'select:not([disabled]), textarea:not([disabled]), [tabindex]';
+            pruneViolation('aria-hidden-focus', node => {
+              const sel = getSelector(node);
+              if (!sel) return true;
+              const el = resolveElement(sel);
+              if (!el) return true;
+              const focusables = el.querySelectorAll(FOCUSABLE_SELECTOR);
+              if (focusables.length === 0) return false;
+              return Array.from(focusables).some(child => {
+                const tabindex = child.getAttribute('tabindex');
+                if (tabindex === null) return true;
+                const parsed = parseInt(tabindex, 10);
+                return Number.isNaN(parsed) || parsed >= 0;
               });
-              if (ariaHiddenViolation.nodes.length === 0) {
-                results.violations = results.violations.filter(
-                  v => v.id !== 'aria-hidden-focus',
-                );
+            });
+
+            // ---- color-contrast -----------------------------------------
+            // CSS-variable theme swaps and late-loading stylesheets can
+            // cause text to briefly render on the wrong background. Re-run
+            // axe scoped to just the flagged elements with only the
+            // color-contrast rule and drop findings that no longer fail.
+            // Uses axe's own logic to avoid reimplementing color
+            // composition (ancestor background walk, opacity, gradients).
+            const colorContrastViolation = results.violations.find(
+              v => v.id === 'color-contrast',
+            );
+            if (colorContrastViolation && colorContrastViolation.nodes.length > 0) {
+              try {
+                // Map each flagged node to its live element so we can match
+                // re-run results back to originals by identity — axe may
+                // regenerate slightly different selectors across runs on a
+                // hydrating page.
+                const nodeElements = new Map<NodeResult, Element>();
+                for (const node of colorContrastViolation.nodes) {
+                  const sel = getSelector(node);
+                  if (!sel) continue;
+                  const el = resolveElement(sel);
+                  if (el) nodeElements.set(node, el);
+                }
+                if (nodeElements.size > 0) {
+                  const uniqueElements = Array.from(new Set(nodeElements.values()));
+                  const reRun = await axe.run(uniqueElements, {
+                    runOnly: ['color-contrast'],
+                    resultTypes: ['violations'],
+                  });
+                  const stillFailing = new WeakSet<Element>();
+                  for (const v of reRun.violations || []) {
+                    for (const n of v.nodes) {
+                      const s = getSelector(n as NodeResult);
+                      if (!s) continue;
+                      const el = resolveElement(s);
+                      if (el) stillFailing.add(el);
+                    }
+                  }
+                  colorContrastViolation.nodes = colorContrastViolation.nodes.filter(
+                    n => {
+                      const el = nodeElements.get(n);
+                      // If we couldn't resolve the element, be conservative
+                      // and keep the finding.
+                      return el ? stillFailing.has(el) : true;
+                    },
+                  );
+                  if (colorContrastViolation.nodes.length === 0) {
+                    results.violations = results.violations.filter(
+                      v => v.id !== 'color-contrast',
+                    );
+                  }
+                }
+              } catch {
+                // Re-run failed; keep original findings to be safe.
               }
             }
 
