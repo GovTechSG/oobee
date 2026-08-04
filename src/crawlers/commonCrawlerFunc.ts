@@ -1132,6 +1132,51 @@ export const runAxeScript = async ({
             resultTypes: defaultResultTypes,
           })
           .then(async results => {
+            // Re-verify target-size violations against the live DOM. SPA
+            // frameworks (notably Salesforce Lightning, but also any site
+            // whose interactive elements get their final layout from async
+            // hydration or late CSS-driven reflow) can resize an anchor or
+            // button after axe measured boundingClientRect but before the
+            // finding is written. If the element's current rect meets the
+            // rule's minSize, treat axe's smaller measurement as stale and
+            // drop the finding. Scoped to the "element too small" cases
+            // (no messageKey, or contentOverflow — which only fires when
+            // the element itself is too small); partially-obscured findings
+            // depend on neighbor geometry and are left alone.
+            const targetSizeViolation = results.violations.find(
+              v => v.id === 'target-size',
+            );
+            if (targetSizeViolation) {
+              await new Promise(resolve => setTimeout(resolve, 0));
+              const DEFAULT_MIN_SIZE = 24;
+              targetSizeViolation.nodes = targetSizeViolation.nodes.filter(node => {
+                const selector = node.target && node.target[0];
+                if (typeof selector !== 'string') return true;
+                const axeCheck = (node.any || []).find(c => c.id === 'target-size') as
+                  | { data?: { minSize?: number; messageKey?: string } }
+                  | undefined;
+                const data = axeCheck && axeCheck.data;
+                if (!data) return true;
+                const mk = data.messageKey;
+                if (mk && mk !== 'contentOverflow') return true;
+                const minSize =
+                  typeof data.minSize === 'number' ? data.minSize : DEFAULT_MIN_SIZE;
+                try {
+                  const el = document.querySelector(selector);
+                  if (!el) return true;
+                  const rect = el.getBoundingClientRect();
+                  return !(rect.width >= minSize && rect.height >= minSize);
+                } catch {
+                  return true;
+                }
+              });
+              if (targetSizeViolation.nodes.length === 0) {
+                results.violations = results.violations.filter(
+                  v => v.id !== 'target-size',
+                );
+              }
+            }
+
             // Re-verify aria-hidden-focus violations against the live DOM to
             // handle race conditions with JS that sets tabindex="-1" after
             // aria-hidden (common in carousel/slider libraries like slick)

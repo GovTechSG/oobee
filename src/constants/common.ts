@@ -2325,13 +2325,10 @@ export const waitForPageLoaded = async (page: Page) => {
   // page still gets a fresh window to hydrate. Defaults are sized for busy
   // Docker containers under CPU contention; lower them locally via env vars
   // if crawl throughput matters more than tail-end hydration coverage.
-  const loadTimeout        = Number(process.env.OOBEE_LOAD_TIMEOUT_MS)             || 30000;
-  const stabilityTimeout   = Number(process.env.OOBEE_STABILITY_TIMEOUT_MS)        || 15000;
-  const quietMs            = Number(process.env.OOBEE_QUIET_MS)                    || 1500;
-  const maxMutations       = Number(process.env.OOBEE_MAX_MUTATIONS)               || 5000;
-  const layoutTimeout      = Number(process.env.OOBEE_LAYOUT_STABILITY_TIMEOUT_MS) || 3000;
-  const layoutStableFrames = Number(process.env.OOBEE_LAYOUT_STABLE_FRAMES)        || 4;
-  const layoutMaxTargets   = Number(process.env.OOBEE_LAYOUT_MAX_TARGETS)          || 200;
+  const loadTimeout      = Number(process.env.OOBEE_LOAD_TIMEOUT_MS)      || 30000;
+  const stabilityTimeout = Number(process.env.OOBEE_STABILITY_TIMEOUT_MS) || 15000;
+  const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 1500;
+  const maxMutations     = Number(process.env.OOBEE_MAX_MUTATIONS)        || 5000;
 
   // Phase 1 — wait for the `load` event (or its own hard deadline).
   const phase1Start = Date.now();
@@ -2440,123 +2437,23 @@ export const waitForPageLoaded = async (page: Page) => {
     ).catch(() => 'observer errored'),
   ]);
 
-  // Phase 3 — layout-stability probe. Phase 2 catches DOM mutations, but SPA
-  // frameworks (notably Salesforce Lightning) trigger late CSS-driven reflow
-  // that the novelty filter treats as churn: a class flip during hydration
-  // passes once, then a downstream media-query cascade or sticky-header swap
-  // resizes elements without new mutations. ResizeObserver on interactive +
-  // landmark elements catches those. Budget is intentionally short — on quiet
-  // pages this resolves in ~one rAF (few ms).
-  const phase3Start = Date.now();
-  const layoutReason = await Promise.race([
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('layout hard deadline'), layoutTimeout),
-    ),
-    page.evaluate(
-      ({ neededFrames, maxTargets }) => {
-        return new Promise<string>(resolve => {
-          if (typeof ResizeObserver === 'undefined') {
-            resolve('no ResizeObserver');
-            return;
-          }
-          // Focus on elements whose bounding rect drives axe geometry rules:
-          // interactive controls (target-size) + header/nav landmarks (sticky-
-          // header shifts). Deliberately exclude `main` and `footer` — on
-          // content-heavy SPAs those resize continuously as lazy images/
-          // components hydrate below the fold, which never lets the counter
-          // settle even though the header state is long stable. Cap to avoid
-          // pathological perf on huge pages.
-          const sel =
-            'a, button, input, select, textarea, [role="button"], [role="link"], ' +
-            'header, nav, [role="banner"]';
-          const nodes = document.querySelectorAll(sel);
-          const targets: Element[] = [];
-          for (let i = 0; i < nodes.length && targets.length < maxTargets; i++) {
-            targets.push(nodes[i]);
-          }
-          if (targets.length === 0) {
-            resolve('no targets');
-            return;
-          }
-
-          // Ignore sub-pixel jitter: browsers occasionally emit fractional
-          // ResizeObserver entries during scroll/zoom or on fractional device
-          // pixel ratios. Only deltas ≥ SIGNIFICANT_PX reset the stability
-          // counter. Below that, treat the element as unchanged.
-          const SIGNIFICANT_PX = 1;
-          const lastSize = new WeakMap<Element, { w: number; h: number }>();
-          let stableFrames = 0;
-          let done = false;
-          const ro = new ResizeObserver(entries => {
-            let significant = false;
-            for (const entry of entries) {
-              const rect = entry.contentRect;
-              const prev = lastSize.get(entry.target);
-              if (
-                !prev ||
-                Math.abs(rect.width - prev.w) >= SIGNIFICANT_PX ||
-                Math.abs(rect.height - prev.h) >= SIGNIFICANT_PX
-              ) {
-                significant = true;
-                lastSize.set(entry.target, { w: rect.width, h: rect.height });
-              }
-            }
-            if (significant) stableFrames = 0;
-          });
-          try {
-            targets.forEach(el => ro.observe(el));
-          } catch {
-            ro.disconnect();
-            resolve('observer errored');
-            return;
-          }
-
-          const tick = () => {
-            if (done) return;
-            stableFrames++;
-            if (stableFrames >= neededFrames) {
-              done = true;
-              ro.disconnect();
-              resolve('layout stabilized');
-              return;
-            }
-            requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-        });
-      },
-      { neededFrames: layoutStableFrames, maxTargets: layoutMaxTargets },
-    ).catch(() => 'layout probe errored'),
-  ]);
-
   const phase1Ms = phase2Start - phase1Start;
-  const phase2Ms = phase3Start - phase2Start;
-  const phase3Ms = Date.now() - phase3Start;
+  const phase2Ms = Date.now() - phase2Start;
   // Log at debug level so operators can spot pages that need bigger budgets
   // (i.e. pages resolving via a hard deadline rather than a stability signal).
-  // Emit warn when either the DOM-stability or layout-stability phase hits its
-  // hard deadline — those are the cases that most often produce intermittent
-  // hydration-timing findings.
+  // Emit warn only when we time out on stability — that's the case that most
+  // often produces the intermittent hydration-timing findings.
   if (stabilityReason === 'stability hard deadline') {
     consoleLogger.warn(
       `waitForPageLoaded: stability hard deadline hit after ${phase1Ms}ms load + ${phase2Ms}ms stability. ` +
         `Page may still be hydrating. Consider raising OOBEE_STABILITY_TIMEOUT_MS (current: ${stabilityTimeout}) ` +
         `or OOBEE_QUIET_MS (current: ${quietMs}).`,
     );
-  }
-  if (layoutReason === 'layout hard deadline') {
-    consoleLogger.warn(
-      `waitForPageLoaded: layout hard deadline hit after ${phase3Ms}ms. ` +
-        `Elements still resizing after DOM stabilized — likely late CSS-driven reflow ` +
-        `(e.g. Salesforce Lightning). Consider raising OOBEE_LAYOUT_STABILITY_TIMEOUT_MS ` +
-        `(current: ${layoutTimeout}) or OOBEE_LAYOUT_STABLE_FRAMES (current: ${layoutStableFrames}).`,
+  } else {
+    consoleLogger.debug(
+      `waitForPageLoaded: load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms)`,
     );
   }
-  consoleLogger.debug(
-    `waitForPageLoaded: load="${loadReason}" (${phase1Ms}ms) ` +
-      `stability="${stabilityReason}" (${phase2Ms}ms) ` +
-      `layout="${layoutReason}" (${phase3Ms}ms)`,
-  );
 };
 
 function isValidHttpUrl(urlString: string) {
