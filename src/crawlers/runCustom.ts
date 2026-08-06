@@ -1,6 +1,6 @@
 /* eslint-env browser */
 import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler } from './commonCrawlerFunc.js';
-import { cleanUpAndExit, register, registerSoftClose } from '../utils.js';
+import { cleanUpAndExit, getStoragePath, register, registerSoftClose } from '../utils.js';
 import constants, {
   getIntermediateScreenshotsPath,
   guiInfoStatusTypes,
@@ -64,7 +64,7 @@ const runCustom = async (
   extraHTTPHeaders?: Record<string, string>,
 ) => {
   // checks and delete datasets path if it already exists
-  process.env.CRAWLEE_STORAGE_DIR = randomToken;
+  process.env.CRAWLEE_STORAGE_DIR = getStoragePath(randomToken);
 
   const urlsCrawled: UrlsCrawled = { ...constants.urlsCrawledObj };
   const { dataset } = await createCrawleeSubFolders(randomToken);

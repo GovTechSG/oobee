@@ -14,7 +14,7 @@ import {
   submitForm,
 } from './constants/common.js';
 import { createCrawleeSubFolders, enrichViolationMessages, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
-import { createAndUpdateResultsFolders, getVersion } from './utils.js';
+import { createAndUpdateResultsFolders, getStoragePath, getVersion } from './utils.js';
 import generateArtifacts, { createBasicFormHTMLSnippet, sendWcagBreakdownToSentry } from './mergeAxeResults.js';
 import { enrichColorContrastDOMContext, takeScreenshotForHTMLElements } from './screenshotFunc/htmlScreenshotFunc.js';
 import { consoleLogger, silentLogger } from './logs.js';
@@ -363,7 +363,7 @@ export const init = async ({
   // max numbers of mustFix/goodToFix occurrences before test returns a fail
   const { mustFix: mustFixThreshold, goodToFix: goodToFixThreshold } = thresholds;
 
-  process.env.CRAWLEE_STORAGE_DIR = randomToken;
+  process.env.CRAWLEE_STORAGE_DIR = getStoragePath(randomToken);
   constants.sitemapFetchedLinks = null;
 
   const scanDetails = {

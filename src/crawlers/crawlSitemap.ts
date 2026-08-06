@@ -62,6 +62,7 @@ const crawlSitemap = async ({
   urlsCrawledFromIntelligent = null,
   crawledFromLocalFile = false,
   ruleset = [],
+  requestQueueName,
 }: {
   sitemapUrl: string;
   randomToken: string;
@@ -84,6 +85,7 @@ const crawlSitemap = async ({
   urlsCrawledFromIntelligent?: UrlsCrawled;
   crawledFromLocalFile?: boolean;
   ruleset?: RuleFlags[];
+  requestQueueName?: string;
 }) => {
   const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
@@ -103,7 +105,7 @@ const crawlSitemap = async ({
     dataset = datasetFromIntelligent;
     urlsCrawled = urlsCrawledFromIntelligent;
   } else {
-    ({ dataset } = await createCrawleeSubFolders(randomToken));
+    ({ dataset } = await createCrawleeSubFolders(randomToken, requestQueueName));
     urlsCrawled = { ...constants.urlsCrawledObj };
   }
 
@@ -142,7 +144,7 @@ const crawlSitemap = async ({
   // has zero impact on crawl behavior (Crawlee processes RequestList first).
   // Having it available enables: download re-enqueue for PDF scanning,
   // 403 rate-limit retry, and enqueueLinks for intelligent sitemap discovery.
-  const { requestQueue } = await createCrawleeSubFolders(randomToken);
+  const { requestQueue } = await createCrawleeSubFolders(randomToken, requestQueueName);
 
   const crawler = register(
     new crawlee.PlaywrightCrawler({

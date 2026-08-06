@@ -7,7 +7,7 @@ import axe, { Rule } from 'axe-core';
 import { v4 as uuidv4 } from 'uuid';
 import { getDomain } from 'tldts';
 import { normalizeUrl } from '@apify/utilities';
-import { Dataset, RequestQueue, Configuration } from 'crawlee';
+import { Dataset, Configuration } from 'crawlee';
 import constants, {
   BrowserTypes,
   destinationPath,
@@ -463,23 +463,22 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
       if (storageClient.teardown) {
         await storageClient.teardown();
       }
-      const crawleeDir = path.join(storagePath, 'crawlee');
-      const dataset = await Dataset.open(crawleeDir);
+      // Drop the dataset via API so Crawlee releases its handles cleanly. The
+      // per-phase request queues (crawlee_rq_sitemap_*, crawlee_rq_domain) are
+      // wiped by the rm calls below — we can't enumerate every phase name here.
+      const dataset = await Dataset.open('crawlee');
       await dataset.drop();
-      const requestQueue = await RequestQueue.open(`${crawleeDir}_rq`);
-      await requestQueue.drop();
     } catch (error) {
       consoleLogger.info(`Crawlee storage drop in cleanUp: ${error.message}`);
     }
-    try {
-      fs.rmSync(path.join(storagePath, 'crawlee'), { recursive: true, force: true });
-    } catch (error) {
-      consoleLogger.warn(`Unable to force remove crawlee folder: ${error.message}`);
-    }
-    try {
-      fs.rmSync(path.join(storagePath, 'crawlee_rq'), { recursive: true, force: true });
-    } catch (error) {
-      consoleLogger.warn(`Unable to force remove crawlee_rq folder: ${error.message}`);
+    // Since 3.18, memory-storage owns the layout: <storagePath>/{datasets,
+    // request_queues,key_value_stores}/. Sweep them all.
+    for (const dir of ['datasets', 'request_queues', 'key_value_stores']) {
+      try {
+        fs.rmSync(path.join(storagePath, dir), { recursive: true, force: true });
+      } catch (error) {
+        consoleLogger.warn(`Unable to force remove ${dir} folder: ${error.message}`);
+      }
     }
 
     try {
@@ -1078,7 +1077,7 @@ export const zipResults = async (zipName: string, resultsPath: string): Promise<
   async function addFolderToZip(folderPath: string, zipFolder: JSZip, isRoot = false): Promise<void> {
     const items = await fs.readdir(folderPath);
     for (const item of items) {
-      if (isRoot && item.startsWith('crawlee')) continue;
+      if (isRoot && (item === 'datasets' || item === 'request_queues' || item === 'key_value_stores')) continue;
       const fullPath = path.join(folderPath, item);
       const stats = await fs.stat(fullPath);
       if (stats.isDirectory()) {

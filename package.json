@@ -17,7 +17,7 @@
     "axios": "^1.8.2",
     "base64-stream": "^1.0.0",
     "cheerio": "^1.0.0-rc.12",
-    "crawlee": "^3.17.0",
+    "crawlee": "^3.18.0",
     "ejs": "^3.1.9",
     "file-type": "^21.3.3",
     "fs-extra": "^11.2.0",

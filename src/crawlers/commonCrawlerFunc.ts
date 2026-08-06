@@ -22,7 +22,6 @@ import { flagUnlabelledClickableElements } from './custom/flagUnlabelledClickabl
 import xPathToCss from './custom/xPathToCss.js';
 import type { Response as PlaywrightResponse } from 'playwright';
 import fs from 'fs';
-import { getStoragePath } from '../utils.js';
 import { ensureAndInjectSafeBrowsing } from '../safeBrowsingProfile.js';
 import path from 'path';
 
@@ -1388,13 +1387,18 @@ export const runAxeScript = async ({
   return filterAxeResults(results, pageTitle, customFlowDetails);
 };
 
+// @crawlee/memory-storage@3.18 rejects absolute paths as storage names, so callers
+// must pass relative names. The actual storage location is conveyed via the
+// CRAWLEE_STORAGE_DIR env var (set to getStoragePath(randomToken) at scan entry).
+// requestQueueName is parameterised so intelligent scans can isolate per-phase
+// request queues — sharing one queue directory across crawlSitemap → crawlDomain
+// transitions triggered a Windows EPERM race on the request-queue .json.lock files.
 export const createCrawleeSubFolders = async (
-  randomToken: string,
+  _randomToken: string,
+  requestQueueName: string = 'crawlee_rq',
 ): Promise<{ dataset: Dataset; requestQueue: RequestQueue }> => {
-
-  const baseDir = path.join(getStoragePath(randomToken), "crawlee");
-  const dataset = await Dataset.open(baseDir);
-  const requestQueue = await RequestQueue.open(`${baseDir}_rq`);
+  const dataset = await Dataset.open('crawlee');
+  const requestQueue = await RequestQueue.open(requestQueueName);
   return { dataset, requestQueue };
 };
 

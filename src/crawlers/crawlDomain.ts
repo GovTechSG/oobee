@@ -80,6 +80,7 @@ const crawlDomain = async ({
   datasetFromIntelligent = null,
   urlsCrawledFromIntelligent = null,
   ruleset = [],
+  requestQueueName,
 }: {
   url: string;
   randomToken: string;
@@ -101,19 +102,20 @@ const crawlDomain = async ({
   datasetFromIntelligent?: crawlee.Dataset;
   urlsCrawledFromIntelligent?: UrlsCrawled;
   ruleset?: RuleFlags[];
+  requestQueueName?: string;
 }) => {
   const crawlStartTime = Date.now();
   let dataset: crawlee.Dataset;
   let urlsCrawled: UrlsCrawled;
   const { requestQueue }: { requestQueue: crawlee.RequestQueue } =
-    await createCrawleeSubFolders(randomToken);
+    await createCrawleeSubFolders(randomToken, requestQueueName);
   let durationExceeded = false;
 
   if (fromCrawlIntelligentSitemap) {
     dataset = datasetFromIntelligent;
     urlsCrawled = urlsCrawledFromIntelligent;
   } else {
-    ({ dataset } = await createCrawleeSubFolders(randomToken));
+    ({ dataset } = await createCrawleeSubFolders(randomToken, requestQueueName));
     urlsCrawled = { ...constants.urlsCrawledObj };
   }
 

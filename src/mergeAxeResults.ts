@@ -1101,29 +1101,24 @@ const generateArtifacts = async (
     await storageClient.teardown();
   }
 
-  // Gracefully drop Dataset and RequestQueue — releases locks and removes files
-  const crawleeDir = path.join(storagePath, 'crawlee');
+  // Gracefully drop the Dataset — releases handles cleanly. Per-phase request
+  // queues (crawlee_rq_sitemap_*, crawlee_rq_domain) can't be enumerated here
+  // by name; the rm below wipes their parent directory.
   try {
-    const dataset = await Dataset.open(crawleeDir);
+    const dataset = await Dataset.open('crawlee');
     await dataset.drop();
   } catch (error) {
     consoleLogger.info(`Dataset drop: ${error.message}`);
   }
 
-  try {
-    const requestQueue = await RequestQueue.open(`${crawleeDir}_rq`);
-    await requestQueue.drop();
-  } catch (error) {
-    consoleLogger.info(`RequestQueue drop: ${error.message}`);
-  }
-
-  // Fallback rm for any leftover files not managed by Crawlee's storage API
-  const crawleePath = path.join(storagePath, 'crawlee');
-  try {
-    await fs.promises.rm(crawleePath, { recursive: true, force: true });
-    await fs.promises.rm(`${crawleePath}_rq`, { recursive: true, force: true });
-  } catch {
-    // Best-effort; storage was already dropped via API
+  // Fallback rm — memory-storage@3.18 owns the layout:
+  //   <storagePath>/{datasets,request_queues,key_value_stores}/
+  for (const dir of ['datasets', 'request_queues', 'key_value_stores']) {
+    try {
+      await fs.promises.rm(path.join(storagePath, dir), { recursive: true, force: true });
+    } catch {
+      // Best-effort; already dropped via API or never created
+    }
   }
 
   try {

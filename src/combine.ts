@@ -73,7 +73,10 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   } = envDetails;
 
   process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
-  process.env.CRAWLEE_STORAGE_DIR = randomToken;
+  // Absolute path — @crawlee/memory-storage@3.18 rejects absolute paths passed as
+  // storage names, so CRAWLEE_STORAGE_DIR must carry the full location and callers
+  // pass relative names ('crawlee', 'crawlee_rq') to Dataset/RequestQueue.open().
+  process.env.CRAWLEE_STORAGE_DIR = getStoragePath(randomToken);
   constants.sitemapFetchedLinks = null;
 
   if (isPageCaptureEnabled() && !process.env.OOBEE_SCAN_PRODUCT) {
