@@ -132,6 +132,14 @@ const crawlSitemap = async ({
   const uuidToPdfMapping: Record<string, string> = {};
   const isScanHtml = [FileTypes.All, FileTypes.HtmlOnly].includes(fileTypes as FileTypes);
   const isScanPdfs = [FileTypes.All, FileTypes.PdfOnly].includes(fileTypes as FileTypes);
+  // Intelligent scans run multiple phases with per-phase request queues, so the
+  // queue-level uniqueKey dedup no longer prevents a URL scanned in phase N from
+  // being re-scanned when phase N+1 (another sitemap, or enqueueLinks discovery)
+  // enqueues it again. Track scanned URLs by normalized form and short-circuit
+  // the request handler when the current URL is already in urlsCrawled.scanned.
+  const scannedUrlSet = fromCrawlIntelligentSitemap
+    ? new Set<string>(urlsCrawled.scanned.map(item => normUrl(item.url)))
+    : null;
   const { playwrightDeviceDetailsObject } = viewportSettings;
   const { maxConcurrency } = constants;
   const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
@@ -280,6 +288,15 @@ const crawlSitemap = async ({
 
         try {
           await waitForPageLoaded(page);
+
+          // Cross-phase dedup for intelligent scans: skip URLs already scanned by a
+          // previous phase (shared urlsCrawled). Standalone sitemap scans have
+          // scannedUrlSet === null and fall through unchanged. Placed after
+          // waitForPageLoaded so every loaded page still stabilizes the browser
+          // context before we return.
+          if (scannedUrlSet?.has(normUrl(request.url))) {
+            return;
+          }
 
           const actualUrl = page.url() || request.loadedUrl || request.url;
 
@@ -460,6 +477,7 @@ const crawlSitemap = async ({
                 pageTitle: results.pageTitle,
                 actualUrl, // i.e. actualUrl
               });
+              scannedUrlSet?.add(normUrl(request.url));
               rateController.onSuccess(crawler.autoscaledPool);
               if (rateController.isLimitReached()) {
                 isAbortingScan = true;
@@ -490,6 +508,14 @@ const crawlSitemap = async ({
                         req.url = req.url.replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
                       } catch {}
                       if (isDisallowedInRobotsTxt(req.url)) return null;
+                      // Mirror crawlDomain's optimization: skip page.goto for URLs
+                      // already scanned in this or a previous phase. The handler's
+                      // early-return still catches them, but this saves the
+                      // navigation cost. scannedUrlSet is only non-null under
+                      // fromCrawlIntelligentSitemap.
+                      if (scannedUrlSet?.has(normUrl(req.url))) {
+                        req.skipNavigation = true;
+                      }
                       if (isUrlPdf(req.url)) {
                         req.skipNavigation = true;
                       }
