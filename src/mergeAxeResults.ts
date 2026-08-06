@@ -812,7 +812,7 @@ const generateArtifacts = async (
   consoleLogger.info('Generating report artifacts');
 
   const storagePath = getStoragePath(randomToken);
-  const intermediateDatasetsPath = `${storagePath}/crawlee`;
+  const intermediateDatasetsPath = `${storagePath}/datasets/crawlee`;
   const oobeeAppVersion = getVersion();
   const isCustomFlow = scanType === ScannerTypes.CUSTOM;
 
