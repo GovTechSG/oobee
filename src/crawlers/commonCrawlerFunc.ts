@@ -1390,9 +1390,6 @@ export const runAxeScript = async ({
 // @crawlee/memory-storage@3.18 rejects absolute paths as storage names, so callers
 // must pass relative names. The actual storage location is conveyed via the
 // CRAWLEE_STORAGE_DIR env var (set to getStoragePath(randomToken) at scan entry).
-// requestQueueName is parameterised so intelligent scans can isolate per-phase
-// request queues — sharing one queue directory across crawlSitemap → crawlDomain
-// transitions triggered a Windows EPERM race on the request-queue .json.lock files.
 export const createCrawleeSubFolders = async (
   _randomToken: string,
   requestQueueName: string = 'crawlee_rq',

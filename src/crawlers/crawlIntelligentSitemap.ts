@@ -156,14 +156,13 @@ const crawlIntelligentSitemap = async (
       extraHTTPHeaders,
       safeMode,
       scanDuration,
-      requestQueueName: 'crawlee_rq_domain',
     });
   }
 
-  // Process all discovered sitemaps sequentially, sharing dataset and urlsCrawled.
-  // Each phase gets its own request queue name to avoid Windows EPERM races on
-  // .json.lock files when phase N+1 begins enqueuing before phase N's async
-  // lock-file cleanup has released the shared crawlee_rq/ directory.
+  // Process all discovered sitemaps sequentially, sharing dataset, urlsCrawled,
+  // and a single request queue. The shared queue gives us Crawlee's built-in
+  // uniqueKey dedup across phases for free — a URL enqueued in phase 1 won't be
+  // re-enqueued in phase 2.
   for (let i = 0; i < sitemapUrls.length; i += 1) {
     const currentSitemapUrl = sitemapUrls[i];
     if (urlsCrawled.scanned.length >= maxRequestsPerCrawl) break;
@@ -198,7 +197,6 @@ const crawlIntelligentSitemap = async (
       crawledFromLocalFile: false,
       scanDuration: scanDuration > 0 ? remainingDuration : 0,
       ruleset,
-      requestQueueName: `crawlee_rq_sitemap_${i + 1}`,
     });
   }
 
@@ -231,7 +229,6 @@ const crawlIntelligentSitemap = async (
       urlsCrawledFromIntelligent: urlsCrawled,
       scanDuration: remainingScanDuration,
       ruleset,
-      requestQueueName: 'crawlee_rq_domain',
     });
   } else if (!hasDurationRemaining) {
     consoleLogger.info(
