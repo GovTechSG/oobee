@@ -30,6 +30,14 @@ import { gradeReadability } from './crawlers/custom/gradeReadability.js';
 import { BrowserContext, Page } from 'playwright';
 import { filter } from 'jszip';
 
+// Public API re-export for consumers importing from @govtechsg/oobee.
+export { scanCustomFlow } from './crawlers/scanCustomFlow.js';
+export type {
+  ScanCustomFlowConfig,
+  ScanCustomFlowResult,
+  ScanCustomFlowSession,
+} from './types/scanCustomFlow.js';
+
 // Define global window properties for Oobee injection functions
 declare global {
   interface Window {
@@ -895,4 +903,3 @@ export const scanPage = async (
 };
 
 export { RuleFlags, a11yRuleLongDescriptionMap, a11yRuleStepByStepGuide, getOobeeFunctionsScript };
-

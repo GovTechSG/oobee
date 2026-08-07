@@ -1029,7 +1029,7 @@ export const addOverlayMenu = async (
         });
 
         const label = document.createElement('label');
-        label.setAttribute('for', 'oobee-stop-input');
+        label.setAttribute('for', 'oobeeStopInput');
         label.textContent = 'Enter a name for this scan';
         Object.assign(label.style, { fontSize: '15px', fontWeight: '600' });
 

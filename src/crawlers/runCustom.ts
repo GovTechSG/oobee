@@ -52,6 +52,15 @@ export class ProcessPageParams {
   }
 }
 
+export interface RunCustomControls {
+  stop: () => Promise<void>;
+}
+
+export interface RunCustomHooks {
+  onReady?: (controls: RunCustomControls) => void | Promise<void>;
+  exitOnError?: boolean;
+}
+
 const runCustom = async (
   url: string,
   randomToken: string,
@@ -62,11 +71,12 @@ const runCustom = async (
   includeScreenshots: boolean,
   initialCustomFlowLabel?: string,
   extraHTTPHeaders?: Record<string, string>,
+  hooks?: RunCustomHooks,
 ) => {
   // checks and delete datasets path if it already exists
   process.env.CRAWLEE_STORAGE_DIR = getStoragePath(randomToken);
 
-  const urlsCrawled: UrlsCrawled = { ...constants.urlsCrawledObj };
+  const urlsCrawled = new UrlsCrawled();
   const { dataset } = await createCrawleeSubFolders(randomToken);
   const intermediateScreenshotsPath = getIntermediateScreenshotsPath(randomToken);
   const processPageParams = new ProcessPageParams(
@@ -176,6 +186,9 @@ const runCustom = async (
     });
 
     await page.goto(url, { timeout: 0 });
+    await hooks?.onReady?.({
+      stop: processPageParams.stopAll!,
+    });
 
     // to execute and wait for all pages to close
     // idea is for promise to be pending until page.on('close') detected
@@ -203,6 +216,9 @@ const runCustom = async (
     await Promise.race([allPagesClosedPromise(pageClosePromises), contextClosedPromise]);
   } catch (error) {
     log(`PLAYWRIGHT EXECUTION ERROR ${error}`);
+    if (hooks?.exitOnError === false) {
+      throw error;
+    }
     cleanUpAndExit(1, randomToken, true);
   }
 
