@@ -1797,6 +1797,25 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
 
         if (!allowed) {
+          // The VS Code extension intentionally hides the overlay once users
+          // leave the entry domain, while the default CLI keeps the historical
+          // desktop fallback below.
+          if (RESTRICT_OVERLAY_TO_ENTRY_DOMAIN) {
+            await Promise.race([
+              removeOverlayMenu(page),
+              new Promise((_, reject) => {
+                setTimeout(() => {
+                  reject(
+                    new Error(
+                      `removeOverlayMenu timed out after ${OVERLAY_OPERATION_TIMEOUT_MS}ms`,
+                    ),
+                  );
+                }, OVERLAY_OPERATION_TIMEOUT_MS);
+              }),
+            ]);
+            return;
+          }
+
           // On macOS and Windows the custom flow always runs headful.
           // The URL guard (urlGuard.ts) intercepts non-http/https navigations
           // and calls page.goto(safeUrl). Do NOT remove the overlay here —
