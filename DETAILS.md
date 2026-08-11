@@ -29,9 +29,12 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 - **Level AA**: Builds on Level A, adding more accessibility features. This is the standard most organizations aim for, as it provides reasonable accessibility for most users.
 - **Level AAA**: The highest level of accessibility, encompassing all Level A and AA criteria plus additional stringent requirements. While ideal, it's often not practical or possible for all content. Examples include providing sign language interpretation for all pre-recorded videos.
 
+#### GovTech Digital Service Standards Clauses
+The details of each SSP / DSS clause for accessibility can be found at the [DSS Control Catalog](https://info.standards.tech.gov.sg/control-catalog/dss/).
+
 #### Breakdown of WCAG Clauses and Best Practice
 
-| Conformance | DSS SSP Clause | Level | Must Fix | Good to Fix | Exclusive to Manual Review Required |
+| Conformance | GovTech SSP DSS Clause | Level | Must Fix | Good to Fix | Exclusive to Manual Review Required |
 |-------------|----------------|-------|----------|-------------|--------------|
 | WCAG 1.1.1  | WP-1           | A     | Yes      |             |              |
 | WCAG 1.2.2  | WP-2           | A     | Yes      |             |              |
