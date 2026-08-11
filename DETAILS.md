@@ -31,35 +31,37 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 
 #### Breakdown of WCAG Clauses and Best Practice
 
-| Conformance | Level | Must Fix | Good to Fix | Exclusive to Manual Review Required |
-|-------------|-------|----------|-------------|--------------|
-| WCAG 1.1.1  | A     | Yes      |             |              |
-| WCAG 1.2.2  | A     | Yes      |             |              |
-| WCAG 1.3.1  | A     | Yes      |             |              |
-| WCAG 1.3.5  | AA    | Yes      |             |              |
-| WCAG 1.4.1  | A     | Yes      |             |              |
-| WCAG 1.4.2  | A     | Yes      |             |              |
-| WCAG 1.4.3  | AA    | Yes      |             |              |
-| WCAG 1.4.4  | AA    | Yes      |             |              |
-| WCAG 1.4.6  | AAA   |          | Yes         |              |
-| WCAG 1.4.12 | AA    | Yes      |             |              |
-| WCAG 2.1.1  | A     | Yes      |             |              |
-| WCAG 2.1.3  | AAA   | Yes *    |             |              |
-| WCAG 2.2.1  | A     | Yes      |             |              |
-| WCAG 2.2.2  | A     | Yes      |             |              |
-| WCAG 2.2.4  | AAA   |          | Yes         |              |
-| WCAG 2.4.1  | A     | Yes      |             |              |
-| WCAG 2.4.2  | A     | Yes      |             |              |
-| WCAG 2.4.4  | A     | Yes      |             |              |
-| WCAG 2.4.9  | AAA   |          | Yes         |              |
-| WCAG 2.5.8  | AA    | Yes      |             |              |
-| WCAG 3.1.1  | A     | Yes      |             |              |
-| WCAG 3.1.2  | AA    | Yes      |             |              |
-| WCAG 3.1.5  | AAA   |          |             | Yes          |
-| WCAG 3.2.5  | AAA   |          | Yes         |              |
-| WCAG 3.3.2  | A     | Yes      |             |              |
-| WCAG 4.1.2  | A     | Yes      |             |              |
-| Best Practice|      |          | Yes         |              |
+| Conformance | DSS SSP Clause | Level | Must Fix | Good to Fix | Exclusive to Manual Review Required |
+|-------------|----------------|-------|----------|-------------|--------------|
+| WCAG 1.1.1  | WP-1           | A     | Yes      |             |              |
+| WCAG 1.2.2  | WP-2           | A     | Yes      |             |              |
+| WCAG 1.3.1  | WP-6           | A     | Yes      |             |              |
+| WCAG 1.3.5  | WP-10          | AA    | Yes      |             |              |
+| WCAG 1.4.1  | WP-11          | A     | Yes      |             |              |
+| WCAG 1.4.2  | WP-12          | A     | Yes      |             |              |
+| WCAG 1.4.3  | WP-13          | AA    | Yes      |             |              |
+| WCAG 1.4.4  | WP-14          | AA    | Yes      |             |              |
+| WCAG 1.4.6  | —              | AAA   |          | Yes         |              |
+| WCAG 1.4.12 | WP-18          | AA    | Yes      |             |              |
+| WCAG 2.1.1  | WO-1           | A     | Yes      |             |              |
+| WCAG 2.1.3  | —              | AAA   | Yes *    |             |              |
+| WCAG 2.2.1  | WO-4           | A     | Yes      |             |              |
+| WCAG 2.2.2  | WO-5           | A     | Yes      |             |              |
+| WCAG 2.2.4  | —              | AAA   |          | Yes         |              |
+| WCAG 2.4.1  | WO-7           | A     | Yes      |             |              |
+| WCAG 2.4.2  | WO-8           | A     | Yes      |             |              |
+| WCAG 2.4.4  | WO-10          | A     | Yes      |             |              |
+| WCAG 2.4.9  | —              | AAA   |          | Yes         |              |
+| WCAG 2.5.8  | WO-18          | AA    | Yes      |             |              |
+| WCAG 3.1.1  | WU-1           | A     | Yes      |             |              |
+| WCAG 3.1.2  | WU-2           | AA    | Yes      |             |              |
+| WCAG 3.1.5  | —              | AAA   |          |             | Yes          |
+| WCAG 3.2.5  | —              | AAA   |          | Yes         |              |
+| WCAG 3.3.2  | —              | A     | Yes      |             |              |
+| WCAG 4.1.2  | WR-1           | A     | Yes      |             |              |
+| Best Practice|               |       |          | Yes         |              |
+
+Note: DSS SSP clauses (WP = Perceivable, WO = Operable, WU = Understandable, WR = Robust) are drawn from the Singapore Government DSS Control Catalog. AAA-level WCAG criteria and WCAG 3.3.2 (Labels or Instructions) do not have a directly named DSS SSP clause and are marked with "—".
 
 * The WCAG 2.1.3 check is done by 'Scrollable region must have keyboard access' which is a WCAG 2.1.1 (Must Fix) rule.
 
@@ -73,96 +75,96 @@ Note: Level AAA are disabled by default.  Please specify `enable-wcag-aaa` in ru
 
 ## WCAG 2.0 Level A
 
-| Issue ID                    | Issue Description                                                                                                                                     | Severity    | Conformance            |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------- |
-| area-alt                    | Ensures `<area>` elements of image maps have alternate text                                                                                           | Must Fix    | WCAG 2.4.4, WCAG 4.1.2 |
-| aria-allowed-attr           | Ensures an element's role supports its ARIA attributes                                                                                                | Must Fix    | WCAG 4.1.2             |
-| aria-braille-equivalent     | Ensure aria-braillelabel and aria-brailleroledescription have a non-braille equivalent                                                                | Must Fix    | WCAG 4.1.2             |
-| aria-command-name           | Ensures every ARIA button, link and menuitem has an accessible name                                                                                   | Must Fix    | WCAG 4.1.2             |
-| aria-conditional-attr       | Ensures ARIA attributes are used as described in the specification of the element's role                                                              | Must Fix    | WCAG 4.1.2             |
-| aria-deprecated-role        | Ensures elements do not use deprecated roles                                                                                                          | Must Fix    | WCAG 4.1.2             |
-| aria-hidden-body            | Ensures aria-hidden="true" is not present on the document body.                                                                                       | Must Fix    | WCAG 4.1.2             |
-| aria-hidden-focus           | Ensures aria-hidden elements are not focusable nor contain focusable elements                                                                         | Must Fix    | WCAG 4.1.2             |
-| aria-input-field-name       | Ensures every ARIA input field has an accessible name                                                                                                 | Must Fix    | WCAG 4.1.2             |
-| aria-meter-name             | Ensures every ARIA meter node has an accessible name                                                                                                  | Must Fix    | WCAG 1.1.1             |
-| aria-progressbar-name       | Ensures every ARIA progressbar node has an accessible name                                                                                            | Must Fix    | WCAG 1.1.1             |
-| aria-prohibited-attr        | Ensures ARIA attributes are not prohibited for an element's rolessible name                                                                           | Must Fix    | WCAG 4.1.2             |
-| aria-required-attr          | Ensures elements with ARIA roles have all required ARIA attributes                                                                                    | Must Fix    | WCAG 4.1.2             |
-| aria-required-children      | Ensures elements with an ARIA role that require child roles contain them                                                                              | Must Fix    | WCAG 1.3.1             |
-| aria-required-parent        | Ensures elements with an ARIA role that require parent roles are contained by them                                                                    | Must Fix    | WCAG 1.3.1             |
-| aria-roles                  | Ensures all elements with a role attribute use a valid value                                                                                          | Must Fix    | WCAG 4.1.2             |
-| aria-toggle-field-name      | Ensures every ARIA toggle field has an accessible name                                                                                                | Must Fix    | WCAG 4.1.2             |
-| aria-tooltip-name           | Ensures every ARIA tooltip node has an accessible name                                                                                                | Must Fix    | WCAG 4.1.2             |
-| aria-valid-attr-value       | Ensures all ARIA attributes have valid values                                                                                                         | Must Fix    | WCAG 4.1.2             |
-| aria-valid-attr             | Ensures attributes that begin with aria- are valid ARIA attributes                                                                                    | Must Fix    | WCAG 4.1.2             |
-| blink                       | Ensures `<blink>` elements are not used                                                                                                               | Must Fix    | WCAG 2.2.2             |
-| button-name                 | Ensures buttons have discernible text                                                                                                                 | Must Fix    | WCAG 4.1.2             |
-| bypass                      | Ensures each page has at least one mechanism for a user to bypass navigation and jump straight to the content                                         | Must Fix    | WCAG 2.4.1             |
-| definition-list             | Ensures `<dl>` elements are structured correctly                                                                                                      | Must Fix    | WCAG 1.3.1             |
-| dlitem                      | Ensures `<dt>` and `<dd>` elements are contained by a `<dl>`                                                                                          | Must Fix    | WCAG 1.3.1             |
-| document-title              | Ensures each HTML document contains a non-empty `<title>` element                                                                                     | Must Fix    | WCAG 2.4.2             |
-| duplicate-id-aria           | Ensures every id attribute value used in ARIA and in labels is unique                                                                                 | Must Fix    | WCAG 4.1.2             |
-| form-field-multiple-labels  | Ensures form field does not have multiple label elements                                                                                              | Must Fix    | WCAG 3.3.2             |
-| frame-focusable-content     | Ensures `<frame>` and `<iframe>` elements with focusable content do not have tabindex=-1                                                              | Must Fix    | WCAG 2.1.1             |
-| frame-title-unique          | Ensures `<iframe>` and `<frame>` elements contain a unique title attribute                                                                            | Must Fix    | WCAG 4.1.2             |
-| frame-title                 | Ensures `<iframe>` and `<frame>` elements have an accessible name                                                                                     | Must Fix    | WCAG 4.1.2             |
-| html-has-lang               | Ensures every HTML document has a lang attribute                                                                                                      | Must Fix    | WCAG 3.1.1             |
-| html-lang-valid             | Ensures the lang attribute of the `<html>` element has a valid value                                                                                  | Must Fix    | WCAG 3.1.1             |
-| html-xml-lang-mismatch      | Ensure that HTML elements with both valid lang and xml:lang attributes agree on the base language of the page                                         | Must Fix    | WCAG 3.1.1             |
-| image-alt                   | Ensures `<img>` elements have alternate text or a role of none or presentation                                                                        | Must Fix    | WCAG 1.1.1             |
-| input-button-name           | Ensures input buttons have discernible text                                                                                                           | Must Fix    | WCAG 4.1.2             |
-| input-image-alt             | Ensures `<input type="image">` elements have alternate text                                                                                           | Must Fix    | WCAG 1.1.1, WCAG 4.1.2 |
-| label                       | Ensures every form element has a label                                                                                                                | Must Fix    | WCAG 4.1.2             |
-| link-in-text-block          | Ensure links are distinguished from surrounding text in a way that does not rely on color                                                             | Must Fix    | WCAG 1.4.1             |
-| link-name                   | Ensures links have discernible text                                                                                                                   | Must Fix    | WCAG 2.4.4, WCAG 4.1.2 |
-| list                        | Ensures that lists are structured correctly                                                                                                           | Must Fix    | WCAG 1.3.1             |
-| listitem                    | Ensures `<li>` elements are used semantically                                                                                                         | Must Fix    | WCAG 1.3.1             |
-| marquee                     | Ensures `<marquee>` elements are not used                                                                                                             | Must Fix    | WCAG 2.2.2             |
-| meta-refresh                | Ensures `<meta http-equiv="refresh">` is not used for delayed refresh                                                                                 | Must Fix    | WCAG 2.2.1             |
-| nested-interactive          | Ensures interactive controls are not nested as they are not always announced by screen readers or can cause focus problems for assistive technologies | Must Fix    | WCAG 4.1.2             |
-| no-autoplay-audio           | Ensures `<video>` or `<audio>` elements do not autoplay audio for more than 3 seconds without a control mechanism to stop or mute the audio           | Must Fix    | WCAG 1.4.2             |
-| object-alt                  | Ensures `<object>` elements have alternate text                                                                                                       | Must Fix    | WCAG 1.1.1             |
-| role-img-alt                | Ensures [role="img"] elements have alternate text                                                                                                     | Must Fix    | WCAG 1.1.1             |
-| scrollable-region-focusable | Ensure elements that have scrollable content are accessible by keyboard                                                                               | Must Fix    | WCAG 2.1.1, WCAG 2.1.3 |
-| select-name                 | Ensures select element has an accessible name                                                                                                         | Must Fix    | WCAG 4.1.2             |
-| server-side-image-map       | Ensures that server-side image maps are not used                                                                                                      | Must Fix    | WCAG 2.1.1             |
-| svg-img-alt                 | Ensures `<svg>` elements with an img, graphics-document or graphics-symbol role have an accessible text                                               | Must Fix    | WCAG 1.1.1             |
-| td-headers-attr             | Ensure that each cell in a table that uses the headers attribute refers only to other cells in that table                                             | Must Fix    | WCAG 1.3.1             |
-| th-has-data-cells           | Ensure that `<th>` elements and elements with role=columnheader/rowheader have data cells they describe                                               | Must Fix    | WCAG 1.3.1             |
-| video-caption               | Ensures `<video>` elements have captions                                                                                                              | Must Fix    | WCAG 1.2.2             |
-| summary-name                | Ensure summary elements have discernible text                                                                                                         | Must Fix    | WCAG 4.1.2    
-| oobee-confusing-alt-text               | The image alt text set as 'img', 'image', 'picture', 'photo', or 'graphic' is confusing or not useful                                                                                                                            | Must Fix    | WCAG 1.1.1  
-| oobee-accessible-label               | Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.                                                                                                              | Must Fix    | WCAG 2.1.1, WCAG 4.1.2             |
+| Issue ID                    | Issue Description                                                                                                                                     | Severity    | Conformance            | DSS SSP Clause |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------- | -------------- |
+| area-alt                    | Ensures `<area>` elements of image maps have alternate text                                                                                           | Must Fix    | WCAG 2.4.4, WCAG 4.1.2 | WO-10, WR-1    |
+| aria-allowed-attr           | Ensures an element's role supports its ARIA attributes                                                                                                | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-braille-equivalent     | Ensure aria-braillelabel and aria-brailleroledescription have a non-braille equivalent                                                                | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-command-name           | Ensures every ARIA button, link and menuitem has an accessible name                                                                                   | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-conditional-attr       | Ensures ARIA attributes are used as described in the specification of the element's role                                                              | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-deprecated-role        | Ensures elements do not use deprecated roles                                                                                                          | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-hidden-body            | Ensures aria-hidden="true" is not present on the document body.                                                                                       | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-hidden-focus           | Ensures aria-hidden elements are not focusable nor contain focusable elements                                                                         | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-input-field-name       | Ensures every ARIA input field has an accessible name                                                                                                 | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-meter-name             | Ensures every ARIA meter node has an accessible name                                                                                                  | Must Fix    | WCAG 1.1.1             | WP-1           |
+| aria-progressbar-name       | Ensures every ARIA progressbar node has an accessible name                                                                                            | Must Fix    | WCAG 1.1.1             | WP-1           |
+| aria-prohibited-attr        | Ensures ARIA attributes are not prohibited for an element's rolessible name                                                                           | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-required-attr          | Ensures elements with ARIA roles have all required ARIA attributes                                                                                    | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-required-children      | Ensures elements with an ARIA role that require child roles contain them                                                                              | Must Fix    | WCAG 1.3.1             | WP-6           |
+| aria-required-parent        | Ensures elements with an ARIA role that require parent roles are contained by them                                                                    | Must Fix    | WCAG 1.3.1             | WP-6           |
+| aria-roles                  | Ensures all elements with a role attribute use a valid value                                                                                          | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-toggle-field-name      | Ensures every ARIA toggle field has an accessible name                                                                                                | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-tooltip-name           | Ensures every ARIA tooltip node has an accessible name                                                                                                | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-valid-attr-value       | Ensures all ARIA attributes have valid values                                                                                                         | Must Fix    | WCAG 4.1.2             | WR-1           |
+| aria-valid-attr             | Ensures attributes that begin with aria- are valid ARIA attributes                                                                                    | Must Fix    | WCAG 4.1.2             | WR-1           |
+| blink                       | Ensures `<blink>` elements are not used                                                                                                               | Must Fix    | WCAG 2.2.2             | WO-5           |
+| button-name                 | Ensures buttons have discernible text                                                                                                                 | Must Fix    | WCAG 4.1.2             | WR-1           |
+| bypass                      | Ensures each page has at least one mechanism for a user to bypass navigation and jump straight to the content                                         | Must Fix    | WCAG 2.4.1             | WO-7           |
+| definition-list             | Ensures `<dl>` elements are structured correctly                                                                                                      | Must Fix    | WCAG 1.3.1             | WP-6           |
+| dlitem                      | Ensures `<dt>` and `<dd>` elements are contained by a `<dl>`                                                                                          | Must Fix    | WCAG 1.3.1             | WP-6           |
+| document-title              | Ensures each HTML document contains a non-empty `<title>` element                                                                                     | Must Fix    | WCAG 2.4.2             | WO-8           |
+| duplicate-id-aria           | Ensures every id attribute value used in ARIA and in labels is unique                                                                                 | Must Fix    | WCAG 4.1.2             | WR-1           |
+| form-field-multiple-labels  | Ensures form field does not have multiple label elements                                                                                              | Must Fix    | WCAG 3.3.2             | —              |
+| frame-focusable-content     | Ensures `<frame>` and `<iframe>` elements with focusable content do not have tabindex=-1                                                              | Must Fix    | WCAG 2.1.1             | WO-1           |
+| frame-title-unique          | Ensures `<iframe>` and `<frame>` elements contain a unique title attribute                                                                            | Must Fix    | WCAG 4.1.2             | WR-1           |
+| frame-title                 | Ensures `<iframe>` and `<frame>` elements have an accessible name                                                                                     | Must Fix    | WCAG 4.1.2             | WR-1           |
+| html-has-lang               | Ensures every HTML document has a lang attribute                                                                                                      | Must Fix    | WCAG 3.1.1             | WU-1           |
+| html-lang-valid             | Ensures the lang attribute of the `<html>` element has a valid value                                                                                  | Must Fix    | WCAG 3.1.1             | WU-1           |
+| html-xml-lang-mismatch      | Ensure that HTML elements with both valid lang and xml:lang attributes agree on the base language of the page                                         | Must Fix    | WCAG 3.1.1             | WU-1           |
+| image-alt                   | Ensures `<img>` elements have alternate text or a role of none or presentation                                                                        | Must Fix    | WCAG 1.1.1             | WP-1           |
+| input-button-name           | Ensures input buttons have discernible text                                                                                                           | Must Fix    | WCAG 4.1.2             | WR-1           |
+| input-image-alt             | Ensures `<input type="image">` elements have alternate text                                                                                           | Must Fix    | WCAG 1.1.1, WCAG 4.1.2 | WP-1, WR-1     |
+| label                       | Ensures every form element has a label                                                                                                                | Must Fix    | WCAG 4.1.2             | WR-1           |
+| link-in-text-block          | Ensure links are distinguished from surrounding text in a way that does not rely on color                                                             | Must Fix    | WCAG 1.4.1             | WP-11          |
+| link-name                   | Ensures links have discernible text                                                                                                                   | Must Fix    | WCAG 2.4.4, WCAG 4.1.2 | WO-10, WR-1    |
+| list                        | Ensures that lists are structured correctly                                                                                                           | Must Fix    | WCAG 1.3.1             | WP-6           |
+| listitem                    | Ensures `<li>` elements are used semantically                                                                                                         | Must Fix    | WCAG 1.3.1             | WP-6           |
+| marquee                     | Ensures `<marquee>` elements are not used                                                                                                             | Must Fix    | WCAG 2.2.2             | WO-5           |
+| meta-refresh                | Ensures `<meta http-equiv="refresh">` is not used for delayed refresh                                                                                 | Must Fix    | WCAG 2.2.1             | WO-4           |
+| nested-interactive          | Ensures interactive controls are not nested as they are not always announced by screen readers or can cause focus problems for assistive technologies | Must Fix    | WCAG 4.1.2             | WR-1           |
+| no-autoplay-audio           | Ensures `<video>` or `<audio>` elements do not autoplay audio for more than 3 seconds without a control mechanism to stop or mute the audio           | Must Fix    | WCAG 1.4.2             | WP-12          |
+| object-alt                  | Ensures `<object>` elements have alternate text                                                                                                       | Must Fix    | WCAG 1.1.1             | WP-1           |
+| role-img-alt                | Ensures [role="img"] elements have alternate text                                                                                                     | Must Fix    | WCAG 1.1.1             | WP-1           |
+| scrollable-region-focusable | Ensure elements that have scrollable content are accessible by keyboard                                                                               | Must Fix    | WCAG 2.1.1, WCAG 2.1.3 | WO-1           |
+| select-name                 | Ensures select element has an accessible name                                                                                                         | Must Fix    | WCAG 4.1.2             | WR-1           |
+| server-side-image-map       | Ensures that server-side image maps are not used                                                                                                      | Must Fix    | WCAG 2.1.1             | WO-1           |
+| svg-img-alt                 | Ensures `<svg>` elements with an img, graphics-document or graphics-symbol role have an accessible text                                               | Must Fix    | WCAG 1.1.1             | WP-1           |
+| td-headers-attr             | Ensure that each cell in a table that uses the headers attribute refers only to other cells in that table                                             | Must Fix    | WCAG 1.3.1             | WP-6           |
+| th-has-data-cells           | Ensure that `<th>` elements and elements with role=columnheader/rowheader have data cells they describe                                               | Must Fix    | WCAG 1.3.1             | WP-6           |
+| video-caption               | Ensures `<video>` elements have captions                                                                                                              | Must Fix    | WCAG 1.2.2             | WP-2           |
+| summary-name                | Ensure summary elements have discernible text                                                                                                         | Must Fix    | WCAG 4.1.2             | WR-1           |
+| oobee-confusing-alt-text    | The image alt text set as 'img', 'image', 'picture', 'photo', or 'graphic' is confusing or not useful                                                 | Must Fix    | WCAG 1.1.1             | WP-1           |
+| oobee-accessible-label      | Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.                                                          | Must Fix    | WCAG 2.1.1, WCAG 4.1.2 | WO-1, WR-1     |
 
 ## WCAG 2.0 Level AA
 
-| Issue ID       | Issue Description                                                                                               | Severity | Conformance |
-| -------------- | --------------------------------------------------------------------------------------------------------------- | -------- | ----------- |
-| color-contrast | Ensures the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds | Must Fix | WCAG 1.4.3  |
-| meta-viewport  | Ensures `<meta name="viewport">` does not disable text scaling and zooming                                      | Must Fix | WCAG 1.4.4  |
-| valid-lang     | Ensures lang attributes have valid values                                                                       | Must Fix | WCAG 3.1.2  |
+| Issue ID       | Issue Description                                                                                               | Severity | Conformance | DSS SSP Clause |
+| -------------- | --------------------------------------------------------------------------------------------------------------- | -------- | ----------- | -------------- |
+| color-contrast | Ensures the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds | Must Fix | WCAG 1.4.3  | WP-13          |
+| meta-viewport  | Ensures `<meta name="viewport">` does not disable text scaling and zooming                                      | Must Fix | WCAG 1.4.4  | WP-14          |
+| valid-lang     | Ensures lang attributes have valid values                                                                       | Must Fix | WCAG 3.1.2  | WU-2           |
 
 ## WCAG 2.1 Level AA
 
-| Issue ID             | Issue Description                                                                             | Severity | Conformance |
-| -------------------- | --------------------------------------------------------------------------------------------- | -------- | ----------- |
-| autocomplete-valid   | Ensure the autocomplete attribute is correct and suitable for the form field                  | Must Fix | WCAG 1.3.5  |
-| avoid-inline-spacing | Ensure that text spacing set through style attributes can be adjusted with custom stylesheets | Must Fix | WCAG 1.4.12 |
+| Issue ID             | Issue Description                                                                             | Severity | Conformance | DSS SSP Clause |
+| -------------------- | --------------------------------------------------------------------------------------------- | -------- | ----------- | -------------- |
+| autocomplete-valid   | Ensure the autocomplete attribute is correct and suitable for the form field                  | Must Fix | WCAG 1.3.5  | WP-10          |
+| avoid-inline-spacing | Ensure that text spacing set through style attributes can be adjusted with custom stylesheets | Must Fix | WCAG 1.4.12 | WP-18          |
 
 ## WCAG 2.2 Level AA
 
-| Issue ID    | Issue Description                                  | Severity | Conformance |
-| ----------- | -------------------------------------------------- | -------- | ----------- |
-| target-size | Ensure touch target have sufficient size and space | Must Fix | WCAG 2.5.8  |
+| Issue ID    | Issue Description                                  | Severity | Conformance | DSS SSP Clause |
+| ----------- | -------------------------------------------------- | -------- | ----------- | -------------- |
+| target-size | Ensure touch target have sufficient size and space | Must Fix | WCAG 2.5.8  | WO-18          |
 
 ## WCAG 2.x Level AAA
 
-| Issue ID                     | Issue Description                                                                                                | Severity    | Conformance            |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------- |
-| color-contrast-enhanced      | Ensure the contrast between foreground and background colors meets WCAG 2 AAA enhanced contrast ratio thresholds | Good to Fix | WCAG 1.4.6             |
-| identical-links-same-purpose | Ensure that links with the same accessible name serve a similar purpose                                          | Good to Fix | WCAG 2.4.9             |
-| meta-refresh-no-exceptions   | Ensure <meta http-equiv="refresh"> is not used for delayed refresh                                               | Good to Fix | WCAG 2.2.4, WCAG 3.2.5 |
-| oobee-grading-text-contents               | Text content should be clear and plain to ensure that it is easily understood.                                                                                                              | Manual Review Required    | WCAG 3.1.5             |
+| Issue ID                     | Issue Description                                                                                                | Severity                | Conformance            | DSS SSP Clause |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------- | ---------------------- | -------------- |
+| color-contrast-enhanced      | Ensure the contrast between foreground and background colors meets WCAG 2 AAA enhanced contrast ratio thresholds | Good to Fix             | WCAG 1.4.6             | —              |
+| identical-links-same-purpose | Ensure that links with the same accessible name serve a similar purpose                                          | Good to Fix             | WCAG 2.4.9             | —              |
+| meta-refresh-no-exceptions   | Ensure <meta http-equiv="refresh"> is not used for delayed refresh                                               | Good to Fix             | WCAG 2.2.4, WCAG 3.2.5 | —              |
+| oobee-grading-text-contents  | Text content should be clear and plain to ensure that it is easily understood.                                   | Manual Review Required  | WCAG 3.1.5             | —              |
 
 ## Best Practice
 
