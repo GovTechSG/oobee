@@ -142,6 +142,7 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
   };
 
   let stopCustomFlow: (() => Promise<void>) | undefined;
+  let focusCustomFlow: (() => Promise<void>) | undefined;
   let resolveReady: () => void = () => {};
   let rejectReady: (error: unknown) => void = () => {};
   const ready = new Promise<void>((resolve, reject) => {
@@ -170,6 +171,7 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
           exitOnError: false,
           onReady: async controls => {
             stopCustomFlow = controls.stop;
+            focusCustomFlow = controls.focus;
             await config.onReady?.();
             resolveReady();
           },
@@ -265,6 +267,13 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
         throw new Error('Custom flow browser is not ready to stop.');
       }
       await stopCustomFlow();
+    },
+    focus: async () => {
+      await ready;
+      if (!focusCustomFlow) {
+        throw new Error('Custom flow browser is not ready to focus.');
+      }
+      await focusCustomFlow();
     },
   };
 };

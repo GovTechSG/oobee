@@ -75,4 +75,5 @@ export type ScanCustomFlowSession = {
   ready: Promise<void>;
   result: Promise<ScanCustomFlowResult>;
   stop: () => Promise<void>;
+  focus: () => Promise<void>;
 };

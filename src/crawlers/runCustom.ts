@@ -54,6 +54,7 @@ export class ProcessPageParams {
 
 export interface RunCustomControls {
   stop: () => Promise<void>;
+  focus: () => Promise<void>;
 }
 
 export interface RunCustomHooks {
@@ -148,6 +149,15 @@ const runCustom = async (
       } catch {}
     };
 
+    const focusBrowser = async () => {
+      const pages = context.pages().filter(existingPage => !existingPage.isClosed());
+      const targetPage = pages[pages.length - 1] || page;
+      if (!targetPage || targetPage.isClosed()) return;
+
+      await targetPage.bringToFront();
+      await targetPage.evaluate(() => window.focus()).catch(() => {});
+    };
+
     // For handling closing playwright browser and continue generate artifacts etc
     registerSoftClose(processPageParams.stopAll);
 
@@ -188,6 +198,7 @@ const runCustom = async (
     await page.goto(url, { timeout: 0 });
     await hooks?.onReady?.({
       stop: processPageParams.stopAll!,
+      focus: focusBrowser,
     });
 
     // to execute and wait for all pages to close

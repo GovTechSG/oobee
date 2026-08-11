@@ -16,6 +16,9 @@ declare global {
     oobeeSetCollapsed?: (val: boolean) => void;
     oobeeShowStopModal?: () => Promise<{ confirmed: boolean; label: string }>;
     oobeeHideStopModal?: () => void;
+    oobeeShowFinalising?: () => void;
+    oobeeScanShortcutHandler?: (event: KeyboardEvent) => void;
+    oobeeScanShortcutInProgress?: boolean;
     updateMenuPos?: (pos: 'LEFT' | 'RIGHT') => void;
   }
 }
@@ -41,7 +44,23 @@ const RESTRICT_OVERLAY_TO_ENTRY_DOMAIN = parseBoolEnv(
   process.env.RESTRICT_OVERLAY_TO_ENTRY_DOMAIN,
   false,
 );
+const USE_EXTENSION_OVERLAY_UI = parseBoolEnv(process.env.DEV_SUITE_EXTENSION_OVERLAY_UI, false);
+const EXTENSION_SESSION_ORIGIN = process.env.OOBEE_EXTENSION_SESSION_ORIGIN || 'VS Code - Oobee Dev Suite extension';
+const EXTENSION_WIDGET_FONT_FAMILY =
+  '"Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
+const EXTENSION_VSCODE_ICON_SVG = String.raw`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<rect width="24" height="24" fill="url(#pattern0_3048_542)"/>
+<defs>
+<pattern id="pattern0_3048_542" patternContentUnits="objectBoundingBox" width="1" height="1">
+<use xlink:href="#image0_3048_542" transform="translate(-0.1 -0.1) scale(0.00638298)"/>
+</pattern>
+<image id="image0_3048_542" width="188" height="188" preserveAspectRatio="none" xlink:href="data:image/png;base64,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"/>
+</defs>
+</svg>
+`;
 const OVERLAY_OPERATION_TIMEOUT_MS = 5000;
+const EXTENSION_FINALISING_DISPLAY_MS = 1500;
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
   try {
@@ -296,6 +315,11 @@ type OverlayOpts = {
   inProgress?: boolean;
   collapsed?: boolean;
   hideStopInput?: boolean;
+  entryUrl?: string;
+  extensionOverlayUi?: boolean;
+  sessionOrigin?: string;
+  fontFamily?: string;
+  vscodeIconSvg?: string;
 };
 
 export const updateMenu = async (page, urlsCrawled) => {
@@ -340,9 +364,17 @@ export const addOverlayMenu = async (
         const customWindow: Window = window as unknown as Window;
         const inProgress = !!(vars?.opts && vars.opts.inProgress);
         const collapsedOption = !!(vars?.opts && vars.opts.collapsed);
+        const useExtensionUi = !!(vars?.opts && vars.opts.extensionOverlayUi);
+        const scannedCount = vars.urlsCrawled.scanned.length || 0;
+        const sessionOrigin = vars?.opts?.sessionOrigin || 'VS Code - Oobee Dev Suite extension';
+        const widgetFontFamily =
+          vars?.opts?.fontFamily ||
+          '"Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
+        const vscodeIconSvg = vars?.opts?.vscodeIconSvg || '';
 
         const panel = document.createElement('aside');
-        panel.className = 'oobee-panel';
+        panel.className = useExtensionUi ? 'oobee-panel oobee-panel-extension' : 'oobee-panel';
+        panel.id = 'oobeePanel';
 
         const minBtn = document.createElement('button');
         minBtn.type = 'button';
@@ -365,7 +397,7 @@ export const addOverlayMenu = async (
         `;
         minBtn.innerHTML = MINBTN_SVG;
 
-        let currentPos: 'LEFT' | 'RIGHT' = vars.menuPos || 'RIGHT';
+        let currentPos: 'LEFT' | 'RIGHT' = useExtensionUi ? 'RIGHT' : vars.menuPos || 'RIGHT';
         const isCollapsed = () => panel.classList.contains('collapsed');
 
         const setPosClass = (pos: 'LEFT' | 'RIGHT') => {
@@ -433,7 +465,7 @@ export const addOverlayMenu = async (
         const h2 = document.createElement('h2');
         h2.id = 'oobeeHPagesScanned';
         h2.className = 'oobee-section-title';
-        h2.textContent = `Pages Scanned (${vars.urlsCrawled.scanned.length || 0})`;
+        h2.textContent = `Pages Scanned (${scannedCount})`;
 
         const scanIcon = document.createElement('span');
         scanIcon.className = 'oobee-btn-icon';
@@ -495,6 +527,156 @@ export const addOverlayMenu = async (
 
         endScanBtn.addEventListener('click', async () => customWindow.handleOnStopClick?.());
 
+        const topbar = document.createElement('div');
+        topbar.className = useExtensionUi ? 'oobee-topbar oobee-topbar-visible' : 'oobee-topbar';
+
+        const topbarBrand = document.createElement('div');
+        topbarBrand.className = 'oobee-topbar-brand';
+
+        const topbarDrag = document.createElement('span');
+        topbarDrag.className = 'oobee-topbar-drag';
+        topbarDrag.innerHTML = '<svg width="10" height="16" viewBox="0 0 10 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 14C4 15.1 3.1 16 2 16C0.9 16 0 15.1 0 14C0 12.9 0.9 12 2 12C3.1 12 4 12.9 4 14ZM2 6C0.9 6 0 6.9 0 8C0 9.1 0.9 10 2 10C3.1 10 4 9.1 4 8C4 6.9 3.1 6 2 6ZM2 0C0.9 0 0 0.9 0 2C0 3.1 0.9 4 2 4C3.1 4 4 3.1 4 2C4 0.9 3.1 0 2 0ZM8 4C9.1 4 10 3.1 10 2C10 0.9 9.1 0 8 0C6.9 0 6 0.9 6 2C6 3.1 6.9 4 8 4ZM8 6C6.9 6 6 6.9 6 8C6 9.1 6.9 10 8 10C9.1 10 10 9.1 10 8C10 6.9 9.1 6 8 6ZM8 12C6.9 12 6 12.9 6 14C6 15.1 6.9 16 8 16C9.1 16 10 15.1 10 14C10 12.9 9.1 12 8 12Z" fill="#CCCCCC"/></svg>';
+
+        const topbarLogo = document.createElement('span');
+        topbarLogo.className = 'oobee-topbar-logo';
+        topbarLogo.innerHTML = vscodeIconSvg;
+
+        const topbarTitle = document.createElement('span');
+        topbarTitle.className = 'oobee-topbar-title';
+        topbarTitle.textContent = `Session Origin: ${sessionOrigin}`;
+
+        topbarBrand.appendChild(topbarDrag);
+        topbarBrand.appendChild(topbarLogo);
+        topbarBrand.appendChild(topbarTitle);
+
+        const topbarActions = document.createElement('div');
+        topbarActions.className = 'oobee-topbar-actions';
+
+        const topbarScanIconSvg = '<svg width="11" height="14" viewBox="0 0 11 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.6667 11.7267V4.55333C10.6667 4.2 10.5267 3.86 10.2733 3.61333L7.05333 0.393333C6.80667 0.14 6.46667 0 6.11333 0H1.33333C0.6 0 0.00666682 0.6 0.00666682 1.33333L0 12C0 12.7333 0.593333 13.3333 1.32667 13.3333H9.33333C9.63333 13.3333 9.9 13.2333 10.1267 13.0667L7.17333 10.1133C6.6 10.4867 5.91333 10.7 5.17333 10.66C3.59333 10.5867 2.24 9.35333 2.02667 7.78667C1.73333 5.55333 3.66 3.66667 5.91333 4.04667C7.21333 4.26667 8.29333 5.28 8.58 6.56667C8.8 7.54 8.58667 8.44667 8.11333 9.16667L10.6667 11.7267ZM3.33333 7.33333C3.33333 8.44 4.22667 9.33333 5.33333 9.33333C6.44 9.33333 7.33333 8.44 7.33333 7.33333C7.33333 6.22667 6.44 5.33333 5.33333 5.33333C4.22667 5.33333 3.33333 6.22667 3.33333 7.33333Z" fill="white"/></svg>';
+        const topbarEndScanIconSvg = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.66667 9.33333H8.66667C9.03333 9.33333 9.33333 9.03333 9.33333 8.66667V4.66667C9.33333 4.3 9.03333 4 8.66667 4H4.66667C4.3 4 4 4.3 4 4.66667V8.66667C4 9.03333 4.3 9.33333 4.66667 9.33333ZM6.66667 0C2.98667 0 0 2.98667 0 6.66667C0 10.3467 2.98667 13.3333 6.66667 13.3333C10.3467 13.3333 13.3333 10.3467 13.3333 6.66667C13.3333 2.98667 10.3467 0 6.66667 0Z" fill="white"/></svg>';
+        const topbarPagesIconSvg = '<svg width="11" height="14" viewBox="0 0 11 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.33333 0C0.6 0 0.00666682 0.6 0.00666682 1.33333L0 12C0 12.7333 0.593333 13.3333 1.32667 13.3333H9.33333C10.0667 13.3333 10.6667 12.7333 10.6667 12V4.55333C10.6667 4.2 10.5267 3.86 10.2733 3.61333L7.05333 0.393333C6.80667 0.14 6.46667 0 6.11333 0H1.33333ZM6 4V1L9.66667 4.66667H6.66667C6.3 4.66667 6 4.36667 6 4Z" fill="white"/></svg>';
+        const topbarDropdownIconSvg = '<svg width="8" height="5" viewBox="0 0 8 5" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.30833 0.195L3.72167 2.78167L1.135 0.195C0.875 -0.065 0.455 -0.065 0.195 0.195C-0.065 0.455 -0.065 0.875 0.195 1.135L3.255 4.195C3.515 4.455 3.935 4.455 4.195 4.195L7.255 1.135C7.515 0.875 7.515 0.455 7.255 0.195C6.995 -0.0583333 6.56833 -0.065 6.30833 0.195Z" fill="white"/></svg>';
+
+        const topbarScanBtn = scanBtn.cloneNode(true) as HTMLButtonElement;
+        topbarScanBtn.id = 'oobeeTopbarBtnScan';
+        topbarScanBtn.className = 'oobee-topbar-action';
+        topbarScanBtn.disabled = inProgress;
+        const topbarScanIcon = topbarScanBtn.querySelector('.oobee-btn-icon');
+        if (topbarScanIcon) {
+          topbarScanIcon.innerHTML = topbarScanIconSvg;
+        }
+        const topbarScanText = topbarScanBtn.querySelector('.oobee-btn-text');
+        if (topbarScanText) {
+          topbarScanText.textContent = 'Scan Page (Ctrl/Cmd+Shift+X)';
+        }
+        topbarScanBtn.addEventListener('click', async () => customWindow.handleOnScanClick?.());
+
+        const topbarEndScanBtn = endScanBtn.cloneNode(true) as HTMLButtonElement;
+        topbarEndScanBtn.id = 'oobeeTopbarBtnEndScan';
+        topbarEndScanBtn.className = 'oobee-topbar-action';
+        const topbarEndScanIcon = topbarEndScanBtn.querySelector('.oobee-btn-icon');
+        if (topbarEndScanIcon) {
+          topbarEndScanIcon.innerHTML = topbarEndScanIconSvg;
+        }
+        topbarEndScanBtn.addEventListener('click', async () => customWindow.handleOnStopClick?.());
+
+        const topbarPagesBtn = document.createElement('button');
+        topbarPagesBtn.type = 'button';
+        topbarPagesBtn.className = 'oobee-topbar-action oobee-topbar-pages';
+        topbarPagesBtn.setAttribute('aria-controls', 'oobeePanel');
+        topbarPagesBtn.innerHTML = `<span class="oobee-btn-icon">${topbarPagesIconSvg}</span><span class="oobee-btn-text">${scannedCount} Pages scanned</span><span class="oobee-dropdown-icon" aria-hidden="true">${topbarDropdownIconSvg}</span>`;
+
+        topbarActions.appendChild(topbarScanBtn);
+        topbarActions.appendChild(topbarEndScanBtn);
+        topbarActions.appendChild(topbarPagesBtn);
+
+        topbar.appendChild(topbarBrand);
+        const topbarDragSurface = document.createElement('div');
+        topbarDragSurface.className = 'oobee-topbar-drag-surface';
+        topbarDragSurface.setAttribute('aria-hidden', 'true');
+        topbar.appendChild(topbarDragSurface);
+        topbar.appendChild(topbarActions);
+
+        const TOOLBAR_HEIGHT = 40;
+        const MIN_PANEL_HEIGHT = 180;
+        let toolbarY = 0;
+        const clampToolbarY = (value: number) =>
+          Math.max(0, Math.min(value, Math.max(0, window.innerHeight - TOOLBAR_HEIGHT)));
+        const getStoredToolbarY = () => {
+          const raw = localStorage.getItem('oobee:extension-toolbar-y');
+          const parsed = raw == null ? 0 : Number(raw);
+          return Number.isFinite(parsed) ? clampToolbarY(parsed) : 0;
+        };
+        const setExtensionLayout = (nextY: number, persist = true) => {
+          if (!useExtensionUi) return;
+          toolbarY = clampToolbarY(nextY);
+          const panelTop = toolbarY + TOOLBAR_HEIGHT;
+          const spaceBelow = window.innerHeight - panelTop;
+          const spaceAbove = toolbarY;
+          const openPanelAbove = spaceBelow < MIN_PANEL_HEIGHT && spaceAbove > spaceBelow;
+          topbar.style.top = `${toolbarY}px`;
+          panel.classList.toggle('opens-above', openPanelAbove);
+          if (openPanelAbove) {
+            panel.style.top = '0';
+            panel.style.bottom = `${window.innerHeight - toolbarY}px`;
+            panel.style.height = `${spaceAbove}px`;
+          } else {
+            panel.style.top = `${panelTop}px`;
+            panel.style.bottom = '';
+            panel.style.height = `calc(100vh - ${panelTop}px)`;
+          }
+          const finalising = shadowRoot.querySelector<HTMLElement>('.oobee-finalising');
+          if (finalising) {
+            finalising.style.top = `${panelTop}px`;
+          }
+          if (persist) {
+            localStorage.setItem('oobee:extension-toolbar-y', String(toolbarY));
+          }
+        };
+        const setPagesPanelHidden = (hidden: boolean) => {
+          if (!useExtensionUi) return;
+          panel.classList.toggle('is-pages-hidden', hidden);
+          topbarPagesBtn.setAttribute('aria-expanded', String(!hidden));
+          topbarPagesBtn.setAttribute(
+            'aria-label',
+            hidden ? 'Show scanned pages panel' : 'Hide scanned pages panel',
+          );
+          localStorage.setItem('oobee:extension-pages-hidden', hidden ? '1' : '0');
+        };
+        topbarPagesBtn.addEventListener('click', () => {
+          setPagesPanelHidden(!panel.classList.contains('is-pages-hidden'));
+        });
+
+        let dragStartY = 0;
+        let dragOriginY = 0;
+        const startTopbarDrag = (event: PointerEvent, dragTarget: HTMLElement) => {
+          if (!useExtensionUi) return;
+          dragStartY = event.clientY;
+          dragOriginY = toolbarY;
+          dragTarget.setPointerCapture(event.pointerId);
+          topbar.classList.add('is-dragging');
+          event.preventDefault();
+        };
+        const moveTopbarDrag = (event: PointerEvent, dragTarget: HTMLElement) => {
+          if (!useExtensionUi || !dragTarget.hasPointerCapture?.(event.pointerId)) return;
+          setExtensionLayout(dragOriginY + event.clientY - dragStartY);
+        };
+        const stopTopbarDrag = (event: PointerEvent, dragTarget: HTMLElement) => {
+          if (!useExtensionUi) return;
+          try {
+            dragTarget.releasePointerCapture(event.pointerId);
+          } catch {}
+          topbar.classList.remove('is-dragging');
+        };
+        const bindTopbarDrag = (dragTarget: HTMLElement) => {
+          dragTarget.addEventListener('pointerdown', event => startTopbarDrag(event, dragTarget));
+          dragTarget.addEventListener('pointermove', event => moveTopbarDrag(event, dragTarget));
+          dragTarget.addEventListener('pointerup', event => stopTopbarDrag(event, dragTarget));
+          dragTarget.addEventListener('pointercancel', event => stopTopbarDrag(event, dragTarget));
+        };
+        bindTopbarDrag(topbarBrand);
+        bindTopbarDrag(topbarDragSurface);
+
         const btnGroup = document.createElement('div');
         btnGroup.className = 'oobee-actions';
         btnGroup.appendChild(scanBtn);
@@ -503,6 +685,28 @@ export const addOverlayMenu = async (
         const listWrap = document.createElement('div');
         listWrap.id = 'oobeeList';
         listWrap.className = 'oobee-list';
+        listWrap.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
+        listWrap.addEventListener('touchmove', event => event.stopPropagation(), { passive: true });
+
+        if (useExtensionUi) {
+          if (customWindow.oobeeScanShortcutHandler) {
+            window.removeEventListener('keydown', customWindow.oobeeScanShortcutHandler, true);
+          }
+          customWindow.oobeeScanShortcutHandler = (event: KeyboardEvent) => {
+            if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'x') {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            if (!inProgress && !customWindow.oobeeScanShortcutInProgress) {
+              customWindow.oobeeScanShortcutInProgress = true;
+              void Promise.resolve(customWindow.handleOnScanClick?.()).finally(() => {
+                customWindow.oobeeScanShortcutInProgress = false;
+              });
+            }
+          };
+          window.addEventListener('keydown', customWindow.oobeeScanShortcutHandler, true);
+        }
 
         const renderList = () => {
           const scanned = vars.urlsCrawled.scanned || [];
@@ -518,6 +722,17 @@ export const addOverlayMenu = async (
 
           const ol = document.createElement('ol');
           ol.className = 'oobee-ol';
+
+          if (useExtensionUi) {
+            const host = document.createElement('div');
+            host.className = 'oobee-list-host';
+            try {
+              host.textContent = new URL(vars?.opts?.entryUrl || window.location.href).origin;
+            } catch {
+              host.textContent = vars?.opts?.entryUrl || window.location.origin;
+            }
+            listWrap.appendChild(host);
+          }
 
           scanned.forEach(item => {
             const li = document.createElement('li');
@@ -558,6 +773,7 @@ export const addOverlayMenu = async (
             box-sizing: border-box;
             background: #fff;
             color: #111;
+            font-family: ${widgetFontFamily};
             z-index: 2147483647;
             display: flex;
             flex-direction: column;
@@ -576,6 +792,19 @@ export const addOverlayMenu = async (
           .oobee-panel.collapsed {
             width: 58px;
             overflow: hidden
+          }
+
+          .oobee-panel-extension {
+            top: 40px;
+            height: calc(100vh - 40px);
+            width: 240px;
+            background: #333333;
+            color: #f5f5f5;
+            border: 0;
+            box-shadow: none;
+          }
+          .oobee-panel-extension.is-pages-hidden {
+            display: none;
           }
 
           :host {
@@ -614,11 +843,19 @@ export const addOverlayMenu = async (
             outline-offset: 2px;
           }
 
+          .oobee-panel-extension + .oobee-minbtn {
+            display: none;
+          }
+
           .oobee-header {
             position: relative;
             display: flex;
             align-items: center;
             justify-content: space-between;
+          }
+
+          .oobee-panel-extension .oobee-header {
+            display: none;
           }
 
           .oobee-spacer {
@@ -649,6 +886,10 @@ export const addOverlayMenu = async (
             flex-direction: column;
             gap: 12px;
             padding: 1rem;
+          }
+
+          .oobee-panel-extension .oobee-actions {
+            display: none;
           }
 
           .oobee-panel.collapsed .oobee-actions {
@@ -738,6 +979,15 @@ export const addOverlayMenu = async (
             color: #555555;
           }
 
+          .oobee-panel-extension .oobee-empty {
+            justify-content: flex-start;
+            align-items: flex-start;
+            height: auto;
+            padding: 0;
+            color: #CCCCCC;
+            font-size: 14px;
+          }
+
           .oobee-list {
             flex: 1;
             min-height: 0;
@@ -746,6 +996,12 @@ export const addOverlayMenu = async (
             padding-right: 1rem;
             padding-bottom: 1rem;
             padding-top: 0;
+          }
+
+          .oobee-panel-extension .oobee-list {
+            padding: 16px;
+            color: #CCCCCC;
+            overscroll-behavior: contain;
           }
 
           .oobee-panel.collapsed .oobee-list {
@@ -787,6 +1043,10 @@ export const addOverlayMenu = async (
             margin: 0;
           }
 
+          .oobee-panel-extension .oobee-section-title {
+            display: none;
+          }
+
           .oobee-panel.collapsed .oobee-section-title {
             font-size: 14px;
             display: flex;
@@ -802,8 +1062,18 @@ export const addOverlayMenu = async (
             gap: 10px;
           }
 
+          .oobee-panel-extension .oobee-ol {
+            padding-left: 18px;
+            gap: 14px;
+          }
+
           .oobee-li {
             list-style: decimal;
+            font-size: 14px;
+          }
+
+          .oobee-panel-extension .oobee-li {
+            color: #CCCCCC;
             font-size: 14px;
           }
 
@@ -815,6 +1085,11 @@ export const addOverlayMenu = async (
             text-overflow: ellipsis;
           }
 
+          .oobee-panel-extension .oobee-item-title {
+            color: #CCCCCC;
+            font-size: 14px;
+          }
+
           .oobee-item-url {
             font-size: 12px;
             color: #6b7280;
@@ -823,6 +1098,211 @@ export const addOverlayMenu = async (
             text-overflow: ellipsis;
             direction: rtl;
             text-align: left;
+          }
+
+          .oobee-panel-extension .oobee-item-url {
+            color: #CCCCCC;
+            font-size: 14px;
+          }
+
+          .oobee-list-host {
+            margin: 2px 0 12px;
+            color: #CCCCCC;
+            font-size: 14px;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .oobee-topbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            z-index: 2147483647;
+            box-sizing: border-box;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0;
+            padding: 0 24px;
+            background: #9021A6;
+            color: #ffffff;
+            font: 600 16px/1.2 ${widgetFontFamily};
+          }
+          .oobee-topbar-brand,
+          .oobee-topbar-drag-surface,
+          .oobee-topbar-actions,
+          .oobee-topbar-action {
+            display: inline-flex;
+            align-items: center;
+          }
+          .oobee-topbar-brand {
+            min-width: 0;
+            height: 100%;
+            gap: 12px;
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+          }
+          .oobee-topbar.is-dragging .oobee-topbar-brand {
+            cursor: grabbing;
+          }
+          .oobee-topbar-drag-surface {
+            flex: 1 1 auto;
+            align-self: stretch;
+            min-width: 24px;
+            box-sizing: border-box;
+            padding: 0 24px;
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+          }
+          .oobee-topbar.is-dragging .oobee-topbar-drag-surface {
+            cursor: grabbing;
+          }
+          .oobee-topbar-drag {
+            width: 10px;
+            height: 16px;
+            flex: 0 0 auto;
+            margin-right: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .oobee-topbar-drag svg {
+            display: block;
+          }
+          .oobee-topbar-logo {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            overflow: hidden;
+            background: #ffffff;
+            line-height: 0;
+          }
+          .oobee-topbar-logo svg {
+            display: block;
+          }
+          .oobee-topbar-title {
+            display: inline-flex;
+            align-items: center;
+            height: 100%;
+            line-height: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .oobee-topbar-actions {
+            height: 100%;
+            gap: 16px;
+            flex: 0 0 auto;
+          }
+          .oobee-topbar-action {
+            border: 0;
+            background: transparent;
+            color: #ffffff;
+            height: 100%;
+            padding: 0 8px;
+            gap: 8px;
+            min-height: 0;
+            border-radius: 4px;
+            font: 400 16px/1.2 ${widgetFontFamily};
+            cursor: pointer;
+            transition: background-color .12s ease, box-shadow .12s ease;
+          }
+          .oobee-topbar-action:hover:not(:disabled),
+          .oobee-topbar-action:focus-visible {
+            background: rgba(255, 255, 255, .16);
+          }
+          .oobee-topbar-action:focus-visible {
+            outline: 2px solid rgba(255, 255, 255, .9);
+            outline-offset: -2px;
+            box-shadow: 0 0 0 1px rgba(144, 33, 166, .35);
+          }
+          .oobee-topbar-action:disabled {
+            opacity: .58;
+            cursor: not-allowed;
+          }
+          .oobee-topbar-pages[aria-expanded="false"] {
+            opacity: .88;
+          }
+          .oobee-dropdown-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transform: rotate(0deg);
+            transition: transform .16s ease;
+          }
+          .oobee-topbar-pages[aria-expanded="false"] .oobee-dropdown-icon {
+            transform: rotate(180deg);
+          }
+          .oobee-dropdown-icon svg {
+            display: block;
+          }
+          .oobee-topbar-action .oobee-btn-icon {
+            width: 16px;
+            height: 16px;
+          }
+          .oobee-topbar-action .oobee-btn-icon svg {
+            width: 16px;
+            height: 16px;
+          }
+          .oobee-topbar-action .oobee-btn-text {
+            display: inline-flex;
+            align-items: center;
+            height: 100%;
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1;
+          }
+          .oobee-doc-icon {
+            font-size: 12px;
+          }
+          .oobee-finalising {
+            position: fixed;
+            top: 40px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 2147483646;
+            display: grid;
+            place-items: center;
+            background: #333333;
+            color: #f2f2f2;
+            font: 14px/1.45 ${widgetFontFamily};
+            text-align: center;
+            padding: 24px;
+            box-sizing: border-box;
+          }
+          .oobee-topbar-visible {
+            display: flex;
+          }
+          .oobee-topbar-action svg path {
+            fill: #ffffff;
+          }
+          .oobee-finalising-card {
+            display: grid;
+            gap: 14px;
+            justify-items: center;
+          }
+          .oobee-finalising-title {
+            margin: 0;
+            font-weight: 500;
+          }
+          .oobee-finalising-body {
+            margin: 0;
+          }
+          .oobee-finalising-link {
+            color: #ffffff;
+            text-decoration: underline;
+            text-underline-offset: 3px;
           }
 
           .oobee-minbtn__icon {
@@ -871,6 +1351,11 @@ export const addOverlayMenu = async (
 
         shadowRoot.adoptedStyleSheets = [sheet];
 
+        if (useExtensionUi) {
+          shadowRoot.appendChild(topbar);
+          setExtensionLayout(getStoredToolbarY(), false);
+          setPagesPanelHidden(localStorage.getItem('oobee:extension-pages-hidden') === '1');
+        }
         shadowRoot.appendChild(panel);
         shadowRoot.appendChild(minBtn);
 
@@ -936,18 +1421,20 @@ export const addOverlayMenu = async (
         const stopDialog = document.createElement('dialog');
         stopDialog.id = 'oobeeStopDialog';
         Object.assign(stopDialog.style, {
-          width: 'min(560px, calc(100vw - 32px))',
+          width: useExtensionUi ? 'min(480px, calc(100vw - 32px))' : 'min(560px, calc(100vw - 32px))',
           border: 'none',
           padding: '0',
-          borderRadius: '16px',
+          borderRadius: useExtensionUi ? '4px' : '16px',
           overflow: 'hidden',
-          boxShadow: '0 10px 40px rgba(0,0,0,.35)',
-          fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
+          boxShadow: useExtensionUi ? 'none' : '0 10px 40px rgba(0,0,0,.35)',
+          fontFamily: widgetFontFamily,
+          background: useExtensionUi ? '#333333' : '#ffffff',
+          color: useExtensionUi ? '#ffffff' : '#111111',
         });
         const dialogSheet = new CSSStyleSheet();
         dialogSheet.replaceSync(`
           #oobeeStopDialog::backdrop {
-            background: rgba(0,0,0,.55);
+            background: ${useExtensionUi ? 'rgba(0,0,0,.62)' : 'rgba(0,0,0,.55)'};
           }
 
           /* primary button hover/focus */
@@ -960,7 +1447,7 @@ export const addOverlayMenu = async (
 
           /* cancel link hover */
           .oobee-stop-cancel {
-            color: #9021A6;
+            color: ${useExtensionUi ? '#c681ef' : '#9021A6'};
             text-decoration: underline;
           }
           .oobee-stop-cancel:hover {
@@ -969,18 +1456,18 @@ export const addOverlayMenu = async (
 
           /* close “X” hover ring */
           .oobee-stop-close:hover {
-            background: #f3f4f6;
+            background: ${useExtensionUi ? 'rgba(255,255,255,.1)' : '#f3f4f6'};
           }
         `);
         shadowRoot.adoptedStyleSheets = [sheet, dialogSheet];
 
         const head = document.createElement('div');
         Object.assign(head.style, {
-          padding: '20px 20px 8px 20px',
+          padding: useExtensionUi ? '24px 24px 8px 24px' : '20px 20px 8px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '8px',
+          gap: '16px',
         });
 
         const title = document.createElement('h2');
@@ -988,9 +1475,10 @@ export const addOverlayMenu = async (
         title.textContent = 'Are you sure you want to stop this scan?';
         Object.assign(title.style, {
           margin: '0',
-          fontSize: '22px',
+          fontSize: useExtensionUi ? '20px' : '22px',
           fontWeight: '700',
           lineHeight: '1.25',
+          color: useExtensionUi ? '#ffffff' : '#111111',
         });
 
         const closeX = document.createElement('button');
@@ -1004,7 +1492,7 @@ export const addOverlayMenu = async (
           fontSize: '28px',
           lineHeight: '1',
           cursor: 'pointer',
-          color: '#4b5563',
+          color: useExtensionUi ? '#f5f5f5' : '#4b5563',
           width: '36px',
           height: '36px',
           borderRadius: '12px',
@@ -1016,7 +1504,7 @@ export const addOverlayMenu = async (
 
         const bodyWrap = document.createElement('div');
         Object.assign(bodyWrap.style, {
-          padding: '12px 20px 20px 20px',
+          padding: useExtensionUi ? '8px 24px 24px 24px' : '12px 20px 20px 20px',
         });
 
         const form = document.createElement('form');
@@ -1031,7 +1519,11 @@ export const addOverlayMenu = async (
         const label = document.createElement('label');
         label.setAttribute('for', 'oobeeStopInput');
         label.textContent = 'Enter a name for this scan';
-        Object.assign(label.style, { fontSize: '15px', fontWeight: '600' });
+        Object.assign(label.style, {
+          fontSize: useExtensionUi ? '14px' : '15px',
+          fontWeight: '600',
+          color: useExtensionUi ? '#ffffff' : '#111111',
+        });
 
         const input = document.createElement('input');
         input.id = 'oobeeStopInput';
@@ -1039,36 +1531,42 @@ export const addOverlayMenu = async (
         Object.assign(input.style, {
           width: '100%',
           borderRadius: '5px',
-          border: '1px solid #e5e7eb',
-          padding: '12px 14px',
+          border: useExtensionUi ? '1px solid #242424' : '1px solid #e5e7eb',
+          padding: useExtensionUi ? '10px 12px' : '12px 14px',
           fontSize: '14px',
           outline: 'none',
           boxSizing: 'border-box',
+          background: useExtensionUi ? '#242424' : '#ffffff',
+          color: useExtensionUi ? '#ffffff' : '#111111',
         });
         input.addEventListener('focus', () => {
-          input.style.borderColor = '#7b4dff';
-          input.style.boxShadow = '0 0 0 3px rgba(123,77,255,.25)';
+          input.style.borderColor = useExtensionUi ? '#c681ef' : '#7b4dff';
+          input.style.boxShadow = useExtensionUi ? 'none' : '0 0 0 3px rgba(123,77,255,.25)';
         });
         input.addEventListener('blur', () => {
-          input.style.borderColor = '#e5e7eb';
+          input.style.borderColor = useExtensionUi ? '#242424' : '#e5e7eb';
           input.style.boxShadow = 'none';
         });
 
         const actions = document.createElement('div');
-        Object.assign(actions.style, { display: 'grid', gap: '12px', marginTop: '4px' });
+        Object.assign(actions.style, {
+          display: 'grid',
+          gap: useExtensionUi ? '10px' : '12px',
+          marginTop: useExtensionUi ? '8px' : '4px',
+        });
 
         const primary = document.createElement('button');
         primary.type = 'submit';
-        primary.textContent = 'Stop scan';
+        primary.textContent = useExtensionUi ? 'End scan' : 'Stop scan';
         primary.className = 'oobee-stop-primary';
         Object.assign(primary.style, {
           border: 'none',
           borderRadius: '999px',
-          padding: '12px 16px',
+          padding: useExtensionUi ? '10px 16px' : '12px 16px',
           fontSize: '15px',
           fontWeight: '600',
-          color: '#fff',
-          background: '#9021A6',
+          color: useExtensionUi ? '#111111' : '#fff',
+          background: useExtensionUi ? '#c681ef' : '#9021A6',
           cursor: 'pointer',
         });
 
@@ -1145,6 +1643,21 @@ export const addOverlayMenu = async (
             showStop();
           });
         (customWindow as Window).oobeeHideStopModal = hideStop;
+        customWindow.oobeeShowFinalising = () => {
+          if (!useExtensionUi || shadowRoot.querySelector('.oobee-finalising')) return;
+          panel.remove();
+          minBtn.remove();
+          const finalising = document.createElement('div');
+          finalising.className = 'oobee-finalising';
+          finalising.innerHTML = `
+            <div class="oobee-finalising-card">
+              <p class="oobee-finalising-title">Finalising headed scan report...</p>
+              <p class="oobee-finalising-body">Head back to VS Code <span class="oobee-finalising-link">Oobee dev suite extension</span> to view the scan results.</p>
+            </div>
+          `;
+          shadowRoot.appendChild(finalising);
+          setExtensionLayout(toolbarY, false);
+        };
 
         if (document.body) {
           document.body.appendChild(shadowHost);
@@ -1160,7 +1673,18 @@ export const addOverlayMenu = async (
         positionMinimizeBtn();
         setDraggableSidebarMenu();
       },
-      { menuPos, MENU_POSITION, urlsCrawled, opts },
+      {
+        menuPos,
+        MENU_POSITION,
+        urlsCrawled,
+        opts: {
+          ...opts,
+          extensionOverlayUi: USE_EXTENSION_OVERLAY_UI,
+          sessionOrigin: EXTENSION_SESSION_ORIGIN,
+          fontFamily: EXTENSION_WIDGET_FONT_FAMILY,
+          vscodeIconSvg: EXTENSION_VSCODE_ICON_SVG,
+        },
+      },
     )
     .then(() => {
       log('Overlay menu: successfully added');
@@ -1315,6 +1839,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
               inProgress: !!pagesDict[pageId]?.isScanning,
               collapsed: !!pagesDict[pageId]?.collapsed,
               hideStopInput: !!processPageParams.customFlowLabel,
+              entryUrl: processPageParams.entryUrl,
             }),
             new Promise((_, reject) => {
               setTimeout(() => {
@@ -1365,9 +1890,21 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
     }
   };
 
+  const showFinalisingBeforeClose = async () => {
+    await page.evaluate(() => {
+      const win = window as Window;
+      win.oobeeShowFinalising?.();
+    }).catch(() => {});
+
+    if (USE_EXTENSION_OVERLAY_UI) {
+      await sleep(EXTENSION_FINALISING_DISPLAY_MS);
+    }
+  };
+
   const handleOnStopClick = async () => {
     const scannedCount = processPageParams?.urlsCrawled?.scanned?.length ?? 0;
     if (scannedCount === 0) {
+      await showFinalisingBeforeClose();
       if (typeof processPageParams.stopAll === 'function') {
         try {
           await processPageParams.stopAll();
@@ -1398,6 +1935,8 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         });
         return;
       }
+
+      await showFinalisingBeforeClose();
 
       const label = (inputValue.label || '').trim();
       try {
