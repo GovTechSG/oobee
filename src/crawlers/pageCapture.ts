@@ -14,6 +14,8 @@ export interface PageCaptureEntry {
   mobileDom?: string;
   desktopScreenshot?: string;
   mobileScreenshot?: string;
+  desktopComputedStyles?: string;
+  mobileComputedStyles?: string;
   errors: string[];
 }
 
@@ -69,8 +71,136 @@ export function isSavePageScreenshotEnabled(): boolean {
   );
 }
 
+export function isSaveComputedStylesEnabled(): boolean {
+  return (
+    process.env.OOBEE_SAVE_COMPUTED_STYLES === '1' ||
+    process.env.OOBEE_SAVE_COMPUTED_STYLES === 'true'
+  );
+}
+
 export function isPageCaptureEnabled(): boolean {
-  return isSaveDomEnabled() || isSavePageScreenshotEnabled();
+  return (
+    isSaveDomEnabled() || isSavePageScreenshotEnabled() || isSaveComputedStylesEnabled()
+  );
+}
+
+// Curated list of CSS properties that matter for accessibility triage —
+// colour contrast, focus visibility, sizing/spacing, text handling. A full
+// getComputedStyle dump per element runs to ~500 properties; this cuts it
+// to ~20 without losing the ones LLM-based analysis actually reasons about.
+// Order chosen roughly by usefulness for downstream tooling.
+const CAPTURED_CSS_PROPERTIES: string[] = [
+  'color',
+  'background-color',
+  'background-image',
+  'opacity',
+  'font-size',
+  'font-weight',
+  'font-family',
+  'font-style',
+  'line-height',
+  'text-decoration',
+  'text-transform',
+  'outline-color',
+  'outline-style',
+  'outline-width',
+  'outline-offset',
+  'border-color',
+  'border-style',
+  'border-width',
+  'visibility',
+  'display',
+  'pointer-events',
+  'cursor',
+];
+
+// Elements that never contribute to visible page state — no point capturing
+// their computed styles. Skipping these keeps the output file size in check.
+const SKIPPED_TAGS = new Set([
+  'SCRIPT',
+  'STYLE',
+  'META',
+  'LINK',
+  'HEAD',
+  'TITLE',
+  'NOSCRIPT',
+  'TEMPLATE',
+  'BASE',
+]);
+
+/**
+ * Runs inside the page context to enumerate every visible element, compute a
+ * stable CSS selector for it (id-anchored where possible, otherwise the
+ * nth-of-type chain axe-core itself uses), and record a curated subset of
+ * its getComputedStyle output.
+ *
+ * Kept as a single self-contained function because Playwright's page.evaluate
+ * serialises the arg — no imports or outer bindings survive.
+ */
+async function captureComputedStyles(
+  page: Page,
+): Promise<Array<Record<string, unknown>>> {
+  return page.evaluate(
+    ({ props, skipped }) => {
+      const skippedSet = new Set(skipped);
+
+      function selectorFor(el: Element): string {
+        if (el === document.documentElement) return 'html';
+        if (el === document.body) return 'html > body';
+        if (el instanceof HTMLElement && el.id) {
+          return `#${CSS.escape(el.id)}`;
+        }
+        const parts: string[] = [];
+        let cur: Element | null = el;
+        while (cur && cur !== document.documentElement) {
+          const tag = cur.tagName.toLowerCase();
+          const parent: Element | null = cur.parentElement;
+          if (!parent) {
+            parts.unshift(tag);
+            break;
+          }
+          let idx = 1;
+          let sib: Element | null = cur.previousElementSibling;
+          while (sib) {
+            if (sib.tagName === cur.tagName) idx++;
+            sib = sib.previousElementSibling;
+          }
+          const siblingsOfSameTag = Array.from(parent.children).filter(
+            c => c.tagName === cur!.tagName,
+          ).length;
+          parts.unshift(siblingsOfSameTag > 1 ? `${tag}:nth-of-type(${idx})` : tag);
+          if (parent instanceof HTMLElement && parent.id) {
+            parts.unshift(`#${CSS.escape(parent.id)}`);
+            return parts.join(' > ');
+          }
+          cur = parent;
+        }
+        parts.unshift('html');
+        return parts.join(' > ');
+      }
+
+      const results: Array<Record<string, unknown>> = [];
+      const all = document.querySelectorAll('*');
+      for (const el of Array.from(all)) {
+        if (skippedSet.has(el.tagName)) continue;
+        const cs = window.getComputedStyle(el);
+        const styles: Record<string, string> = {};
+        for (const prop of props) styles[prop] = cs.getPropertyValue(prop);
+        const outer = el.outerHTML || '';
+        const record: Record<string, unknown> = {
+          selector: selectorFor(el),
+          tag: el.tagName.toLowerCase(),
+          styles,
+          outerHtmlPrefix: outer.length > 200 ? outer.slice(0, 200) : outer,
+        };
+        if (el instanceof HTMLElement && el.id) record.id = el.id;
+        if (el.classList.length > 0) record.classes = Array.from(el.classList);
+        results.push(record);
+      }
+      return results;
+    },
+    { props: CAPTURED_CSS_PROPERTIES, skipped: Array.from(SKIPPED_TAGS) },
+  );
 }
 
 export async function capturePageData(
@@ -89,6 +219,8 @@ export async function capturePageData(
   const mobileDomDir = path.join(pageDomsDir, 'mobilePageDOMs');
   const desktopScreenshotDir = path.join(pageDomsDir, 'desktopPageScreenshots');
   const mobileScreenshotDir = path.join(pageDomsDir, 'mobilePageScreenshots');
+  const desktopComputedStylesDir = path.join(pageDomsDir, 'desktopPageComputedStyles');
+  const mobileComputedStylesDir = path.join(pageDomsDir, 'mobilePageComputedStyles');
 
   const entry: PageCaptureEntry = {
     url,
@@ -119,6 +251,27 @@ export async function capturePageData(
     } catch (err) {
       entry.errors.push(
         `Desktop screenshot failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  if (isSaveComputedStylesEnabled()) {
+    try {
+      await fs.ensureDir(desktopComputedStylesDir);
+      const stylesPath = await getUniqueFilePath(desktopComputedStylesDir, fileName, '.json');
+      const elements = await captureComputedStyles(page);
+      const payload = {
+        url,
+        viewport: 'desktop',
+        capturedAt: new Date().toISOString(),
+        properties: CAPTURED_CSS_PROPERTIES,
+        elements,
+      };
+      await fs.writeFile(stylesPath, JSON.stringify(payload), 'utf-8');
+      entry.desktopComputedStyles = `pageDOMs/desktopPageComputedStyles/${getRelativeName(stylesPath, desktopComputedStylesDir)}`;
+    } catch (err) {
+      entry.errors.push(
+        `Desktop computed styles save failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -157,6 +310,27 @@ export async function capturePageData(
         );
       }
     }
+
+    if (isSaveComputedStylesEnabled()) {
+      try {
+        await fs.ensureDir(mobileComputedStylesDir);
+        const stylesPath = await getUniqueFilePath(mobileComputedStylesDir, fileName, '.json');
+        const elements = await captureComputedStyles(page);
+        const payload = {
+          url,
+          viewport: 'mobile',
+          capturedAt: new Date().toISOString(),
+          properties: CAPTURED_CSS_PROPERTIES,
+          elements,
+        };
+        await fs.writeFile(stylesPath, JSON.stringify(payload), 'utf-8');
+        entry.mobileComputedStyles = `pageDOMs/mobilePageComputedStyles/${getRelativeName(stylesPath, mobileComputedStylesDir)}`;
+      } catch (err) {
+        entry.errors.push(
+          `Mobile computed styles save failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
   } catch (err) {
     entry.errors.push(
       `Mobile viewport switch failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -192,6 +366,8 @@ export async function writeManifest(randomToken: string): Promise<void> {
       ...(entry.mobileDom && { mobileDom: entry.mobileDom }),
       ...(entry.desktopScreenshot && { desktopScreenshot: entry.desktopScreenshot }),
       ...(entry.mobileScreenshot && { mobileScreenshot: entry.mobileScreenshot }),
+      ...(entry.desktopComputedStyles && { desktopComputedStyles: entry.desktopComputedStyles }),
+      ...(entry.mobileComputedStyles && { mobileComputedStyles: entry.mobileComputedStyles }),
       errors: entry.errors,
     })),
   };
