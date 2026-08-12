@@ -92,6 +92,8 @@ const crawlSitemap = async ({
   let urlsCrawled: UrlsCrawled;
   let durationExceeded = false;
   let isAbortingScan = false;
+  let lastSuccessTime = Date.now();
+  const maxIdleMs = (Number(process.env.OOBEE_MAX_IDLE_MINUTES) || 5) * 60 * 1000;
   const remainingBudget = fromCrawlIntelligentSitemap
     ? Math.max(0, maxRequestsPerCrawl - urlsCrawledFromIntelligent.scanned.length)
     : maxRequestsPerCrawl;
@@ -491,6 +493,7 @@ const crawlSitemap = async ({
               });
               scannedUrlSet?.add(normUrl(request.url));
               rateController.onSuccess(crawler.autoscaledPool);
+              lastSuccessTime = Date.now();
               if (rateController.isLimitReached()) {
                 isAbortingScan = true;
                 crawler.autoscaledPool.abort();
@@ -645,6 +648,19 @@ const crawlSitemap = async ({
         ) {
           consoleLogger.info(
             `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
+          );
+          isAbortingScan = true;
+          crawler.autoscaledPool?.abort();
+          return;
+        }
+
+        const timeSinceLastSuccess = Date.now() - lastSuccessTime;
+        if (
+          urlsCrawled.scanned.length > 0 &&
+          timeSinceLastSuccess > maxIdleMs
+        ) {
+          consoleLogger.info(
+            `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
           );
           isAbortingScan = true;
           crawler.autoscaledPool?.abort();
