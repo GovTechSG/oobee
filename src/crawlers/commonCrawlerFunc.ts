@@ -60,6 +60,7 @@ export type ContrastDOMContext = {
 export interface NodeResultWithScreenshot extends NodeResult {
   screenshotPath?: string;
   contrastDOMContext?: ContrastDOMContext;
+  parentHtml?: string;
 }
 
 type RuleDetails = {
@@ -129,6 +130,16 @@ const isTransientPageTeardown = (e: unknown): boolean => {
 const htmlMaxBytes = (() => {
   const v = parseInt(process.env.OOBEE_HTML_MAX_BYTES, 10);
   return Number.isFinite(v) ? v : 1024;
+})();
+
+const parentHtmlDepth = (() => {
+  const v = parseInt(process.env.OOBEE_PARENT_HTML_DEPTH, 10);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+})();
+
+const parentHtmlMaxBytes = (() => {
+  const v = parseInt(process.env.OOBEE_PARENT_HTML_MAX_BYTES, 10);
+  return Number.isFinite(v) ? v : htmlMaxBytes;
 })();
 
 const truncateHtml = (html: string, maxBytes = htmlMaxBytes, suffix = '…'): string => {
@@ -786,7 +797,7 @@ export const filterAxeResults = (
     }
 
     const addTo = (category: ResultCategory, node: NodeResultWithScreenshot) => {
-      const { html, failureSummary, screenshotPath, target, impact: axeImpact } = node;
+      const { html, failureSummary, screenshotPath, target, impact: axeImpact, parentHtml } = node;
       if (!(rule in category.rules)) {
         category.rules[rule] = {
           description,
@@ -811,6 +822,14 @@ export const filterAxeResults = (
       }
       finalHtml = truncateHtml(finalHtml);
 
+      let finalParentHtml: string | undefined;
+      if (typeof parentHtml === 'string' && parentHtml.length > 0) {
+        const sanitised = parentHtml.includes('</script>')
+          ? parentHtml.replaceAll('</script>', '&lt;/script>')
+          : parentHtml;
+        finalParentHtml = truncateHtml(sanitised, parentHtmlMaxBytes);
+      }
+
       const xpath = target.length === 1 && typeof target[0] === 'string' ? target[0] : null;
 
       // add in screenshot path
@@ -820,6 +839,7 @@ export const filterAxeResults = (
         screenshotPath,
         xpath: xpath || undefined,
         displayNeedsReview: displayNeedsReview || undefined,
+        ...(finalParentHtml ? { parentHtml: finalParentHtml } : {}),
       });
       category.rules[rule].totalItems += 1;
       category.totalItems += 1;
@@ -1079,6 +1099,7 @@ export const runAxeScript = async ({
       disableOobee,
       enableWcagAaa,
       gradingReadabilityFlag,
+      parentHtmlDepth,
       evaluateAltTextFunctionString,
       escapeCssSelectorFunctionString,
       framesCheckFunctionString,
@@ -1098,6 +1119,24 @@ export const runAxeScript = async ({
         eval(getAxeConfigurationFunctionString);
         // remove so that axe does not scan
         document.querySelector(saflyIconSelector)?.remove();
+
+        // Walk up N ancestors from `selector`'s element and return that
+        // ancestor's outerHTML for LLM sibling-context. Returns undefined when
+        // the feature is disabled (depth <= 0), when the selector doesn't
+        // resolve, or when the walk lands on <html> / past root.
+        const computeParentHtml = (selector: string, depth: number): string | undefined => {
+          if (!selector || !Number.isFinite(depth) || depth <= 0) return undefined;
+          let el: Element | null;
+          try { el = document.querySelector(selector); } catch { return undefined; }
+          if (!el) return undefined;
+          let ancestor: Element = el;
+          for (let i = 0; i < depth; i++) {
+            const p = ancestor.parentElement;
+            if (!p || p.tagName === 'HTML') return undefined;
+            ancestor = p;
+          }
+          return ancestor.outerHTML;
+        };
 
         const oobeeAccessibleLabelFlaggedXpaths = disableOobee
           ? []
@@ -1298,6 +1337,24 @@ export const runAxeScript = async ({
               }
             }
 
+            // Attach parentHtml to axe's violations + incomplete nodes when
+            // parentHtmlDepth > 0 (opt-in via env / init param). Skipped
+            // entirely when disabled — no DOM queries in the default path.
+            if (parentHtmlDepth > 0) {
+              const attachParentHtml = (rules: any[]) => {
+                for (const rule of rules || []) {
+                  for (const node of rule.nodes || []) {
+                    const sel = node.target && node.target[0];
+                    if (typeof sel !== 'string') continue;
+                    const ph = computeParentHtml(sel, parentHtmlDepth);
+                    if (ph) (node as any).parentHtml = ph;
+                  }
+                }
+              };
+              attachParentHtml(results.violations);
+              attachParentHtml(results.incomplete);
+            }
+
             if (disableOobee) {
               return results;
             }
@@ -1314,24 +1371,31 @@ export const runAxeScript = async ({
               help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
               helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
               nodes: escapedCssSelectors
-                .map((cssSelector: string): NodeResult => ({
-                  html: findElementByCssSelector(cssSelector),
-                  target: [cssSelector],
-                  impact: 'serious' as ImpactValue,
-                  failureSummary:
-                    'Fix any of the following:\n  The clickable element does not have an accessible label.',
-                  any: [
-                    {
-                      id: 'oobee-accessible-label',
-                      data: null,
-                      relatedNodes: [],
-                      impact: 'serious',
-                      message: 'The clickable element does not have an accessible label.',
-                    },
-                  ],
-                  all: [],
-                  none: [],
-                }))
+                .map((cssSelector: string): NodeResult => {
+                  const node: NodeResult = {
+                    html: findElementByCssSelector(cssSelector),
+                    target: [cssSelector],
+                    impact: 'serious' as ImpactValue,
+                    failureSummary:
+                      'Fix any of the following:\n  The clickable element does not have an accessible label.',
+                    any: [
+                      {
+                        id: 'oobee-accessible-label',
+                        data: null,
+                        relatedNodes: [],
+                        impact: 'serious',
+                        message: 'The clickable element does not have an accessible label.',
+                      },
+                    ],
+                    all: [],
+                    none: [],
+                  };
+                  if (parentHtmlDepth > 0) {
+                    const ph = computeParentHtml(cssSelector, parentHtmlDepth);
+                    if (ph) (node as any).parentHtml = ph;
+                  }
+                  return node;
+                })
                 .filter(item => item.html),
             };
 
@@ -1353,6 +1417,7 @@ export const runAxeScript = async ({
       disableOobee,
       enableWcagAaa,
       gradingReadabilityFlag,
+      parentHtmlDepth: parentHtmlDepth,
       evaluateAltTextFunctionString: evaluateAltText.toString(),
       escapeCssSelectorFunctionString: escapeCssSelector.toString(),
       framesCheckFunctionString: framesCheck.toString(),

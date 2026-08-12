@@ -4,6 +4,7 @@ export type ItemsInfo = {
   screenshotPath: string;
   xpath: string;
   displayNeedsReview?: boolean;
+  parentHtml?: string;
 };
 
 export type PageInfo = {
@@ -25,6 +26,7 @@ export type HtmlGroupItem = {
   screenshotPath: string;
   displayNeedsReview?: boolean;
   pageUrls: string[];
+  parentHtml?: string;
 };
 
 export type HtmlGroups = {

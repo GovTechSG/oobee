@@ -62,7 +62,14 @@ const getAxeScriptContent = () => {
   return axe.source;
 };
 
-const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) => {
+const getOobeeFunctionsScript = (
+  disableOobee: boolean,
+  enableWcagAaa: boolean,
+  parentHtmlDepth: number = 0,
+) => {
+  const safeParentHtmlDepth = Number.isFinite(parentHtmlDepth) && parentHtmlDepth > 0
+    ? Math.floor(parentHtmlDepth)
+    : 0;
   return `
       // Fix for missing __name function used by bundler
       if (typeof __name === 'undefined') {
@@ -214,6 +221,24 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
 
       async function runA11yScan(elementsToScan = [], gradingReadabilityFlag = '') {
 
+        // Walk up N ancestors from a CSS selector's element and return that
+        // ancestor's outerHTML for LLM sibling-context. Returns undefined when
+        // the feature is disabled (depth <= 0), when the selector doesn't
+        // resolve, or when the walk lands on <html> / past root.
+        function computeParentHtml(selector, depth) {
+          if (!selector || !Number.isFinite(depth) || depth <= 0) return undefined;
+          var el;
+          try { el = document.querySelector(selector); } catch (_) { return undefined; }
+          if (!el) return undefined;
+          var ancestor = el;
+          for (var i = 0; i < depth; i++) {
+            var p = ancestor.parentElement;
+            if (!p || p.tagName === 'HTML') return undefined;
+            ancestor = p;
+          }
+          return ancestor.outerHTML;
+        }
+
         const oobeeAccessibleLabelFlaggedXpaths = (window).disableOobee
           ? []
           : (await (window).flagUnlabelledClickableElements()).map(item => item.xpath);
@@ -265,12 +290,30 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
             }
           });
         }
-  
+
+        // Attach parentHtml to violations + incomplete nodes when the feature
+        // is enabled via window.parentHtmlDepth (from init()/env var). Skipped
+        // entirely when disabled — no DOM queries in the default path.
+        var parentHtmlDepthValue = (window).parentHtmlDepth;
+        if (Number.isFinite(parentHtmlDepthValue) && parentHtmlDepthValue > 0 && axeScanResults) {
+          ['violations', 'incomplete'].forEach(function(type) {
+            if (!axeScanResults[type]) return;
+            axeScanResults[type].forEach(function(rule) {
+              (rule.nodes || []).forEach(function(node) {
+                var sel = node.target && node.target[0];
+                if (typeof sel !== 'string') return;
+                var ph = computeParentHtml(sel, parentHtmlDepthValue);
+                if (ph) node.parentHtml = ph;
+              });
+            });
+          });
+        }
+
         // add custom Oobee violations
         if (!(window).disableOobee) {
           // handle css id selectors that start with a digit
           const escapedCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.map((window).escapeCssSelector);
-  
+
           // Add oobee violations to Axe's report
           const oobeeAccessibleLabelViolations = {
             id: 'oobee-accessible-label',
@@ -280,27 +323,34 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
             help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
             helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
             nodes: escapedCssSelectors
-              .map(cssSelector => ({
-                html: (window).findElementByCssSelector(cssSelector),
-                target: [cssSelector],
-                impact: 'serious',
-                failureSummary:
-                  'Fix any of the following:\\n  The clickable element does not have an accessible label.',
-                any: [
-                  {
-                    id: 'oobee-accessible-label',
-                    data: null,
-                    relatedNodes: [],
-                    impact: 'serious',
-                    message: 'The clickable element does not have an accessible label.',
-                  },
-                ],
-                all: [],
-                none: [],
-              }))
+              .map(cssSelector => {
+                var node = {
+                  html: (window).findElementByCssSelector(cssSelector),
+                  target: [cssSelector],
+                  impact: 'serious',
+                  failureSummary:
+                    'Fix any of the following:\\n  The clickable element does not have an accessible label.',
+                  any: [
+                    {
+                      id: 'oobee-accessible-label',
+                      data: null,
+                      relatedNodes: [],
+                      impact: 'serious',
+                      message: 'The clickable element does not have an accessible label.',
+                    },
+                  ],
+                  all: [],
+                  none: [],
+                };
+                if (Number.isFinite(parentHtmlDepthValue) && parentHtmlDepthValue > 0) {
+                  var ph = computeParentHtml(cssSelector, parentHtmlDepthValue);
+                  if (ph) node.parentHtml = ph;
+                }
+                return node;
+              })
               .filter(item => item.html),
           };
-  
+
           axeScanResults.violations = [...axeScanResults.violations, oobeeAccessibleLabelViolations];
         }
   
@@ -312,6 +362,7 @@ const getOobeeFunctionsScript = (disableOobee: boolean, enableWcagAaa: boolean) 
       }
       window.disableOobee=${disableOobee};
       window.enableWcagAaa=${enableWcagAaa};
+      window.parentHtmlDepth=${safeParentHtmlDepth};
       window.runA11yScan = runA11yScan;
     `;
 };
@@ -332,6 +383,8 @@ export const init = async ({
   specifiedMaxConcurrency = 25,
   followRobots = false,
   htmlMaxBytes,
+  parentHtmlDepth,
+  parentHtmlMaxBytes,
 }: {
   entryUrl: string;
   testLabel: string;
@@ -351,6 +404,8 @@ export const init = async ({
   specifiedMaxConcurrency?: number;
   followRobots?: boolean;
   htmlMaxBytes?: number;
+  parentHtmlDepth?: number;
+  parentHtmlMaxBytes?: number;
 }) => {
   consoleLogger.info('Starting Oobee');
 
@@ -368,6 +423,12 @@ export const init = async ({
   process.env.CRAWLEE_STORAGE_DIR = getStoragePath(randomToken);
   if (htmlMaxBytes !== undefined) {
     process.env.OOBEE_HTML_MAX_BYTES = String(htmlMaxBytes);
+  }
+  if (parentHtmlDepth !== undefined) {
+    process.env.OOBEE_PARENT_HTML_DEPTH = String(parentHtmlDepth);
+  }
+  if (parentHtmlMaxBytes !== undefined) {
+    process.env.OOBEE_PARENT_HTML_MAX_BYTES = String(parentHtmlMaxBytes);
   }
   constants.sitemapFetchedLinks = null;
 
@@ -408,7 +469,9 @@ export const init = async ({
 
   const getOobeeFunctions = () => {
     throwErrorIfTerminated();
-    return getOobeeFunctionsScript(disableOobee, enableWcagAaa);
+    const depthFromEnv = parseInt(process.env.OOBEE_PARENT_HTML_DEPTH, 10);
+    const depth = Number.isFinite(depthFromEnv) && depthFromEnv > 0 ? depthFromEnv : 0;
+    return getOobeeFunctionsScript(disableOobee, enableWcagAaa, depth);
   };
 
   // Helper script for manually copy-paste testing in Chrome browser
