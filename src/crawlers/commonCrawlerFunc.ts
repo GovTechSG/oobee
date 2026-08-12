@@ -128,7 +128,7 @@ const isTransientPageTeardown = (e: unknown): boolean => {
 
 const htmlMaxBytes = (() => {
   const v = parseInt(process.env.OOBEE_HTML_MAX_BYTES, 10);
-  return Number.isFinite(v) ? v : 4096;
+  return Number.isFinite(v) ? v : 1024;
 })();
 
 const truncateHtml = (html: string, maxBytes = htmlMaxBytes, suffix = '…'): string => {
