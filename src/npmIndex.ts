@@ -331,6 +331,7 @@ export const init = async ({
   ruleset = [RuleFlags.DEFAULT],
   specifiedMaxConcurrency = 25,
   followRobots = false,
+  htmlMaxBytes,
 }: {
   entryUrl: string;
   testLabel: string;
@@ -349,6 +350,7 @@ export const init = async ({
   ruleset?: RuleFlags[];
   specifiedMaxConcurrency?: number;
   followRobots?: boolean;
+  htmlMaxBytes?: number;
 }) => {
   consoleLogger.info('Starting Oobee');
 
@@ -364,6 +366,9 @@ export const init = async ({
   const { mustFix: mustFixThreshold, goodToFix: goodToFixThreshold } = thresholds;
 
   process.env.CRAWLEE_STORAGE_DIR = getStoragePath(randomToken);
+  if (htmlMaxBytes !== undefined) {
+    process.env.OOBEE_HTML_MAX_BYTES = String(htmlMaxBytes);
+  }
   constants.sitemapFetchedLinks = null;
 
   const scanDetails = {
