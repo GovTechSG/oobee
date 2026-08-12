@@ -992,7 +992,19 @@ const crawlDomain = async ({
     }),
   );
 
+  const idleCheckInterval = setInterval(() => {
+    const timeSinceLastSuccess = Date.now() - lastSuccessTime;
+    if (urlsCrawled.scanned.length > 0 && timeSinceLastSuccess > maxIdleMs) {
+      consoleLogger.info(
+        `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
+      );
+      isAbortingScanNow = true;
+      crawler.autoscaledPool?.abort();
+    }
+  }, 30_000);
+
   await crawler.run();
+  clearInterval(idleCheckInterval);
 
   // Additional passes: keep re-visiting scanned seed-hostname pages for
   // click-discovery until no new pages are found or limits are reached.
@@ -1045,7 +1057,19 @@ const crawlDomain = async ({
 
       if (enqueued === 0) break;
 
+      lastSuccessTime = Date.now();
+      const clickPassIdleCheck = setInterval(() => {
+        const timeSinceLastSuccess = Date.now() - lastSuccessTime;
+        if (urlsCrawled.scanned.length > 0 && timeSinceLastSuccess > maxIdleMs) {
+          consoleLogger.info(
+            `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
+          );
+          isAbortingScanNow = true;
+          crawler.autoscaledPool?.abort();
+        }
+      }, 30_000);
       await crawler.run();
+      clearInterval(clickPassIdleCheck);
 
       // Stop looping if no new pages were discovered in this pass
     } while (urlsCrawled.scanned.length > prevScannedCount);

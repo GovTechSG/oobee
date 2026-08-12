@@ -730,7 +730,19 @@ const crawlSitemap = async ({
     }),
   );
 
+  const idleCheckInterval = setInterval(() => {
+    const timeSinceLastSuccess = Date.now() - lastSuccessTime;
+    if (urlsCrawled.scanned.length > 0 && timeSinceLastSuccess > maxIdleMs) {
+      consoleLogger.info(
+        `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
+      );
+      isAbortingScan = true;
+      crawler.autoscaledPool?.abort();
+    }
+  }, 30_000);
+
   await crawler.run();
+  clearInterval(idleCheckInterval);
 
   await requestList.isFinished();
 
