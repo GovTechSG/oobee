@@ -1807,10 +1807,10 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
 
         if (!allowed) {
-          // The VS Code extension intentionally hides the overlay once users
-          // leave the entry domain, while the default CLI keeps the historical
-          // desktop fallback below.
-          if (RESTRICT_OVERLAY_TO_ENTRY_DOMAIN) {
+          // Restrictive overlay scopes intentionally hide the overlay once users
+          // leave the configured URL boundary, while the default CLI keeps the
+          // historical desktop fallback below.
+          if (OOBEE_OVERLAY_SCOPE !== 'all') {
             await Promise.race([
               removeOverlayMenu(page),
               new Promise((_, reject) => {
