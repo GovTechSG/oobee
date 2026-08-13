@@ -3,9 +3,14 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Git tag or ref to publish (e.g. 0.11.4). The commit at this ref will be built and published; its package.json version is what lands on npm.'
+        description: 'Git ref to publish — a tag (e.g. 0.11.4), branch (e.g. feat/foo), or commit SHA. The commit at this ref will be built and published; its package.json version is what lands on npm.'
         required: true
         type: string
+      skip_git_tag:
+        description: 'Skip creating and force-pushing the {version} and "latest" git tags after publish. Use when publishing from a branch or pre-release where moving tags is not desired.'
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: write
 jobs:
@@ -31,6 +36,7 @@ jobs:
         run: node dist/generateOobeeClientScanner.js
 
       - name: Create and push git tags
+        if: ${{ !inputs.skip_git_tag }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
           git config user.name "github-actions[bot]"
