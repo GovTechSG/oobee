@@ -2,7 +2,6 @@
 /* eslint-disable no-param-reassign */
 /* eslint-env browser */
 import path from 'path';
-import { getDomain } from 'tldts';
 import { runAxeScript } from '../commonCrawlerFunc.js';
 import { capturePageData } from '../pageCapture.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
@@ -22,15 +21,6 @@ declare global {
     updateMenuPos?: (pos: 'LEFT' | 'RIGHT') => void;
   }
 }
-
-const sameRegistrableDomain = (hostA: string, hostB: string) => {
-  const domainA = getDomain(hostA);
-  const domainB = getDomain(hostB);
-
-  if (!domainA || !domainB) return hostA === hostB;
-
-  return domainA === domainB;
-};
 
 const parseBoolEnv = (val: string | undefined, defaultVal: boolean) => {
   if (val == null) return defaultVal;
@@ -72,7 +62,7 @@ const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
 
     const base = new URL(entryUrl);
 
-    return sameRegistrableDomain(cur.hostname, base.hostname);
+    return cur.origin === base.origin;
   } catch {
     return false;
   }
