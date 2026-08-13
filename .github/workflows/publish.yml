@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Git ref to publish — a tag (e.g. 0.11.4), branch (e.g. feat/foo), or commit SHA. The commit at this ref will be built and published; its package.json version is what lands on npm.'
+        description: 'Git ref to check out and publish — an existing tag (e.g. 0.11.4), branch (e.g. feat/foo), or commit SHA. This is NOT the npm version; the version published to npm is whatever is in that commit''s package.json.'
         required: true
         type: string
       skip_git_tag:
@@ -17,11 +17,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.release_tag }}
       # Setup .npmrc file to publish to npm
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
