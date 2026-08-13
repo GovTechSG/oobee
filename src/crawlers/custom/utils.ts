@@ -2,6 +2,7 @@
 /* eslint-disable no-param-reassign */
 /* eslint-env browser */
 import path from 'path';
+import { getDomain } from 'tldts';
 import { runAxeScript } from '../commonCrawlerFunc.js';
 import { capturePageData } from '../pageCapture.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
@@ -22,6 +23,17 @@ declare global {
   }
 }
 
+type OverlayScope = 'all' | 'same-domain' | 'same-origin';
+
+const sameRegistrableDomain = (hostA: string, hostB: string) => {
+  const domainA = getDomain(hostA);
+  const domainB = getDomain(hostB);
+
+  if (!domainA || !domainB) return hostA === hostB;
+
+  return domainA === domainB;
+};
+
 const parseBoolEnv = (val: string | undefined, defaultVal: boolean) => {
   if (val == null) return defaultVal;
   const v = String(val).trim().toLowerCase();
@@ -30,10 +42,17 @@ const parseBoolEnv = (val: string | undefined, defaultVal: boolean) => {
   return defaultVal;
 };
 
+const parseOverlayScopeEnv = (val: string | undefined): OverlayScope | undefined => {
+  const v = String(val || '').trim().toLowerCase();
+  return v === 'all' || v === 'same-domain' || v === 'same-origin' ? v : undefined;
+};
+
 const RESTRICT_OVERLAY_TO_ENTRY_DOMAIN = parseBoolEnv(
   process.env.RESTRICT_OVERLAY_TO_ENTRY_DOMAIN,
   false,
 );
+const OOBEE_OVERLAY_SCOPE: OverlayScope = parseOverlayScopeEnv(process.env.OOBEE_OVERLAY_SCOPE)
+  ?? (RESTRICT_OVERLAY_TO_ENTRY_DOMAIN ? 'same-domain' : 'all');
 const USE_EXTENSION_OVERLAY_UI = parseBoolEnv(process.env.DEV_SUITE_EXTENSION_OVERLAY_UI, false);
 const EXTENSION_SESSION_ORIGIN = process.env.OOBEE_EXTENSION_SESSION_ORIGIN || 'VS Code - Oobee Dev Suite extension';
 const EXTENSION_WIDGET_FONT_FAMILY =
@@ -58,11 +77,12 @@ const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
 
     if (cur.protocol !== 'http:' && cur.protocol !== 'https:') return false;
 
-    if (!RESTRICT_OVERLAY_TO_ENTRY_DOMAIN) return true;
-
     const base = new URL(entryUrl);
 
-    return cur.origin === base.origin;
+    if (OOBEE_OVERLAY_SCOPE === 'all') return true;
+    if (OOBEE_OVERLAY_SCOPE === 'same-origin') return cur.origin === base.origin;
+
+    return sameRegistrableDomain(cur.hostname, base.hostname);
   } catch {
     return false;
   }
