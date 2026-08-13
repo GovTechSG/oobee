@@ -7,6 +7,7 @@ import generateArtifacts from '../mergeAxeResults.js';
 import { createAndUpdateResultsFolders, getStoragePath } from '../utils.js';
 import { submitForm } from '../constants/common.js';
 import runCustom from './runCustom.js';
+import { consoleLogger } from '../logs.js';
 
 import type { ViewportSettingsClass } from '../combine.js';
 import type {
@@ -105,6 +106,7 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
     zip = 'oobee-scan-results',
     metadata = '{}', // Note: This is intentionally set {} as it is the default -q flag.
     cleanupArtifacts = true,
+    waitForResultSubmission = true,
   } = config;
 
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
@@ -209,22 +211,6 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
         true,
         browser,
       );
-
-      await submitForm(
-        browser,
-        '', // Note: This is the userDataDirectory, which is intentionally left empty so that the scan uses a temporary browser profile and does not persist cookies/session/cache into later scans.
-        url,
-        entryUrl,
-        ScannerTypes.CUSTOM,
-        email,
-        name,
-        JSON.stringify(basicFormHTMLSnippet),
-        customResult.urlsCrawled.scanned.length,
-        customResult.urlsCrawled.scannedRedirects.length,
-        pagesNotScanned.length,
-        metadata,
-      );
-
       const resultDirectory = getStoragePath(randomToken);
       const scanData = await readGeneratedJson(path.join(resultDirectory, 'scanData.json'));
       const scanItems = await readGeneratedJson(path.join(resultDirectory, 'scanItems.json'));
@@ -243,6 +229,29 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
         //   scanDetailsCsvPath: path.join(resultDirectory, 'scanDetails.csv'),
         // },
       };
+
+      const submitResult = submitForm(
+        browser,
+        '', // Note: This is the userDataDirectory, which is intentionally left empty so that the scan uses a temporary browser profile and does not persist cookies/session/cache into later scans.
+        url,
+        entryUrl,
+        ScannerTypes.CUSTOM,
+        email,
+        name,
+        JSON.stringify(basicFormHTMLSnippet),
+        customResult.urlsCrawled.scanned.length,
+        customResult.urlsCrawled.scannedRedirects.length,
+        pagesNotScanned.length,
+        metadata,
+      );
+
+      if (waitForResultSubmission) {
+        await submitResult;
+      } else {
+        void submitResult.catch(error => {
+          consoleLogger.warn('[scanCustomFlow] Failed to submit scan result payload.', error);
+        });
+      }
 
       if (cleanupArtifacts) {
         await cleanupGeneratedArtifacts(resultDirectory);

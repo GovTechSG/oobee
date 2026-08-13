@@ -54,6 +54,7 @@ export type ScanCustomFlowConfig = {
   metadata?: string;
   randomToken?: string;
   cleanupArtifacts?: boolean;
+  waitForResultSubmission?: boolean;
   onReady?: () => void | Promise<void>;
 };
 
