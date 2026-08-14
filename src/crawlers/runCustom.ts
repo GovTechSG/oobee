@@ -152,15 +152,6 @@ const runCustom = async (
       } catch {}
     };
 
-    const focusBrowser = async () => {
-      const pages = context.pages().filter(existingPage => !existingPage.isClosed());
-      const targetPage = pages[pages.length - 1] || page;
-      if (!targetPage || targetPage.isClosed()) return;
-
-      await targetPage.bringToFront();
-      await targetPage.evaluate(() => window.focus()).catch(() => {});
-    };
-
     // For handling closing playwright browser and continue generate artifacts etc
     registerSoftClose(processPageParams.stopAll);
 
@@ -199,10 +190,20 @@ const runCustom = async (
     });
 
     await page.goto(url, { timeout: 0 });
-    await hooks?.onReady?.({
-      stop: processPageParams.stopAll!,
-      focus: focusBrowser,
-    });
+    if (hooks?.onReady) {
+      const focusBrowser = async () => {
+        const pages = context.pages().filter(existingPage => !existingPage.isClosed());
+        const targetPage = pages[pages.length - 1] || page;
+        if (!targetPage || targetPage.isClosed()) return;
+
+        await targetPage.bringToFront();
+        await targetPage.evaluate(() => window.focus()).catch(() => {});
+      };
+      await hooks.onReady({
+        stop: processPageParams.stopAll!,
+        focus: focusBrowser,
+      });
+    }
 
     // to execute and wait for all pages to close
     // idea is for promise to be pending until page.on('close') detected
@@ -230,10 +231,14 @@ const runCustom = async (
     await Promise.race([allPagesClosedPromise(pageClosePromises), contextClosedPromise]);
   } catch (error) {
     log(`PLAYWRIGHT EXECUTION ERROR ${error}`);
-    if (hooks?.exitOnError === false) {
+    // Default to propagating the error when hooks are provided (library
+    // consumers), so we don't kill the caller's process. CLI callers do not
+    // pass hooks and continue to receive the historical cleanUpAndExit path.
+    const propagate = hooks?.exitOnError === false || (!!hooks && hooks.exitOnError !== true);
+    if (propagate) {
       throw error;
     }
-    cleanUpAndExit(1, randomToken, true);
+    await cleanUpAndExit(1, randomToken, true);
   }
 
   guiInfoLog(guiInfoStatusTypes.COMPLETED, {});

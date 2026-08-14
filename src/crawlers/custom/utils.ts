@@ -71,6 +71,20 @@ const OVERLAY_OPERATION_TIMEOUT_MS = 5000;
 const EXTENSION_FINALISING_DISPLAY_MS = 1500;
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const raceWithTimeout = async <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
 const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
   try {
     const cur = new URL(currentUrl);
@@ -341,7 +355,7 @@ export const updateMenu = async (page, urlsCrawled) => {
       if (shadowHost) {
         const p = shadowHost.shadowRoot.querySelector('#oobee-p-pages-scanned');
         if (p) {
-          p.textContent = `Pages Scanned: ${vars.urlsCrawled.scanned.length || 0}`;
+          p.textContent = `Pages Scanned: ${vars.urlsCrawled.scanned.length}`;
         }
       }
     },
@@ -376,10 +390,25 @@ export const addOverlayMenu = async (
         const inProgress = !!(vars?.opts && vars.opts.inProgress);
         const collapsedOption = !!(vars?.opts && vars.opts.collapsed);
         const useExtensionUi = !!(vars?.opts && vars.opts.extensionOverlayUi);
-        const scannedCount = vars.urlsCrawled.scanned.length || 0;
+        const scannedCount = vars.urlsCrawled.scanned.length;
         const maxPagesToScan = Number(vars?.opts?.maxPagesToScan);
         const hasScanLimit = Number.isFinite(maxPagesToScan) && maxPagesToScan > 0;
         const isScanLimitReached = hasScanLimit && scannedCount >= maxPagesToScan;
+
+        const safeLocalGet = (key: string): string | null => {
+          try {
+            return localStorage.getItem(key);
+          } catch {
+            return null;
+          }
+        };
+        const safeLocalSet = (key: string, value: string): void => {
+          try {
+            localStorage.setItem(key, value);
+          } catch {
+            // ignore
+          }
+        };
         const sessionOrigin = vars?.opts?.sessionOrigin || 'VS Code - Oobee Dev Suite extension';
         const widgetFontFamily =
           vars?.opts?.fontFamily ||
@@ -389,27 +418,35 @@ export const addOverlayMenu = async (
         const panel = document.createElement('aside');
         panel.className = useExtensionUi ? 'oobee-panel oobee-panel-extension' : 'oobee-panel';
         panel.id = 'oobeePanel';
+        if (useExtensionUi) {
+          // The visible <h2 id="oobeeHPagesScanned"> is display:none'd in extension
+          // mode, leaving the <aside> landmark unnamed for screen readers.
+          panel.setAttribute('aria-label', 'Scanned pages');
+        }
 
         const minBtn = document.createElement('button');
         minBtn.type = 'button';
         minBtn.className = 'oobee-minbtn';
         minBtn.setAttribute('aria-label', 'Minimize/expand panel');
 
-        const MINBTN_SVG = `
-          <svg class="oobee-minbtn__icon" xmlns="http://www.w3.org/2000/svg"
-              width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-            <g clip-path="url(#clip0_59_3691)">
-              <path d="M6.41 6L5 7.41L9.58 12L5 16.59L6.41 18L12.41 12L6.41 6Z" fill="#9021A6"/>
-              <path d="M14.41 6L13 7.41L17.58 12L13 16.59L14.41 18L20.41 12L14.41 6Z" fill="#9021A6"/>
-            </g>
-            <defs>
-              <clipPath id="clip0_59_3691">
-                <rect width="24" height="24" fill="white"/>
-              </clipPath>
-            </defs>
-          </svg>
-        `;
-        minBtn.innerHTML = MINBTN_SVG;
+        // Skip the SVG payload in extension mode — minBtn is never attached to
+        // the shadow root there, so the icon is never rendered.
+        if (!useExtensionUi) {
+          minBtn.innerHTML = `
+            <svg class="oobee-minbtn__icon" xmlns="http://www.w3.org/2000/svg"
+                width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+              <g clip-path="url(#clip0_59_3691)">
+                <path d="M6.41 6L5 7.41L9.58 12L5 16.59L6.41 18L12.41 12L6.41 6Z" fill="#9021A6"/>
+                <path d="M14.41 6L13 7.41L17.58 12L13 16.59L14.41 18L20.41 12L14.41 6Z" fill="#9021A6"/>
+              </g>
+              <defs>
+                <clipPath id="clip0_59_3691">
+                  <rect width="24" height="24" fill="white"/>
+                </clipPath>
+              </defs>
+            </svg>
+          `;
+        }
 
         let currentPos: 'LEFT' | 'RIGHT' = useExtensionUi ? 'RIGHT' : vars.menuPos || 'RIGHT';
         const isCollapsed = () => panel.classList.contains('collapsed');
@@ -432,11 +469,11 @@ export const addOverlayMenu = async (
           const willCollapse = typeof force === 'boolean' ? force : !isCollapsed();
           if (willCollapse) {
             panel.classList.add('collapsed');
-            localStorage.setItem('oobee:overlay-collapsed', '1');
+            safeLocalSet('oobee:overlay-collapsed', '1');
             customWindow.oobeeSetCollapsed?.(true);
           } else {
             panel.classList.remove('collapsed');
-            localStorage.setItem('oobee:overlay-collapsed', '0');
+            safeLocalSet('oobee:overlay-collapsed', '0');
             customWindow.oobeeSetCollapsed?.(false);
           }
           positionMinimizeBtn();
@@ -444,7 +481,7 @@ export const addOverlayMenu = async (
         };
 
         setPosClass(currentPos);
-        const persisted = localStorage.getItem('oobee:overlay-collapsed');
+        const persisted = safeLocalGet('oobee:overlay-collapsed');
         const startCollapsed = persisted != null ? persisted === '1' : collapsedOption;
         if (startCollapsed) panel.classList.add('collapsed');
 
@@ -552,163 +589,202 @@ export const addOverlayMenu = async (
 
         endScanBtn.addEventListener('click', async () => customWindow.handleOnStopClick?.());
 
-        const topbar = document.createElement('div');
-        topbar.className = useExtensionUi ? 'oobee-topbar oobee-topbar-visible' : 'oobee-topbar';
+        // Topbar is only rendered in extension mode. All the DOM construction,
+        // event bindings, and layout state below are extension-only — skipping
+        // them in CLI mode avoids ~8 pointer listeners and a full DOM tree
+        // that would never be attached.
+        let topbar: HTMLElement | null = null;
+        let getStoredToolbarY: () => number = () => 0;
+        let setExtensionLayout: (nextY: number, persist?: boolean) => void = () => {};
+        let setPagesPanelHidden: (hidden: boolean) => void = () => {};
+        let getCurrentToolbarY: () => number = () => 0;
 
-        const topbarBrand = document.createElement('div');
-        topbarBrand.className = 'oobee-topbar-brand';
+        if (useExtensionUi) {
+          const topbarEl = document.createElement('div');
+          topbarEl.className = 'oobee-topbar oobee-topbar-visible';
+          topbarEl.setAttribute('role', 'toolbar');
+          topbarEl.setAttribute('aria-label', 'Oobee scan controls');
 
-        const topbarDrag = document.createElement('span');
-        topbarDrag.className = 'oobee-topbar-drag';
-        topbarDrag.innerHTML = '<svg width="10" height="16" viewBox="0 0 10 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 14C4 15.1 3.1 16 2 16C0.9 16 0 15.1 0 14C0 12.9 0.9 12 2 12C3.1 12 4 12.9 4 14ZM2 6C0.9 6 0 6.9 0 8C0 9.1 0.9 10 2 10C3.1 10 4 9.1 4 8C4 6.9 3.1 6 2 6ZM2 0C0.9 0 0 0.9 0 2C0 3.1 0.9 4 2 4C3.1 4 4 3.1 4 2C4 0.9 3.1 0 2 0ZM8 4C9.1 4 10 3.1 10 2C10 0.9 9.1 0 8 0C6.9 0 6 0.9 6 2C6 3.1 6.9 4 8 4ZM8 6C6.9 6 6 6.9 6 8C6 9.1 6.9 10 8 10C9.1 10 10 9.1 10 8C10 6.9 9.1 6 8 6ZM8 12C6.9 12 6 12.9 6 14C6 15.1 6.9 16 8 16C9.1 16 10 15.1 10 14C10 12.9 9.1 12 8 12Z" fill="#CCCCCC"/></svg>';
+          const topbarBrand = document.createElement('div');
+          topbarBrand.className = 'oobee-topbar-brand';
 
-        const topbarLogo = document.createElement('span');
-        topbarLogo.className = 'oobee-topbar-logo';
-        topbarLogo.innerHTML = vscodeIconSvg;
+          const topbarDrag = document.createElement('span');
+          topbarDrag.className = 'oobee-topbar-drag';
+          topbarDrag.setAttribute('aria-hidden', 'true');
+          topbarDrag.innerHTML = '<svg width="10" height="16" viewBox="0 0 10 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 14C4 15.1 3.1 16 2 16C0.9 16 0 15.1 0 14C0 12.9 0.9 12 2 12C3.1 12 4 12.9 4 14ZM2 6C0.9 6 0 6.9 0 8C0 9.1 0.9 10 2 10C3.1 10 4 9.1 4 8C4 6.9 3.1 6 2 6ZM2 0C0.9 0 0 0.9 0 2C0 3.1 0.9 4 2 4C3.1 4 4 3.1 4 2C4 0.9 3.1 0 2 0ZM8 4C9.1 4 10 3.1 10 2C10 0.9 9.1 0 8 0C6.9 0 6 0.9 6 2C6 3.1 6.9 4 8 4ZM8 6C6.9 6 6 6.9 6 8C6 9.1 6.9 10 8 10C9.1 10 10 9.1 10 8C10 6.9 9.1 6 8 6ZM8 12C6.9 12 6 12.9 6 14C6 15.1 6.9 16 8 16C9.1 16 10 15.1 10 14C10 12.9 9.1 12 8 12Z" fill="#CCCCCC"/></svg>';
 
-        const topbarTitle = document.createElement('span');
-        topbarTitle.className = 'oobee-topbar-title';
-        topbarTitle.textContent = `Session Origin: ${sessionOrigin}`;
+          const topbarLogo = document.createElement('span');
+          topbarLogo.className = 'oobee-topbar-logo';
+          topbarLogo.setAttribute('aria-hidden', 'true');
+          topbarLogo.innerHTML = vscodeIconSvg;
 
-        topbarBrand.appendChild(topbarDrag);
-        topbarBrand.appendChild(topbarLogo);
-        topbarBrand.appendChild(topbarTitle);
+          const topbarTitle = document.createElement('span');
+          topbarTitle.className = 'oobee-topbar-title';
+          topbarTitle.textContent = `Session Origin: ${sessionOrigin}`;
 
-        const topbarActions = document.createElement('div');
-        topbarActions.className = 'oobee-topbar-actions';
+          topbarBrand.appendChild(topbarDrag);
+          topbarBrand.appendChild(topbarLogo);
+          topbarBrand.appendChild(topbarTitle);
 
-        const topbarScanIconSvg = '<svg width="11" height="14" viewBox="0 0 11 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.6667 11.7267V4.55333C10.6667 4.2 10.5267 3.86 10.2733 3.61333L7.05333 0.393333C6.80667 0.14 6.46667 0 6.11333 0H1.33333C0.6 0 0.00666682 0.6 0.00666682 1.33333L0 12C0 12.7333 0.593333 13.3333 1.32667 13.3333H9.33333C9.63333 13.3333 9.9 13.2333 10.1267 13.0667L7.17333 10.1133C6.6 10.4867 5.91333 10.7 5.17333 10.66C3.59333 10.5867 2.24 9.35333 2.02667 7.78667C1.73333 5.55333 3.66 3.66667 5.91333 4.04667C7.21333 4.26667 8.29333 5.28 8.58 6.56667C8.8 7.54 8.58667 8.44667 8.11333 9.16667L10.6667 11.7267ZM3.33333 7.33333C3.33333 8.44 4.22667 9.33333 5.33333 9.33333C6.44 9.33333 7.33333 8.44 7.33333 7.33333C7.33333 6.22667 6.44 5.33333 5.33333 5.33333C4.22667 5.33333 3.33333 6.22667 3.33333 7.33333Z" fill="white"/></svg>';
-        const topbarEndScanIconSvg = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.66667 9.33333H8.66667C9.03333 9.33333 9.33333 9.03333 9.33333 8.66667V4.66667C9.33333 4.3 9.03333 4 8.66667 4H4.66667C4.3 4 4 4.3 4 4.66667V8.66667C4 9.03333 4.3 9.33333 4.66667 9.33333ZM6.66667 0C2.98667 0 0 2.98667 0 6.66667C0 10.3467 2.98667 13.3333 6.66667 13.3333C10.3467 13.3333 13.3333 10.3467 13.3333 6.66667C13.3333 2.98667 10.3467 0 6.66667 0Z" fill="white"/></svg>';
-        const topbarPagesIconSvg = '<svg width="11" height="14" viewBox="0 0 11 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.33333 0C0.6 0 0.00666682 0.6 0.00666682 1.33333L0 12C0 12.7333 0.593333 13.3333 1.32667 13.3333H9.33333C10.0667 13.3333 10.6667 12.7333 10.6667 12V4.55333C10.6667 4.2 10.5267 3.86 10.2733 3.61333L7.05333 0.393333C6.80667 0.14 6.46667 0 6.11333 0H1.33333ZM6 4V1L9.66667 4.66667H6.66667C6.3 4.66667 6 4.36667 6 4Z" fill="white"/></svg>';
-        const topbarDropdownIconSvg = '<svg width="8" height="5" viewBox="0 0 8 5" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.30833 0.195L3.72167 2.78167L1.135 0.195C0.875 -0.065 0.455 -0.065 0.195 0.195C-0.065 0.455 -0.065 0.875 0.195 1.135L3.255 4.195C3.515 4.455 3.935 4.455 4.195 4.195L7.255 1.135C7.515 0.875 7.515 0.455 7.255 0.195C6.995 -0.0583333 6.56833 -0.065 6.30833 0.195Z" fill="white"/></svg>';
+          const topbarActions = document.createElement('div');
+          topbarActions.className = 'oobee-topbar-actions';
 
-        const topbarScanBtn = scanBtn.cloneNode(true) as HTMLElement;
-        topbarScanBtn.id = 'oobeeTopbarBtnScan';
-        topbarScanBtn.className = isScanLimitReached
-          ? 'oobee-topbar-action oobee-topbar-action-static'
-          : 'oobee-topbar-action';
-        if (topbarScanBtn instanceof HTMLButtonElement) {
-          topbarScanBtn.disabled = inProgress;
-        }
-        const topbarScanIcon = topbarScanBtn.querySelector('.oobee-btn-icon');
-        if (topbarScanIcon) {
-          topbarScanIcon.innerHTML = topbarScanIconSvg;
-        }
-        const topbarScanText = topbarScanBtn.querySelector('.oobee-btn-text');
-        if (topbarScanText) {
-          topbarScanText.textContent = isScanLimitReached
-            ? 'Scan limit reached'
-            : 'Scan Page (Ctrl/Cmd+Shift+X)';
-        }
-        if (topbarScanBtn instanceof HTMLButtonElement) {
-          topbarScanBtn.addEventListener('click', async () => customWindow.handleOnScanClick?.());
-        }
+          const topbarScanIconSvg = '<svg width="11" height="14" viewBox="0 0 11 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.6667 11.7267V4.55333C10.6667 4.2 10.5267 3.86 10.2733 3.61333L7.05333 0.393333C6.80667 0.14 6.46667 0 6.11333 0H1.33333C0.6 0 0.00666682 0.6 0.00666682 1.33333L0 12C0 12.7333 0.593333 13.3333 1.32667 13.3333H9.33333C9.63333 13.3333 9.9 13.2333 10.1267 13.0667L7.17333 10.1133C6.6 10.4867 5.91333 10.7 5.17333 10.66C3.59333 10.5867 2.24 9.35333 2.02667 7.78667C1.73333 5.55333 3.66 3.66667 5.91333 4.04667C7.21333 4.26667 8.29333 5.28 8.58 6.56667C8.8 7.54 8.58667 8.44667 8.11333 9.16667L10.6667 11.7267ZM3.33333 7.33333C3.33333 8.44 4.22667 9.33333 5.33333 9.33333C6.44 9.33333 7.33333 8.44 7.33333 7.33333C7.33333 6.22667 6.44 5.33333 5.33333 5.33333C4.22667 5.33333 3.33333 6.22667 3.33333 7.33333Z" fill="white"/></svg>';
+          const topbarEndScanIconSvg = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.66667 9.33333H8.66667C9.03333 9.33333 9.33333 9.03333 9.33333 8.66667V4.66667C9.33333 4.3 9.03333 4 8.66667 4H4.66667C4.3 4 4 4.3 4 4.66667V8.66667C4 9.03333 4.3 9.33333 4.66667 9.33333ZM6.66667 0C2.98667 0 0 2.98667 0 6.66667C0 10.3467 2.98667 13.3333 6.66667 13.3333C10.3467 13.3333 13.3333 10.3467 13.3333 6.66667C13.3333 2.98667 10.3467 0 6.66667 0Z" fill="white"/></svg>';
+          const topbarPagesIconSvg = '<svg width="11" height="14" viewBox="0 0 11 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.33333 0C0.6 0 0.00666682 0.6 0.00666682 1.33333L0 12C0 12.7333 0.593333 13.3333 1.32667 13.3333H9.33333C10.0667 13.3333 10.6667 12.7333 10.6667 12V4.55333C10.6667 4.2 10.5267 3.86 10.2733 3.61333L7.05333 0.393333C6.80667 0.14 6.46667 0 6.11333 0H1.33333ZM6 4V1L9.66667 4.66667H6.66667C6.3 4.66667 6 4.36667 6 4Z" fill="white"/></svg>';
+          const topbarDropdownIconSvg = '<svg width="8" height="5" viewBox="0 0 8 5" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.30833 0.195L3.72167 2.78167L1.135 0.195C0.875 -0.065 0.455 -0.065 0.195 0.195C-0.065 0.455 -0.065 0.875 0.195 1.135L3.255 4.195C3.515 4.455 3.935 4.455 4.195 4.195L7.255 1.135C7.515 0.875 7.515 0.455 7.255 0.195C6.995 -0.0583333 6.56833 -0.065 6.30833 0.195Z" fill="white"/></svg>';
 
-        const topbarEndScanBtn = endScanBtn.cloneNode(true) as HTMLButtonElement;
-        topbarEndScanBtn.id = 'oobeeTopbarBtnEndScan';
-        topbarEndScanBtn.className = 'oobee-topbar-action';
-        const topbarEndScanIcon = topbarEndScanBtn.querySelector('.oobee-btn-icon');
-        if (topbarEndScanIcon) {
-          topbarEndScanIcon.innerHTML = topbarEndScanIconSvg;
-        }
-        topbarEndScanBtn.addEventListener('click', async () => customWindow.handleOnStopClick?.());
+          const makeTopbarButton = (
+            id: string,
+            iconHtml: string,
+            text: string,
+            onClick: () => void,
+            extra?: (btn: HTMLButtonElement) => void,
+          ): HTMLButtonElement => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.id = id;
+            btn.className = 'oobee-topbar-action';
+            const icon = document.createElement('span');
+            icon.className = 'oobee-btn-icon';
+            icon.innerHTML = iconHtml;
+            const label = document.createElement('span');
+            label.className = 'oobee-btn-text';
+            label.textContent = text;
+            btn.appendChild(icon);
+            btn.appendChild(label);
+            btn.addEventListener('click', onClick);
+            if (extra) extra(btn);
+            return btn;
+          };
 
-        const topbarPagesBtn = document.createElement('button');
-        topbarPagesBtn.type = 'button';
-        topbarPagesBtn.className = 'oobee-topbar-action oobee-topbar-pages';
-        topbarPagesBtn.setAttribute('aria-controls', 'oobeePanel');
-        topbarPagesBtn.innerHTML = `<span class="oobee-btn-icon">${topbarPagesIconSvg}</span><span class="oobee-btn-text">${hasScanLimit ? `${Math.min(scannedCount, maxPagesToScan)}/${maxPagesToScan}` : scannedCount} Pages scanned</span><span class="oobee-dropdown-icon" aria-hidden="true">${topbarDropdownIconSvg}</span>`;
-
-        topbarActions.appendChild(topbarScanBtn);
-        topbarActions.appendChild(topbarEndScanBtn);
-        topbarActions.appendChild(topbarPagesBtn);
-
-        topbar.appendChild(topbarBrand);
-        const topbarDragSurface = document.createElement('div');
-        topbarDragSurface.className = 'oobee-topbar-drag-surface';
-        topbarDragSurface.setAttribute('aria-hidden', 'true');
-        topbar.appendChild(topbarDragSurface);
-        topbar.appendChild(topbarActions);
-
-        const TOOLBAR_HEIGHT = 40;
-        const MIN_PANEL_HEIGHT = 180;
-        let toolbarY = 0;
-        const clampToolbarY = (value: number) =>
-          Math.max(0, Math.min(value, Math.max(0, window.innerHeight - TOOLBAR_HEIGHT)));
-        const getStoredToolbarY = () => {
-          const raw = localStorage.getItem('oobee:extension-toolbar-y');
-          const parsed = raw == null ? 0 : Number(raw);
-          return Number.isFinite(parsed) ? clampToolbarY(parsed) : 0;
-        };
-        const setExtensionLayout = (nextY: number, persist = true) => {
-          if (!useExtensionUi) return;
-          toolbarY = clampToolbarY(nextY);
-          const panelTop = toolbarY + TOOLBAR_HEIGHT;
-          const spaceBelow = window.innerHeight - panelTop;
-          const spaceAbove = toolbarY;
-          const openPanelAbove = spaceBelow < MIN_PANEL_HEIGHT && spaceAbove > spaceBelow;
-          topbar.style.top = `${toolbarY}px`;
-          panel.classList.toggle('opens-above', openPanelAbove);
-          if (openPanelAbove) {
-            panel.style.top = '0';
-            panel.style.bottom = `${window.innerHeight - toolbarY}px`;
-            panel.style.height = `${spaceAbove}px`;
-          } else {
-            panel.style.top = `${panelTop}px`;
-            panel.style.bottom = '';
-            panel.style.height = `calc(100vh - ${panelTop}px)`;
-          }
-          const finalising = shadowRoot.querySelector<HTMLElement>('.oobee-finalising');
-          if (finalising) {
-            finalising.style.top = `${panelTop}px`;
-          }
-          if (persist) {
-            localStorage.setItem('oobee:extension-toolbar-y', String(toolbarY));
-          }
-        };
-        const setPagesPanelHidden = (hidden: boolean) => {
-          if (!useExtensionUi) return;
-          panel.classList.toggle('is-pages-hidden', hidden);
-          topbarPagesBtn.setAttribute('aria-expanded', String(!hidden));
-          topbarPagesBtn.setAttribute(
-            'aria-label',
-            hidden ? 'Show scanned pages panel' : 'Hide scanned pages panel',
+          const topbarScanBtn = makeTopbarButton(
+            'oobeeTopbarBtnScan',
+            topbarScanIconSvg,
+            'Scan Page',
+            () => { void customWindow.handleOnScanClick?.(); },
+            btn => {
+              btn.disabled = inProgress || isScanLimitReached;
+              btn.setAttribute('aria-keyshortcuts', 'Control+Shift+X Meta+Shift+X');
+              if (isScanLimitReached) {
+                btn.classList.add('oobee-topbar-action-static');
+                const label = btn.querySelector('.oobee-btn-text');
+                if (label) label.textContent = 'Scan limit reached';
+              }
+            },
           );
-          localStorage.setItem('oobee:extension-pages-hidden', hidden ? '1' : '0');
-        };
-        topbarPagesBtn.addEventListener('click', () => {
-          setPagesPanelHidden(!panel.classList.contains('is-pages-hidden'));
-        });
 
-        let dragStartY = 0;
-        let dragOriginY = 0;
-        const startTopbarDrag = (event: PointerEvent, dragTarget: HTMLElement) => {
-          if (!useExtensionUi) return;
-          dragStartY = event.clientY;
-          dragOriginY = toolbarY;
-          dragTarget.setPointerCapture(event.pointerId);
-          topbar.classList.add('is-dragging');
-          event.preventDefault();
-        };
-        const moveTopbarDrag = (event: PointerEvent, dragTarget: HTMLElement) => {
-          if (!useExtensionUi || !dragTarget.hasPointerCapture?.(event.pointerId)) return;
-          setExtensionLayout(dragOriginY + event.clientY - dragStartY);
-        };
-        const stopTopbarDrag = (event: PointerEvent, dragTarget: HTMLElement) => {
-          if (!useExtensionUi) return;
-          try {
-            dragTarget.releasePointerCapture(event.pointerId);
-          } catch {}
-          topbar.classList.remove('is-dragging');
-        };
-        const bindTopbarDrag = (dragTarget: HTMLElement) => {
-          dragTarget.addEventListener('pointerdown', event => startTopbarDrag(event, dragTarget));
-          dragTarget.addEventListener('pointermove', event => moveTopbarDrag(event, dragTarget));
-          dragTarget.addEventListener('pointerup', event => stopTopbarDrag(event, dragTarget));
-          dragTarget.addEventListener('pointercancel', event => stopTopbarDrag(event, dragTarget));
-        };
-        bindTopbarDrag(topbarBrand);
-        bindTopbarDrag(topbarDragSurface);
+          const topbarEndScanBtn = makeTopbarButton(
+            'oobeeTopbarBtnEndScan',
+            topbarEndScanIconSvg,
+            'End scan',
+            () => { void customWindow.handleOnStopClick?.(); },
+          );
+
+          const topbarPagesBtn = document.createElement('button');
+          topbarPagesBtn.type = 'button';
+          topbarPagesBtn.className = 'oobee-topbar-action oobee-topbar-pages';
+          topbarPagesBtn.setAttribute('aria-controls', 'oobeePanel');
+          topbarPagesBtn.setAttribute('aria-expanded', 'true');
+          const pagesLabel = hasScanLimit
+            ? `${Math.min(scannedCount, maxPagesToScan)}/${maxPagesToScan}`
+            : String(scannedCount);
+          topbarPagesBtn.innerHTML = `<span class="oobee-btn-icon">${topbarPagesIconSvg}</span><span class="oobee-btn-text">${pagesLabel} Pages scanned</span><span class="oobee-dropdown-icon" aria-hidden="true">${topbarDropdownIconSvg}</span>`;
+
+          topbarActions.appendChild(topbarScanBtn);
+          topbarActions.appendChild(topbarEndScanBtn);
+          topbarActions.appendChild(topbarPagesBtn);
+
+          topbarEl.appendChild(topbarBrand);
+          const topbarDragSurface = document.createElement('div');
+          topbarDragSurface.className = 'oobee-topbar-drag-surface';
+          topbarDragSurface.setAttribute('aria-hidden', 'true');
+          topbarEl.appendChild(topbarDragSurface);
+          topbarEl.appendChild(topbarActions);
+
+          const TOOLBAR_HEIGHT = 40;
+          const MIN_PANEL_HEIGHT = 180;
+          let toolbarY = 0;
+          const clampToolbarY = (value: number) =>
+            Math.max(0, Math.min(value, Math.max(0, window.innerHeight - TOOLBAR_HEIGHT)));
+          getStoredToolbarY = () => {
+            const raw = safeLocalGet('oobee:extension-toolbar-y');
+            const parsed = raw == null ? 0 : Number(raw);
+            return Number.isFinite(parsed) ? clampToolbarY(parsed) : 0;
+          };
+          getCurrentToolbarY = () => toolbarY;
+          setExtensionLayout = (nextY, persist = true) => {
+            toolbarY = clampToolbarY(nextY);
+            const panelTop = toolbarY + TOOLBAR_HEIGHT;
+            const spaceBelow = window.innerHeight - panelTop;
+            const spaceAbove = toolbarY;
+            const openPanelAbove = spaceBelow < MIN_PANEL_HEIGHT && spaceAbove > spaceBelow;
+            topbarEl.style.top = `${toolbarY}px`;
+            panel.classList.toggle('opens-above', openPanelAbove);
+            if (openPanelAbove) {
+              panel.style.top = '0';
+              panel.style.bottom = `${window.innerHeight - toolbarY}px`;
+              panel.style.height = `${spaceAbove}px`;
+            } else {
+              panel.style.top = `${panelTop}px`;
+              panel.style.bottom = '';
+              panel.style.height = `calc(100vh - ${panelTop}px)`;
+            }
+            const finalising = shadowRoot.querySelector<HTMLElement>('.oobee-finalising');
+            if (finalising) {
+              finalising.style.top = `${panelTop}px`;
+            }
+            if (persist) {
+              safeLocalSet('oobee:extension-toolbar-y', String(toolbarY));
+            }
+          };
+          setPagesPanelHidden = hidden => {
+            panel.classList.toggle('is-pages-hidden', hidden);
+            topbarPagesBtn.setAttribute('aria-expanded', String(!hidden));
+            safeLocalSet('oobee:extension-pages-hidden', hidden ? '1' : '0');
+          };
+          topbarPagesBtn.addEventListener('click', () => {
+            setPagesPanelHidden(!panel.classList.contains('is-pages-hidden'));
+          });
+
+          // Bind pointerdown on drag surfaces; window handles move/up/cancel so
+          // the drag survives if the pointer leaves the surface.
+          let dragStartY = 0;
+          let dragOriginY = 0;
+          let activeDragTarget: HTMLElement | null = null;
+          const startTopbarDrag = (event: PointerEvent, dragTarget: HTMLElement) => {
+            dragStartY = event.clientY;
+            dragOriginY = toolbarY;
+            activeDragTarget = dragTarget;
+            try {
+              dragTarget.setPointerCapture(event.pointerId);
+            } catch {}
+            topbarEl.classList.add('is-dragging');
+            event.preventDefault();
+          };
+          const moveTopbarDrag = (event: PointerEvent) => {
+            if (!activeDragTarget) return;
+            setExtensionLayout(dragOriginY + event.clientY - dragStartY);
+          };
+          const stopTopbarDrag = (event: PointerEvent) => {
+            if (!activeDragTarget) return;
+            try {
+              activeDragTarget.releasePointerCapture(event.pointerId);
+            } catch {}
+            activeDragTarget = null;
+            topbarEl.classList.remove('is-dragging');
+          };
+          const bindTopbarDrag = (dragTarget: HTMLElement) => {
+            dragTarget.addEventListener('pointerdown', event => startTopbarDrag(event, dragTarget));
+          };
+          window.addEventListener('pointermove', moveTopbarDrag);
+          window.addEventListener('pointerup', stopTopbarDrag);
+          window.addEventListener('pointercancel', stopTopbarDrag);
+          bindTopbarDrag(topbarBrand);
+          bindTopbarDrag(topbarDragSurface);
+
+          topbar = topbarEl;
+        }
 
         const btnGroup = document.createElement('div');
         btnGroup.className = 'oobee-actions';
@@ -718,8 +794,13 @@ export const addOverlayMenu = async (
         const listWrap = document.createElement('div');
         listWrap.id = 'oobeeList';
         listWrap.className = 'oobee-list';
-        listWrap.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
-        listWrap.addEventListener('touchmove', event => event.stopPropagation(), { passive: true });
+        if (useExtensionUi) {
+          // Prevent scroll from bubbling to the page when the user scrolls the
+          // extension pages panel. In classic (CLI) mode the list is inside the
+          // sidebar and we want native scroll pass-through.
+          listWrap.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
+          listWrap.addEventListener('touchmove', event => event.stopPropagation(), { passive: true });
+        }
 
         const limitMessage = document.createElement('p');
         limitMessage.className = 'oobee-limit-message';
@@ -1368,11 +1449,6 @@ export const addOverlayMenu = async (
           .oobee-finalising-body {
             margin: 0;
           }
-          .oobee-finalising-link {
-            color: #ffffff;
-            text-decoration: underline;
-            text-underline-offset: 3px;
-          }
 
           .oobee-minbtn__icon {
             transition: transform .18s ease;
@@ -1420,13 +1496,17 @@ export const addOverlayMenu = async (
 
         shadowRoot.adoptedStyleSheets = [sheet];
 
-        if (useExtensionUi) {
+        if (useExtensionUi && topbar) {
           shadowRoot.appendChild(topbar);
           setExtensionLayout(getStoredToolbarY(), false);
-          setPagesPanelHidden(localStorage.getItem('oobee:extension-pages-hidden') === '1');
+          setPagesPanelHidden(safeLocalGet('oobee:extension-pages-hidden') === '1');
         }
         shadowRoot.appendChild(panel);
-        shadowRoot.appendChild(minBtn);
+        // The minimize button is hidden in extension mode via CSS; keep it out
+        // of the shadow tree entirely so it isn't paying rendering cost.
+        if (!useExtensionUi) {
+          shadowRoot.appendChild(minBtn);
+        }
 
         function setDraggableSidebarMenu() {
           const icon = minBtn.querySelector<SVGElement>('.oobee-minbtn__icon');
@@ -1489,6 +1569,7 @@ export const addOverlayMenu = async (
 
         const stopDialog = document.createElement('dialog');
         stopDialog.id = 'oobeeStopDialog';
+        stopDialog.setAttribute('aria-labelledby', 'oobee-stop-title');
         Object.assign(stopDialog.style, {
           width: useExtensionUi ? 'min(480px, calc(100vw - 32px))' : 'min(560px, calc(100vw - 32px))',
           border: 'none',
@@ -1600,7 +1681,7 @@ export const addOverlayMenu = async (
         Object.assign(input.style, {
           width: '100%',
           borderRadius: '5px',
-          border: useExtensionUi ? '1px solid #242424' : '1px solid #e5e7eb',
+          border: useExtensionUi ? '1px solid #555555' : '1px solid #e5e7eb',
           padding: useExtensionUi ? '10px 12px' : '12px 14px',
           fontSize: '14px',
           outline: 'none',
@@ -1613,7 +1694,7 @@ export const addOverlayMenu = async (
           input.style.boxShadow = useExtensionUi ? 'none' : '0 0 0 3px rgba(123,77,255,.25)';
         });
         input.addEventListener('blur', () => {
-          input.style.borderColor = useExtensionUi ? '#242424' : '#e5e7eb';
+          input.style.borderColor = useExtensionUi ? '#555555' : '#e5e7eb';
           input.style.boxShadow = 'none';
         });
 
@@ -1712,21 +1793,25 @@ export const addOverlayMenu = async (
             showStop();
           });
         (customWindow as Window).oobeeHideStopModal = hideStop;
-        customWindow.oobeeShowFinalising = () => {
-          if (!useExtensionUi || shadowRoot.querySelector('.oobee-finalising')) return;
-          panel.remove();
-          minBtn.remove();
-          const finalising = document.createElement('div');
-          finalising.className = 'oobee-finalising';
-          finalising.innerHTML = `
-            <div class="oobee-finalising-card">
-              <p class="oobee-finalising-title">Finalising headed scan report...</p>
-              <p class="oobee-finalising-body">Head back to VS Code <span class="oobee-finalising-link">Oobee dev suite extension</span> to view the scan results.</p>
-            </div>
-          `;
-          shadowRoot.appendChild(finalising);
-          setExtensionLayout(toolbarY, false);
-        };
+        if (useExtensionUi) {
+          customWindow.oobeeShowFinalising = () => {
+            if (shadowRoot.querySelector('.oobee-finalising')) return;
+            panel.remove();
+            minBtn.remove();
+            const finalising = document.createElement('div');
+            finalising.className = 'oobee-finalising';
+            finalising.setAttribute('role', 'status');
+            finalising.setAttribute('aria-live', 'polite');
+            finalising.innerHTML = `
+              <div class="oobee-finalising-card">
+                <p class="oobee-finalising-title">Finalising headed scan report...</p>
+                <p class="oobee-finalising-body">Head back to VS Code Oobee dev suite extension to view the scan results.</p>
+              </div>
+            `;
+            shadowRoot.appendChild(finalising);
+            setExtensionLayout(getCurrentToolbarY(), false);
+          };
+        }
 
         if (document.body) {
           document.body.appendChild(shadowHost);
@@ -1870,18 +1955,11 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
           // leave the configured URL boundary, while the default CLI keeps the
           // historical desktop fallback below.
           if (OOBEE_OVERLAY_SCOPE !== 'all') {
-            await Promise.race([
+            await raceWithTimeout(
               removeOverlayMenu(page),
-              new Promise((_, reject) => {
-                setTimeout(() => {
-                  reject(
-                    new Error(
-                      `removeOverlayMenu timed out after ${OVERLAY_OPERATION_TIMEOUT_MS}ms`,
-                    ),
-                  );
-                }, OVERLAY_OPERATION_TIMEOUT_MS);
-              }),
-            ]);
+              OVERLAY_OPERATION_TIMEOUT_MS,
+              'removeOverlayMenu',
+            ).catch(() => {});
             return;
           }
 
@@ -1896,18 +1974,11 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
           const isDesktopHost = process.platform === 'darwin' || process.platform === 'win32';
           if (!isDesktopHost) {
             // On Linux / Docker: remove overlay for non-http/https URLs and stop.
-            await Promise.race([
+            await raceWithTimeout(
               removeOverlayMenu(page),
-              new Promise((_, reject) => {
-                setTimeout(() => {
-                  reject(
-                    new Error(
-                      `removeOverlayMenu timed out after ${OVERLAY_OPERATION_TIMEOUT_MS}ms`,
-                    ),
-                  );
-                }, OVERLAY_OPERATION_TIMEOUT_MS);
-              }),
-            ]);
+              OVERLAY_OPERATION_TIMEOUT_MS,
+              'removeOverlayMenu',
+            ).catch(() => {});
             return;
           }
           // Desktop hosts: skip removal and fall through to re-add overlay.
@@ -1922,7 +1993,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         if (!hasOverlay) {
           // Recreate the overlay after allowed redirects while preserving current UI state.
           consoleLogger.info(`Adding overlay menu to page (${trigger}): ${page.url()}`);
-          await Promise.race([
+          await raceWithTimeout(
             addOverlayMenu(page, processPageParams.urlsCrawled, menuPos, {
               inProgress: !!pagesDict[pageId]?.isScanning,
               collapsed: !!pagesDict[pageId]?.collapsed,
@@ -1930,14 +2001,9 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
               entryUrl: processPageParams.entryUrl,
               maxPagesToScan: processPageParams.maxPagesToScan,
             }),
-            new Promise((_, reject) => {
-              setTimeout(() => {
-                reject(
-                  new Error(`addOverlayMenu timed out after ${OVERLAY_OPERATION_TIMEOUT_MS}ms`),
-                );
-              }, OVERLAY_OPERATION_TIMEOUT_MS);
-            }),
-          ]);
+            OVERLAY_OPERATION_TIMEOUT_MS,
+            'addOverlayMenu',
+          );
         }
       })
       .catch(() => {
@@ -1998,20 +2064,18 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   };
 
   const showFinalisingBeforeClose = async () => {
+    if (!USE_EXTENSION_OVERLAY_UI) return;
     await page.evaluate(() => {
       const win = window as Window;
       win.oobeeShowFinalising?.();
     }).catch(() => {});
-
-    if (USE_EXTENSION_OVERLAY_UI) {
-      await sleep(EXTENSION_FINALISING_DISPLAY_MS);
-    }
+    await sleep(EXTENSION_FINALISING_DISPLAY_MS);
   };
 
   const handleOnStopClick = async () => {
     const scannedCount = processPageParams?.urlsCrawled?.scanned?.length ?? 0;
     if (scannedCount === 0) {
-      await showFinalisingBeforeClose();
+      // Skip finalising banner — no report will be generated.
       if (typeof processPageParams.stopAll === 'function') {
         try {
           await processPageParams.stopAll();

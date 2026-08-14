@@ -9,6 +9,8 @@ import { submitForm } from '../constants/common.js';
 import runCustom from './runCustom.js';
 import { consoleLogger } from '../logs.js';
 
+const sanitisePathSegment = (value: string) => value.replace(/[^\w.-]/g, '_');
+
 import type { ViewportSettingsClass } from '../combine.js';
 import type {
   NormalizedScanItemsRule,
@@ -86,6 +88,15 @@ const convertScanItemsToScanPageResults = (scanItems: unknown): ScanPageResults 
   needsReview: convertScanItemsCategoryToScanPageCategory(getScanItemsCategory(scanItems, 'needsReview')),
 });
 
+/**
+ * Runs a headed custom-flow accessibility scan.
+ *
+ * NOTE: single-flight per Node process. This function mutates module-level
+ * state on `constants` (`sitemapFetchedLinks`, `exportDirectory`) and sets
+ * `process.env.CRAWLEE_LOG_LEVEL`; running two `scanCustomFlow` sessions
+ * concurrently in the same process will cause them to clobber each other's
+ * export directory. Serialise calls at the caller.
+ */
 export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSession => {
   const {
     url,
@@ -110,23 +121,27 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
     maxPagesToScan,
   } = config;
 
-  const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
-  const entryUrl = new URL(url).href;
-  const domain = new URL(entryUrl).hostname;
-  const sanitisedLabel = customFlowLabel ? `_${customFlowLabel.replaceAll(' ', '_')}` : '';
+  const [date, time] = new Date().toLocaleString('sv').replace(/[-:]/g, '').split(' ');
+  const parsedUrl = new URL(url);
+  const entryUrl = parsedUrl.href;
+  const domain = parsedUrl.hostname;
+  const sanitisedLabel = customFlowLabel ? `_${sanitisePathSegment(customFlowLabel)}` : '';
   const randomToken = config.randomToken || `${date}_${time}${sanitisedLabel}_${domain}`;
   const scanStartedAt = new Date();
+  const viewportHeight =
+    (playwrightDeviceDetailsObject as { viewport?: { height?: number } } | undefined)?.viewport
+      ?.height ?? 1040;
   const scanDetails = {
     startTime: scanStartedAt,
     endTime: scanStartedAt,  // Note: This is a placeholder; it will be updated when the scan completes.
     deviceChosen,
     crawlType: ScannerTypes.CUSTOM,
     requestUrl: url,
-    urlsCrawled: new UrlsCrawled(),
+    urlsCrawled: undefined as unknown as UrlsCrawled, // Assigned after runCustom completes.
     isIncludeScreenshots: includeScreenshots,
-    isAllowSubdomains: strategy,
+    isAllowSubdomains: strategy, // Note: Report generator treats this as the strategy string (checks `.includes('same-domain')`), not a boolean.
     isEnableCustomChecks: ruleset,
-    isEnableWcagAaa: [], // Note: This is not in used by today in runCustom.ts compared to runAxeScript in crawlDomain.ts
+    isEnableWcagAaa: [] as RuleFlags[], // Note: This is not in used by today in runCustom.ts compared to runAxeScript in crawlDomain.ts
     isSlowScanMode: 1, // Note: Considering refactor this because for applicable for normal scan with concurrent scan only.
     isAdhereRobots: followRobots,
     nameEmail: { name, email },
@@ -140,14 +155,14 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
   const scanAboutMetadata = {
     viewport: {
       width: viewportWidth,
-      height: 1040,
+      height: viewportHeight,
     },
   };
 
   let stopCustomFlow: (() => Promise<void>) | undefined;
   let focusCustomFlow: (() => Promise<void>) | undefined;
-  let resolveReady: () => void = () => {};
-  let rejectReady: (error: unknown) => void = () => {};
+  let resolveReady!: () => void;
+  let rejectReady!: (error: unknown) => void;
   const ready = new Promise<void>((resolve, reject) => {
     resolveReady = resolve;
     rejectReady = reject;
@@ -156,9 +171,8 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
   const result = (async (): Promise<ScanCustomFlowResult> => {
     try {
       process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
-      process.env.CRAWLEE_STORAGE_DIR = randomToken;
       constants.sitemapFetchedLinks = null;
-      constants.exportDirectory = undefined; // Note: Reset global storage path so long-lived consumers start each scan in a fresh results folder. This is in used if cleanupArtifacts is set to false.
+      constants.exportDirectory = undefined; // Note: Reset global storage path so long-lived consumers start each scan in a fresh results folder. This is used when cleanupArtifacts is set to false.
 
       const customResult = await runCustom(
         url,
@@ -221,15 +235,6 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
         scanData,
         scanItems,
         results: convertScanItemsToScanPageResults(scanItems),
-        // Note: Useful for debugging when cleanupArtifacts is false, but omitted from the public
-        // result because extension users cannot currently view or retrieve these paths.
-        // resultDirectory,
-        // artifacts: {
-        //   reportHtmlPath: path.join(resultDirectory, 'report.html'),
-        //   summaryPdfPath: path.join(resultDirectory, 'summary.pdf'),
-        //   zipPath: constants.cliZipFileName,
-        //   scanDetailsCsvPath: path.join(resultDirectory, 'scanDetails.csv'),
-        // },
       };
 
       const submitResult = submitForm(
