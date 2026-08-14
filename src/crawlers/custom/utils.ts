@@ -330,6 +330,7 @@ type OverlayOpts = {
   sessionOrigin?: string;
   fontFamily?: string;
   vscodeIconSvg?: string;
+  maxPagesToScan?: number;
 };
 
 export const updateMenu = async (page, urlsCrawled) => {
@@ -376,6 +377,9 @@ export const addOverlayMenu = async (
         const collapsedOption = !!(vars?.opts && vars.opts.collapsed);
         const useExtensionUi = !!(vars?.opts && vars.opts.extensionOverlayUi);
         const scannedCount = vars.urlsCrawled.scanned.length || 0;
+        const maxPagesToScan = Number(vars?.opts?.maxPagesToScan);
+        const hasScanLimit = Number.isFinite(maxPagesToScan) && maxPagesToScan > 0;
+        const isScanLimitReached = hasScanLimit && scannedCount >= maxPagesToScan;
         const sessionOrigin = vars?.opts?.sessionOrigin || 'VS Code - Oobee Dev Suite extension';
         const widgetFontFamily =
           vars?.opts?.fontFamily ||
@@ -475,7 +479,9 @@ export const addOverlayMenu = async (
         const h2 = document.createElement('h2');
         h2.id = 'oobeeHPagesScanned';
         h2.className = 'oobee-section-title';
-        h2.textContent = `Pages Scanned (${scannedCount})`;
+        h2.textContent = hasScanLimit
+          ? `Pages Scanned (${Math.min(scannedCount, maxPagesToScan)}/${maxPagesToScan})`
+          : `Pages Scanned (${scannedCount})`;
 
         const scanIcon = document.createElement('span');
         scanIcon.className = 'oobee-btn-icon';
@@ -502,18 +508,27 @@ export const addOverlayMenu = async (
         `;
         
         scanIcon.innerHTML = SCAN_SVG; 
-        const scanBtn = document.createElement('button');
+        const scanBtn = isScanLimitReached
+          ? document.createElement('div') // Note: Using div instead of button to prevent user open inspector and remove disabled attributes
+          : document.createElement('button');
         scanBtn.id = 'oobeeBtnScan';
-        scanBtn.className = 'oobee-btn oobee-btn-primary';
-        scanBtn.disabled = inProgress;
+        scanBtn.className = isScanLimitReached
+          ? 'oobee-btn oobee-btn-primary oobee-btn-static'
+          : 'oobee-btn oobee-btn-primary';
+        if (scanBtn instanceof HTMLButtonElement) {
+          scanBtn.type = 'button';
+          scanBtn.disabled = inProgress;
+        }
         scanBtn.appendChild(scanIcon);
 
         const scanText = document.createElement('span');
         scanText.className = 'oobee-btn-text';
-        scanText.innerText = 'Scan page';
+        scanText.innerText = isScanLimitReached ? 'Scan limit reached' : 'Scan page';
         scanBtn.appendChild(scanText);
 
-        scanBtn.addEventListener('click', async () => customWindow.handleOnScanClick?.());
+        if (scanBtn instanceof HTMLButtonElement) {
+          scanBtn.addEventListener('click', async () => customWindow.handleOnScanClick?.());
+        }
 
         const endScanIcon = document.createElement('span');
         endScanIcon.className = 'oobee-btn-icon';
@@ -567,19 +582,27 @@ export const addOverlayMenu = async (
         const topbarPagesIconSvg = '<svg width="11" height="14" viewBox="0 0 11 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.33333 0C0.6 0 0.00666682 0.6 0.00666682 1.33333L0 12C0 12.7333 0.593333 13.3333 1.32667 13.3333H9.33333C10.0667 13.3333 10.6667 12.7333 10.6667 12V4.55333C10.6667 4.2 10.5267 3.86 10.2733 3.61333L7.05333 0.393333C6.80667 0.14 6.46667 0 6.11333 0H1.33333ZM6 4V1L9.66667 4.66667H6.66667C6.3 4.66667 6 4.36667 6 4Z" fill="white"/></svg>';
         const topbarDropdownIconSvg = '<svg width="8" height="5" viewBox="0 0 8 5" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.30833 0.195L3.72167 2.78167L1.135 0.195C0.875 -0.065 0.455 -0.065 0.195 0.195C-0.065 0.455 -0.065 0.875 0.195 1.135L3.255 4.195C3.515 4.455 3.935 4.455 4.195 4.195L7.255 1.135C7.515 0.875 7.515 0.455 7.255 0.195C6.995 -0.0583333 6.56833 -0.065 6.30833 0.195Z" fill="white"/></svg>';
 
-        const topbarScanBtn = scanBtn.cloneNode(true) as HTMLButtonElement;
+        const topbarScanBtn = scanBtn.cloneNode(true) as HTMLElement;
         topbarScanBtn.id = 'oobeeTopbarBtnScan';
-        topbarScanBtn.className = 'oobee-topbar-action';
-        topbarScanBtn.disabled = inProgress;
+        topbarScanBtn.className = isScanLimitReached
+          ? 'oobee-topbar-action oobee-topbar-action-static'
+          : 'oobee-topbar-action';
+        if (topbarScanBtn instanceof HTMLButtonElement) {
+          topbarScanBtn.disabled = inProgress;
+        }
         const topbarScanIcon = topbarScanBtn.querySelector('.oobee-btn-icon');
         if (topbarScanIcon) {
           topbarScanIcon.innerHTML = topbarScanIconSvg;
         }
         const topbarScanText = topbarScanBtn.querySelector('.oobee-btn-text');
         if (topbarScanText) {
-          topbarScanText.textContent = 'Scan Page (Ctrl/Cmd+Shift+X)';
+          topbarScanText.textContent = isScanLimitReached
+            ? 'Scan limit reached'
+            : 'Scan Page (Ctrl/Cmd+Shift+X)';
         }
-        topbarScanBtn.addEventListener('click', async () => customWindow.handleOnScanClick?.());
+        if (topbarScanBtn instanceof HTMLButtonElement) {
+          topbarScanBtn.addEventListener('click', async () => customWindow.handleOnScanClick?.());
+        }
 
         const topbarEndScanBtn = endScanBtn.cloneNode(true) as HTMLButtonElement;
         topbarEndScanBtn.id = 'oobeeTopbarBtnEndScan';
@@ -594,7 +617,7 @@ export const addOverlayMenu = async (
         topbarPagesBtn.type = 'button';
         topbarPagesBtn.className = 'oobee-topbar-action oobee-topbar-pages';
         topbarPagesBtn.setAttribute('aria-controls', 'oobeePanel');
-        topbarPagesBtn.innerHTML = `<span class="oobee-btn-icon">${topbarPagesIconSvg}</span><span class="oobee-btn-text">${scannedCount} Pages scanned</span><span class="oobee-dropdown-icon" aria-hidden="true">${topbarDropdownIconSvg}</span>`;
+        topbarPagesBtn.innerHTML = `<span class="oobee-btn-icon">${topbarPagesIconSvg}</span><span class="oobee-btn-text">${hasScanLimit ? `${Math.min(scannedCount, maxPagesToScan)}/${maxPagesToScan}` : scannedCount} Pages scanned</span><span class="oobee-dropdown-icon" aria-hidden="true">${topbarDropdownIconSvg}</span>`;
 
         topbarActions.appendChild(topbarScanBtn);
         topbarActions.appendChild(topbarEndScanBtn);
@@ -698,6 +721,13 @@ export const addOverlayMenu = async (
         listWrap.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
         listWrap.addEventListener('touchmove', event => event.stopPropagation(), { passive: true });
 
+        const limitMessage = document.createElement('p');
+        limitMessage.className = 'oobee-limit-message';
+        limitMessage.textContent = hasScanLimit
+          ? `Scan limit reached. You can scan up to ${maxPagesToScan} pages; additional pages will be ignored.`
+          : '';
+        limitMessage.hidden = !isScanLimitReached;
+
         if (useExtensionUi) {
           if (customWindow.oobeeScanShortcutHandler) {
             window.removeEventListener('keydown', customWindow.oobeeScanShortcutHandler, true);
@@ -708,7 +738,7 @@ export const addOverlayMenu = async (
             }
             event.preventDefault();
             event.stopPropagation();
-            if (!inProgress && !customWindow.oobeeScanShortcutInProgress) {
+            if (!inProgress && !isScanLimitReached && !customWindow.oobeeScanShortcutInProgress) {
               customWindow.oobeeScanShortcutInProgress = true;
               void Promise.resolve(customWindow.handleOnScanClick?.()).finally(() => {
                 customWindow.oobeeScanShortcutInProgress = false;
@@ -767,6 +797,7 @@ export const addOverlayMenu = async (
 
         body.appendChild(btnGroup);
         body.appendChild(h2);
+        body.appendChild(limitMessage);
         body.appendChild(listWrap);
 
         panel.appendChild(header);
@@ -934,6 +965,10 @@ export const addOverlayMenu = async (
             opacity:.6;
             cursor:not-allowed
           }
+          .oobee-btn-static {
+            cursor: default;
+            opacity: .85;
+          }
 
           .oobee-panel.collapsed .oobee-btn {
             width: 44px !important;
@@ -954,13 +989,13 @@ export const addOverlayMenu = async (
             color: #fff;
             border: 1px solid transparent;
           }
-          .oobee-btn-primary:hover:not(:disabled) {
+          .oobee-btn-primary:hover:not(:disabled):not(.oobee-btn-static) {
             box-shadow:0 2px 10px rgba(0,0,0,.12);
           }
-          .oobee-btn-primary:active:not(:disabled) {
+          .oobee-btn-primary:active:not(:disabled):not(.oobee-btn-static) {
             transform:translateY(1px);
           }
-          .oobee-btn-primary:focus-visible {
+          .oobee-btn-primary:focus-visible:not(.oobee-btn-static) {
             outline:2px solid #7b4dff;
             outline-offset:2px;
           }
@@ -996,6 +1031,26 @@ export const addOverlayMenu = async (
             padding: 0;
             color: #CCCCCC;
             font-size: 14px;
+          }
+
+          .oobee-limit-message {
+            margin: 0 1rem 0.75rem;
+            padding: 0.75rem;
+            border-radius: 4px;
+            background: #fff7ed;
+            color: #9a3412;
+            font-size: 12px;
+            line-height: 1.4;
+          }
+
+          .oobee-limit-message[hidden] {
+            display: none;
+          }
+
+          .oobee-panel-extension .oobee-limit-message {
+            margin: 0 16px;
+            background: #4a3528;
+            color: #ffd7ba;
           }
 
           .oobee-list {
@@ -1227,11 +1282,11 @@ export const addOverlayMenu = async (
             cursor: pointer;
             transition: background-color .12s ease, box-shadow .12s ease;
           }
-          .oobee-topbar-action:hover:not(:disabled),
-          .oobee-topbar-action:focus-visible {
+          .oobee-topbar-action:hover:not(:disabled):not(.oobee-topbar-action-static),
+          .oobee-topbar-action:focus-visible:not(.oobee-topbar-action-static) {
             background: rgba(255, 255, 255, .16);
           }
-          .oobee-topbar-action:focus-visible {
+          .oobee-topbar-action:focus-visible:not(.oobee-topbar-action-static) {
             outline: 2px solid rgba(255, 255, 255, .9);
             outline-offset: -2px;
             box-shadow: 0 0 0 1px rgba(144, 33, 166, .35);
@@ -1239,6 +1294,10 @@ export const addOverlayMenu = async (
           .oobee-topbar-action:disabled {
             opacity: .58;
             cursor: not-allowed;
+          }
+          .oobee-topbar-action-static {
+            opacity: .65;
+            cursor: default;
           }
           .oobee-topbar-pages[aria-expanded="false"] {
             opacity: .88;
@@ -1869,6 +1928,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
               collapsed: !!pagesDict[pageId]?.collapsed,
               hideStopInput: !!processPageParams.customFlowLabel,
               entryUrl: processPageParams.entryUrl,
+              maxPagesToScan: processPageParams.maxPagesToScan,
             }),
             new Promise((_, reject) => {
               setTimeout(() => {
@@ -1889,11 +1949,29 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
 
   type handleOnScanClickFunction = () => void;
 
+  const isScanLimitReached = () => {
+    const maxPagesToScan = processPageParams.maxPagesToScan;
+    return (
+      typeof maxPagesToScan === 'number' &&
+      Number.isFinite(maxPagesToScan) &&
+      maxPagesToScan > 0 &&
+      processPageParams.urlsCrawled.scanned.length >= maxPagesToScan
+    );
+  };
+
   // Window functions exposed in browser
   const handleOnScanClick: handleOnScanClickFunction = async () => {
     consoleLogger.info('Scan: click detected');
     log('Scan: click detected');
     try {
+      if (isScanLimitReached()) {
+        log('Scan ignored because the page limit has been reached');
+        if (!page.isClosed()) {
+          await reconcileOverlayMenu('scan-limit');
+        }
+        return;
+      }
+
       pagesDict[pageId].isScanning = true;
       await removeOverlayMenu(page);
       await processPage(page, processPageParams);

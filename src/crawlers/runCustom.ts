@@ -32,6 +32,7 @@ export class ProcessPageParams {
   stopAll?: () => Promise<void>;
   entryUrl!: string;
   strategy: string;
+  maxPagesToScan?: number;
 
   constructor(
     scannedIdx: number,
@@ -73,6 +74,7 @@ const runCustom = async (
   initialCustomFlowLabel?: string,
   extraHTTPHeaders?: Record<string, string>,
   hooks?: RunCustomHooks,
+  maxPagesToScan?: number,
 ) => {
   // checks and delete datasets path if it already exists
   process.env.CRAWLEE_STORAGE_DIR = getStoragePath(randomToken);
@@ -91,6 +93,7 @@ const runCustom = async (
   );
 
   processPageParams.entryUrl = url;
+  processPageParams.maxPagesToScan = maxPagesToScan;
 
   if (initialCustomFlowLabel && initialCustomFlowLabel.trim()) {
     processPageParams.customFlowLabel = initialCustomFlowLabel.trim();

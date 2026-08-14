@@ -107,6 +107,7 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
     metadata = '{}', // Note: This is intentionally set {} as it is the default -q flag.
     cleanupArtifacts = true,
     waitForResultSubmission = true,
+    maxPagesToScan,
   } = config;
 
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
@@ -178,6 +179,7 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
             resolveReady();
           },
         },
+        maxPagesToScan,
       );
 
       scanDetails.endTime = new Date();

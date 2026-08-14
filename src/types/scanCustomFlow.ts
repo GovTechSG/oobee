@@ -55,6 +55,7 @@ export type ScanCustomFlowConfig = {
   randomToken?: string;
   cleanupArtifacts?: boolean;
   waitForResultSubmission?: boolean;
+  maxPagesToScan?: number;
   onReady?: () => void | Promise<void>;
 };
 
