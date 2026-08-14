@@ -1,4 +1,5 @@
 /* eslint-env browser */
+import { Configuration } from 'crawlee';
 import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler } from './commonCrawlerFunc.js';
 import { cleanUpAndExit, getStoragePath, register, registerSoftClose } from '../utils.js';
 import constants, {
@@ -76,8 +77,14 @@ const runCustom = async (
   hooks?: RunCustomHooks,
   maxPagesToScan?: number,
 ) => {
-  // checks and delete datasets path if it already exists
-  process.env.CRAWLEE_STORAGE_DIR = getStoragePath(randomToken);
+  // Crawlee keeps the storage client/manager on a process-global Configuration.
+  // Programmatic callers such as the VS Code extension run multiple scans in the
+  // same Node process, so force each scan to open its own result directory.
+  const storagePath = getStoragePath(randomToken);
+  const crawleeConfig = Configuration.getGlobalConfig();
+  process.env.CRAWLEE_STORAGE_DIR = storagePath;
+  crawleeConfig.set('storageClientOptions', { localDataDirectory: storagePath });
+  crawleeConfig.storageManagers.clear();
 
   const urlsCrawled = new UrlsCrawled();
   const { dataset } = await createCrawleeSubFolders(randomToken);
