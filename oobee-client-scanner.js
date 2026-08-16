@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY. Re-generate with: node dist/generateOobeeClientScanner.js
  *
  * Embedded at generation time:
- *   App version : 0.11.9
+ *   App version : 0.11.12
  *   Sentry DSN  : (from OOBEE_SENTRY_DSN env var or constants.ts default)
  *   Sentry SDK  : @sentry/browser 10.58.0 (loaded from CDN at runtime)
  *
@@ -34623,6 +34623,24 @@
 
       async function runA11yScan(elementsToScan = [], gradingReadabilityFlag = '') {
 
+        // Walk up N ancestors from a CSS selector's element and return that
+        // ancestor's outerHTML for LLM sibling-context. Returns undefined when
+        // the feature is disabled (depth <= 0), when the selector doesn't
+        // resolve, or when the walk lands on <html> / past root.
+        function computeParentHtml(selector, depth) {
+          if (!selector || !Number.isFinite(depth) || depth <= 0) return undefined;
+          var el;
+          try { el = document.querySelector(selector); } catch (_) { return undefined; }
+          if (!el) return undefined;
+          var ancestor = el;
+          for (var i = 0; i < depth; i++) {
+            var p = ancestor.parentElement;
+            if (!p || p.tagName === 'HTML') return undefined;
+            ancestor = p;
+          }
+          return ancestor.outerHTML;
+        }
+
         const oobeeAccessibleLabelFlaggedXpaths = (window).disableOobee
           ? []
           : (await (window).flagUnlabelledClickableElements()).map(item => item.xpath);
@@ -34674,12 +34692,30 @@
             }
           });
         }
-  
+
+        // Attach parentHtml to violations + incomplete nodes when the feature
+        // is enabled via window.parentHtmlDepth (from init()/env var). Skipped
+        // entirely when disabled — no DOM queries in the default path.
+        var parentHtmlDepthValue = (window).parentHtmlDepth;
+        if (Number.isFinite(parentHtmlDepthValue) && parentHtmlDepthValue > 0 && axeScanResults) {
+          ['violations', 'incomplete'].forEach(function(type) {
+            if (!axeScanResults[type]) return;
+            axeScanResults[type].forEach(function(rule) {
+              (rule.nodes || []).forEach(function(node) {
+                var sel = node.target && node.target[0];
+                if (typeof sel !== 'string') return;
+                var ph = computeParentHtml(sel, parentHtmlDepthValue);
+                if (ph) node.parentHtml = ph;
+              });
+            });
+          });
+        }
+
         // add custom Oobee violations
         if (!(window).disableOobee) {
           // handle css id selectors that start with a digit
           const escapedCssSelectors = oobeeAccessibleLabelFlaggedCssSelectors.map((window).escapeCssSelector);
-  
+
           // Add oobee violations to Axe's report
           const oobeeAccessibleLabelViolations = {
             id: 'oobee-accessible-label',
@@ -34689,27 +34725,34 @@
             help: 'Clickable elements (i.e. elements with mouse-click interaction) must have accessible labels.',
             helpUrl: 'https://www.deque.com/blog/accessible-aria-buttons',
             nodes: escapedCssSelectors
-              .map(cssSelector => ({
-                html: (window).findElementByCssSelector(cssSelector),
-                target: [cssSelector],
-                impact: 'serious',
-                failureSummary:
-                  'Fix any of the following:\n  The clickable element does not have an accessible label.',
-                any: [
-                  {
-                    id: 'oobee-accessible-label',
-                    data: null,
-                    relatedNodes: [],
-                    impact: 'serious',
-                    message: 'The clickable element does not have an accessible label.',
-                  },
-                ],
-                all: [],
-                none: [],
-              }))
+              .map(cssSelector => {
+                var node = {
+                  html: (window).findElementByCssSelector(cssSelector),
+                  target: [cssSelector],
+                  impact: 'serious',
+                  failureSummary:
+                    'Fix any of the following:\n  The clickable element does not have an accessible label.',
+                  any: [
+                    {
+                      id: 'oobee-accessible-label',
+                      data: null,
+                      relatedNodes: [],
+                      impact: 'serious',
+                      message: 'The clickable element does not have an accessible label.',
+                    },
+                  ],
+                  all: [],
+                  none: [],
+                };
+                if (Number.isFinite(parentHtmlDepthValue) && parentHtmlDepthValue > 0) {
+                  var ph = computeParentHtml(cssSelector, parentHtmlDepthValue);
+                  if (ph) node.parentHtml = ph;
+                }
+                return node;
+              })
               .filter(item => item.html),
           };
-  
+
           axeScanResults.violations = [...axeScanResults.violations, oobeeAccessibleLabelViolations];
         }
   
@@ -34721,6 +34764,7 @@
       }
       window.disableOobee=false;
       window.enableWcagAaa=false;
+      window.parentHtmlDepth=0;
       window.runA11yScan = runA11yScan;
     
 
@@ -34937,7 +34981,7 @@
   // ── Sentry browser telemetry (Sentry JS SDK, loaded from CDN) ────────────
   
   var _oobeeSentryDsn          = "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168";
-  var _oobeeAppVersion         = "0.11.9";
+  var _oobeeAppVersion         = "0.11.12";
   var _oobeeSentryVersion      = "10.58.0";
   var _oobeeSentryInitialized  = false;
   var _oobeeSentryLoadPromise  = null;
