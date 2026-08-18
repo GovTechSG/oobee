@@ -18,6 +18,7 @@ import {
   launchPersistentSafeContext,
 } from '../constants/common.js';
 import { BrowserTypes } from '../constants/constants.js';
+import type { CustomFlowOverlayScope } from '../types/scanCustomFlow.js';
 
 // Export of classes
 
@@ -34,6 +35,9 @@ export class ProcessPageParams {
   entryUrl!: string;
   strategy: string;
   maxPagesToScan?: number;
+  overlayScope?: CustomFlowOverlayScope;
+  useExtensionOverlayUi?: boolean;
+  extensionSessionOrigin?: string;
 
   constructor(
     scannedIdx: number,
@@ -76,6 +80,11 @@ const runCustom = async (
   extraHTTPHeaders?: Record<string, string>,
   hooks?: RunCustomHooks,
   maxPagesToScan?: number,
+  overlayOptions?: {
+    overlayScope?: CustomFlowOverlayScope;
+    useExtensionOverlayUi?: boolean;
+    extensionSessionOrigin?: string;
+  },
 ) => {
   // Crawlee keeps the storage client/manager on a process-global Configuration.
   // Programmatic callers such as the VS Code extension run multiple scans in the
@@ -101,6 +110,9 @@ const runCustom = async (
 
   processPageParams.entryUrl = url;
   processPageParams.maxPagesToScan = maxPagesToScan;
+  processPageParams.overlayScope = overlayOptions?.overlayScope;
+  processPageParams.useExtensionOverlayUi = overlayOptions?.useExtensionOverlayUi;
+  processPageParams.extensionSessionOrigin = overlayOptions?.extensionSessionOrigin;
 
   if (initialCustomFlowLabel && initialCustomFlowLabel.trim()) {
     processPageParams.customFlowLabel = initialCustomFlowLabel.trim();

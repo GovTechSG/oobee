@@ -3,6 +3,8 @@ import type { BrowserTypes, RuleFlags } from '../constants/constants.js';
 
 export type UnknownRecord = Record<string, unknown>;
 
+export type CustomFlowOverlayScope = 'all' | 'same-domain' | 'same-origin';
+
 export type ScanItemsPage = UnknownRecord & {
   items?: UnknownRecord[];
   url?: string;
@@ -56,6 +58,9 @@ export type ScanCustomFlowConfig = {
   cleanupArtifacts?: boolean;
   waitForResultSubmission?: boolean;
   maxPagesToScan?: number;
+  overlayScope?: CustomFlowOverlayScope;
+  useExtensionOverlayUi?: boolean;
+  extensionSessionOrigin?: string;
   onReady?: () => void | Promise<void>;
 };
 

@@ -119,6 +119,9 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
     cleanupArtifacts = true,
     waitForResultSubmission = true,
     maxPagesToScan,
+    overlayScope,
+    useExtensionOverlayUi,
+    extensionSessionOrigin,
   } = config;
 
   const [date, time] = new Date().toLocaleString('sv').replace(/[-:]/g, '').split(' ');
@@ -194,6 +197,11 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
           },
         },
         maxPagesToScan,
+        {
+          overlayScope,
+          useExtensionOverlayUi,
+          extensionSessionOrigin,
+        },
       );
 
       scanDetails.endTime = new Date();

@@ -8,6 +8,7 @@ import { capturePageData } from '../pageCapture.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../../logs.js';
 import { guiInfoStatusTypes, STATUS_CODE_METADATA } from '../../constants/constants.js';
 import { isSkippedUrl, validateCustomFlowLabel } from '../../constants/common.js';
+import type { CustomFlowOverlayScope } from '../../types/scanCustomFlow.js';
 
 declare global {
   interface Window {
@@ -22,8 +23,6 @@ declare global {
     updateMenuPos?: (pos: 'LEFT' | 'RIGHT') => void;
   }
 }
-
-type OverlayScope = 'all' | 'same-domain' | 'same-origin';
 
 const sameRegistrableDomain = (hostA: string, hostB: string) => {
   const domainA = getDomain(hostA);
@@ -42,19 +41,29 @@ const parseBoolEnv = (val: string | undefined, defaultVal: boolean) => {
   return defaultVal;
 };
 
-const parseOverlayScopeEnv = (val: string | undefined): OverlayScope | undefined => {
+const parseOverlayScope = (val: unknown): CustomFlowOverlayScope | undefined => {
   const v = String(val || '').trim().toLowerCase();
   return v === 'all' || v === 'same-domain' || v === 'same-origin' ? v : undefined;
 };
 
-const RESTRICT_OVERLAY_TO_ENTRY_DOMAIN = parseBoolEnv(
-  process.env.RESTRICT_OVERLAY_TO_ENTRY_DOMAIN,
-  false,
-);
-const OOBEE_OVERLAY_SCOPE: OverlayScope = parseOverlayScopeEnv(process.env.OOBEE_OVERLAY_SCOPE)
-  ?? (RESTRICT_OVERLAY_TO_ENTRY_DOMAIN ? 'same-domain' : 'all');
-const USE_EXTENSION_OVERLAY_UI = parseBoolEnv(process.env.DEV_SUITE_EXTENSION_OVERLAY_UI, false);
-const EXTENSION_SESSION_ORIGIN = process.env.OOBEE_EXTENSION_SESSION_ORIGIN || 'VS Code - Oobee Dev Suite extension';
+const getOverlayScope = (scope?: CustomFlowOverlayScope): CustomFlowOverlayScope => {
+  const restrictOverlayToEntryDomain = parseBoolEnv(
+    process.env.RESTRICT_OVERLAY_TO_ENTRY_DOMAIN,
+    false,
+  );
+
+  return parseOverlayScope(scope)
+    ?? parseOverlayScope(process.env.OOBEE_OVERLAY_SCOPE)
+    ?? (restrictOverlayToEntryDomain ? 'same-domain' : 'all');
+};
+
+const getUseExtensionOverlayUi = (useExtensionOverlayUi?: boolean): boolean =>
+  typeof useExtensionOverlayUi === 'boolean'
+    ? useExtensionOverlayUi
+    : parseBoolEnv(process.env.DEV_SUITE_EXTENSION_OVERLAY_UI, false);
+
+const getExtensionSessionOrigin = (extensionSessionOrigin?: string): string =>
+  extensionSessionOrigin || process.env.OOBEE_EXTENSION_SESSION_ORIGIN || 'VS Code - Oobee Dev Suite extension';
 const EXTENSION_WIDGET_FONT_FAMILY =
   '"Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
 const EXTENSION_VSCODE_ICON_SVG = String.raw`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -85,7 +94,11 @@ const raceWithTimeout = async <T>(promise: Promise<T>, ms: number, label: string
   }
 };
 
-const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
+const isOverlayAllowed = (
+  currentUrl: string,
+  entryUrl: string,
+  overlayScope: CustomFlowOverlayScope,
+) => {
   try {
     const cur = new URL(currentUrl);
 
@@ -93,8 +106,8 @@ const isOverlayAllowed = (currentUrl: string, entryUrl: string) => {
 
     const base = new URL(entryUrl);
 
-    if (OOBEE_OVERLAY_SCOPE === 'all') return true;
-    if (OOBEE_OVERLAY_SCOPE === 'same-origin') return cur.origin === base.origin;
+    if (overlayScope === 'all') return true;
+    if (overlayScope === 'same-origin') return cur.origin === base.origin;
 
     return sameRegistrableDomain(cur.hostname, base.hostname);
   } catch {
@@ -1833,8 +1846,8 @@ export const addOverlayMenu = async (
         urlsCrawled,
         opts: {
           ...opts,
-          extensionOverlayUi: USE_EXTENSION_OVERLAY_UI,
-          sessionOrigin: EXTENSION_SESSION_ORIGIN,
+          extensionOverlayUi: getUseExtensionOverlayUi(opts.extensionOverlayUi),
+          sessionOrigin: getExtensionSessionOrigin(opts.sessionOrigin),
           fontFamily: EXTENSION_WIDGET_FONT_FAMILY,
           vscodeIconSvg: EXTENSION_VSCODE_ICON_SVG,
         },
@@ -1948,13 +1961,14 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
         // Re-check staleness after waiting because a newer navigation may have happened meanwhile.
         if (refreshSeq !== overlayRefreshSeq || page.isClosed()) return;
 
-        const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl);
+        const overlayScope = getOverlayScope(processPageParams.overlayScope);
+        const allowed = isOverlayAllowed(page.url(), processPageParams.entryUrl, overlayScope);
 
         if (!allowed) {
           // Restrictive overlay scopes intentionally hide the overlay once users
           // leave the configured URL boundary, while the default CLI keeps the
           // historical desktop fallback below.
-          if (OOBEE_OVERLAY_SCOPE !== 'all') {
+          if (overlayScope !== 'all') {
             await raceWithTimeout(
               removeOverlayMenu(page),
               OVERLAY_OPERATION_TIMEOUT_MS,
@@ -2000,6 +2014,8 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
               hideStopInput: !!processPageParams.customFlowLabel,
               entryUrl: processPageParams.entryUrl,
               maxPagesToScan: processPageParams.maxPagesToScan,
+              extensionOverlayUi: processPageParams.useExtensionOverlayUi,
+              sessionOrigin: processPageParams.extensionSessionOrigin,
             }),
             OVERLAY_OPERATION_TIMEOUT_MS,
             'addOverlayMenu',
@@ -2064,7 +2080,7 @@ export const initNewPage = async (page, pageClosePromises, processPageParams, pa
   };
 
   const showFinalisingBeforeClose = async () => {
-    if (!USE_EXTENSION_OVERLAY_UI) return;
+    if (!getUseExtensionOverlayUi(processPageParams.useExtensionOverlayUi)) return;
     await page.evaluate(() => {
       const win = window as Window;
       win.oobeeShowFinalising?.();
