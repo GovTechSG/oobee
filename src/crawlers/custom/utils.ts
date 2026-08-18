@@ -674,7 +674,7 @@ export const addOverlayMenu = async (
           const topbarScanBtn = makeTopbarButton(
             'oobeeTopbarBtnScan',
             topbarScanIconSvg,
-            'Scan Page',
+            'Scan Page (Ctrl/Cmd+Shift+X)',
             () => { void customWindow.handleOnScanClick?.(); },
             btn => {
               btn.disabled = inProgress || isScanLimitReached;
