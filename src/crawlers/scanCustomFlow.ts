@@ -119,6 +119,7 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
     cleanupArtifacts = true,
     waitForResultSubmission = true,
     maxPagesToScan,
+    scanSource,
     overlayScope,
     useExtensionOverlayUi,
     extensionSessionOrigin,
@@ -148,6 +149,7 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
     isSlowScanMode: 1, // Note: Considering refactor this because for applicable for normal scan with concurrent scan only.
     isAdhereRobots: followRobots,
     nameEmail: { name, email },
+    scanSource,
   };
   const viewportSettings: ViewportSettingsClass = {
     deviceChosen,

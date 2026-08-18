@@ -804,6 +804,7 @@ const generateArtifacts = async (
     isSlowScanMode: number;
     isAdhereRobots: boolean;
     nameEmail?: { name: string; email: string };
+    scanSource?: string;
   },
   zip: string = undefined, // optional
   generateJsonFiles = false,
@@ -1144,6 +1145,7 @@ const generateArtifacts = async (
         browser: scanDetails.deviceChosen,
         email: scanDetails.nameEmail?.email,
         name: scanDetails.nameEmail?.name,
+        scanSource: scanDetails.scanSource,
       },
       allIssues,
       pagesScanned.length,

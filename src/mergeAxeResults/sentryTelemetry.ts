@@ -26,6 +26,7 @@ const sendWcagBreakdownToSentry = async (
     browser: string;
     email?: string;
     name?: string;
+    scanSource?: string;
   },
   allIssues?: AllIssues,
   pagesScannedCount: number = 0,
@@ -45,6 +46,7 @@ const sendWcagBreakdownToSentry = async (
 
     // Tag app version
     tags.version = appVersion;
+    const scanProduct = scanInfo.scanSource?.trim() || process.env.OOBEE_SCAN_PRODUCT;
 
     // Get dynamic WCAG criteria map once
     const wcagCriteriaMap = await getWcagCriteriaMap();
@@ -141,8 +143,8 @@ const sendWcagBreakdownToSentry = async (
         scanType: scanInfo.scanType,
         browser: scanInfo.browser,
         entryUrl: process.env.OOBEE_SCAN_METADATA ?? scanInfo.entryUrl,
-        ...(process.env.OOBEE_SCAN_PRODUCT && {
-          scanProduct: process.env.OOBEE_SCAN_PRODUCT,
+        ...(scanProduct && {
+          scanProduct,
         }),
         ...(process.env.OOBEE_TAGGED_WEBSITE && {
           websiteTag: process.env.OOBEE_TAGGED_WEBSITE,

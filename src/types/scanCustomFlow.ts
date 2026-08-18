@@ -58,6 +58,7 @@ export type ScanCustomFlowConfig = {
   cleanupArtifacts?: boolean;
   waitForResultSubmission?: boolean;
   maxPagesToScan?: number;
+  scanSource?: string;
   overlayScope?: CustomFlowOverlayScope;
   useExtensionOverlayUi?: boolean;
   extensionSessionOrigin?: string;

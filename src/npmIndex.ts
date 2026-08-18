@@ -674,6 +674,7 @@ const processAndSubmitResults = async (
   name: string,
   email: string,
   metadata: string,
+  scanSource?: string,
 ) => {
   const items = Array.isArray(scanData) ? scanData : [scanData];
   const numberOfPagesScanned = items.length;
@@ -798,6 +799,7 @@ const processAndSubmitResults = async (
       browser: 'chromium', // Defaulting since we might scan HTML without browser or implicit browser
       email: email,
       name: name,
+      scanSource,
     },
     undefined,
     numberOfPagesScanned,
@@ -853,6 +855,7 @@ export const scanHTML = async (
     pageTitle?: string; // If array, we will append index
     metadata?: string;
     ruleset?: RuleFlags[];
+    scanSource?: string;
   },
 ) => {
   const {
@@ -862,6 +865,7 @@ export const scanHTML = async (
     pageTitle = 'HTML Content',
     metadata = '',
     ruleset = [RuleFlags.DEFAULT],
+    scanSource,
   } = config;
 
   const enableWcagAaa = ruleset.includes(RuleFlags.ENABLE_WCAG_AAA);
@@ -898,7 +902,7 @@ export const scanHTML = async (
     });
   }
 
-  return processAndSubmitResults(scanData, name, email, metadata);
+  return processAndSubmitResults(scanData, name, email, metadata, scanSource);
 };
 
 export const scanPage = async (
@@ -909,6 +913,7 @@ export const scanPage = async (
     pageTitle?: string;
     metadata?: string;
     ruleset?: RuleFlags[];
+    scanSource?: string;
   },
 ) => {
   const {
@@ -917,6 +922,7 @@ export const scanPage = async (
     pageTitle,
     metadata = '',
     ruleset = [RuleFlags.DEFAULT],
+    scanSource,
   } = config;
 
   const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);
@@ -967,6 +973,7 @@ export const scanPage = async (
     name,
     email,
     metadata,
+    scanSource,
   );
 };
 
