@@ -730,6 +730,11 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     // Set is as local file scan if not already so
     isLocalFileScan = true;
 
+    // path.resolve treats "file:///abs/path" as relative (no leading "/") and joins
+    // it with cwd, producing "<cwd>/file:/abs/path". Strip the file:// wrapper
+    // first so we resolve a real path.
+    url = convertLocalFileToPath(url);
+
     // Convert to absolute path
     url = path.resolve(url);
 
