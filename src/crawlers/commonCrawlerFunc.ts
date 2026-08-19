@@ -1233,14 +1233,24 @@ export const runAxeScript = async ({
             };
 
             // ---- target-size --------------------------------------------
-            // SPA frameworks (notably Salesforce Lightning) can resize an
-            // interactive element after axe measured boundingClientRect.
+            // SPA frameworks (notably Salesforce Lightning) and Tailwind
+            // wrapper-collapse patterns (inline-flex <a> around a styled
+            // <div>) can leave an interactive element at its collapsed size
+            // when axe measures, then stretch it after hydration settles.
             // Drop the finding if the element now meets the rule's minSize.
-            // Scoped to the "element too small" cases (no messageKey, or
-            // contentOverflow — which only fires when the element itself
-            // is too small); partially-obscured findings depend on
-            // neighbor geometry and are left alone.
+            // Scoped to size-driven failures — no messageKey (element too
+            // small), contentOverflow (own rects too small),
+            // notCloseEnoughToEdge (small + spacing exception failed; if the
+            // element itself now passes ≥ minSize the spacing exception is
+            // moot), and tooManyRects (measurement bail-out). Partially
+            // obscured findings depend on neighbor overlap that can't be
+            // verified from getBoundingClientRect and are left alone.
             const DEFAULT_TARGET_MIN_SIZE = 24;
+            const TARGET_SIZE_RECHECK_KEYS = new Set([
+              'contentOverflow',
+              'notCloseEnoughToEdge',
+              'tooManyRects',
+            ]);
             pruneViolation('target-size', node => {
               const sel = getSelector(node);
               if (!sel) return true;
@@ -1249,7 +1259,7 @@ export const runAxeScript = async ({
                 'target-size',
               );
               if (!data) return true;
-              if (data.messageKey && data.messageKey !== 'contentOverflow') return true;
+              if (data.messageKey && !TARGET_SIZE_RECHECK_KEYS.has(data.messageKey)) return true;
               const minSize =
                 typeof data.minSize === 'number' ? data.minSize : DEFAULT_TARGET_MIN_SIZE;
               const el = resolveElement(sel);
