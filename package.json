@@ -91,7 +91,8 @@
     "glob": "^13.0.6",
     "flatted": "^3.4.1",
     "file-type": "^21.3.3",
-    "adm-zip": ">=0.6.0"
+    "adm-zip": ">=0.6.0",
+    "nanoid": "^3.3.18"
   },
   "optionalDependencies": {
     "@napi-rs/canvas-darwin-arm64": "^0.1.53",
