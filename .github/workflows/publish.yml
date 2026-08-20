@@ -26,6 +26,11 @@ jobs:
           node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Upgrade npm (trusted publishing needs >= 11.5.1)
+        run: |
+          npm install -g npm@latest
+          npm --version
+
       - run: npm ci
         continue-on-error: false
 
@@ -46,4 +51,4 @@ jobs:
           git tag -af "latest" -m "Latest release ${VERSION}"
           git push origin "latest" --force
 
-      - run: npm publish --access public --provenance
+      - run: npm publish --access public --provenance --loglevel=verbose
