@@ -1,13 +1,30 @@
-name: Publish Package to npmjs
+name: npm publish / unpublish / deprecate
 on:
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: 'Git ref to publish — a tag (e.g. 0.11.4), branch (e.g. feat/foo), or commit SHA. The commit at this ref will be built and published; its package.json version is what lands on npm.'
+      action:
+        description: 'Which npm operation to run.'
         required: true
+        type: choice
+        options:
+          - publish
+          - unpublish
+          - deprecate
+        default: publish
+      release_tag:
+        description: '[publish] Git ref to publish — tag (e.g. 0.11.4), branch, or commit SHA. The commit at this ref is built and published; its package.json version lands on npm.'
+        required: false
+        type: string
+      version:
+        description: '[unpublish/deprecate] npm version to target (e.g. 0.11.13).'
+        required: false
+        type: string
+      deprecation_message:
+        description: '[deprecate] Message shown to installers of this version. Leave blank to un-deprecate a previously deprecated version.'
+        required: false
         type: string
       skip_git_tag:
-        description: 'Skip creating and force-pushing the {version} and "latest" git tags after publish. Use when publishing from a branch or pre-release where moving tags is not desired.'
+        description: '[publish] Skip creating and force-pushing the {version} and "latest" git tags after publish.'
         required: false
         type: boolean
         default: false
@@ -15,7 +32,8 @@ permissions:
   contents: write
   id-token: write
 jobs:
-  build:
+  publish:
+    if: ${{ inputs.action == 'publish' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -52,3 +70,56 @@ jobs:
           git push origin "latest" --force
 
       - run: npm publish --access public --provenance
+
+  unpublish:
+    if: ${{ inputs.action == 'unpublish' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -z "${VERSION}" ]; then
+            echo "::error::'version' input is required for the unpublish action"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm install -g npm@latest
+
+      - name: Unpublish @govtechsg/oobee@${{ inputs.version }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: npm unpublish "@govtechsg/oobee@${VERSION}"
+
+  deprecate:
+    if: ${{ inputs.action == 'deprecate' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -z "${VERSION}" ]; then
+            echo "::error::'version' input is required for the deprecate action"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm install -g npm@latest
+
+      - name: Deprecate @govtechsg/oobee@${{ inputs.version }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          MESSAGE: ${{ inputs.deprecation_message }}
+        run: npm deprecate "@govtechsg/oobee@${VERSION}" "${MESSAGE}"
