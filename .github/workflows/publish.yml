@@ -31,7 +31,7 @@ jobs:
           npm install -g npm@latest
           npm --version
 
-      - run: npm ci
+      - run: npm ci --allow-git=root
         continue-on-error: false
 
       - run: npm run build
