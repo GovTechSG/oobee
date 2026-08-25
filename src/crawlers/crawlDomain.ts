@@ -1005,13 +1005,23 @@ const crawlDomain = async ({
     }
   }, 30_000);
 
+  // Publish the crawler to the shutdown controller so a SIGTERM/SIGINT that
+  // arrives during crawler.run() can abort the autoscaledPool. Without this,
+  // the container's SIGKILL lands mid-write and produces a corrupted results.zip.
   registerCrawler(crawler);
   try {
     await crawler.run();
   } finally {
+    // Always unregister and clear the idle watchdog, even if crawler.run()
+    // threw — otherwise the click-pass loop below could inherit a stale
+    // reference or the interval could keep firing after the crawler exited.
     unregisterCrawler(crawler);
     clearInterval(idleCheckInterval);
   }
+  // If we got here because of SIGTERM/SIGINT (not a natural finish), route
+  // into the same partial-report finalization path that idle-abort and
+  // duration-cap use. The `!isAbortingScanNow` guard on the click-pass loop
+  // below then skips the extra passes.
   if (isShutdownRequested()) {
     isAbortingScanNow = true;
   }
@@ -1078,6 +1088,9 @@ const crawlDomain = async ({
           crawler.autoscaledPool?.abort();
         }
       }, 30_000);
+      // Same register/unregister pattern as the initial run — each click-pass
+      // iteration reuses the crawler instance and re-publishes it so a signal
+      // during this pass can still abort the pool cleanly.
       registerCrawler(crawler);
       try {
         await crawler.run();
@@ -1085,6 +1098,10 @@ const crawlDomain = async ({
         unregisterCrawler(crawler);
         clearInterval(clickPassIdleCheck);
       }
+      // Break out of the do/while explicitly on shutdown. Without the break,
+      // the loop condition (`urlsCrawled.scanned.length > prevScannedCount`)
+      // might still be true after a signal-triggered abort, and we'd start
+      // another pass instead of proceeding to finalization.
       if (isShutdownRequested()) {
         isAbortingScanNow = true;
         break;

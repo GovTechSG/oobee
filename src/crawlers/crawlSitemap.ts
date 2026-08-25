@@ -743,13 +743,22 @@ const crawlSitemap = async ({
     }
   }, 30_000);
 
+  // Publish the crawler to the shutdown controller so a SIGTERM/SIGINT that
+  // arrives during crawler.run() can abort the autoscaledPool. Without this,
+  // the container's SIGKILL lands mid-write and produces a corrupted results.zip.
   registerCrawler(crawler);
   try {
     await crawler.run();
   } finally {
+    // Always unregister and clear the idle watchdog, even if crawler.run()
+    // threw — otherwise a later phase could inherit a stale reference or the
+    // interval could keep firing after the crawler has exited.
     unregisterCrawler(crawler);
     clearInterval(idleCheckInterval);
   }
+  // If we got here because of SIGTERM/SIGINT (not a natural finish), route
+  // into the same partial-report finalization path that idle-abort and
+  // duration-cap use. Downstream code branches on isAbortingScan.
   if (isShutdownRequested()) {
     isAbortingScan = true;
   }

@@ -174,12 +174,20 @@ const combineRun = async (details: Data, deviceToScan: string) => {
 
   // Hard cap via OOBEE_MAX_SCAN_MINUTES (env). If set, clamp scanDuration so
   // hostile sites cannot keep the crawler alive past this wall-clock ceiling.
-  // Uses seconds internally to match the existing scanDuration contract.
+  // Uses seconds internally to match the existing scanDuration contract
+  // (scanDuration === 0 means "no limit", any positive value is seconds).
   const envMaxScanMinutes = Number(process.env.OOBEE_MAX_SCAN_MINUTES);
+  // Convert env var to seconds, but only if it parses to a positive finite
+  // number. Anything else (NaN, 0, negative, "off") means "no env cap" and we
+  // fall back to whatever the caller passed in.
   const envMaxScanSeconds =
     Number.isFinite(envMaxScanMinutes) && envMaxScanMinutes > 0 ? envMaxScanMinutes * 60 : 0;
+  // Start with the caller's scanDuration (or 0 if unset). Everything below
+  // only tightens this — the env cap can shorten a run but never lengthen it.
   let effectiveScanDuration = scanDuration || 0;
   if (envMaxScanSeconds > 0) {
+    // Two cases: caller provided a duration (take the tighter of the two) or
+    // caller passed 0/unset (env cap becomes the ceiling).
     effectiveScanDuration =
       effectiveScanDuration > 0
         ? Math.min(effectiveScanDuration, envMaxScanSeconds)
