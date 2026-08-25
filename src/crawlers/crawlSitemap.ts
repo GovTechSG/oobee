@@ -39,6 +39,7 @@ import {
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { capturePageData } from './pageCapture.js';
+import { registerCrawler, unregisterCrawler, isShutdownRequested } from '../shutdownController.js';
 
 const crawlSitemap = async ({
   sitemapUrl,
@@ -655,10 +656,7 @@ const crawlSitemap = async ({
         }
 
         const timeSinceLastSuccess = Date.now() - lastSuccessTime;
-        if (
-          urlsCrawled.scanned.length > 0 &&
-          timeSinceLastSuccess > maxIdleMs
-        ) {
+        if (timeSinceLastSuccess > maxIdleMs) {
           consoleLogger.info(
             `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
           );
@@ -730,9 +728,13 @@ const crawlSitemap = async ({
     }),
   );
 
+  // Reset the idle timer right before crawler.run() so that sitemap-discovery
+  // time (URL sitemaps can take minutes to walk a big sitemap index) doesn't
+  // count against the idle window.
+  lastSuccessTime = Date.now();
   const idleCheckInterval = setInterval(() => {
     const timeSinceLastSuccess = Date.now() - lastSuccessTime;
-    if (urlsCrawled.scanned.length > 0 && timeSinceLastSuccess > maxIdleMs) {
+    if (timeSinceLastSuccess > maxIdleMs) {
       consoleLogger.info(
         `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
       );
@@ -741,8 +743,25 @@ const crawlSitemap = async ({
     }
   }, 30_000);
 
-  await crawler.run();
-  clearInterval(idleCheckInterval);
+  // Publish the crawler to the shutdown controller so a SIGTERM/SIGINT that
+  // arrives during crawler.run() can abort the autoscaledPool. Without this,
+  // the container's SIGKILL lands mid-write and produces a corrupted results.zip.
+  registerCrawler(crawler);
+  try {
+    await crawler.run();
+  } finally {
+    // Always unregister and clear the idle watchdog, even if crawler.run()
+    // threw — otherwise a later phase could inherit a stale reference or the
+    // interval could keep firing after the crawler has exited.
+    unregisterCrawler(crawler);
+    clearInterval(idleCheckInterval);
+  }
+  // If we got here because of SIGTERM/SIGINT (not a natural finish), route
+  // into the same partial-report finalization path that idle-abort and
+  // duration-cap use. Downstream code branches on isAbortingScan.
+  if (isShutdownRequested()) {
+    isAbortingScan = true;
+  }
 
   await requestList.isFinished();
 
