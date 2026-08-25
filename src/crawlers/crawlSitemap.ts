@@ -390,6 +390,26 @@ const crawlSitemap = async ({
             return;
           }
 
+          // Transient 5xx from load balancers / origin overload often resolves
+          // on a second attempt. Re-enqueue once (mirrors the 403 pattern) so
+          // a single flaky response doesn't drop the URL as "invalid". We do
+          // NOT call rateController.onFailure here — 5xx isn't a rate-limit
+          // signal, and halving concurrency for a transient upstream error
+          // would hurt throughput on the rest of the crawl.
+          const isTransient5xx =
+            status === 500 || status === 502 || status === 503 || status === 504;
+          if (isTransient5xx && !request.userData?.serverErrorRetried) {
+            try {
+              await requestQueue.addRequest({
+                url: request.url,
+                label: request.url,
+                uniqueKey: `5xx_${request.url}`,
+                userData: { serverErrorRetried: true },
+              });
+            } catch {}
+            return;
+          }
+
           if (isScanHtml && status < 300 && isWhitelistedContentType(contentType)) {
             const isRedirected = !areLinksEqual(page.url(), request.url);
             const isLoadedUrlInCrawledUrls = urlsCrawled.scanned.some(
