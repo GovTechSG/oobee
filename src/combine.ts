@@ -19,6 +19,7 @@ import {
   uploadFolderToS3,
 } from './services/s3Uploader.js';
 import { writeManifest, resetCaptureEntries, isPageCaptureEnabled } from './crawlers/pageCapture.js';
+import { initShutdownHandler } from './shutdownController.js';
 
 // Class exports
 export class ViewportSettingsClass {
@@ -115,6 +116,11 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   };
   process.on('uncaughtException', psTreeHandler);
 
+  // Install SIGTERM/SIGINT handler so container timeouts (GitHub Actions job
+  // timeout, `docker stop`) abort the crawler cleanly and let finalization
+  // (writeManifest → generateArtifacts → S3 upload) run before SIGKILL.
+  initShutdownHandler();
+
   const host = type === ScannerTypes.SITEMAP || type === ScannerTypes.LOCALFILE ? '' : getHost(url);
 
   let blacklistedPatterns: string[] | null = null;
@@ -166,6 +172,23 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   let uiCustomFlowLabel: string | undefined;
   let durationExceeded = false;
 
+  // Hard cap via OOBEE_MAX_SCAN_MINUTES (env). If set, clamp scanDuration so
+  // hostile sites cannot keep the crawler alive past this wall-clock ceiling.
+  // Uses seconds internally to match the existing scanDuration contract.
+  const envMaxScanMinutes = Number(process.env.OOBEE_MAX_SCAN_MINUTES);
+  const envMaxScanSeconds =
+    Number.isFinite(envMaxScanMinutes) && envMaxScanMinutes > 0 ? envMaxScanMinutes * 60 : 0;
+  let effectiveScanDuration = scanDuration || 0;
+  if (envMaxScanSeconds > 0) {
+    effectiveScanDuration =
+      effectiveScanDuration > 0
+        ? Math.min(effectiveScanDuration, envMaxScanSeconds)
+        : envMaxScanSeconds;
+    consoleLogger.info(
+      `OOBEE_MAX_SCAN_MINUTES=${envMaxScanMinutes} → effective scan duration ${effectiveScanDuration}s (user-provided: ${scanDuration || 0}s).`,
+    );
+  }
+
   switch (type) {
     case ScannerTypes.CUSTOM:
       const res = await runCustom(
@@ -200,7 +223,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         extraHTTPHeaders,
         strategy,
         userUrl: url,
-        scanDuration,
+        scanDuration: effectiveScanDuration,
         ruleset,
       });
       urlsCrawledObj = sitemapResult.urlsCrawled;
@@ -221,7 +244,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         blacklistedPatterns,
         includeScreenshots,
         extraHTTPHeaders,
-        scanDuration,
+        scanDuration: effectiveScanDuration,
         ruleset,
       });
       if (localFileResult) {
@@ -251,7 +274,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         followRobots,
         extraHTTPHeaders,
         safeMode,
-        scanDuration,
+        effectiveScanDuration,
         ruleset,
       );
       urlsCrawledObj = intelligentResult.urlsCrawled;
@@ -274,7 +297,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         includeScreenshots,
         followRobots,
         extraHTTPHeaders,
-        scanDuration,
+        scanDuration: effectiveScanDuration,
         safeMode,
         ruleset,
       });

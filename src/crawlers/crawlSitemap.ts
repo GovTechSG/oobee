@@ -39,6 +39,7 @@ import {
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { capturePageData } from './pageCapture.js';
+import { registerCrawler, unregisterCrawler, isShutdownRequested } from '../shutdownController.js';
 
 const crawlSitemap = async ({
   sitemapUrl,
@@ -655,10 +656,7 @@ const crawlSitemap = async ({
         }
 
         const timeSinceLastSuccess = Date.now() - lastSuccessTime;
-        if (
-          urlsCrawled.scanned.length > 0 &&
-          timeSinceLastSuccess > maxIdleMs
-        ) {
+        if (timeSinceLastSuccess > maxIdleMs) {
           consoleLogger.info(
             `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
           );
@@ -730,9 +728,13 @@ const crawlSitemap = async ({
     }),
   );
 
+  // Reset the idle timer right before crawler.run() so that sitemap-discovery
+  // time (URL sitemaps can take minutes to walk a big sitemap index) doesn't
+  // count against the idle window.
+  lastSuccessTime = Date.now();
   const idleCheckInterval = setInterval(() => {
     const timeSinceLastSuccess = Date.now() - lastSuccessTime;
-    if (urlsCrawled.scanned.length > 0 && timeSinceLastSuccess > maxIdleMs) {
+    if (timeSinceLastSuccess > maxIdleMs) {
       consoleLogger.info(
         `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
       );
@@ -741,8 +743,16 @@ const crawlSitemap = async ({
     }
   }, 30_000);
 
-  await crawler.run();
-  clearInterval(idleCheckInterval);
+  registerCrawler(crawler);
+  try {
+    await crawler.run();
+  } finally {
+    unregisterCrawler(crawler);
+    clearInterval(idleCheckInterval);
+  }
+  if (isShutdownRequested()) {
+    isAbortingScan = true;
+  }
 
   await requestList.isFinished();
 
