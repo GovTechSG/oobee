@@ -63,6 +63,7 @@ export type ScanCustomFlowConfig = {
   useExtensionOverlayUi?: boolean;
   extensionSessionOrigin?: string;
   onReady?: () => void | Promise<void>;
+  onFinalizing?: () => void | Promise<void>;
 };
 
 export type ScanCustomFlowResult = {

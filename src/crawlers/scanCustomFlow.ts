@@ -206,6 +206,12 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
         },
       );
 
+      try {
+        await config.onFinalizing?.();
+      } catch (error) {
+        consoleLogger.warn('[scanCustomFlow] Failed to run onFinalizing callback.', error);
+      }
+
       scanDetails.endTime = new Date();
       scanDetails.urlsCrawled = customResult.urlsCrawled;
 
