@@ -2,10 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { EnqueueStrategy } from 'crawlee';
 
-import constants, { BrowserTypes, RuleFlags, ScannerTypes, UrlsCrawled } from '../constants/constants.js';
+import constants, { BrowserTypes, FileTypes, RuleFlags, ScannerTypes, UrlsCrawled } from '../constants/constants.js';
 import generateArtifacts from '../mergeAxeResults.js';
 import { createAndUpdateResultsFolders, getStoragePath } from '../utils.js';
-import { submitForm } from '../constants/common.js';
+import { checkUrl, submitForm } from '../constants/common.js';
 import runCustom from './runCustom.js';
 import { consoleLogger } from '../logs.js';
 
@@ -178,6 +178,12 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
       process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
       constants.sitemapFetchedLinks = null;
       constants.exportDirectory = undefined; // Note: Reset global storage path so long-lived consumers start each scan in a fresh results folder. This is used when cleanupArtifacts is set to false.
+      await validateCustomFlowEntryUrl({
+        url,
+        browser,
+        extraHTTPHeaders,
+        playwrightDeviceDetailsObject,
+      });
 
       const customResult = await runCustom(
         url,
@@ -308,4 +314,38 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
       await focusCustomFlow();
     },
   };
+};
+
+const validateCustomFlowEntryUrl = async (options: {
+  url: string;
+  browser: BrowserTypes;
+  extraHTTPHeaders?: Record<string, string>;
+  playwrightDeviceDetailsObject?: UnknownRecord;
+}): Promise<void> => {
+  const previousHeadless = process.env.CRAWLEE_HEADLESS;
+  process.env.CRAWLEE_HEADLESS = '1';
+
+  try {
+    const res = await checkUrl(
+      ScannerTypes.CUSTOM,
+      options.url,
+      options.browser,
+      '',
+      options.playwrightDeviceDetailsObject as any,
+      options.extraHTTPHeaders ?? {},
+      FileTypes.HtmlOnly,
+    );
+
+    if (res.status !== constants.urlCheckStatuses.success.code) {
+      const status = Object.values(constants.urlCheckStatuses)
+        .find((candidate: any) => candidate.code === res.status) as { message?: string } | undefined;
+      throw new Error(status?.message || 'URL does not exist. Please check the URL and try again later.');
+    }
+  } finally {
+    if (typeof previousHeadless === 'string') {
+      process.env.CRAWLEE_HEADLESS = previousHeadless;
+    } else {
+      delete process.env.CRAWLEE_HEADLESS;
+    }
+  }
 };
