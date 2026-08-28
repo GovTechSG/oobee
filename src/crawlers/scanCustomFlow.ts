@@ -2,10 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { EnqueueStrategy } from 'crawlee';
 
-import constants, { BrowserTypes, FileTypes, RuleFlags, ScannerTypes, UrlsCrawled } from '../constants/constants.js';
+import constants, { BrowserTypes, RuleFlags, ScannerTypes, UrlsCrawled } from '../constants/constants.js';
 import generateArtifacts from '../mergeAxeResults.js';
 import { createAndUpdateResultsFolders, getStoragePath } from '../utils.js';
-import { checkUrl, submitForm } from '../constants/common.js';
+import { checkUrlConnectivityWithBrowser, submitForm } from '../constants/common.js';
 import runCustom from './runCustom.js';
 import { consoleLogger } from '../logs.js';
 
@@ -326,14 +326,12 @@ const validateCustomFlowEntryUrl = async (options: {
   process.env.CRAWLEE_HEADLESS = '1';
 
   try {
-    const res = await checkUrl(
-      ScannerTypes.CUSTOM,
+    const res = await checkUrlConnectivityWithBrowser(
       options.url,
       options.browser,
       '',
       options.playwrightDeviceDetailsObject as any,
       options.extraHTTPHeaders ?? {},
-      FileTypes.HtmlOnly,
     );
 
     if (res.status !== constants.urlCheckStatuses.success.code) {

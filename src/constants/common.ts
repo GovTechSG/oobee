@@ -308,7 +308,7 @@ const isAllowedContentType = (ct: string): boolean => {
   );
 };
 
-const checkUrlConnectivityWithBrowser = async (
+export const checkUrlConnectivityWithBrowser = async (
   url: string,
   browserToRun: string,
   clonedDataDir: string,
