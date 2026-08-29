@@ -3,8 +3,11 @@
 FROM mcr.microsoft.com/playwright:v1.61.1-noble
 
 
-# Installation of packages for oobee
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Installation of packages for oobee.
+# Also upgrade all pre-installed packages from the Playwright base image to pick
+# up security fixes available in the Ubuntu archive (remediates the bulk of
+# category-A CVEs surfaced by Trivy).
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     git \
     unzip \
     zip \
@@ -33,11 +36,41 @@ RUN ARCH="$(dpkg --print-architecture)"; \
       echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $ARCH)"; \
     fi
 
+# =============================================================================
+# Purge unused media / codec stacks pulled in by the Playwright base image.
+# Oobee scans with Chrome (bundled codecs) and does not use Playwright's video
+# recorder or ffmpeg pipeline, so these libraries are dead weight and account
+# for roughly half of the CVEs surfaced by Trivy (incl. the sole HIGH from
+# gstreamer-plugins-bad, CVE-2025-3887). "|| true" so a missing package on a
+# future base image bump doesn't fail the build.
+# =============================================================================
+RUN apt-get update && \
+    apt-get purge -y --auto-remove \
+      'libavcodec*' 'libavformat*' 'libavfilter*' 'libavutil*' \
+      'libswresample*' 'libswscale*' 'libpostproc*' \
+      'libgstreamer-plugins-bad*' 'gstreamer1.0-plugins-bad*' \
+      'libde265-0' 'libopenexr*' 'libwavpack*' \
+      'libx264-*' 'libvo-amrwbenc*' 'libopenh264-*' \
+      'libzvbi0*' 'libsndfile1' \
+      'libsoup-3.0-*' 'libduktape*' \
+      || true; \
+    rm -rf /var/lib/apt/lists/*
+
+# Update system npm to the latest release. The bundled npm under
+# /usr/lib/node_modules/npm ships older copies of tar, undici, brace-expansion,
+# and sigstore that Trivy flags; upgrading npm replaces all of them in one shot.
+RUN npm install -g npm@latest && npm cache clean --force
+
 # --- App code (changes here don't invalidate Chrome layers above) ---
 
 # Environment variables for node and Playwright
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="true"
+# npm >=12 changed the default of `allow-git` from "all" to "none" as a
+# hardening. Oobee has one legitimate git dep (pdfjs-dist -> veraPDF fork), so
+# opt back in with "root" — only git deps declared in this project's own
+# package.json are permitted; transitive git deps remain blocked.
+ENV NPM_CONFIG_ALLOW_GIT=root
 
 # Add non-privileged user before app copy so ownership can be set during COPY.
 # Also pre-create the Safe Browsing profile directory owned by `purple` so the
@@ -55,6 +88,14 @@ USER purple
 # Install dependencies first (cached unless package.json/package-lock.json change)
 COPY --chown=purple:purple package.json package-lock.json ./
 RUN npm install --omit=dev
+
+# git is only needed at build time to resolve the pdfjs-dist git dependency
+# above. Removing it after `npm install` drops CVE-2024-52005 (sideband payload)
+# without affecting runtime — oobee does not shell out to git.
+USER root
+RUN apt-get purge -y --auto-remove git git-man || true; \
+    rm -rf /var/lib/apt/lists/*
+USER purple
 
 # Install Playwright browsers no longer needed since we are using Google Chrome for Safe Browsing
 # RUN npx playwright install chromium
