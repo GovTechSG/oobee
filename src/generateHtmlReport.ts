@@ -26,6 +26,7 @@ import constants, {
 } from './constants/constants.js';
 
 import { consoleLogger } from './logs.js';
+import { formatInspectPresetScanDate } from './inspectPresetScan.js';
 
 type EnsureCategoryReturn = {
   description: string;
@@ -158,6 +159,8 @@ export const generateHtmlReport = async (
 
     const pagesScanned = Array.isArray(scanData.pagesScanned) ? scanData.pagesScanned : [];
     const pagesNotScanned = Array.isArray(scanData.pagesNotScanned) ? scanData.pagesNotScanned : [];
+    const startTime = scanData.startTime ? new Date(scanData.startTime) : new Date();
+    const endTime = scanData.endTime ? new Date(scanData.endTime) : new Date();
 
     const allIssues: any = {
       storagePath,
@@ -166,8 +169,8 @@ export const generateHtmlReport = async (
         .toString()
         .replace(/^\d+\s*:\s*/, '')
         .trim(),
-      startTime: scanData.startTime ? new Date(scanData.startTime) : new Date(),
-      endTime: scanData.endTime ? new Date(scanData.endTime) : new Date(),
+      startTime,
+      endTime,
       urlScanned: scanData.urlScanned || scanData.url || '',
       scanType: scanData.scanType || ScannerTypes.WEBSITE,
       deviceChosen: scanData.deviceChosen || 'Desktop',
@@ -194,6 +197,8 @@ export const generateHtmlReport = async (
       topTenIssues: Array.isArray(scanData.topTenIssues) ? scanData.topTenIssues : [],
       wcagViolations: Array.isArray(scanData.wcagViolations) ? scanData.wcagViolations : [],
       customFlowLabel: scanData.customFlowLabel || '',
+      isInspectPresetScan: !!scanData.isInspectPresetScan,
+      inspectPresetScanDate: formatInspectPresetScanDate(endTime),
       oobeeAppVersion: scanData.oobeeAppVersion || 'dev',
       items,
       cypressScanAboutMetadata: scanData.cypressScanAboutMetadata || {},

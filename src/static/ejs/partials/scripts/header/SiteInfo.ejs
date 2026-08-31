@@ -40,5 +40,13 @@
     } else {
       document.getElementById('siteScannedOn').textContent = 'Scan date: N/A';
     }
+
+    const siteViewportElement = document.getElementById('siteViewport');
+    if (siteViewportElement) {
+      const viewport = scanData.viewport || scanData.deviceChosen || 'Desktop';
+      siteViewportElement.textContent = viewport.startsWith('CustomWidth')
+        ? `${viewport.split('_')[1]} Custom Width View`
+        : `${viewport} View`;
+    }
   })();
 </script>

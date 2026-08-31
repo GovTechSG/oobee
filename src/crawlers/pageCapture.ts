@@ -3,6 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { Page, devices } from 'playwright';
 import { getStoragePath } from '../utils.js';
+import { parseBooleanValue } from '../envUtils.js';
 
 const MOBILE_VIEWPORT_WIDTH = devices['iPhone 11'].viewport.width;
 const MOBILE_VIEWPORT_HEIGHT = devices['iPhone 11'].viewport.height;
@@ -61,21 +62,15 @@ function getRelativeName(filePath: string, baseDir: string): string {
 }
 
 export function isSaveDomEnabled(): boolean {
-  return process.env.OOBEE_SAVE_DOM === '1' || process.env.OOBEE_SAVE_DOM === 'true';
+  return parseBooleanValue(process.env.OOBEE_SAVE_DOM) ?? false;
 }
 
 export function isSavePageScreenshotEnabled(): boolean {
-  return (
-    process.env.OOBEE_SAVE_PAGE_SCREENSHOT === '1' ||
-    process.env.OOBEE_SAVE_PAGE_SCREENSHOT === 'true'
-  );
+  return parseBooleanValue(process.env.OOBEE_SAVE_PAGE_SCREENSHOT) ?? false;
 }
 
 export function isSaveComputedStylesEnabled(): boolean {
-  return (
-    process.env.OOBEE_SAVE_COMPUTED_STYLES === '1' ||
-    process.env.OOBEE_SAVE_COMPUTED_STYLES === 'true'
-  );
+  return parseBooleanValue(process.env.OOBEE_SAVE_COMPUTED_STYLES) ?? false;
 }
 
 export function isPageCaptureEnabled(): boolean {

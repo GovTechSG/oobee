@@ -76,6 +76,9 @@ export type AllIssues = {
   topTenIssues: Array<any>;
   wcagViolations: string[];
   customFlowLabel: string;
+  isInspectPresetScan: boolean;
+  inspectPresetScanDate: string;
+  viewport: string;
   oobeeAppVersion: string;
   items: {
     mustFix: Category;

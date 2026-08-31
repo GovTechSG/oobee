@@ -1,4 +1,4 @@
-<div id="site-header">
+<div id="site-header" class="<%= isInspectPresetScan ? 'inspect-preset-site-header' : '' %>">
   <div class="d-flex flex-column">
     <div id="site-container">
       <!-- Site Name -->
@@ -96,24 +96,65 @@
         </svg>
         <p id="siteScannedOn" class="label">N/A</p>
       </div>
+
+      <% if (isInspectPresetScan) { %>
+        <!-- Viewport and More Details Link -->
+        <div class="inspect-preset-viewport-details">
+          <div class="inspect-preset-viewport-row d-flex align-items-center gap-2">
+            <% if (viewport.startsWith('Desktop')) { %>
+              <svg width="24" height="24" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16.3636 0H1.63636C0.736364 0 0 0.72 0 1.6V11.2C0 12.08 0.736364 12.8 1.63636 12.8H7.36364V14.4H5.72727V16H12.2727V14.4H10.6364V12.8H16.3636C17.2636 12.8 18 12.08 18 11.2V1.6C18 0.72 17.2636 0 16.3636 0ZM16.3636 11.2H1.63636V1.6H16.3636V11.2Z" fill="#686868"/>
+              </svg>
+            <% } else if (viewport.startsWith('CustomWidth')) { %>
+              <svg width="24" height="24" viewBox="0 0 16 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14.5455 9.33333H16V10.8889H14.5455V9.33333ZM14.5455 6.22222H16V7.77778H14.5455V6.22222ZM16 12.4444H14.5455V14C15.2727 14 16 13.2222 16 12.4444ZM8.72727 0H10.1818V1.55556H8.72727V0ZM14.5455 3.11111H16V4.66667H14.5455V3.11111ZM14.5455 0V1.55556H16C16 0.777778 15.2727 0 14.5455 0ZM0 3.11111H1.45455V4.66667H0V3.11111ZM11.6364 0H13.0909V1.55556H11.6364V0ZM11.6364 12.4444H13.0909V14H11.6364V12.4444ZM1.45455 0C0.727273 0 0 0.777778 0 1.55556H1.45455V0ZM5.81818 0H7.27273V1.55556H5.81818V0ZM2.90909 0H4.36364V1.55556H2.90909V0ZM0 6.22222V12.4444C0 13.3 0.654545 14 1.45455 14H10.1818V6.22222H0ZM1.45455 12.4444L3.27273 9.94778L4.57455 11.62L6.39273 9.11556L8.72727 12.4444H1.45455Z" fill="#686868"/>
+              </svg>
+            <% } else { %>
+              <svg width="24" height="24" viewBox="0 0 16 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2.66667 1.375H14.6667V0H2.66667C1.93333 0 1.33333 0.61875 1.33333 1.375V8.9375H0V11H9.33333V8.9375H2.66667V1.375ZM15.3333 2.75H11.3333C10.9667 2.75 10.6667 3.05938 10.6667 3.4375V10.3125C10.6667 10.6906 10.9667 11 11.3333 11H15.3333C15.7 11 16 10.6906 16 10.3125V3.4375C16 3.05938 15.7 2.75 15.3333 2.75ZM14.6667 8.9375H12V4.125H14.6667V8.9375Z" fill="#686868"/>
+              </svg>
+            <% } %>
+            <p id="siteViewport" class="label"><%= viewport.startsWith("CustomWidth") ? `${viewport.split("_")[1]} Custom Width View` : `${viewport} View` %></p>
+          </div>
+
+          <div class="inspect-preset-details-link d-flex align-items-center">
+            <button
+              type="button"
+              class="wcag-link p-0 border-0 bg-transparent link"
+              data-bs-toggle="modal"
+              data-bs-target="#aboutScanModal"
+            >
+              <span class="link">More details about this scan</span>
+              <svg class="inspect-preset-details-chevron" width="10" height="12" viewBox="0 0 6 10" aria-hidden="true" focusable="false">
+                <path
+                  d="M0.726562 7.06L3.7799 4L0.726562 0.94L1.66656 0L5.66656 4L1.66656 8L0.726562 7.06Z"
+                  fill="#5735DF"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      <% } %>
     </div>
 
-    <!-- More Details Link -->
-    <div class="d-flex justify-content-between">
-      <button
-        type="button"
-        class="wcag-link p-0 border-0 bg-transparent link"
-        data-bs-toggle="modal"
-        data-bs-target="#aboutScanModal"
-      >
-        <span class="link">More details about this scan</span>
-        <svg width="8" height="10" viewBox="0 0 6 10" aria-hidden="true" focusable="false">
-          <path
-            d="M0.726562 7.06L3.7799 4L0.726562 0.94L1.66656 0L5.66656 4L1.66656 8L0.726562 7.06Z"
-            fill="#5735DF"
-          />
-        </svg>
-      </button>
-    </div>
+    <% if (!isInspectPresetScan) { %>
+      <!-- More Details Link -->
+      <div class="d-flex justify-content-between">
+        <button
+          type="button"
+          class="wcag-link p-0 border-0 bg-transparent link"
+          data-bs-toggle="modal"
+          data-bs-target="#aboutScanModal"
+        >
+          <span class="link">More details about this scan</span>
+          <svg width="8" height="10" viewBox="0 0 6 10" aria-hidden="true" focusable="false">
+            <path
+              d="M0.726562 7.06L3.7799 4L0.726562 0.94L1.66656 0L5.66656 4L1.66656 8L0.726562 7.06Z"
+              fill="#5735DF"
+            />
+          </svg>
+        </button>
+      </div>
+    <% } %>
   </div>
 </div>

@@ -33,6 +33,10 @@ import { consoleLogger } from './logs.js';
 import itemTypeDescription from './constants/itemTypeDescription.js';
 import { oobeeAiHtmlETL, oobeeAiRules } from './constants/oobeeAi.js';
 import { buildHtmlGroups, convertItemsToReferences } from './mergeAxeResults/itemReferences.js';
+import {
+  formatInspectPresetScanDate,
+  resolveInspectPresetScanEnabled,
+} from './inspectPresetScan.js';
 import { ItemsStore } from './mergeAxeResults/itemsStore.js';
 import {
   compressJsonFileStreaming,
@@ -844,6 +848,8 @@ const generateArtifacts = async (
     topTenIssues: [],
     wcagViolations: [],
     customFlowLabel,
+    isInspectPresetScan: resolveInspectPresetScanEnabled(),
+    inspectPresetScanDate: formatInspectPresetScanDate(scanDetails.endTime),
     oobeeAppVersion,
     items: {
       mustFix: {
