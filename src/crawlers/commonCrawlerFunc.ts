@@ -132,6 +132,11 @@ const isEnvFlagEnabled = (value?: string): boolean => {
   return ['1', 'true', 'yes', 'y', 'on'].includes(value.trim().toLowerCase());
 };
 
+const getReproDelayAriaControlsMs = (): number => {
+  const value = parseInt(process.env.OOBEE_REPRO_DELAY_ARIA_CONTROLS_MS, 10);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+};
+
 const htmlMaxBytes = (() => {
   const v = parseInt(process.env.OOBEE_HTML_MAX_BYTES, 10);
   return Number.isFinite(v) ? v : 1024;
@@ -1573,6 +1578,42 @@ export const createCrawleeSubFolders = async (
 export const preNavigationHooks = (extraHTTPHeaders: Record<string, string>) => {
   return [
     async (crawlingContext: CrawlingContext, gotoOptions: PlaywrightGotoOptions) => {
+      const page = (crawlingContext as { page?: Page }).page;
+      const reproDelayAriaControlsMs = getReproDelayAriaControlsMs();
+      if (reproDelayAriaControlsMs > 0 && page) {
+        await page.addInitScript((delayMs: number) => {
+          const originalSetAttribute = Element.prototype.setAttribute;
+          const pendingAriaControls = new WeakMap<Element, number>();
+
+          Element.prototype.setAttribute = function setAttributeWithDelayedAriaControls(
+            name: string,
+            value: string,
+          ) {
+            if (String(name).toLowerCase() !== 'aria-controls') {
+              return originalSetAttribute.apply(this, [name, value]);
+            }
+
+            const element = this;
+            const pendingTimer = pendingAriaControls.get(element);
+            if (pendingTimer) {
+              window.clearTimeout(pendingTimer);
+            }
+
+            const timer = window.setTimeout(() => {
+              originalSetAttribute.call(element, name, value);
+              pendingAriaControls.delete(element);
+            }, delayMs);
+
+            pendingAriaControls.set(element, timer);
+            return undefined;
+          };
+        }, reproDelayAriaControlsMs);
+
+        consoleLogger.info(
+          `OOBEE_REPRO_DELAY_ARIA_CONTROLS_MS delaying aria-controls updates by ${reproDelayAriaControlsMs}ms`,
+        );
+      }
+
       if (extraHTTPHeaders && Object.keys(extraHTTPHeaders).length > 0) {
         crawlingContext.request.headers = extraHTTPHeaders;
       }

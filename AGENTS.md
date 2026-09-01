@@ -146,6 +146,7 @@ The `constants` default export object holds runtime state:
 | `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
 | `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl (default 100) |
 | `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
+| `OOBEE_REPRO_DELAY_ARIA_CONTROLS_MS` | Debug/repro only. Delays page-side `aria-controls` attribute updates by the given milliseconds so transient hydration races can be verified without permanently blocking JavaScript. Do not use for normal scans. |
 | `OOBEE_ARIA_VALID_ATTR_VALUE_RECHECK` | `1`/`true`/`yes`/`on` enables a targeted live-DOM recheck for axe `aria-valid-attr-value` findings. Use for sites with confirmed transient WCAG 4.1.2 hydration races. |
 | `OOBEE_ARIA_VALID_ATTR_VALUE_RECHECK_MS` | Milliseconds to wait before the enabled `aria-valid-attr-value` recheck (default 1000). Prevents stale WCAG 4.1.2 findings from temporary ARIA IDREFs during hydration while preserving issues that still fail after recheck. |
 | `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML for desktop and mobile viewports to `pageDOMs/desktopPageDOMs/` and `pageDOMs/mobilePageDOMs/` in results directory. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
