@@ -127,6 +127,11 @@ const isTransientPageTeardown = (e: unknown): boolean => {
   );
 };
 
+const isEnvFlagEnabled = (value?: string): boolean => {
+  if (!value) return false;
+  return ['1', 'true', 'yes', 'y', 'on'].includes(value.trim().toLowerCase());
+};
+
 const htmlMaxBytes = (() => {
   const v = parseInt(process.env.OOBEE_HTML_MAX_BYTES, 10);
   return Number.isFinite(v) ? v : 1024;
@@ -140,6 +145,15 @@ const parentHtmlDepth = (() => {
 const parentHtmlMaxBytes = (() => {
   const v = parseInt(process.env.OOBEE_PARENT_HTML_MAX_BYTES, 10);
   return Number.isFinite(v) ? v : htmlMaxBytes;
+})();
+
+const shouldRecheckAriaValidAttrValue = (() => {
+  return isEnvFlagEnabled(process.env.OOBEE_ARIA_VALID_ATTR_VALUE_RECHECK);
+})();
+
+const ariaValidAttrValueRecheckMs = (() => {
+  const value = parseInt(process.env.OOBEE_ARIA_VALID_ATTR_VALUE_RECHECK_MS, 10);
+  return Number.isFinite(value) && value >= 0 ? value : 1000;
 })();
 
 const truncateHtml = (html: string, maxBytes = htmlMaxBytes, suffix = '…'): string => {
@@ -1099,6 +1113,8 @@ export const runAxeScript = async ({
       disableOobee,
       enableWcagAaa,
       gradingReadabilityFlag,
+      shouldRecheckAriaValidAttrValue,
+      ariaValidAttrValueRecheckMs,
       parentHtmlDepth,
       evaluateAltTextFunctionString,
       escapeCssSelectorFunctionString,
@@ -1231,6 +1247,78 @@ export const runAxeScript = async ({
                 return null;
               }
             };
+
+            // ---- aria-valid-attr-value ----------------------------------
+            // Some sites hydrate ARIA IDREFs after the initial DOM is parsed.
+            // Example: a tab may briefly have aria-controls="panelJump" before
+            // client JS replaces it with a generated panel id. Re-run axe for
+            // this rule against the flagged live elements and keep only nodes
+            // that still fail after the short settle window.
+            const ariaValidAttrValueViolation = shouldRecheckAriaValidAttrValue
+              ? results.violations.find(v => v.id === 'aria-valid-attr-value')
+              : undefined;
+            if (ariaValidAttrValueViolation && ariaValidAttrValueViolation.nodes.length > 0) {
+              try {
+                if (ariaValidAttrValueRecheckMs > 0) {
+                  await new Promise(resolve => setTimeout(resolve, ariaValidAttrValueRecheckMs));
+                }
+
+                const nodeElements = new Map<NodeResult, Element>();
+                const disappearedNodes = new Set<NodeResult>();
+
+                for (const node of ariaValidAttrValueViolation.nodes) {
+                  const sel = getSelector(node);
+                  if (!sel) continue;
+
+                  const el = resolveElement(sel);
+                  if (el && el.isConnected) {
+                    nodeElements.set(node, el);
+                  } else {
+                    disappearedNodes.add(node);
+                  }
+                }
+
+                if (nodeElements.size > 0 || disappearedNodes.size > 0) {
+                  const uniqueElements = Array.from(new Set(nodeElements.values()));
+                  const stillFailing = new WeakSet<Element>();
+
+                  if (uniqueElements.length > 0) {
+                    const reRun = await axe.run(uniqueElements, {
+                      runOnly: ['aria-valid-attr-value'],
+                      resultTypes: ['violations'],
+                    });
+
+                    for (const v of reRun.violations || []) {
+                      if (v.id !== 'aria-valid-attr-value') continue;
+
+                      for (const n of v.nodes) {
+                        const s = getSelector(n as NodeResult);
+                        if (!s) continue;
+
+                        const el = resolveElement(s);
+                        if (el) stillFailing.add(el);
+                      }
+                    }
+                  }
+
+                  ariaValidAttrValueViolation.nodes =
+                    ariaValidAttrValueViolation.nodes.filter(node => {
+                      if (disappearedNodes.has(node)) return false;
+
+                      const el = nodeElements.get(node);
+                      return el ? stillFailing.has(el) : true;
+                    });
+
+                  if (ariaValidAttrValueViolation.nodes.length === 0) {
+                    results.violations = results.violations.filter(
+                      v => v.id !== 'aria-valid-attr-value',
+                    );
+                  }
+                }
+              } catch {
+                // Re-run failed; keep original findings to be safe.
+              }
+            }
 
             // ---- target-size --------------------------------------------
             // SPA frameworks (notably Salesforce Lightning) and Tailwind
@@ -1427,6 +1515,8 @@ export const runAxeScript = async ({
       disableOobee,
       enableWcagAaa,
       gradingReadabilityFlag,
+      shouldRecheckAriaValidAttrValue,
+      ariaValidAttrValueRecheckMs,
       parentHtmlDepth: parentHtmlDepth,
       evaluateAltTextFunctionString: evaluateAltText.toString(),
       escapeCssSelectorFunctionString: escapeCssSelector.toString(),
