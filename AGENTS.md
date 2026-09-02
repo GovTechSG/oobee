@@ -146,8 +146,7 @@ The `constants` default export object holds runtime state:
 | `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
 | `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl (default 100) |
 | `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
-| `OOBEE_ARIA_VALID_ATTR_VALUE_RECHECK` | `1`/`true`/`yes`/`on` enables a targeted live-DOM recheck for axe `aria-valid-attr-value` findings. Use for sites with confirmed transient WCAG 4.1.2 hydration races. |
-| `OOBEE_ARIA_VALID_ATTR_VALUE_RECHECK_MS` | Milliseconds to wait before the enabled `aria-valid-attr-value` recheck (default 1000). Prevents stale WCAG 4.1.2 findings from temporary ARIA IDREFs during hydration while preserving issues that still fail after recheck. |
+| `OOBEE_AXE_RECHECK_HYDRATION_MS` | Shared post-axe wait before rechecking selected hydration-sensitive violations (`aria-valid-attr-value`, `target-size`, `aria-hidden-focus`, `color-contrast`, `color-contrast-enhanced`). Default 5000ms; `0` reruns immediately. The wait only runs when one of those violations appears. |
 | `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML for desktop and mobile viewports to `pageDOMs/desktopPageDOMs/` and `pageDOMs/mobilePageDOMs/` in results directory. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
 | `OOBEE_SAVE_PAGE_SCREENSHOT` | `1` or `true` = save full-page desktop + mobile viewport screenshots to `pageDOMs/desktopPageScreenshots/` and `pageDOMs/mobilePageScreenshots/`. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
 | `GOOGLE_SAFE_BROWSING` | `1` = enable Google Safe Browsing (requires Chrome, not Chromium) |
@@ -417,7 +416,7 @@ When `CF_WORKER_PROXY` is set, `proxyService.getProxyInfo()` starts a local SOCK
 ### Axe & Custom Checks
 - When axe reports color-contrast violations but cannot determine the actual colors, skip augmenting the message with contrast context (avoids crashes on null/undefined color values).
 - Violation messages are enriched with live DOM context (element text, computed styles, dimensions) via `page.evaluate()` during scan. Handle cases where elements are no longer in DOM at evaluation time.
-- `aria-hidden-focus` violations are re-verified against the live DOM after axe completes, to handle race conditions with JS that sets `tabindex="-1"` after `aria-hidden="true"` (common in carousel/slider libraries). The re-verification yields to the event loop before re-checking, allowing pending timers to fire. If all focusable descendants now have `tabindex < 0`, the violation is filtered out as a false positive.
+- Selected hydration-sensitive violations are re-verified against the live DOM after axe completes. When `aria-valid-attr-value`, `target-size`, `aria-hidden-focus`, `color-contrast`, or `color-contrast-enhanced` appears, `runAxeScript()` waits once using `OOBEE_AXE_RECHECK_HYDRATION_MS` (default 5000ms), then rechecks only the rules that appeared. If none of these violations appear, no extra wait is added.
 
 ## Report Output Structure
 

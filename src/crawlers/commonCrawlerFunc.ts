@@ -127,11 +127,6 @@ const isTransientPageTeardown = (e: unknown): boolean => {
   );
 };
 
-const isEnvFlagEnabled = (value?: string): boolean => {
-  if (!value) return false;
-  return ['1', 'true', 'yes', 'y', 'on'].includes(value.trim().toLowerCase());
-};
-
 const htmlMaxBytes = (() => {
   const v = parseInt(process.env.OOBEE_HTML_MAX_BYTES, 10);
   return Number.isFinite(v) ? v : 1024;
@@ -147,13 +142,9 @@ const parentHtmlMaxBytes = (() => {
   return Number.isFinite(v) ? v : htmlMaxBytes;
 })();
 
-const shouldRecheckAriaValidAttrValue = (() => {
-  return isEnvFlagEnabled(process.env.OOBEE_ARIA_VALID_ATTR_VALUE_RECHECK);
-})();
-
-const ariaValidAttrValueRecheckMs = (() => {
-  const value = parseInt(process.env.OOBEE_ARIA_VALID_ATTR_VALUE_RECHECK_MS, 10);
-  return Number.isFinite(value) && value >= 0 ? value : 1000;
+const axeRecheckHydrationMs = (() => {
+  const value = parseInt(process.env.OOBEE_AXE_RECHECK_HYDRATION_MS ?? '', 10);
+  return Number.isFinite(value) && value >= 0 ? value : 5000;
 })();
 
 const truncateHtml = (html: string, maxBytes = htmlMaxBytes, suffix = '…'): string => {
@@ -1113,8 +1104,7 @@ export const runAxeScript = async ({
       disableOobee,
       enableWcagAaa,
       gradingReadabilityFlag,
-      shouldRecheckAriaValidAttrValue,
-      ariaValidAttrValueRecheckMs,
+      axeRecheckHydrationMs,
       parentHtmlDepth,
       evaluateAltTextFunctionString,
       escapeCssSelectorFunctionString,
@@ -1197,13 +1187,9 @@ export const runAxeScript = async ({
             // Some rules produce false positives when axe evaluates an
             // element whose state hasn't finished settling (mid-hydration
             // reflow, late aria-attribute injection, CSS-variable theme
-            // swap). For those rules we re-check each flagged node after a
-            // microtask yield and drop findings whose failure condition no
+            // swap). For those rules we wait once, then re-check only the
+            // flagged rules and drop findings whose failure condition no
             // longer holds. All logic below runs in the browser context.
-
-            // One yield lets any pending microtasks (post-axe layout /
-            // hydration continuations) flush before we re-inspect.
-            await new Promise(resolve => setTimeout(resolve, 0));
 
             // ---- Shared helpers -----------------------------------------
 
@@ -1248,191 +1234,159 @@ export const runAxeScript = async ({
               }
             };
 
-            // ---- aria-valid-attr-value ----------------------------------
-            // Some sites hydrate ARIA IDREFs after the initial DOM is parsed.
-            // Example: a tab may briefly have aria-controls="panelJump" before
-            // client JS replaces it with a generated panel id. Re-run axe for
-            // this rule against the flagged live elements and keep only nodes
-            // that still fail after the short settle window.
-            const ariaValidAttrValueViolation = shouldRecheckAriaValidAttrValue
-              ? results.violations.find(v => v.id === 'aria-valid-attr-value')
-              : undefined;
-            if (ariaValidAttrValueViolation && ariaValidAttrValueViolation.nodes.length > 0) {
-              try {
-                if (ariaValidAttrValueRecheckMs > 0) {
-                  await new Promise(resolve => setTimeout(resolve, ariaValidAttrValueRecheckMs));
+            const collectLiveNodeElements = (nodes: NodeResult[]) => {
+              const nodeElements = new Map<NodeResult, Element>();
+              const disappearedNodes = new Set<NodeResult>();
+
+              for (const node of nodes) {
+                const sel = getSelector(node);
+                if (!sel) continue;
+
+                const el = resolveElement(sel);
+                if (el && el.isConnected) {
+                  nodeElements.set(node, el);
+                } else {
+                  disappearedNodes.add(node);
                 }
-
-                const nodeElements = new Map<NodeResult, Element>();
-                const disappearedNodes = new Set<NodeResult>();
-
-                for (const node of ariaValidAttrValueViolation.nodes) {
-                  const sel = getSelector(node);
-                  if (!sel) continue;
-
-                  const el = resolveElement(sel);
-                  if (el && el.isConnected) {
-                    nodeElements.set(node, el);
-                  } else {
-                    disappearedNodes.add(node);
-                  }
-                }
-
-                if (nodeElements.size > 0 || disappearedNodes.size > 0) {
-                  const uniqueElements = Array.from(new Set(nodeElements.values()));
-                  const stillFailing = new WeakSet<Element>();
-
-                  if (uniqueElements.length > 0) {
-                    const reRun = await axe.run(uniqueElements, {
-                      runOnly: ['aria-valid-attr-value'],
-                      resultTypes: ['violations'],
-                    });
-
-                    for (const v of reRun.violations || []) {
-                      if (v.id !== 'aria-valid-attr-value') continue;
-
-                      for (const n of v.nodes) {
-                        const s = getSelector(n as NodeResult);
-                        if (!s) continue;
-
-                        const el = resolveElement(s);
-                        if (el) stillFailing.add(el);
-                      }
-                    }
-                  }
-
-                  ariaValidAttrValueViolation.nodes =
-                    ariaValidAttrValueViolation.nodes.filter(node => {
-                      if (disappearedNodes.has(node)) return false;
-
-                      const el = nodeElements.get(node);
-                      return el ? stillFailing.has(el) : true;
-                    });
-
-                  if (ariaValidAttrValueViolation.nodes.length === 0) {
-                    results.violations = results.violations.filter(
-                      v => v.id !== 'aria-valid-attr-value',
-                    );
-                  }
-                }
-              } catch {
-                // Re-run failed; keep original findings to be safe.
               }
-            }
 
-            // ---- target-size --------------------------------------------
-            // SPA frameworks (notably Salesforce Lightning) and Tailwind
-            // wrapper-collapse patterns (inline-flex <a> around a styled
-            // <div>) can leave an interactive element at its collapsed size
-            // when axe measures, then stretch it after hydration settles.
-            // Drop the finding if the element now meets the rule's minSize.
-            // Scoped to size-driven failures — no messageKey (element too
-            // small), contentOverflow (own rects too small),
-            // notCloseEnoughToEdge (small + spacing exception failed; if the
-            // element itself now passes ≥ minSize the spacing exception is
-            // moot), and tooManyRects (measurement bail-out). Partially
-            // obscured findings depend on neighbor overlap that can't be
-            // verified from getBoundingClientRect and are left alone.
-            const DEFAULT_TARGET_MIN_SIZE = 24;
-            const TARGET_SIZE_RECHECK_KEYS = new Set([
-              'contentOverflow',
-              'notCloseEnoughToEdge',
-              'tooManyRects',
-            ]);
-            pruneViolation('target-size', node => {
-              const sel = getSelector(node);
-              if (!sel) return true;
-              const data = getCheckData<{ minSize?: number; messageKey?: string }>(
-                node,
-                'target-size',
-              );
-              if (!data) return true;
-              if (data.messageKey && !TARGET_SIZE_RECHECK_KEYS.has(data.messageKey)) return true;
-              const minSize =
-                typeof data.minSize === 'number' ? data.minSize : DEFAULT_TARGET_MIN_SIZE;
-              const el = resolveElement(sel);
-              if (!el) return true;
-              const rect = el.getBoundingClientRect();
-              return !(rect.width >= minSize && rect.height >= minSize);
-            });
+              return { nodeElements, disappearedNodes };
+            };
 
-            // ---- aria-hidden-focus --------------------------------------
-            // Handle race conditions with JS that sets tabindex="-1" after
-            // aria-hidden (common in carousel/slider libraries like slick).
-            const FOCUSABLE_SELECTOR =
-              'a[href], area[href], button:not([disabled]), ' +
-              'input:not([disabled]):not([type="hidden"]), ' +
-              'select:not([disabled]), textarea:not([disabled]), [tabindex]';
-            pruneViolation('aria-hidden-focus', node => {
-              const sel = getSelector(node);
-              if (!sel) return true;
-              const el = resolveElement(sel);
-              if (!el) return true;
-              const focusables = el.querySelectorAll(FOCUSABLE_SELECTOR);
-              if (focusables.length === 0) return false;
-              return Array.from(focusables).some(child => {
-                const tabindex = child.getAttribute('tabindex');
-                if (tabindex === null) return true;
-                const parsed = parseInt(tabindex, 10);
-                return Number.isNaN(parsed) || parsed >= 0;
+            const rerunAxeRuleOnElements = async (
+              ruleId: string,
+              elements: Element[],
+            ): Promise<WeakSet<Element>> => {
+              const stillFailing = new WeakSet<Element>();
+              if (elements.length === 0) return stillFailing;
+
+              const reRun = await axe.run(elements, {
+                runOnly: [ruleId],
+                resultTypes: ['violations'],
               });
-            });
 
-            // ---- color-contrast -----------------------------------------
-            // CSS-variable theme swaps and late-loading stylesheets can
-            // cause text to briefly render on the wrong background. Re-run
-            // axe scoped to just the flagged elements with only the
-            // color-contrast rule and drop findings that no longer fail.
-            // Uses axe's own logic to avoid reimplementing color
-            // composition (ancestor background walk, opacity, gradients).
-            const colorContrastViolation = results.violations.find(
-              v => v.id === 'color-contrast',
-            );
-            if (colorContrastViolation && colorContrastViolation.nodes.length > 0) {
-              try {
-                // Map each flagged node to its live element so we can match
-                // re-run results back to originals by identity — axe may
-                // regenerate slightly different selectors across runs on a
-                // hydrating page.
-                const nodeElements = new Map<NodeResult, Element>();
-                for (const node of colorContrastViolation.nodes) {
-                  const sel = getSelector(node);
-                  if (!sel) continue;
-                  const el = resolveElement(sel);
-                  if (el) nodeElements.set(node, el);
+              for (const v of reRun.violations || []) {
+                if (v.id !== ruleId) continue;
+
+                for (const n of v.nodes) {
+                  const s = getSelector(n as NodeResult);
+                  if (!s) continue;
+
+                  const el = resolveElement(s);
+                  if (el) stillFailing.add(el);
                 }
-                if (nodeElements.size > 0) {
-                  const uniqueElements = Array.from(new Set(nodeElements.values()));
-                  const reRun = await axe.run(uniqueElements, {
-                    runOnly: ['color-contrast'],
-                    resultTypes: ['violations'],
-                  });
-                  const stillFailing = new WeakSet<Element>();
-                  for (const v of reRun.violations || []) {
-                    for (const n of v.nodes) {
-                      const s = getSelector(n as NodeResult);
-                      if (!s) continue;
-                      const el = resolveElement(s);
-                      if (el) stillFailing.add(el);
-                    }
-                  }
-                  colorContrastViolation.nodes = colorContrastViolation.nodes.filter(
-                    n => {
-                      const el = nodeElements.get(n);
-                      // If we couldn't resolve the element, be conservative
-                      // and keep the finding.
-                      return el ? stillFailing.has(el) : true;
-                    },
-                  );
-                  if (colorContrastViolation.nodes.length === 0) {
-                    results.violations = results.violations.filter(
-                      v => v.id !== 'color-contrast',
-                    );
-                  }
+              }
+
+              return stillFailing;
+            };
+
+            const recheckAxeRuleViolation = async (
+              ruleId: string,
+              removeDisappearedNodes = false,
+            ): Promise<void> => {
+              const violation = results.violations.find(v => v.id === ruleId);
+              if (!violation || violation.nodes.length === 0) return;
+
+              try {
+                const { nodeElements, disappearedNodes } = collectLiveNodeElements(
+                  violation.nodes,
+                );
+                if (nodeElements.size === 0 && disappearedNodes.size === 0) return;
+
+                const uniqueElements = Array.from(new Set(nodeElements.values()));
+                const stillFailing = await rerunAxeRuleOnElements(ruleId, uniqueElements);
+
+                violation.nodes = violation.nodes.filter(node => {
+                  if (removeDisappearedNodes && disappearedNodes.has(node)) return false;
+
+                  const el = nodeElements.get(node);
+                  return el ? stillFailing.has(el) : true;
+                });
+
+                if (violation.nodes.length === 0) {
+                  results.violations = results.violations.filter(v => v.id !== ruleId);
                 }
               } catch {
                 // Re-run failed; keep original findings to be safe.
               }
+            };
+
+            const RECHECKABLE_RULE_IDS = new Set([
+              'aria-valid-attr-value',
+              'target-size',
+              'aria-hidden-focus',
+              'color-contrast',
+              'color-contrast-enhanced',
+            ]);
+            const hasRecheckableViolation = results.violations.some(
+              v => RECHECKABLE_RULE_IDS.has(v.id) && v.nodes.length > 0,
+            );
+
+            if (hasRecheckableViolation) {
+              if (axeRecheckHydrationMs > 0) {
+                await new Promise(resolve => setTimeout(resolve, axeRecheckHydrationMs));
+              }
+
+              // ---- aria-valid-attr-value --------------------------------
+              // Some sites hydrate ARIA IDREFs after the initial DOM is parsed.
+              // Example: a tab may briefly have aria-controls="panelJump" before
+              // client JS replaces it with a generated panel id.
+              await recheckAxeRuleViolation('aria-valid-attr-value', true);
+
+              // ---- target-size ------------------------------------------
+              // Drop size-driven findings if the element now meets minSize.
+              const DEFAULT_TARGET_MIN_SIZE = 24;
+              const TARGET_SIZE_RECHECK_KEYS = new Set([
+                'contentOverflow',
+                'notCloseEnoughToEdge',
+                'tooManyRects',
+              ]);
+              pruneViolation('target-size', node => {
+                const sel = getSelector(node);
+                if (!sel) return true;
+                const data = getCheckData<{ minSize?: number; messageKey?: string }>(
+                  node,
+                  'target-size',
+                );
+                if (!data) return true;
+                if (data.messageKey && !TARGET_SIZE_RECHECK_KEYS.has(data.messageKey)) {
+                  return true;
+                }
+                const minSize =
+                  typeof data.minSize === 'number' ? data.minSize : DEFAULT_TARGET_MIN_SIZE;
+                const el = resolveElement(sel);
+                if (!el) return true;
+                const rect = el.getBoundingClientRect();
+                return !(rect.width >= minSize && rect.height >= minSize);
+              });
+
+              // ---- aria-hidden-focus ------------------------------------
+              // Handle JS that removes focusable descendants from tab order
+              // after aria-hidden is applied.
+              const FOCUSABLE_SELECTOR =
+                'a[href], area[href], button:not([disabled]), ' +
+                'input:not([disabled]):not([type="hidden"]), ' +
+                'select:not([disabled]), textarea:not([disabled]), [tabindex]';
+              pruneViolation('aria-hidden-focus', node => {
+                const sel = getSelector(node);
+                if (!sel) return true;
+                const el = resolveElement(sel);
+                if (!el) return true;
+                const focusables = el.querySelectorAll(FOCUSABLE_SELECTOR);
+                if (focusables.length === 0) return false;
+                return Array.from(focusables).some(child => {
+                  const tabindex = child.getAttribute('tabindex');
+                  if (tabindex === null) return true;
+                  const parsed = parseInt(tabindex, 10);
+                  return Number.isNaN(parsed) || parsed >= 0;
+                });
+              });
+
+              // ---- contrast rules ---------------------------------------
+              // Use axe's own logic for contrast composition after CSS/font
+              // settling, scoped to the elements axe originally flagged.
+              await recheckAxeRuleViolation('color-contrast');
+              await recheckAxeRuleViolation('color-contrast-enhanced');
             }
 
             // Attach parentHtml to axe's violations + incomplete nodes when
@@ -1515,8 +1469,7 @@ export const runAxeScript = async ({
       disableOobee,
       enableWcagAaa,
       gradingReadabilityFlag,
-      shouldRecheckAriaValidAttrValue,
-      ariaValidAttrValueRecheckMs,
+      axeRecheckHydrationMs,
       parentHtmlDepth: parentHtmlDepth,
       evaluateAltTextFunctionString: evaluateAltText.toString(),
       escapeCssSelectorFunctionString: escapeCssSelector.toString(),
