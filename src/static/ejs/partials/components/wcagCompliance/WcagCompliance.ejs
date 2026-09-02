@@ -1,9 +1,15 @@
-<div id="wcag-compliance-card" class="wcag-card">
+<div id="wcag-compliance-card" class="wcag-card <%= isInspectPresetScan ? 'inspect-preset-wcag-card' : '' %>">
   <div class="wcag-row">
     <div>
       <h2 class="wcag-title">WCAG Score</h2>
 
-      <p class="wcag-sub">Based on Automated Checks</p>
+      <p class="wcag-sub">
+        <% if (isInspectPresetScan) { %>
+          Based on <%= inspectPresetScanDate %> WOGAA Inspect rescan preset
+        <% } else { %>
+          Based on Automated Checks
+        <% } %>
+      </p>
 
       <p id="wcagStatus" class="wcag-status" hidden>
         This website does not meet the minimum accessibility standards.

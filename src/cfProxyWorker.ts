@@ -16,6 +16,7 @@ import { spawnSync } from 'child_process';
 import { URL } from 'url';
 import WebSocket from 'ws';
 import { consoleLogger } from './logs.js';
+import { parseBooleanValue } from './envUtils.js';
 
 const PORT_HUNT_MAX_ATTEMPTS = 20;
 
@@ -241,8 +242,7 @@ interface DohCacheEntry {
 const dohCache = new Map<string, DohCacheEntry>();
 
 export function isFamilyDnsEnabled(): boolean {
-  const v = process.env.CF_FAMILY_DNS?.trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+  return parseBooleanValue(process.env.CF_FAMILY_DNS) ?? false;
 }
 
 let includeProxyPatternsCache: RegExp[] | null | undefined;

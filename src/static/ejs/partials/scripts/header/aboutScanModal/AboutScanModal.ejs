@@ -7,7 +7,10 @@
       // hide all panes
       panes.forEach(p => p.hidden = true);
       // collapse all buttons
-      btns.forEach(b => b.setAttribute('aria-expanded', 'false'));
+      btns.forEach((b) => {
+        b.setAttribute('aria-expanded', 'false');
+        b.closest('li')?.classList.remove('about-scan-toggle-active');
+      });
 
       // show the requested pane
       const pane = document.getElementById(targetId);
@@ -16,7 +19,10 @@
 
         // mark the controlling button active
         const btn = btns.find(b => b.getAttribute('aria-controls') === targetId);
-        if (btn) btn.setAttribute('aria-expanded', 'true');
+        if (btn) {
+          btn.setAttribute('aria-expanded', 'true');
+          btn.closest('li')?.classList.add('about-scan-toggle-active');
+        }
 
         // move focus to the pane heading for screen readers/keyboard users
         const h = pane.querySelector('h4, h3, h2, [role="heading"]');
@@ -36,16 +42,28 @@
     showPane('view-crawl');
   })();
 
-  const pagesWord = scanData.totalPagesScanned === 1 ? 'page' : 'pages';
+  const formatPageCount = (count) => Number(count).toLocaleString('en-SG');
+  const scannedPagesTotal = Number(scanData.totalPagesScanned) || 0;
+  const notScannedPagesTotal = Number(scanData.totalPagesNotScanned) || 0;
+  const inspectPresetPageTotal = scannedPagesTotal + notScannedPagesTotal;
+  const pagesWord = scannedPagesTotal === 1 ? 'page' : 'pages';
   const rawLabel = (scanData.customFlowLabel ?? '').trim();
   const displayLabel = !rawLabel || rawLabel.toLowerCase() === 'none'
     ? 'Custom Flow'
     : rawLabel;
 
-  const title = scanData.isCustomFlow
-    ? `${displayLabel} (${scanData.totalPagesScanned} ${pagesWord})`
-    : `${scanData.scanType} crawl (${scanData.totalPagesScanned} ${pagesWord})`;
+  const crawlTitle = scanData.isCustomFlow
+    ? `${displayLabel} (${scannedPagesTotal} ${pagesWord})`
+    : `${scanData.scanType} crawl (${scannedPagesTotal} ${pagesWord})`;
+  const inspectPresetPagesWord = inspectPresetPageTotal === 1 ? 'page' : 'pages';
+  const inspectPresetPagesText = `${formatPageCount(inspectPresetPageTotal)} ${inspectPresetPagesWord}`;
+  const modalLabel = scanData.isInspectPresetScan
+    ? `WOGAA Inspect Scan Preset (${inspectPresetPagesText})`
+    : crawlTitle;
+  const modalToggleLabel = scanData.isInspectPresetScan
+    ? `WOGAA Inspect scan preset (${inspectPresetPagesText})`
+    : crawlTitle;
 
-  document.getElementById('pagesScannedModalLabel').innerHTML = title;
-  document.getElementById('pagesScannedModalToggleTxt').innerHTML = title;
+  document.getElementById('pagesScannedModalLabel').textContent = modalLabel;
+  document.getElementById('pagesScannedModalToggleTxt').textContent = modalToggleLabel;
 </script>

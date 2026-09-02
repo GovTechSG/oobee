@@ -144,6 +144,7 @@ The `constants` default export object holds runtime state:
 | `OOBEE_TAGGED_WEBSITE` | Tag to identify the website in Sentry telemetry (overridden by `--websiteTag` CLI flag) |
 | `OOBEE_SCAN_METADATA` | Overrides `entryUrl` tag in Sentry events |
 | `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
+| `OOBEE_INSPECT_PRESET_SCAN` | `1`/`true`/`yes`/`on` = render the WOGAA Inspect preset rescan report design, including the combined Oobee/Inspect logo, rescan subtitle, viewport summary, and inspect-data text in the WCAG score card. |
 | `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl (default 100) |
 | `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
 | `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML for desktop and mobile viewports to `pageDOMs/desktopPageDOMs/` and `pageDOMs/mobilePageDOMs/` in results directory. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
