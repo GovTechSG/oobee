@@ -19,8 +19,11 @@ export class CrawlRateController {
 
   constructor(maxRequestsPerCrawl: number, maxConcurrency: number) {
     this.maxPages = maxRequestsPerCrawl;
-    this.maxConsecutiveFailures = Number(process.env.OOBEE_CONSECUTIVE_MAX_RETRIES) || 100;
-    this.maxRatchetCycles = Number(process.env.OOBEE_MAX_RATCHET_CYCLES) || 5;
+    // Default 0 = disabled. Any positive value enables the corresponding abort
+    // trigger. This lets long-running scans survive extended bursts of 403s
+    // (e.g. from transient WAF rate-limiting) without being aborted early.
+    this.maxConsecutiveFailures = Number(process.env.OOBEE_CONSECUTIVE_MAX_RETRIES) || 0;
+    this.maxRatchetCycles = Number(process.env.OOBEE_MAX_RATCHET_CYCLES) || 0;
     this.originalMaxConcurrency = maxConcurrency;
   }
 
@@ -102,8 +105,10 @@ export class CrawlRateController {
     }
 
     // First abort trigger: too many failures in a row with no successes in
-    // between. Catches sites that never respond OK.
-    if (this.consecutiveFailures >= this.maxConsecutiveFailures) {
+    // between. Catches sites that never respond OK. maxConsecutiveFailures
+    // <= 0 means this trigger is disabled (OOBEE_CONSECUTIVE_MAX_RETRIES=0 is
+    // the default, so long scans don't abort just from a burst of 403s).
+    if (this.maxConsecutiveFailures > 0 && this.consecutiveFailures >= this.maxConsecutiveFailures) {
       return true;
     }
 
@@ -111,7 +116,8 @@ export class CrawlRateController {
     // times without a full recovery. Catches sites that let just enough
     // requests through to keep the crawler alive but never enough to reach
     // original concurrency. This is the case that was hanging 12h scans.
-    if (this.ratchetCycles >= this.maxRatchetCycles) {
+    // maxRatchetCycles <= 0 means this trigger is disabled (default).
+    if (this.maxRatchetCycles > 0 && this.ratchetCycles >= this.maxRatchetCycles) {
       consoleLogger.info(
         `Concurrency has been reduced ${this.ratchetCycles} times without recovering to ${this.originalMaxConcurrency} — treating site as permanently hostile.`,
       );

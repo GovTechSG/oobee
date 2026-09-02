@@ -388,7 +388,10 @@ const crawlDomain = async ({
 
   let isAbortingScanNow = false;
   let lastSuccessTime = Date.now();
-  const maxIdleMs = (Number(process.env.OOBEE_MAX_IDLE_MINUTES) || 5) * 60 * 1000;
+  // Default 0 = disabled (no idle-timeout abort). Any positive value enables
+  // aborting after that many minutes without a successful scan.
+  const maxIdleMinutes = Number(process.env.OOBEE_MAX_IDLE_MINUTES) || 0;
+  const maxIdleMs = maxIdleMinutes > 0 ? maxIdleMinutes * 60 * 1000 : 0;
   const remainingBudget = fromCrawlIntelligentSitemap
     ? Math.max(0, maxRequestsPerCrawl - urlsCrawledFromIntelligent.scanned.length)
     : maxRequestsPerCrawl;
@@ -953,7 +956,7 @@ const crawlDomain = async ({
         }
 
         const timeSinceLastSuccess = Date.now() - lastSuccessTime;
-        if (timeSinceLastSuccess > maxIdleMs) {
+        if (maxIdleMs > 0 && timeSinceLastSuccess > maxIdleMs) {
           consoleLogger.info(
             `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
           );
@@ -1019,7 +1022,7 @@ const crawlDomain = async ({
   lastSuccessTime = Date.now();
   const idleCheckInterval = setInterval(() => {
     const timeSinceLastSuccess = Date.now() - lastSuccessTime;
-    if (timeSinceLastSuccess > maxIdleMs) {
+    if (maxIdleMs > 0 && timeSinceLastSuccess > maxIdleMs) {
       consoleLogger.info(
         `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
       );
@@ -1103,7 +1106,7 @@ const crawlDomain = async ({
       lastSuccessTime = Date.now();
       const clickPassIdleCheck = setInterval(() => {
         const timeSinceLastSuccess = Date.now() - lastSuccessTime;
-        if (timeSinceLastSuccess > maxIdleMs) {
+        if (maxIdleMs > 0 && timeSinceLastSuccess > maxIdleMs) {
           consoleLogger.info(
             `Aborting crawl: no successful scan in ${Math.round(timeSinceLastSuccess / 1000)}s. Generating partial report with ${urlsCrawled.scanned.length} pages.`,
           );
