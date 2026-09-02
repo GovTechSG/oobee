@@ -145,7 +145,9 @@ The `constants` default export object holds runtime state:
 | `OOBEE_SCAN_METADATA` | Overrides `entryUrl` tag in Sentry events |
 | `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
 | `OOBEE_INSPECT_PRESET_SCAN` | `1`/`true`/`yes`/`on` = render the WOGAA Inspect preset rescan report design, including the combined Oobee/Inspect logo, rescan subtitle, viewport summary, and inspect-data text in the WCAG score card. |
-| `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl (default 100) |
+| `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl. `0` disables this check (default `0`) |
+| `OOBEE_MAX_RATCHET_CYCLES` | Max number of concurrency halvings without a full recovery before the crawl aborts. `0` disables this check (default `0`) |
+| `OOBEE_MAX_IDLE_MINUTES` | Max minutes without a successful page scan before the crawl aborts and generates a partial report. `0` disables this check (default `0`) |
 | `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
 | `OOBEE_AXE_RECHECK_HYDRATION_MS` | Shared post-axe wait before rechecking selected hydration-sensitive violations (`aria-valid-attr-value`, `target-size`, `aria-hidden-focus`, `color-contrast`, `color-contrast-enhanced`). Default 5000ms; `0` reruns immediately. The wait only runs when one of those violations appears. |
 | `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML for desktop and mobile viewports to `pageDOMs/desktopPageDOMs/` and `pageDOMs/mobilePageDOMs/` in results directory. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
@@ -382,7 +384,7 @@ When `CF_WORKER_PROXY` is set, `proxyService.getProxyInfo()` starts a local SOCK
 - Sites with WAFs (Cloudflare, Akamai, etc.) will start returning 403/503 after a certain number of concurrent requests — typically 200-300 pages in rapid succession.
 - Both crawlers use a shared `CrawlRateController` class (`src/crawlers/crawlRateController.ts`) that provides:
   1. **Strict maxPages**: `claimSlot()` is called at the moment of success (synchronously right before `urlsCrawled.scanned.push()`), not at the top of the request handler. `abort()` is called only after claiming the last slot (`isLimitReached()` becomes true post-claim). Never abort from the top of the handler — doing so kills in-flight pages that other handlers are scanning, causing undershoot.
-  2. **Circuit breaker**: After 100 consecutive HTTP 4xx/5xx failures (configurable via `OOBEE_CONSECUTIVE_MAX_RETRIES`), the crawl aborts gracefully.
+  2. **Circuit breaker**: After 100 consecutive HTTP 4xx/5xx failures (configurable via `OOBEE_CONSECUTIVE_MAX_RETRIES`, default `0` = disabled), the crawl aborts gracefully.
   3. **Adaptive concurrency**: On each 4xx/5xx failure, concurrency is halved (floor 1). Recovery is tracked by `successesSinceReduction` — after 10 successes since the last reduction, concurrency increases by +2 toward the original value. Non-4xx failures (timeouts, network errors) do NOT reset this counter, so recovery remains reachable on mixed-content sites where PDF/download errors are common. This automatically finds the site's rate limit threshold without manual tuning.
 - **Critical placement of `claimSlot()` and `abort()`**: `claimSlot()` must be synchronously right before `push()` — never at the top of the handler. `abort()` must be called only after the last slot is claimed — never from an early-exit check. Pages can be discarded mid-handler (redirect, dedup, robots.txt block), and aborting prematurely kills in-flight handlers that would have succeeded.
 - Only HTTP 4xx/5xx responses trigger rate adaptation and count toward the circuit breaker — timeouts and network errors do not.
