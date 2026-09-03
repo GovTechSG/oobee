@@ -2090,40 +2090,9 @@ export const getScreenToScan = (
   return 'Desktop';
 };
 
-export const submitFormViaPlaywright = async (
-  browserToRun: string,
-  userDataDirectory: string,
-  finalUrl: string,
-) => {
-  const browserContext = await launchPersistentSafeContext(userDataDirectory, {
-    ...getPlaywrightLaunchOptions(browserToRun),
-  });
-
-  register(browserContext);
-
-  const page = await browserContext.newPage();
-
-  try {
-    await page.goto(finalUrl, {
-      timeout: 30000,
-      waitUntil: 'commit',
-    });
-
-    try {
-      await page.waitForLoadState('networkidle', { timeout: 10000 });
-    } catch {
-      consoleLogger.info('Unable to detect networkidle');
-    }
-  } catch (error) {
-    consoleLogger.error(error);
-  } finally {
-    await browserContext.close();
-  }
-};
-
 export const submitForm = async (
-  browserToRun: string,
-  userDataDirectory: string,
+  _browserToRun: string,
+  _userDataDirectory: string,
   scannedUrl: string,
   entryUrl: string,
   scanType: string,
@@ -2136,34 +2105,38 @@ export const submitForm = async (
   metadata: string,
 ) => {
   // Legacy code start - Google Sheets submission
-  const additionalPageDataJson = JSON.stringify({
-    redirectsScanned: numberOfRedirectsScanned,
-    pagesNotScanned: numberOfPagesNotScanned,
-  });
-
-  let finalUrl =
-    `${formDataFields.formUrl}?` +
-    `${formDataFields.entryUrlField}=${entryUrl}&` +
-    `${formDataFields.scanTypeField}=${scanType}&` +
-    `${formDataFields.emailField}=${email}&` +
-    `${formDataFields.nameField}=${name}&` +
-    `${formDataFields.resultsField}=${encodeURIComponent(scanResultsJson)}&` +
-    `${formDataFields.numberOfPagesScannedField}=${numberOfPagesScanned}&` +
-    `${formDataFields.additionalPageDataField}=${encodeURIComponent(additionalPageDataJson)}&` +
-    `${formDataFields.metadataField}=${encodeURIComponent(metadata)}`;
-
-  if (scannedUrl !== entryUrl) {
-    finalUrl += `&${formDataFields.redirectUrlField}=${scannedUrl}`;
-  }
-
+  // Best-effort telemetry: this must never fail the caller's scan. The entire
+  // body is guarded because building the payload can throw independently of the
+  // network call (e.g. encodeURIComponent raises URIError on lone surrogates,
+  // which can appear in scanned page content).
   try {
+    const additionalPageDataJson = JSON.stringify({
+      redirectsScanned: numberOfRedirectsScanned,
+      pagesNotScanned: numberOfPagesNotScanned,
+    });
+
+    let finalUrl =
+      `${formDataFields.formUrl}?` +
+      `${formDataFields.entryUrlField}=${entryUrl}&` +
+      `${formDataFields.scanTypeField}=${scanType}&` +
+      `${formDataFields.emailField}=${email}&` +
+      `${formDataFields.nameField}=${name}&` +
+      `${formDataFields.resultsField}=${encodeURIComponent(scanResultsJson)}&` +
+      `${formDataFields.numberOfPagesScannedField}=${numberOfPagesScanned}&` +
+      `${formDataFields.additionalPageDataField}=${encodeURIComponent(additionalPageDataJson)}&` +
+      `${formDataFields.metadataField}=${encodeURIComponent(metadata)}`;
+
+    if (scannedUrl !== entryUrl) {
+      finalUrl += `&${formDataFields.redirectUrlField}=${scannedUrl}`;
+    }
+
     await axios.get(finalUrl, { timeout: 2000 });
   } catch (error) {
-    if (error.code === 'ECONNABORTED') {
-      if (browserToRun || constants.launcher === webkit) {
-        await submitFormViaPlaywright(browserToRun, userDataDirectory, finalUrl);
-      }
-    }
+    // Never rethrow. Previously a timeout here would launch a second browser to
+    // retry the request, which could throw "Executable doesn't exist" on
+    // machines without the Playwright-managed browser and abort an
+    // already-successful scan.
+    consoleLogger.info(`Unable to submit form: ${error}`);
   }
 };
 // Legacy code end - Google Sheets submission
