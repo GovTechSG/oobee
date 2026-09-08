@@ -6,36 +6,106 @@
   const pagesScannedList = document.getElementById('pagesScannedList');
   const pagesNotScannedList = document.getElementById('pagesNotScannedList');
 
-  pagesScanned.forEach((page, index) => {
+  // Every page.url, page.pageTitle, page.metadata, and page.pageImagePath
+  // value here is crawled from an untrusted scanned site. Template literals
+  // followed by innerHTML would treat those strings as markup, so a scanned
+  // page could inject <script>/onerror/etc. into the report the reviewer
+  // opens. Build DOM nodes with createElement/textContent instead, and only
+  // accept URLs whose scheme is safe.
+  const SAFE_HREF_SCHEMES = /^(https?:|mailto:)/i;
+  const SAFE_IMG_SCHEMES = /^(https?:|data:image\/|blob:|file:)/i;
+
+  const isSafeHref = (url) => {
+    if (typeof url !== 'string') return false;
+    const trimmed = url.trim();
+    if (trimmed === '') return false;
+    // Allow relative same-origin paths (start with `/`, `./`, `../`) — those
+    // are common for local report screenshots and cannot carry a scheme.
+    if (/^[./]/.test(trimmed)) return true;
+    return SAFE_HREF_SCHEMES.test(trimmed);
+  };
+
+  const isSafeImgSrc = (url) => {
+    if (typeof url !== 'string') return false;
+    const trimmed = url.trim();
+    if (trimmed === '') return false;
+    if (/^[./]/.test(trimmed)) return true;
+    return SAFE_IMG_SCHEMES.test(trimmed);
+  };
+
+  const EXTERNAL_ICON_NS = 'http://www.w3.org/2000/svg';
+  const EXTERNAL_ICON_PATH_D = 'M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z';
+  const buildExternalIcon = () => {
+    const svg = document.createElementNS(EXTERNAL_ICON_NS, 'svg');
+    svg.setAttribute('class', 'link-external-icon');
+    svg.setAttribute('width', '16');
+    svg.setAttribute('height', '12');
+    svg.setAttribute('viewBox', '0 0 8 8');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    const path = document.createElementNS(EXTERNAL_ICON_NS, 'path');
+    path.setAttribute('d', EXTERNAL_ICON_PATH_D);
+    path.setAttribute('fill', '#5735DF');
+    svg.appendChild(path);
+    return svg;
+  };
+
+  const buildSafeAnchor = (url, label, extraClass) => {
+    const a = document.createElement('a');
+    if (extraClass) a.className = extraClass;
+    if (isSafeHref(url)) {
+      a.href = url;
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
+    }
+    a.textContent = label;
+    return a;
+  };
+
+  pagesScanned.forEach((page) => {
     const listItem = document.createElement('li');
+    const label = (page.pageTitle && page.pageTitle.length > 0) ? page.pageTitle : page.url;
 
     if (isCustomFlow) {
-      listItem.innerHTML = `
-        <div class="custom-flow-screenshot-container">
-          <div class="custom-flow-thumb">
-            <img 
-              src="${page.pageImagePath}" 
-              alt="Screenshot of ${page.url}"
-              class="custom-flow-screenshot"
-              onerror="this.onerror = null; this.remove();"
-            >
-          </div>
-          <div class="display-url-container">
-            <a href="${page.url}" target="_blank">${page.pageTitle?.length > 0 ? page.pageTitle : page.url}</a>
-            <p>${page.url}</p>
-          </div>
-        </div>
-      `;
+      const outer = document.createElement('div');
+      outer.className = 'custom-flow-screenshot-container';
+
+      const thumb = document.createElement('div');
+      thumb.className = 'custom-flow-thumb';
+      const img = document.createElement('img');
+      img.className = 'custom-flow-screenshot';
+      img.setAttribute('alt', `Screenshot of ${page.url ?? ''}`);
+      img.setAttribute('onerror', 'this.onerror = null; this.remove();');
+      if (isSafeImgSrc(page.pageImagePath)) {
+        img.setAttribute('src', page.pageImagePath);
+      }
+      thumb.appendChild(img);
+
+      const urlBox = document.createElement('div');
+      urlBox.className = 'display-url-container';
+      urlBox.appendChild(buildSafeAnchor(page.url, label));
+      const urlText = document.createElement('p');
+      urlText.textContent = page.url ?? '';
+      urlBox.appendChild(urlText);
+
+      outer.appendChild(thumb);
+      outer.appendChild(urlBox);
+      listItem.appendChild(outer);
     } else {
-      listItem.innerHTML = `
-        <a href="${page.url}" target="_blank">
-          ${page.pageTitle?.length > 0 ? page.pageTitle : page.url}
-          <svg class="link-external-icon" width="16" height="12" viewBox="0 0 8 8" aria-hidden="true" focusable="false">
-            <path d="M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z" fill="#5735DF"/>
-          </svg>
-        </a>
-        <p>${page.url}</p>
-      `;
+      const a = document.createElement('a');
+      if (isSafeHref(page.url)) {
+        a.href = page.url;
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener noreferrer');
+      }
+      a.appendChild(document.createTextNode(label));
+      a.appendChild(document.createTextNode(' '));
+      a.appendChild(buildExternalIcon());
+      listItem.appendChild(a);
+
+      const urlText = document.createElement('p');
+      urlText.textContent = page.url ?? '';
+      listItem.appendChild(urlText);
     }
 
     pagesScannedList.appendChild(listItem);
@@ -57,54 +127,65 @@
   const unsupportedDocs = pagesNotScanned.filter((it) => isUnsupportedDoc(it));
   const notScannedOnly = pagesNotScanned.filter((it) => !isUnsupportedDoc(it));
 
-  document.getElementById('totalPagesScannedLabel').innerHTML = scanData.totalPagesScanned;
-  document.getElementById('totalPagesNotScannedLabel').innerHTML =
-    notScannedOnly.length;
+  document.getElementById('totalPagesScannedLabel').textContent = scanData.totalPagesScanned;
+  document.getElementById('totalPagesNotScannedLabel').textContent = notScannedOnly.length;
 
-  notScannedOnly.forEach((page, index) => {
-    var listItem = document.createElement('li');
+  notScannedOnly.forEach((page) => {
+    const listItem = document.createElement('li');
     const url = page.url || page;
     const metadata = page.metadata || page;
 
-    const linkHTML = `<a class="not-scanned-url" href="${url}" target="_blank">
-      ${url}
-      <svg class="link-external-icon" width="16" height="12" viewBox="0 0 8 8" aria-hidden="true" focusable="false">
-        <path d="M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z" fill="#5735DF"/>
-      </svg>
-    </a>`;
-    const metadataHTML = `
-      <div class="metadata-inline">
-        <span class="metadata-text">
-          ${metadata}
-        </span>
-      </div>`;
+    const a = document.createElement('a');
+    a.className = 'not-scanned-url';
+    if (isSafeHref(url)) {
+      a.href = url;
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
+    }
+    a.appendChild(document.createTextNode(String(url ?? '')));
+    a.appendChild(document.createTextNode(' '));
+    a.appendChild(buildExternalIcon());
+    listItem.appendChild(a);
 
-    listItem.innerHTML = `${linkHTML}${metadataHTML}`;
+    const metaBox = document.createElement('div');
+    metaBox.className = 'metadata-inline';
+    const metaSpan = document.createElement('span');
+    metaSpan.className = 'metadata-text';
+    metaSpan.textContent = typeof metadata === 'string' ? metadata : String(metadata ?? '');
+    metaBox.appendChild(metaSpan);
+    listItem.appendChild(metaBox);
+
     pagesNotScannedList.appendChild(listItem);
   });
 
   const unsupportedList = document.getElementById('unsupportedDocsList');
   if (unsupportedList) {
-    unsupportedList.innerHTML = '';
+    unsupportedList.replaceChildren();
     unsupportedDocs.forEach((page) => {
       const li = document.createElement('li');
       const url = page.url || page;
-      const title = page.pageTitle?.length ? page.pageTitle : url;
+      const title = (page.pageTitle && page.pageTitle.length) ? page.pageTitle : url;
       const metadata = page.metadata || 'Not A Supported Document';
-      li.innerHTML = `
-        <a href="${url}" target="_blank" rel="noopener">
-          ${title}
-          <svg class="link-external-icon" width="16" height="12" viewBox="0 0 8 8" aria-hidden="true" focusable="false">
-            <path d="M7.11111 7.11111H0.888889V0.888889H4V0H0.888889C0.395556 0 0 0.4 0 0.888889V7.11111C0 7.6 0.395556 8 0.888889 8H7.11111C7.6 8 8 7.6 8 7.11111V4H7.11111V7.11111ZM4.88889 0V0.888889H6.48444L2.11556 5.25778L2.74222 5.88444L7.11111 1.51556V3.11111H8V0H4.88889Z" fill="#5735DF"/>
-          </svg>
-        </a>
 
-        <div class="metadata-inline">
-          <span class="metadata-text">
-            ${metadata}
-          </span>
-        </div>
-      `;
+      const a = document.createElement('a');
+      if (isSafeHref(url)) {
+        a.href = url;
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener noreferrer');
+      }
+      a.appendChild(document.createTextNode(String(title ?? '')));
+      a.appendChild(document.createTextNode(' '));
+      a.appendChild(buildExternalIcon());
+      li.appendChild(a);
+
+      const metaBox = document.createElement('div');
+      metaBox.className = 'metadata-inline';
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'metadata-text';
+      metaSpan.textContent = typeof metadata === 'string' ? metadata : String(metadata ?? '');
+      metaBox.appendChild(metaSpan);
+      li.appendChild(metaBox);
+
       unsupportedList.appendChild(li);
     });
   }

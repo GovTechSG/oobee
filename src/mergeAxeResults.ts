@@ -827,7 +827,19 @@ const generateArtifacts = async (
       htmlETL: oobeeAiHtmlETL,
       rules: oobeeAiRules,
     },
-    siteName: getEntryPageTitle(pagesScanned, urlScanned).replace(/^\d+\s*:\s*/, '').trim(),
+    // siteName is the <title> of the entry page and reaches the report
+    // renderer as-is. The client-side sink is now textContent (ScanDetails.ejs),
+    // but we also drop control characters and cap the length here so a
+    // pathological title cannot bloat the JSON payload or render as
+    // interactive content in any future consumer of allIssues.
+    siteName: (() => {
+      const raw = getEntryPageTitle(pagesScanned, urlScanned)
+        .replace(/^\d+\s*:\s*/, '')
+        .trim();
+      // eslint-disable-next-line no-control-regex
+      const stripped = raw.replace(/[ -]/g, '');
+      return stripped.length > 512 ? stripped.slice(0, 512) : stripped;
+    })(),
     startTime: scanDetails.startTime ? scanDetails.startTime : new Date(),
     endTime: scanDetails.endTime ? scanDetails.endTime : new Date(),
     urlScanned,

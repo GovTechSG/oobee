@@ -28,7 +28,13 @@
 
   const formattedViewerLocalStartTime = formatAboutStartTime(scanData.startTime);
 
-  document.getElementById('websiteTitle').innerHTML = scanData.siteName;
+  // siteName / viewport / oobeeAppVersion are all derived from the scanned
+  // page (title tag, CLI arg, browser reported metadata) and land here as
+  // free-form strings. Any innerHTML sink parses them as markup, which lets
+  // a scanned site smuggle <script> or event-handler attributes into the
+  // report the reviewer later opens. Use textContent so the value is
+  // rendered as literal text.
+  document.getElementById('websiteTitle').textContent = scanData.siteName;
 
   const urlA = document.getElementById('urlScanned');
   const urlSpan = document.getElementById('urlScannedText');
@@ -37,13 +43,13 @@
 
   document.getElementById('aboutStartTime').innerHTML = formattedViewerLocalStartTime;
 
-  document.getElementById('viewport-text').innerHTML = scanData.viewport.startsWith('CustomWidth')
+  document.getElementById('viewport-text').textContent = scanData.viewport.startsWith('CustomWidth')
     ? `${scanData.viewport.split('_')[1]} Custom Width View`
     : scanData.viewport + ' View';
 
   const phAppVersionElement = document.getElementById('oobeeAppVersion');
   const versionContent = 'Oobee Version ' + scanData.oobeeAppVersion;
-  phAppVersionElement.innerHTML = versionContent;
+  phAppVersionElement.textContent = versionContent;
 
   const cypressScanAboutMetadata = scanData.cypressScanAboutMetadata;
   if (cypressScanAboutMetadata) {
