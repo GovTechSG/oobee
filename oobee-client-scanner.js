@@ -34994,7 +34994,11 @@
   var _oobeeSentryDsn          = "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168";
   var _oobeeAppVersion         = "0.11.17";
   var _oobeeSentryVersion      = "10.58.0";
-  var _oobeeSentrySdkSri       = "sha384-rtfUMq82bneIHVOpL/60roC5pIJ9kDO15w13yGEBKZSJp3aIbrOAhimB61EwPClB";
+  // Subresource Integrity hash for the Sentry SDK bundle. Public integrity
+  // pin (not a secret) — the browser needs to see it to verify the CDN
+  // response. High base64 entropy is by design; suppress the scanner rule
+  // that flags it as a hardcoded secret.
+  var _oobeeSentrySdkSri       = "sha384-rtfUMq82bneIHVOpL/60roC5pIJ9kDO15w13yGEBKZSJp3aIbrOAhimB61EwPClB"; // guardrails-disable-line
   var _oobeeSentryInitialized  = false;
   var _oobeeSentryLoadPromise  = null;
 
