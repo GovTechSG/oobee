@@ -30,11 +30,19 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path ${{github.workspace}}/* -DestinationPath oobee-portable-windows.zip
 
+      - name: Compute SHA256 sidecar (Windows)
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash -Algorithm SHA256 oobee-portable-windows.zip).Hash.ToLower()
+          [System.IO.File]::WriteAllText("oobee-portable-windows.zip.sha256", $hash)
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: oobee-portable-windows
-          path: ./oobee-portable-windows.zip
+          path: |
+            ./oobee-portable-windows.zip
+            ./oobee-portable-windows.zip.sha256
 
       - name: Release Windows artifact
         uses: softprops/action-gh-release@v1
@@ -42,6 +50,7 @@ jobs:
         with:
           files: |
             oobee-portable-windows.zip
+            oobee-portable-windows.zip.sha256
 
   mac-install-oobee:
     runs-on: macos-latest
@@ -167,11 +176,18 @@ jobs:
         run: |
           zip oobee-portable-mac.zip -y -r ./
 
+      - name: Compute SHA256 sidecar (Mac)
+        run: |
+          hash=$(shasum -a 256 oobee-portable-mac.zip | awk '{ print $1 }')
+          printf "%s" "$hash" > oobee-portable-mac.zip.sha256
+
       - name: Upload Mac artifact
         uses: actions/upload-artifact@v4
         with:
           name: oobee-portable-mac
-          path: ./oobee-portable-mac.zip
+          path: |
+            ./oobee-portable-mac.zip
+            ./oobee-portable-mac.zip.sha256
 
       - name: Release Mac artifact
         uses: softprops/action-gh-release@v1
@@ -179,3 +195,4 @@ jobs:
         with:
           files: |
             oobee-portable-mac.zip
+            oobee-portable-mac.zip.sha256

@@ -763,10 +763,18 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
   const domain = isLocalFileScan ? path.basename(url) : new URL(url).hostname;
 
-  const sanitisedLabel = customFlowLabel ? `_${customFlowLabel.replaceAll(' ', '_')}` : '';
+  // Constrain the label to the same character class getStoragePath accepts
+  // ([A-Za-z0-9._-]) so non-ASCII inputs (CJK, Cyrillic, accented Latin, etc.)
+  // don't produce a randomToken that later trips assertSafeRandomToken.
+  const sanitisedLabel = customFlowLabel
+    ? `_${customFlowLabel.replaceAll(' ', '_').replace(/[^A-Za-z0-9._-]/g, '_')}`
+    : '';
   let resultFilename: string;
   const randomThreeDigitNumber = randomThreeDigitNumberString();
-  resultFilename = `${date}_${time}${sanitisedLabel}_${domain}_${randomThreeDigitNumber}`;
+  // domain may be a hostname (ASCII, punycode-encoded for IDNs) or a local
+  // filename which can contain arbitrary characters — normalize it too.
+  const sanitisedDomain = domain.replace(/[^A-Za-z0-9._-]/g, '_');
+  resultFilename = `${date}_${time}${sanitisedLabel}_${sanitisedDomain}_${randomThreeDigitNumber}`;
 
   // Set exported directory
   if (exportDirectory) {
