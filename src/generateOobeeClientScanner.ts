@@ -296,7 +296,11 @@ const sentryTelemetryScript = (
   var _oobeeSentryDsn          = ${JSON.stringify(dsn)};
   var _oobeeAppVersion         = ${JSON.stringify(appVersion)};
   var _oobeeSentryVersion      = ${JSON.stringify(sentryVersion)};
-  var _oobeeSentrySdkSri       = ${JSON.stringify(sri)};
+  // Subresource Integrity hash for the Sentry SDK bundle. Public integrity
+  // pin (not a secret) — the browser needs to see it to verify the CDN
+  // response. High base64 entropy is by design; suppress the scanner rule
+  // that flags it as a hardcoded secret.
+  var _oobeeSentrySdkSri       = ${JSON.stringify(sri)}; // guardrails-disable-line
   var _oobeeSentryInitialized  = false;
   var _oobeeSentryLoadPromise  = null;
 
