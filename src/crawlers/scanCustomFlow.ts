@@ -130,7 +130,15 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
   const entryUrl = parsedUrl.href;
   const domain = parsedUrl.hostname;
   const sanitisedLabel = customFlowLabel ? `_${sanitisePathSegment(customFlowLabel)}` : '';
-  const randomToken = config.randomToken || `${date}_${time}${sanitisedLabel}_${domain}`;
+  // A caller-supplied randomToken is used directly as the results directory
+  // segment (see getStoragePath). Apply the same character allowlist as the
+  // generated tokens so a hostile "config.randomToken" cannot climb out of
+  // the results dir via "../".
+  const rawRandomToken = config.randomToken || `${date}_${time}${sanitisedLabel}_${domain}`;
+  const randomToken = sanitisePathSegment(rawRandomToken);
+  if (!randomToken) {
+    throw new Error('Invalid randomToken supplied to scanCustomFlow');
+  }
   const scanStartedAt = new Date();
   const viewportHeight =
     (playwrightDeviceDetailsObject as { viewport?: { height?: number } } | undefined)?.viewport

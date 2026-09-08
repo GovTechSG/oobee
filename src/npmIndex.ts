@@ -425,7 +425,13 @@ export const init = async ({
   // via a crafted hostname.
   const rawDomain = new URL(entryUrl).hostname;
   const domain = rawDomain.replace(/[^A-Za-z0-9._-]/g, '_');
-  const sanitisedLabel = testLabel ? `_${testLabel.replaceAll(' ', '_')}` : '';
+  // testLabel is a caller-supplied string and lands inside a filesystem
+  // path (storage/results/<token>/...). Left as-is, ``../../etc`` or
+  // ``/tmp/whatever`` would escape the results directory and reach fs.rm
+  // during cleanup. Coerce to a single [A-Za-z0-9_-] segment.
+  const sanitisedLabel = testLabel
+    ? `_${String(testLabel).replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 64)}`
+    : '';
   const randomToken = `${date}_${time}${sanitisedLabel}_${domain}`;
 
   const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);

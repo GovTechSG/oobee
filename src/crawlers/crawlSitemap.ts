@@ -148,7 +148,12 @@ const crawlSitemap = async ({
     : null;
   const { playwrightDeviceDetailsObject } = viewportSettings;
   const { maxConcurrency } = constants;
-  const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
+  // Bind Basic-auth credentials to the entry URL's origin so Playwright
+  // won't auto-attach them after a cross-origin redirect (credential leak).
+  const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(
+    extraHTTPHeaders,
+    userUrl || sitemapUrl,
+  );
 
   // Filter out URLs already scanned in previous phases to avoid navigating to
   // them at all (the handler-level check is a safety net, not the primary gate).

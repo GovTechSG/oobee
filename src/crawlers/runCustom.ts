@@ -144,7 +144,7 @@ const runCustom = async (
       ...customArgs,
     ];
 
-    const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
+    const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders, url);
 
     const context = await launchPersistentSafeContext(userDataDirectory, {
       ...baseLaunchOptions,

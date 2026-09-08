@@ -1,10 +1,21 @@
 export default function xPathToCss(expr: string) {
+  // Cap input length up front. The original isValidXPath regex is used only
+  // to short-circuit expressions containing xpath features that this
+  // converter doesn't support — any input longer than 2KB is well past the
+  // realistic size of a per-element xpath and only shows up in adversarial
+  // crawled DOM (attacker-controlled id/class attributes). Without this
+  // guard the ``\[(?:[^\/\]]+[\/\[]\/?.+)+\]`` alternative backtracks
+  // exponentially on nested brackets.
+  const XPATH_MAX_INPUT = 2048;
+  if (typeof expr === 'string' && expr.length > XPATH_MAX_INPUT) {
+    throw new Error(`xPathToCss: expression exceeds ${XPATH_MAX_INPUT} characters`);
+  }
   const isValidXPath = (expr: string) =>
     typeof expr !== 'undefined' &&
-    expr.replace(/[\s-_=]/g, '') !== '' &&
+    expr.replace(/[\s\-_=]/g, '') !== '' &&
     expr.length ===
       expr.replace(
-        /[-_\w:.]+\(\)\s*=|=\s*[-_\w:.]+\(\)|\sor\s|\sand\s|\[(?:[^\/\]]+[\/\[]\/?.+)+\]|starts-with\(|\[.*last\(\)\s*[-\+<>=].+\]|number\(\)|not\(|count\(|text\(|first\(|normalize-space|[^\/]following-sibling|concat\(|descendant::|parent::|self::|child::|/gi,
+        /[-_\w:.]+\(\)\s*=|=\s*[-_\w:.]+\(\)|\sor\s|\sand\s|\[[^\][/]*[/[][^\][]*\]|starts-with\(|\[[^\]]*last\(\)\s*[-+<>=][^\]]*\]|number\(\)|not\(|count\(|text\(|first\(|normalize-space|[^/]following-sibling|concat\(|descendant::|parent::|self::|child::|/gi,
         '',
       ).length;
 

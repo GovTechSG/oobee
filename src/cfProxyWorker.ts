@@ -164,6 +164,31 @@ function isIpLiteral(s: string): boolean {
   return ipToBytes(s) !== null;
 }
 
+// Loopback, private, link-local, and cloud-metadata ranges. A SOCKS5 caller
+// that gave us an IP literal skipped DNS resolution entirely, so Family DoH
+// filtering never gets a chance to reject internal targets. Match on the
+// literal before opening a direct TCP forward.
+const INTERNAL_IP_RANGES: string[] = [
+  '127.0.0.0/8',        // IPv4 loopback
+  '10.0.0.0/8',         // RFC1918
+  '172.16.0.0/12',      // RFC1918
+  '192.168.0.0/16',     // RFC1918
+  '169.254.0.0/16',     // link-local + AWS/GCP/Azure metadata (169.254.169.254)
+  '100.64.0.0/10',      // CGNAT
+  '0.0.0.0/8',          // this-network
+  '::1/128',            // IPv6 loopback
+  'fc00::/7',           // IPv6 ULA
+  'fe80::/10',          // IPv6 link-local
+  '::ffff:127.0.0.0/104', // IPv4-mapped loopback
+  '::ffff:10.0.0.0/104',
+  '::ffff:169.254.0.0/112',
+  '::ffff:192.168.0.0/112',
+];
+
+function isInternalIp(ip: string): boolean {
+  return isIpLiteral(ip) && ipInRanges(ip, INTERNAL_IP_RANGES);
+}
+
 // -----------------------------------------------------------------------------
 // Force-tunnel allowlist.
 // -----------------------------------------------------------------------------
@@ -758,7 +783,16 @@ async function handleSocks5FamilyLocal(clientSocket: net.Socket): Promise<void> 
   const { hostname, port } = req;
 
   // IP literals bypass DoH — Family filtering only applies to name lookups.
+  // Block any literal that points at internal / metadata addresses before
+  // opening the direct TCP forward, otherwise a scanned page could pivot the
+  // driven browser onto 169.254.169.254 or 127.0.0.1 via a SOCKS request.
   if (isIpLiteral(hostname)) {
+    if (isInternalIp(hostname)) {
+      consoleLogger.info(`[familyDnsProxy] Refusing SOCKS connect to internal IP literal ${hostname}`);
+      try { clientSocket.write(socksReply(0x02)); } catch { /* ignore */ }
+      clientSocket.end();
+      return;
+    }
     directForward(clientSocket, hostname, port, hostname);
     return;
   }
@@ -773,6 +807,15 @@ async function handleSocks5FamilyLocal(clientSocket: net.Socket): Promise<void> 
   if (!ip) {
     consoleLogger.warn(`[familyDnsProxy] Family DoH resolution failed for ${hostname}`);
     try { clientSocket.write(socksReply(0x04)); } catch { /* ignore */ }
+    clientSocket.end();
+    return;
+  }
+  // Also block DNS-rebinding / metadata-lookalike names that resolve into
+  // internal address space after DoH — the DoH resolver upstream would
+  // dutifully return the internal answer.
+  if (isInternalIp(ip)) {
+    consoleLogger.info(`[familyDnsProxy] Refusing SOCKS connect: ${hostname} resolved to internal ${ip}`);
+    try { clientSocket.write(socksReply(0x02)); } catch { /* ignore */ }
     clientSocket.end();
     return;
   }

@@ -59,7 +59,7 @@ const crawlIntelligentSitemap = async (
     let sitemapLink = '';
 
     const launchOptions = getPlaywrightLaunchOptions(browser);
-    const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
+    const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders, link);
     let context;
     let browserInstance;
 

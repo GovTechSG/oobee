@@ -43,6 +43,9 @@ import { consoleLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { capturePageData } from './pageCapture.js';
 import { registerCrawler, unregisterCrawler, isShutdownRequested } from '../shutdownController.js';
+import { addUrlGuardScript } from './guards/urlGuard.js';
+
+const ALLOWED_NAV_PROTOCOLS = new Set(['http:', 'https:']);
 
 const isBlacklisted = (url: string, blacklistedPatterns: string[]) => {
   if (!blacklistedPatterns) {
@@ -400,7 +403,9 @@ const crawlDomain = async ({
     specifiedMaxConcurrency || constants.maxConcurrency,
   );
 
-  const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders);
+  // Bind Basic-auth credentials to the entry URL's origin so Playwright
+  // won't auto-attach them after a cross-origin redirect (credential leak).
+  const { nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders, url);
 
   const crawler = register(
     new crawlee.PlaywrightCrawler({
@@ -434,15 +439,34 @@ const crawlDomain = async ({
       maxRequestRetries: 3,
       preNavigationHooks: [
         ...preNavigationHooks(extraHTTPHeaders),
+        // Attach URL-scheme guards to each new BrowserContext the first time
+        // Crawlee routes a request through it. Complements the up-front URL
+        // filter below by catching in-page navigations (window.open,
+        // form submissions, redirects) that would otherwise bypass the check.
+        (() => {
+          const guardedContexts = new WeakSet<BrowserContext>();
+          return async ({ page }: PlaywrightCrawlingContext) => {
+            const ctx = page.context();
+            if (guardedContexts.has(ctx)) return;
+            guardedContexts.add(ctx);
+            addUrlGuardScript(ctx, { fallbackUrl: url });
+          };
+        })(),
         async ({ request }) => {
-          const url = request.url.toLowerCase();
           try {
-            const pathname = new URL(url).pathname;
-            const ext = pathname.split('.').pop();
+            const parsed = new URL(request.url);
+            if (!ALLOWED_NAV_PROTOCOLS.has(parsed.protocol)) {
+              // Reject file://, javascript:, data:, etc. before navigation.
+              request.skipNavigation = true;
+              return;
+            }
+            const ext = parsed.pathname.toLowerCase().split('.').pop();
             if (ext && blackListedFileExtensions.includes(ext)) {
               request.skipNavigation = true;
             }
-          } catch {}
+          } catch {
+            request.skipNavigation = true;
+          }
         },
       ],
       postNavigationHooks: [

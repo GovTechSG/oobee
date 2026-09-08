@@ -426,6 +426,8 @@
   }
 
   function htmlEscapeString(string) {
+    if (string == null) return '';
+    string = String(string);
     if (string.includes('&lt;/script>')) {
       string = string.replaceAll('&lt;/script>', '<\/script>')
     }
@@ -435,6 +437,24 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  // Only allow http(s)/mailto in report anchors. Values come from scanned
+  // pages (page.url, item.pageUrl) so a crafted javascript:/data: URL would
+  // otherwise become an XSS sink the moment the reviewer clicks the link.
+  // Anything else collapses to '#'.
+  function isSafeReportHref(url) {
+    if (url == null) return '#';
+    const s = String(url).trim();
+    if (!s) return '#';
+    if (/^[./]/.test(s)) return s;
+    try {
+      const u = new URL(s, document.baseURI);
+      if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'mailto:') {
+        return u.href;
+      }
+    } catch (_) { /* fall through */ }
+    return '#';
   }
 
   // Format string from wcag111 to WCAG 1.1.1
