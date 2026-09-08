@@ -341,41 +341,6 @@ export const impactOrder = {
   critical: 3,
 };
 
-/**
- * TLS validation is on by default. Global disablement previously happened
- * unconditionally at module load, which:
- *   - broke certificate validation for every outbound HTTPS request in the
- *     process (Sentry, update checks, browser downloads, ...), letting an
- *     on-path attacker MITM any of them;
- *   - swallowed Node's own warning, hiding the misconfiguration in logs.
- *
- * If a run genuinely targets a private/self-signed endpoint, the operator
- * must set OOBEE_ALLOW_INSECURE_TLS=1 explicitly. The env variable name
- * appears in the error report if this ever gets flipped, which makes the
- * insecure state auditable. Prefer supplying a `ca` bundle to the specific
- * request/agent instead.
- */
-export function suppressTlsRejectWarning(): void {
-  if (process.env.OOBEE_ALLOW_INSECURE_TLS !== '1') return;
-
-  const originalEmitWarning = process.emitWarning;
-  process.emitWarning = (warning: string | Error, ...args: any[]) => {
-    const msg = typeof warning === 'string' ? warning : warning.message;
-    if (msg.includes('NODE_TLS_REJECT_UNAUTHORIZED')) {
-      return;
-    }
-    originalEmitWarning.call(process, warning, ...args);
-  };
-
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-  // Loud, un-swallowed log so an accidental opt-in is visible in ops output.
-  // eslint-disable-next-line no-console
-  console.warn(
-    '[oobee] OOBEE_ALLOW_INSECURE_TLS=1 is set — TLS certificate validation is disabled process-wide.',
-  );
-}
-
-suppressTlsRejectWarning();
 
 export const sentryConfig = {
   dsn:
