@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY. Re-generate with: node dist/generateOobeeClientScanner.js
  *
  * Embedded at generation time:
- *   App version : 0.11.16
+ *   App version : 0.11.17
  *   Sentry DSN  : (from OOBEE_SENTRY_DSN env var or constants.ts default)
  *   Sentry SDK  : @sentry/browser 10.58.0 (loaded from CDN at runtime)
  *
@@ -34318,10 +34318,21 @@
 };
       
       window.xPathToCss = function xPathToCss(expr) {
+    // Cap input length up front. The original isValidXPath regex is used only
+    // to short-circuit expressions containing xpath features that this
+    // converter doesn't support — any input longer than 2KB is well past the
+    // realistic size of a per-element xpath and only shows up in adversarial
+    // crawled DOM (attacker-controlled id/class attributes). Without this
+    // guard the ``\[(?:[^\/\]]+[\/\[]\/?.+)+\]`` alternative backtracks
+    // exponentially on nested brackets.
+    const XPATH_MAX_INPUT = 2048;
+    if (typeof expr === 'string' && expr.length > XPATH_MAX_INPUT) {
+        throw new Error(`xPathToCss: expression exceeds ${XPATH_MAX_INPUT} characters`);
+    }
     const isValidXPath = (expr) => typeof expr !== 'undefined' &&
-        expr.replace(/[\s-_=]/g, '') !== '' &&
+        expr.replace(/[\s\-_=]/g, '') !== '' &&
         expr.length ===
-            expr.replace(/[-_\w:.]+\(\)\s*=|=\s*[-_\w:.]+\(\)|\sor\s|\sand\s|\[(?:[^\/\]]+[\/\[]\/?.+)+\]|starts-with\(|\[.*last\(\)\s*[-\+<>=].+\]|number\(\)|not\(|count\(|text\(|first\(|normalize-space|[^\/]following-sibling|concat\(|descendant::|parent::|self::|child::|/gi, '').length;
+            expr.replace(/[-_\w:.]+\(\)\s*=|=\s*[-_\w:.]+\(\)|\sor\s|\sand\s|\[[^\][/]*[/[][^\][]*\]|starts-with\(|\[[^\]]*last\(\)\s*[-+<>=][^\]]*\]|number\(\)|not\(|count\(|text\(|first\(|normalize-space|[^/]following-sibling|concat\(|descendant::|parent::|self::|child::|/gi, '').length;
     const getValidationRegex = () => {
         let regex = '(?P<node>' +
             '(' +
@@ -34981,8 +34992,9 @@
   // ── Sentry browser telemetry (Sentry JS SDK, loaded from CDN) ────────────
   
   var _oobeeSentryDsn          = "https://3b8c7ee46b06f33815a1301b6713ebc3@o4509047624761344.ingest.us.sentry.io/4509327783559168";
-  var _oobeeAppVersion         = "0.11.16";
+  var _oobeeAppVersion         = "0.11.17";
   var _oobeeSentryVersion      = "10.58.0";
+  var _oobeeSentrySdkSri       = "sha384-rtfUMq82bneIHVOpL/60roC5pIJ9kDO15w13yGEBKZSJp3aIbrOAhimB61EwPClB";
   var _oobeeSentryInitialized  = false;
   var _oobeeSentryLoadPromise  = null;
 
@@ -35002,6 +35014,12 @@
       var script = document.createElement('script');
       script.src = 'https://browser.sentry-cdn.com/' + _oobeeSentryVersion + '/bundle.min.js';
       script.crossOrigin = 'anonymous';
+      if (_oobeeSentrySdkSri) {
+        // Pin the CDN response with Subresource Integrity so the browser
+        // refuses to execute a tampered Sentry bundle even if the CDN
+        // (or a MITM against a scanned page) serves modified code.
+        script.integrity = _oobeeSentrySdkSri;
+      }
       script.onload = function() {
         if (window.Sentry && typeof window.Sentry.init === 'function') {
           resolve(window.Sentry);
