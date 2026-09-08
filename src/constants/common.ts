@@ -763,10 +763,18 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
   const domain = isLocalFileScan ? path.basename(url) : new URL(url).hostname;
 
-  const sanitisedLabel = customFlowLabel ? `_${customFlowLabel.replaceAll(' ', '_')}` : '';
+  // Constrain the label to the same character class getStoragePath accepts
+  // ([A-Za-z0-9._-]) so non-ASCII inputs (CJK, Cyrillic, accented Latin, etc.)
+  // don't produce a randomToken that later trips assertSafeRandomToken.
+  const sanitisedLabel = customFlowLabel
+    ? `_${customFlowLabel.replaceAll(' ', '_').replace(/[^A-Za-z0-9._-]/g, '_')}`
+    : '';
   let resultFilename: string;
   const randomThreeDigitNumber = randomThreeDigitNumberString();
-  resultFilename = `${date}_${time}${sanitisedLabel}_${domain}_${randomThreeDigitNumber}`;
+  // domain may be a hostname (ASCII, punycode-encoded for IDNs) or a local
+  // filename which can contain arbitrary characters — normalize it too.
+  const sanitisedDomain = domain.replace(/[^A-Za-z0-9._-]/g, '_');
+  resultFilename = `${date}_${time}${sanitisedLabel}_${sanitisedDomain}_${randomThreeDigitNumber}`;
 
   // Set exported directory
   if (exportDirectory) {
@@ -1135,6 +1143,12 @@ export const getLinksFromSitemap = async (
     finalUserDataDirectory = '';
   }
 
+  // If the initial sitemap is remote, do NOT let a hostile server redirect us
+  // into the local filesystem via a `<loc>file:///…</loc>` child. Only remote
+  // sitemaps may reference file:// / local paths when the operator explicitly
+  // started from a local sitemap file.
+  const entryIsRemote = !isFilePath(sitemapUrl);
+
   const fetchUrls = async (url: string, extraHTTPHeaders: Record<string, string>) => {
     let data;
     let sitemapType;
@@ -1153,6 +1167,16 @@ export const getLinksFromSitemap = async (
 
     // Convert file if its not local file path
     url = convertLocalFileToPath(url);
+
+    // Reject file:// / local paths encountered while recursing through a
+    // remotely-fetched sitemap — an attacker-controlled sitemap could
+    // otherwise coerce us into reading arbitrary local files.
+    if (entryIsRemote && isFilePath(url)) {
+      consoleLogger.warn(
+        `Refusing to descend into local path from remote sitemap: ${url}`,
+      );
+      return;
+    }
 
     // Check whether its a file path or a URL
     if (isFilePath(url)) {
@@ -2115,22 +2139,24 @@ export const submitForm = async (
       pagesNotScanned: numberOfPagesNotScanned,
     });
 
-    let finalUrl =
-      `${formDataFields.formUrl}?` +
-      `${formDataFields.entryUrlField}=${entryUrl}&` +
-      `${formDataFields.scanTypeField}=${scanType}&` +
-      `${formDataFields.emailField}=${email}&` +
-      `${formDataFields.nameField}=${name}&` +
-      `${formDataFields.resultsField}=${encodeURIComponent(scanResultsJson)}&` +
-      `${formDataFields.numberOfPagesScannedField}=${numberOfPagesScanned}&` +
-      `${formDataFields.additionalPageDataField}=${encodeURIComponent(additionalPageDataJson)}&` +
-      `${formDataFields.metadataField}=${encodeURIComponent(metadata)}`;
-
+    // URLSearchParams percent-encodes every value, so a scanned URL / user
+    // name / email containing "&", "#", "%", or CR/LF cannot append extra
+    // query fields, break the request line, or smuggle newlines into the
+    // upstream form endpoint.
+    const params = new URLSearchParams();
+    params.set(formDataFields.entryUrlField, String(entryUrl ?? ''));
+    params.set(formDataFields.scanTypeField, String(scanType ?? ''));
+    params.set(formDataFields.emailField, String(email ?? ''));
+    params.set(formDataFields.nameField, String(name ?? ''));
+    params.set(formDataFields.resultsField, scanResultsJson);
+    params.set(formDataFields.numberOfPagesScannedField, String(numberOfPagesScanned ?? 0));
+    params.set(formDataFields.additionalPageDataField, additionalPageDataJson);
+    params.set(formDataFields.metadataField, String(metadata ?? ''));
     if (scannedUrl !== entryUrl) {
-      finalUrl += `&${formDataFields.redirectUrlField}=${scannedUrl}`;
+      params.set(formDataFields.redirectUrlField, String(scannedUrl ?? ''));
     }
 
-    await axios.get(finalUrl, { timeout: 2000 });
+    await axios.get(`${formDataFields.formUrl}?${params.toString()}`, { timeout: 2000 });
   } catch (error) {
     // Never rethrow. Previously a timeout here would launch a second browser to
     // retry the request, which could throw "Executable doesn't exist" on

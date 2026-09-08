@@ -151,7 +151,9 @@ export async function getPdfScreenshots(
         viewport,
       )(bboxesWithCoords[0]);
 
-      newItems[i].screenshotPath = path.join('elemScreenshots', 'pdf', finalScreenshotPath);
+      if (finalScreenshotPath) {
+        newItems[i].screenshotPath = path.join('elemScreenshots', 'pdf', finalScreenshotPath);
+      }
       newItems[i].page = parseInt(pageNum, 10);
 
       page.cleanup();
@@ -160,66 +162,93 @@ export async function getPdfScreenshots(
   return newItems;
 }
 
+// Max crop canvas dimension. A rendered PDF page at 200% scale is well under
+// this bound; a bbox that would produce a larger crop is treated as malformed
+// and skipped rather than allocating a canvas that could exhaust memory.
+const MAX_CROP_DIMENSION = 8192;
+
+const isFinitePositive = (n: unknown): n is number =>
+  typeof n === 'number' && Number.isFinite(n) && n > 0;
+
 const annotateAndSave = (origCanvas: Canvas, screenshotPath: string, viewport: ViewportSize) => {
   return ({ location }) => {
-    const [left, bottom, width, height] = location.map(loc => loc * 2); // scale up by 2
-    const rectParams = [left, viewport.height - bottom - height, width, height];
-
-    // create new canvas to annotate so we do not "pollute" the original
-    const { context: highlightCtx, canvas: highlightCanvas } = canvasFactory.create(
-      viewport.width,
-      viewport.height,
-    );
-
-    highlightCtx.drawImage(origCanvas, 0, 0);
-    highlightCtx.fillStyle = 'rgba(0, 255, 255, 0.2)';
-    highlightCtx.fillRect(...rectParams);
-
-    const rectParamsWithPadding = [
-      left - BBOX_PADDING,
-      viewport.height - bottom - height - BBOX_PADDING,
-      width + BBOX_PADDING * 2,
-      height + BBOX_PADDING * 2,
-    ];
-
-    // create new canvas to crop image
-    const { context: croppedCtx, canvas: croppedCanvas } = canvasFactory.create(
-      rectParamsWithPadding[2],
-      rectParamsWithPadding[3],
-    );
-
-    croppedCtx.drawImage(
-      highlightCanvas,
-      ...rectParamsWithPadding,
-      0,
-      0,
-      rectParamsWithPadding[2],
-      rectParamsWithPadding[3],
-    );
-
-    // convert the canvas to an image
-    // const croppedImage = croppedCanvas.toBuffer();
-    const croppedImage = croppedCanvas.toBuffer('image/png');
-
-    // save image
-    let counter = 0;
-    let indexedScreenshotPath = `${screenshotPath}-${counter}.png`;
-    let fileExists = fs.existsSync(indexedScreenshotPath);
-    while (fileExists) {
-      counter++;
-      indexedScreenshotPath = `${screenshotPath}-${counter}.png`;
-      fileExists = fs.existsSync(indexedScreenshotPath);
-    }
     try {
-      fs.writeFileSync(indexedScreenshotPath, croppedImage);
+      if (!Array.isArray(location) || location.length < 4 || !location.every(n => typeof n === 'number' && Number.isFinite(n))) {
+        consoleLogger.warn('Skipping PDF screenshot: malformed bbox location');
+        return null;
+      }
+
+      const [left, bottom, width, height] = location.map(loc => loc * 2); // scale up by 2
+      const rectParams = [left, viewport.height - bottom - height, width, height];
+
+      // create new canvas to annotate so we do not "pollute" the original
+      const { context: highlightCtx, canvas: highlightCanvas } = canvasFactory.create(
+        viewport.width,
+        viewport.height,
+      );
+
+      highlightCtx.drawImage(origCanvas, 0, 0);
+      highlightCtx.fillStyle = 'rgba(0, 255, 255, 0.2)';
+      highlightCtx.fillRect(...rectParams);
+
+      const cropX = left - BBOX_PADDING;
+      const cropY = viewport.height - bottom - height - BBOX_PADDING;
+      const cropW = width + BBOX_PADDING * 2;
+      const cropH = height + BBOX_PADDING * 2;
+
+      // Clamp bbox-derived canvas dimensions BEFORE allocation. A malformed
+      // PDF whose structure tree points at a bbox with huge width/height
+      // would otherwise ask @napi-rs/canvas to allocate an image buffer of
+      // W * H * 4 bytes, potentially exhausting RAM and terminating the
+      // scan process.
+      if (!isFinitePositive(cropW) || !isFinitePositive(cropH) ||
+          cropW > MAX_CROP_DIMENSION || cropH > MAX_CROP_DIMENSION) {
+        consoleLogger.warn(
+          `Skipping PDF screenshot: crop dimensions out of bounds (${cropW}x${cropH})`,
+        );
+        canvasFactory.destroy({ canvas: highlightCanvas, context: highlightCtx });
+        return null;
+      }
+
+      const rectParamsWithPadding = [cropX, cropY, cropW, cropH];
+
+      // create new canvas to crop image
+      const { context: croppedCtx, canvas: croppedCanvas } = canvasFactory.create(cropW, cropH);
+
+      croppedCtx.drawImage(
+        highlightCanvas,
+        ...rectParamsWithPadding,
+        0,
+        0,
+        rectParamsWithPadding[2],
+        rectParamsWithPadding[3],
+      );
+
+      const croppedImage = croppedCanvas.toBuffer('image/png');
+
+      // save image
+      let counter = 0;
+      let indexedScreenshotPath = `${screenshotPath}-${counter}.png`;
+      let fileExists = fs.existsSync(indexedScreenshotPath);
+      while (fileExists) {
+        counter++;
+        indexedScreenshotPath = `${screenshotPath}-${counter}.png`;
+        fileExists = fs.existsSync(indexedScreenshotPath);
+      }
+      try {
+        fs.writeFileSync(indexedScreenshotPath, croppedImage);
+      } catch (e) {
+        consoleLogger.error('Error in writing screenshot:', e);
+      }
+
+      canvasFactory.destroy({ canvas: croppedCanvas, context: croppedCtx });
+      canvasFactory.destroy({ canvas: highlightCanvas, context: highlightCtx });
+
+      return path.basename(indexedScreenshotPath);
     } catch (e) {
-      consoleLogger.error('Error in writing screenshot:', e);
+      consoleLogger.error('Error while producing PDF screenshot:', e);
+      return null;
     }
-
-    canvasFactory.destroy({ canvas: croppedCanvas, context: croppedCtx });
-    canvasFactory.destroy({ canvas: highlightCanvas, context: highlightCtx });
-
-    return path.basename(indexedScreenshotPath);
   };
 };
 

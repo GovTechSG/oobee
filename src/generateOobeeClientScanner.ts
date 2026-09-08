@@ -32,6 +32,8 @@
  */
 
 import { writeFileSync, readFileSync } from 'fs';
+import { createHash } from 'crypto';
+import { request as httpsRequest } from 'https';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
@@ -63,6 +65,45 @@ const SENTRY_NODE_VERSION: string = (() => {
     return '10.58.0';   // safe fallback matching currently installed version
   }
 })();
+
+// Fetch the exact Sentry SDK bundle we point the generated scanner at, and
+// derive a SHA-384 for use in the <script integrity="..."> attribute. This
+// pins the CDN response — an attacker who compromises browser.sentry-cdn.com
+// (or MITMs a scanned page's traffic) can no longer swap in a modified SDK
+// while retaining a matching origin, because the browser rejects any load
+// whose hash does not match.
+function fetchSentryBundleSri(version: string): Promise<string | null> {
+  const url = `https://browser.sentry-cdn.com/${version}/bundle.min.js`;
+  return new Promise<string | null>((resolve) => {
+    const req = httpsRequest(url, { method: 'GET' }, (res) => {
+      if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        resolve(null);
+        return;
+      }
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => {
+        const hash = createHash('sha384').update(Buffer.concat(chunks)).digest('base64');
+        resolve(`sha384-${hash}`);
+      });
+      res.on('error', () => resolve(null));
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(10_000, () => { req.destroy(); resolve(null); });
+    req.end();
+  });
+}
+
+// Prefer OOBEE_SENTRY_SDK_SRI when set (lets CI pin the hash without a
+// build-time network fetch). Otherwise fetch the CDN bundle at generation
+// time and compute a SHA-384.
+async function resolveSentrySri(version: string): Promise<string | null> {
+  const envSri = process.env.OOBEE_SENTRY_SDK_SRI;
+  if (envSri && /^sha(256|384|512)-/.test(envSri)) return envSri;
+  return fetchSentryBundleSri(version);
+}
+
 
 // ---------------------------------------------------------------------------
 // WCAG conformance helpers — formatWcagId and wcagCriteriaLabels are exported
@@ -246,10 +287,16 @@ const filterAxeResultsScript = `
 // from CDN (same major version as the installed @sentry/node build).
 // DSN and app version are baked in at generation time.
 // ---------------------------------------------------------------------------
-const sentryTelemetryScript = (dsn: string, appVersion: string, sentryVersion: string) => `
+const sentryTelemetryScript = (
+  dsn: string,
+  appVersion: string,
+  sentryVersion: string,
+  sri: string | null,
+) => `
   var _oobeeSentryDsn          = ${JSON.stringify(dsn)};
   var _oobeeAppVersion         = ${JSON.stringify(appVersion)};
   var _oobeeSentryVersion      = ${JSON.stringify(sentryVersion)};
+  var _oobeeSentrySdkSri       = ${JSON.stringify(sri)};
   var _oobeeSentryInitialized  = false;
   var _oobeeSentryLoadPromise  = null;
 
@@ -269,6 +316,12 @@ const sentryTelemetryScript = (dsn: string, appVersion: string, sentryVersion: s
       var script = document.createElement('script');
       script.src = 'https://browser.sentry-cdn.com/' + _oobeeSentryVersion + '/bundle.min.js';
       script.crossOrigin = 'anonymous';
+      if (_oobeeSentrySdkSri) {
+        // Pin the CDN response with Subresource Integrity so the browser
+        // refuses to execute a tampered Sentry bundle even if the CDN
+        // (or a MITM against a scanned page) serves modified code.
+        script.integrity = _oobeeSentrySdkSri;
+      }
       script.onload = function() {
         if (window.Sentry && typeof window.Sentry.init === 'function') {
           resolve(window.Sentry);
@@ -555,7 +608,7 @@ const scanApiScript = (
 // ---------------------------------------------------------------------------
 // Assemble the full client bundle
 // ---------------------------------------------------------------------------
-function generateClientBundle(): string {
+function generateClientBundle(sentrySdkSri: string | null): string {
   const axeSource      = axe.source;
   const oobeeFunctions = getOobeeFunctionsScript(false, false);
 
@@ -600,7 +653,7 @@ function generateClientBundle(): string {
   ${wcagConformanceScript}
 
   // ── Sentry browser telemetry (Sentry JS SDK, loaded from CDN) ────────────
-  ${sentryTelemetryScript(SENTRY_DSN, APP_VERSION, SENTRY_NODE_VERSION)}
+  ${sentryTelemetryScript(SENTRY_DSN, APP_VERSION, SENTRY_NODE_VERSION, sentrySdkSri)}
 
   // ── Description maps + window.oobee API ───────────────────────────────────
   ${scanApiScript(a11yRuleShortDescriptionMap, a11yRuleLongDescriptionMap, a11yRuleStepByStepGuide)}
@@ -616,8 +669,23 @@ const outputPath = outputArg
   ? path.resolve(outputArg)
   : path.resolve(process.cwd(), 'oobee-client-scanner.js');
 
-writeFileSync(outputPath, generateClientBundle(), 'utf-8');
-console.log(`Generated: ${outputPath}`);
-console.log(`  App version  : ${APP_VERSION}`);
-console.log(`  Sentry DSN   : ${SENTRY_DSN.slice(0, 40)}…`);
-console.log(`  Sentry SDK   : @sentry/browser ${SENTRY_NODE_VERSION} (CDN)`);
+(async () => {
+  const sentrySdkSri = await resolveSentrySri(SENTRY_NODE_VERSION);
+  if (!sentrySdkSri) {
+    console.warn(
+      `[generateOobeeClientScanner] WARNING: could not resolve Sentry SDK SRI for ` +
+      `@sentry/browser ${SENTRY_NODE_VERSION}. Generated bundle will load the CDN ` +
+      `script without integrity pinning. Set OOBEE_SENTRY_SDK_SRI to a sha384-... ` +
+      `value to pin it explicitly.`,
+    );
+  }
+  writeFileSync(outputPath, generateClientBundle(sentrySdkSri), 'utf-8');
+  console.log(`Generated: ${outputPath}`);
+  console.log(`  App version  : ${APP_VERSION}`);
+  console.log(`  Sentry DSN   : ${SENTRY_DSN.slice(0, 40)}…`);
+  console.log(`  Sentry SDK   : @sentry/browser ${SENTRY_NODE_VERSION} (CDN)`);
+  console.log(`  Sentry SRI   : ${sentrySdkSri || '(none — bundle loads without integrity)'}`);
+})().catch((err) => {
+  console.error('[generateOobeeClientScanner] failed:', err);
+  process.exit(1);
+});

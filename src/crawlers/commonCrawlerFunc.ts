@@ -1547,9 +1547,24 @@ export const preNavigationHooks = (extraHTTPHeaders: Record<string, string>) => 
  * Splits extraHTTPHeaders into auth and non-auth parts.
  * Auth headers (Authorization) must only be sent to same-origin requests to avoid CORS preflight failures.
  * Non-auth headers are safe to set globally on the browser context.
+ *
+ * If `entryUrl` is provided, Basic credentials are bound to that entry URL's
+ * origin via Playwright's httpCredentials.origin option so the browser will
+ * refuse to auto-attach them on redirects to a different origin.
  */
-export const splitAuthHeaders = (extraHTTPHeaders?: Record<string, string>) => {
+export const splitAuthHeaders = (
+  extraHTTPHeaders?: Record<string, string>,
+  entryUrl?: string,
+) => {
   const { Authorization, ...nonAuthHeaders } = extraHTTPHeaders || {};
+  const credentialOrigin = (() => {
+    if (!entryUrl) return undefined;
+    try {
+      return new URL(entryUrl).origin;
+    } catch {
+      return undefined;
+    }
+  })();
   return {
     authHeader: Authorization || null,
     nonAuthHeaders: Object.keys(nonAuthHeaders).length > 0 ? nonAuthHeaders : null,
@@ -1558,7 +1573,12 @@ export const splitAuthHeaders = (extraHTTPHeaders?: Record<string, string>) => {
       const decoded = Buffer.from(Authorization.slice(6), 'base64').toString();
       const colonIdx = decoded.indexOf(':');
       if (colonIdx <= 0) return null;
-      return { username: decoded.slice(0, colonIdx), password: decoded.slice(colonIdx + 1) };
+      const creds: { username: string; password: string; origin?: string } = {
+        username: decoded.slice(0, colonIdx),
+        password: decoded.slice(colonIdx + 1),
+      };
+      if (credentialOrigin) creds.origin = credentialOrigin;
+      return creds;
     })(),
   };
 };

@@ -418,8 +418,20 @@ export const init = async ({
   consoleLogger.info('Starting Oobee');
 
   const [date, time] = new Date().toLocaleString('sv').replaceAll(/-|:/g, '').split(' ');
-  const domain = new URL(entryUrl).hostname;
-  const sanitisedLabel = testLabel ? `_${testLabel.replaceAll(' ', '_')}` : '';
+  // hostname is derived from user-supplied entryUrl and used to build
+  // filesystem paths (storage/results/<token>/pdfs/...). Constrain it to a
+  // safe character class so a path that later reaches a shell, a child
+  // process argument list, or a report renderer cannot smuggle metacharacters
+  // via a crafted hostname.
+  const rawDomain = new URL(entryUrl).hostname;
+  const domain = rawDomain.replace(/[^A-Za-z0-9._-]/g, '_');
+  // testLabel is a caller-supplied string and lands inside a filesystem
+  // path (storage/results/<token>/...). Left as-is, ``../../etc`` or
+  // ``/tmp/whatever`` would escape the results directory and reach fs.rm
+  // during cleanup. Coerce to a single [A-Za-z0-9_-] segment.
+  const sanitisedLabel = testLabel
+    ? `_${String(testLabel).replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 64)}`
+    : '';
   const randomToken = `${date}_${time}${sanitisedLabel}_${domain}`;
 
   const disableOobee = ruleset.includes(RuleFlags.DISABLE_OOBEE);

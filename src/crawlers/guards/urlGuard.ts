@@ -9,6 +9,36 @@ export function addUrlGuardScript(context, opts = {}) {
 
   const lastAllowedUrlByPage = new WeakMap();
 
+  // Block navigation requests to non-http(s) schemes BEFORE they are dispatched.
+  // The framenavigated listener below is a fallback for in-page navigations
+  // that don't hit the network (e.g. history.pushState), but route interception
+  // is the primary gate because it fires before the destination page has a
+  // chance to load any code.
+  //
+  // Guards every frame — not just the main frame — because a scripted <iframe>
+  // pointed at `javascript:`, `data:`, or `file://` can be used to exfiltrate
+  // credentials attached to the parent context.
+  context
+    .route('**/*', async (route, request) => {
+      try {
+        if (!request.isNavigationRequest()) {
+          await route.fallback();
+          return;
+        }
+        const target = new URL(request.url());
+        if (!allowedProtocols.has(target.protocol)) {
+          await route.abort('blockedbyclient');
+          return;
+        }
+        await route.fallback();
+      } catch {
+        try { await route.abort('blockedbyclient'); } catch { /* route already resolved */ }
+      }
+    })
+    .catch(() => {
+      // context may have closed before route setup; safe to ignore
+    });
+
   const attachGuardsToPage = page => {
     if (!lastAllowedUrlByPage.has(page) && fallbackUrl) {
       lastAllowedUrlByPage.set(page, String(fallbackUrl));
@@ -57,19 +87,23 @@ export function addUrlGuardScript(context, opts = {}) {
       }
     };
 
+    // Fires for every frame, not just the main frame. Subframes navigating to
+    // dangerous schemes can still exfiltrate parent-context data via
+    // postMessage or credential-attaching requests, so we react to them too.
     page.on('framenavigated', async frame => {
-      if (frame !== page.mainFrame()) return;
-
       const urlStr = frame.url();
+      const isMainFrame = frame === page.mainFrame();
+
       let urlObj;
       try {
         urlObj = new URL(urlStr);
       } catch {
-        return restoreToSafeUrl(page, urlStr);
+        if (isMainFrame) return restoreToSafeUrl(page, urlStr);
+        return;
       }
 
       if (allowedProtocols.has(urlObj.protocol)) {
-        lastAllowedUrlByPage.set(page, urlObj.toString());
+        if (isMainFrame) lastAllowedUrlByPage.set(page, urlObj.toString());
         return;
       }
 
@@ -79,7 +113,21 @@ export function addUrlGuardScript(context, opts = {}) {
       //   restoreToSafeUrl → page.goto(safeUrl) → about:blank → restoreToSafeUrl → …
       if (urlObj.protocol === 'about:') return;
 
-      await restoreToSafeUrl(page, urlStr);
+      if (isMainFrame) {
+        await restoreToSafeUrl(page, urlStr);
+        return;
+      }
+
+      // Subframe reached a disallowed scheme after route interception
+      // (e.g. via document.write) — best-effort detach.
+      try {
+        await frame.evaluate(() => {
+          const el = window.frameElement as HTMLIFrameElement | null;
+          if (el) el.src = 'about:blank';
+        });
+      } catch {
+        // frame may already be detached
+      }
     });
   };
 

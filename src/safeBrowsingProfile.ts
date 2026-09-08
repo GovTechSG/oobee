@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn, execSync } from 'child_process';
+import { type ChildProcess, spawn, execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -62,7 +62,11 @@ function findPrePopulatedSource(): string | null {
       const extractDir = path.join(BASE_PROFILE_DIR, 'Safe Browsing');
       fs.mkdirSync(extractDir, { recursive: true });
       try {
-        execSync(`unzip -o -q "${zipPath}" -d "${extractDir}"`, { stdio: 'pipe' });
+        // Invoke unzip via argv (execFileSync, no shell) so a zipPath /
+        // extractDir containing shell metacharacters cannot break out of
+        // the quoted string. zipCandidates includes env-derived paths
+        // (OOBEE_SAFE_BROWSING_DB / OOBEE_SAFE_BROWSING_DB_ZIP).
+        execFileSync('unzip', ['-o', '-q', zipPath, '-d', extractDir], { stdio: 'pipe' });
         if (isDbDir(extractDir)) return extractDir;
       } catch (e) {
         sbDebug(`[SafeBrowsing] Failed to extract zip: ${e}`);

@@ -341,29 +341,6 @@ export const impactOrder = {
   critical: 3,
 };
 
-/**
- * Suppresses the "Setting the NODE_TLS_REJECT_UNAUTHORIZED
- * environment variable to '0' is insecure" warning,
- * then disables TLS validation globally.
- */
-export function suppressTlsRejectWarning(): void {
-  // Monkey-patch process.emitWarning
-  const originalEmitWarning = process.emitWarning;
-  process.emitWarning = (warning: string | Error, ...args: any[]) => {
-    const msg = typeof warning === 'string' ? warning : warning.message;
-    if (msg.includes('NODE_TLS_REJECT_UNAUTHORIZED')) {
-      // swallow only that one warning
-      return;
-    }
-    // forward everything else
-    originalEmitWarning.call(process, warning, ...args);
-  };
-
-  // Now turn off cert validation
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
-
-suppressTlsRejectWarning();
 
 export const sentryConfig = {
   dsn:

@@ -4,6 +4,16 @@
     document.getElementById('siteName').textContent = siteName;
 
     const siteUrl = scanData.urlScanned || '#';
+    // urlScanned is user-supplied CLI input, so a value like
+    // ``javascript:alert(1)`` would run when the reviewer clicks the link.
+    // Only accept http(s) and fall back to '#' otherwise.
+    let safeHref = '#';
+    try {
+      const u = new URL(siteUrl, document.baseURI);
+      if (u.protocol === 'http:' || u.protocol === 'https:') {
+        safeHref = u.href;
+      }
+    } catch (_) { /* keep safeHref = '#' */ }
     const siteUrlElement = document.getElementById('siteUrl');
     const urlTextElement = siteUrlElement.querySelector('.url-text');
     if (urlTextElement) {
@@ -15,7 +25,7 @@
         urlTextElement.appendChild(svgElement);
       }
     }
-    siteUrlElement.href = siteUrl;
+    siteUrlElement.href = safeHref;
 
     const formatScanDate = dateString => {
       const utcDate = new Date(dateString);

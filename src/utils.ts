@@ -78,14 +78,37 @@ export const getPdfStoragePath = (randomToken: string): string => {
   return pdfStoragePath;
 };
 
+// Only allow randomToken values that consist of the same character set the
+// generators produce ([A-Za-z0-9._-]). Anything else could contain path
+// separators (`/`, `\`) or `..` segments and escape the results directory.
+const SAFE_RANDOM_TOKEN = /^[\w.-]+$/;
+const assertSafeRandomToken = (randomToken: string): void => {
+  if (!randomToken || !SAFE_RANDOM_TOKEN.test(randomToken)) {
+    throw new Error(`getStoragePath: unsafe randomToken`);
+  }
+};
+
+const assertPathContains = (parent: string, candidate: string): void => {
+  const resolvedParent    = path.resolve(parent);
+  const resolvedCandidate = path.resolve(candidate);
+  const rel = path.relative(resolvedParent, resolvedCandidate);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error(`getStoragePath: computed path escapes results root`);
+  }
+};
+
 export const getStoragePath = (randomToken: string): string => {
-  // If exportDirectory is set, use it
+  // If exportDirectory is set, use it (already-validated cached result)
   if (constants.exportDirectory) {
     return constants.exportDirectory;
   }
 
+  assertSafeRandomToken(randomToken);
+
   // Otherwise, use the current working directory
-  let storagePath = path.join(process.cwd(), 'results', randomToken);
+  const resultsRoot = path.join(process.cwd(), 'results');
+  let storagePath = path.join(resultsRoot, randomToken);
+  assertPathContains(resultsRoot, storagePath);
 
   // Ensure storagePath is writable; if directory doesn't exist, try to create it in Documents or home directory
   const isWritable = (() => {

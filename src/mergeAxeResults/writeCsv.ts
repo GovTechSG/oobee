@@ -5,7 +5,16 @@ import type { ItemsStore } from './itemsStore.js';
 
 function escapeCsvField(value: string): string {
   if (value == null) return '';
-  const str = String(value);
+  let str = String(value);
+  // Guard against CSV formula injection. Excel/Sheets treat cells whose
+  // first character is =, +, -, @, tab, or CR as formulas and will execute
+  // functions like DDE calls or hyperlink phishing. Scanned page titles /
+  // URLs feed straight into this file, so prefix a single quote to force
+  // literal-text interpretation without changing the visible content in
+  // most viewers.
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
   return `"${str.replace(/"/g, '""')}"`;
 }
 

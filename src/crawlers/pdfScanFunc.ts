@@ -322,13 +322,11 @@ export const handlePdfDownload = (
 
 export const runPdfScan = async (randomToken: string) => {
   const execFile = getVeraExecutable();
-  const veraPdfExe = `"${execFile}"`;
-  // const veraPdfProfile = getVeraProfile();
-  const veraPdfProfile = `"${path.join(
+  const veraPdfProfile = path.join(
     path.dirname(execFile),
     'profiles/veraPDF-validation-profiles-rel-1.26/PDF_UA/WCAG-2-2.xml',
-  )}"`;
-  if (!veraPdfExe || !veraPdfProfile) {
+  );
+  if (!execFile || !veraPdfProfile) {
     cleanUpAndExit(1);
   }
 
@@ -337,16 +335,22 @@ export const runPdfScan = async (randomToken: string) => {
   // store in a intermediate folder as we transfer final results later
   const intermediateResultPath = `${intermediateFolder}/${constants.pdfScanResultFileName}`;
 
+  // Invoke veraPDF as an argv array with shell:false so ``intermediateFolder``
+  // (derived from randomToken and the scanned URL's hostname) is passed
+  // verbatim to execve rather than concatenated into a shell command line.
+  // The old ``shell: true`` + `"${intermediateFolder}"` wrapping let a
+  // hostname such as ``example.com"; rm -rf ~; #`` break out of the quoting
+  // and execute arbitrary commands.
   const veraPdfCmdArgs = [
     '-p',
     veraPdfProfile,
     '--format',
     'json',
     '-r', // recurse through directory
-    `"${intermediateFolder}"`,
+    intermediateFolder,
   ];
 
-  const ls = spawnSync(veraPdfExe, veraPdfCmdArgs, { shell: true });
+  const ls = spawnSync(execFile, veraPdfCmdArgs, { shell: false });
   if (ls.stderr && ls.stderr.length > 0)
     consoleLogger.error(ls.stderr.toString());
 
