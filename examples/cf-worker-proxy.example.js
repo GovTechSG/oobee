@@ -1,10 +1,19 @@
 // SOCKS-over-WebSocket tunnel worker.
 //
-// Client opens a WebSocket to this worker, sends `{"hostname":..,"port":..}`
-// as the first message, then the worker opens a raw TCP socket to that host
-// via cloudflare:sockets and pipes bytes bidirectionally over the WS. The
-// browser (or any SOCKS client) speaks its own TLS end-to-end with the
-// target — no MITM, no certs on this side.
+// Client opens a WebSocket to this worker, sends
+// `{"hostname":..,"port":..,"ip":..?}` as the first message, then the worker
+// opens a raw TCP socket to that host via cloudflare:sockets and pipes bytes
+// bidirectionally over the WS. The browser (or any SOCKS client) speaks its
+// own TLS end-to-end with the target — no MITM, no certs on this side.
+//
+// When `ip` is present, it is the IP the client already resolved and
+// validated (not an internal / metadata address). The worker connects to
+// that IP directly to avoid re-resolving the untrusted hostname a second
+// time — a second resolution would open a DNS-rebinding TOCTOU where the
+// attacker's authoritative DNS can return a public IP for the client's
+// query and a private IP for the worker's. `hostname` is still used for
+// upstream-proxy routing decisions and never for the direct connect path
+// when `ip` is present.
 //
 // Deploy notes:
 //   - Requires compatibility_flags = ["nodejs_compat"] and a recent
@@ -391,11 +400,12 @@ export default {
           return;
         }
 
-        let hostname, port;
+        let hostname, port, pinnedIp;
         try {
           const payload = JSON.parse(data);
           hostname = payload.hostname;
           port = Number(payload.port);
+          pinnedIp = typeof payload.ip === 'string' ? payload.ip : undefined;
         } catch {
           server.close(1003, 'Invalid JSON');
           return;
@@ -404,16 +414,29 @@ export default {
           server.close(1008, 'Invalid target');
           return;
         }
+        // Only accept a pinned IP that parses as a real IP literal — never let
+        // a spoofed non-IP string flow into connect() as the socket host.
+        if (pinnedIp !== undefined && ipToBytes(pinnedIp) === null) {
+          server.close(1008, 'Invalid pinned IP');
+          return;
+        }
 
         let socket;
         let leftover = null;
         try {
           if (USE_UPSTREAM_PROXY && shouldRouteViaUpstream(hostname)) {
+            // Upstream-proxy path routes by hostname (the proxy resolves and
+            // enforces its own ACLs); do not substitute the pinned IP here.
             const res = await connectViaUpstreamProxy(hostname, port);
             socket = res.socket;
             leftover = res.leftover;
           } else {
-            socket = connect({ hostname, port });
+            // Direct-connect path: prefer the client-validated pinned IP so we
+            // do NOT re-resolve the untrusted hostname (DNS-rebinding TOCTOU).
+            // TLS/SNI still terminates end-to-end at the browser, so the target
+            // sees the original hostname on the wire regardless.
+            const connectHost = pinnedIp || hostname;
+            socket = connect({ hostname: connectHost, port });
           }
         } catch (e) {
           server.close(1011, `connect() threw: ${(e && e.message) || 'unknown'}`);

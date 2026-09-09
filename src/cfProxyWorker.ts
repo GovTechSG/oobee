@@ -198,6 +198,7 @@ const INTERNAL_IP_RANGES: string[] = [
   '169.254.0.0/16',     // link-local + AWS/GCP/Azure metadata (169.254.169.254)
   '100.64.0.0/10',      // CGNAT
   '0.0.0.0/8',          // this-network
+  '::/128',             // IPv6 unspecified — routes to loopback on common OS stacks (asgard-0011)
   '::1/128',            // IPv6 loopback
   'fc00::/7',           // IPv6 ULA
   'fe80::/10',          // IPv6 link-local
@@ -207,8 +208,29 @@ const INTERNAL_IP_RANGES: string[] = [
   '::ffff:192.168.0.0/112',
 ];
 
+// asgard-0011: some IPv6 encodings embed an IPv4 destination that our IPv4
+// CIDR table would refuse if it appeared bare — but the CIDR table matches
+// exact byte-length, so a 16-byte IPv6 literal can never match a 4-byte IPv4
+// range. Normalise before matching: for the IPv4-mapped prefix (::ffff:0:0/96)
+// and the NAT64 well-known prefix (64:ff9b::/96), extract the embedded IPv4
+// and re-check it against the IPv4 half of INTERNAL_IP_RANGES.
 function isInternalIp(ip: string): boolean {
-  return isIpLiteral(ip) && ipInRanges(ip, INTERNAL_IP_RANGES);
+  const bytes = ipToBytes(ip);
+  if (bytes === null) return false;
+  if (ipInRanges(ip, INTERNAL_IP_RANGES)) return true;
+
+  if (bytes.length === 16) {
+    const isMapped =
+      bytes.slice(0, 10).every((b) => b === 0) && bytes[10] === 0xff && bytes[11] === 0xff;
+    const isNat64 =
+      bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b &&
+      bytes.slice(4, 12).every((b) => b === 0);
+    if (isMapped || isNat64) {
+      const embedded = bytes.slice(12).join('.');
+      if (ipInRanges(embedded, INTERNAL_IP_RANGES)) return true;
+    }
+  }
+  return false;
 }
 
 // -----------------------------------------------------------------------------
@@ -603,6 +625,18 @@ async function handleSocks5(
 
   const workerCfg = await getWorkerConfig(workerUrl, authToken);
 
+  // Pin the address that the worker connects to. When the client resolved and
+  // validated the hostname above, we forward that exact IP to the worker so
+  // its cloudflare:sockets connect() does not re-resolve the untrusted hostname
+  // (a second resolution would allow DNS-rebinding an attacker-controlled name
+  // from a passing public IP into an internal / metadata address between the
+  // client's check and the worker's connect — CWE-350/CWE-367). For the
+  // force-tunnel path we intentionally have no pinned IP: those hosts must
+  // reach the worker's INCLUDE_PROXY_FOR_UPSTREAM logic (which routes by
+  // hostname to an upstream proxy) and are additionally subject to the worker
+  // ACLs, so no client-side IP is meaningful.
+  let pinnedIp: string | undefined;
+
   // Force-tunnel allowlist: skip bypass/DoH checks so the hostname reaches
   // the worker where INCLUDE_PROXY_FOR_UPSTREAM can route it via the upstream
   // proxy. Worker handles resolution and any blocking on its side.
@@ -622,6 +656,8 @@ async function handleSocks5(
       clientSocket.end();
       return;
     }
+
+    pinnedIp = resolution.ip;
 
     // Bypass listed ranges - transparently forward TCP connection using Node's net module
     if (resolution.bypass) {
@@ -648,13 +684,12 @@ async function handleSocks5(
   let ready = false;
   const preBuffer: Buffer[] = [];
 
-  // Always send the original hostname so the worker can apply its own
-  // hostname-based routing (INCLUDE_PROXY_FOR_UPSTREAM globs). The worker's
-  // connect() will re-resolve via Cloudflare's internal resolver — same
-  // Cloudflare infra as Family DoH, no cross-provider leak. Client-side
-  // Family DoH blocking (SOCKS 0x02) is what enforces the filter.
+  // Send the original hostname (for the worker's INCLUDE_PROXY_FOR_UPSTREAM
+  // routing decision) alongside the client-validated pinned IP. Compatible
+  // workers connect() to `ip` when present, avoiding a second DNS resolution;
+  // legacy workers that ignore `ip` fall back to hostname-based connect().
   ws.on('open', () => {
-    ws.send(JSON.stringify({ hostname, port }));
+    ws.send(JSON.stringify({ hostname, port, ip: pinnedIp }));
   });
 
   ws.on('message', (data: WebSocket.RawData) => {

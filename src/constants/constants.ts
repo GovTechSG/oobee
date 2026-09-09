@@ -196,17 +196,25 @@ export const getDefaultChromiumDataDir = () => {
   }
 };
 
-export function removeQuarantineFlag(searchPattern: string, allowedRoot = process.cwd()) {
+// Trusted install prefix: the oobee package root (two levels up from this compiled file:
+// dist/constants/constants.js → dist/, or src/constants/constants.ts → repo root). This is
+// the ONLY location under which we treat bundled binaries as trusted for auto-de-quarantining
+// or auto-resolution. Never resolve from process.cwd(), which may be an untrusted directory
+// the user is scanning.
+const OOBEE_INSTALL_ROOT = path.resolve(dirname, '..', '..');
+
+export function removeQuarantineFlag(searchPattern: string, allowedRoot = OOBEE_INSTALL_ROOT) {
   if (os.platform() !== 'darwin') return;
+
+  const root = path.resolve(allowedRoot);
 
   const matches = globSync(searchPattern, {
     absolute: true,
     nodir: true,
     dot: true,
     follow: false, // don't follow symlinks
+    cwd: root,
   });
-
-  const root = path.resolve(allowedRoot);
 
   for (const p of matches) {
     const resolved = path.resolve(p);
@@ -244,7 +252,13 @@ export function removeQuarantineFlag(searchPattern: string, allowedRoot = proces
 }
 
 export const getExecutablePath = function (dir: string, file: string): string {
-  let execPaths = globSync(`${dir}/${file}`, { absolute: true, nodir: true });
+  // Search only under the trusted oobee install root, never process.cwd(). This prevents an
+  // attacker-planted binary in a scanned/downloaded directory from being selected and executed.
+  let execPaths = globSync(`${dir}/${file}`, {
+    absolute: true,
+    nodir: true,
+    cwd: OOBEE_INSTALL_ROOT,
+  });
 
   if (execPaths.length === 0) {
     const execInPATH = which.sync(file, { nothrow: true });
@@ -255,13 +269,16 @@ export const getExecutablePath = function (dir: string, file: string): string {
     const splitPath =
       os.platform() === 'win32' ? process.env.PATH.split(';') : process.env.PATH.split(':');
 
-    for (const path in splitPath) {
-      execPaths = globSync(`${path}/${file}`, { absolute: true, nodir: true });
-      if (execPaths.length !== 0) return fs.realpathSync(execPaths[0]);
+    for (const p of splitPath) {
+      // Only search real PATH entries (absolute paths); ignore relative or empty entries.
+      if (!p || !path.isAbsolute(p)) continue;
+      const found = globSync(`${p}/${file}`, { absolute: true, nodir: true });
+      if (found.length !== 0) return fs.realpathSync(found[0]);
     }
     return null;
   }
-  removeQuarantineFlag(execPaths[0]);
+  // Only strip Gatekeeper's quarantine flag on binaries resolved from the trusted install root.
+  removeQuarantineFlag(execPaths[0], OOBEE_INSTALL_ROOT);
   return execPaths[0];
 };
 

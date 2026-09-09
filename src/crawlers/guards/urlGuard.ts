@@ -39,49 +39,174 @@ export function addUrlGuardScript(context, opts = {}) {
       // context may have closed before route setup; safe to ignore
     });
 
+  // For file:// scan entries we permit navigation to exactly the entry URL (self-loops
+  // during restoration), but block navigation to any other file:// URL — this prevents a
+  // hostile local HTML file from redirecting the driven browser to e.g. file:///etc/passwd
+  // and exfiltrating its contents from the same file:// origin.
+  let entryFileUrl: string | undefined;
+  try {
+    if (fallbackUrl) {
+      const fbObj = new URL(String(fallbackUrl));
+      if (fbObj.protocol === 'file:') entryFileUrl = fbObj.href;
+    }
+  } catch {
+    // fallbackUrl not parseable; entryFileUrl stays undefined
+  }
+
   const attachGuardsToPage = page => {
     if (!lastAllowedUrlByPage.has(page) && fallbackUrl) {
       lastAllowedUrlByPage.set(page, String(fallbackUrl));
     }
 
     page
-      .addInitScript(() => {
-        const isAllowedProtocol = value => {
+      .addInitScript(
+        (config: { entryFileUrl?: string }) => {
+          const entryFile = config && config.entryFileUrl;
+
+          const isAllowedProtocol = (value: unknown) => {
+            try {
+              const s = value instanceof URL ? value.toString() : String(value);
+              const resolved = new URL(s, window.location.href);
+              if (resolved.protocol === 'http:' || resolved.protocol === 'https:') return true;
+              // Permit navigation only to the exact scan-entry file:// URL.
+              if (entryFile && resolved.href === entryFile) return true;
+              return false;
+            } catch {
+              return false;
+            }
+          };
+
+          const win = window;
+
+          // Wrap window.open (existing behaviour)
+          const openOriginal = win.open;
+          win.open = function (targetUrl, ...args) {
+            if (targetUrl != null && !isAllowedProtocol(targetUrl)) return null;
+            return openOriginal.call(this, targetUrl, ...args);
+          };
+
+          // Wrap Location.assign, Location.replace, and the Location.href setter
+          // — these bypass Playwright's route() interception because location
+          // assignments to non-http(s) schemes (javascript:, data:, file://)
+          // generate no interceptable network request.
           try {
-            const s = value instanceof URL ? value.toString() : String(value);
-            const { protocol } = new URL(s, window.location.href);
-            return protocol === 'http:' || protocol === 'https:';
+            const LocProto = Location.prototype as any;
+            const origAssign = LocProto.assign;
+            const origReplace = LocProto.replace;
+            if (typeof origAssign === 'function') {
+              LocProto.assign = function (u: unknown) {
+                if (!isAllowedProtocol(u)) return undefined;
+                return origAssign.call(this, u);
+              };
+            }
+            if (typeof origReplace === 'function') {
+              LocProto.replace = function (u: unknown) {
+                if (!isAllowedProtocol(u)) return undefined;
+                return origReplace.call(this, u);
+              };
+            }
+            const hrefDesc = Object.getOwnPropertyDescriptor(LocProto, 'href');
+            if (hrefDesc && typeof hrefDesc.set === 'function' && typeof hrefDesc.get === 'function') {
+              const origSetter = hrefDesc.set;
+              Object.defineProperty(LocProto, 'href', {
+                configurable: true,
+                enumerable: !!hrefDesc.enumerable,
+                get: hrefDesc.get,
+                set(u: unknown) {
+                  if (!isAllowedProtocol(u)) return;
+                  origSetter.call(this, u);
+                },
+              });
+            }
           } catch {
-            return false;
+            // Location wrapping is best-effort; fall through to other guards.
           }
-        };
 
-        const win = window;
+          // Block anchor clicks and form submits pointing at disallowed schemes.
+          const onClick = (e: Event) => {
+            let el: any = e.target;
+            while (el && el !== document) {
+              if (el.tagName === 'A' && el.href && !isAllowedProtocol(el.href)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+              el = el.parentNode;
+            }
+          };
+          const onSubmit = (e: Event) => {
+            const form: any = e.target;
+            if (form && form.action && !isAllowedProtocol(form.action)) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          };
+          document.addEventListener('click', onClick, true);
+          document.addEventListener('submit', onSubmit, true);
 
-        const openOriginal = win.open;
-        win.open = function (targetUrl, ...args) {
-          if (!isAllowedProtocol(targetUrl)) return null;
-          return openOriginal.call(this, targetUrl, ...args);
-        };
-      })
+          // Neutralise <meta http-equiv="refresh" content="0;url=javascript:...">
+          const stripBadRefresh = () => {
+            try {
+              const nodes = document.querySelectorAll('meta[http-equiv]');
+              nodes.forEach((m: Element) => {
+                const eq = (m.getAttribute('http-equiv') || '').toLowerCase();
+                if (eq !== 'refresh') return;
+                const content = m.getAttribute('content') || '';
+                const match = /url\s*=\s*(.+)$/i.exec(content);
+                if (match && !isAllowedProtocol(match[1].trim())) {
+                  m.setAttribute('content', '');
+                }
+              });
+            } catch {
+              // best-effort
+            }
+          };
+          if (document.readyState !== 'loading') {
+            stripBadRefresh();
+          } else {
+            document.addEventListener('DOMContentLoaded', stripBadRefresh);
+          }
+          try {
+            const obs = new MutationObserver(stripBadRefresh);
+            obs.observe(document.documentElement || document, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['content', 'http-equiv'],
+            });
+          } catch {
+            // MutationObserver not available; skip
+          }
+        },
+        { entryFileUrl },
+      )
       .catch(() => {
         // page may have closed before addInitScript completed; safe to ignore
       });
 
     const restoreToSafeUrl = async (page, attemptedUrl) => {
-      const safeUrl = lastAllowedUrlByPage.get(page) || fallbackUrl || 'about:blank';
-      // Only redirect if the safe URL is itself an allowed (http/https) URL.
-      // If the entry URL is file:// (e.g. scanning a local HTML file), the
-      // fallback is also file://, and redirecting would create an infinite loop:
-      //   file:// → restoreToSafeUrl → file:// → framenavigated → restoreToSafeUrl → …
+      const rawSafe = lastAllowedUrlByPage.get(page) || fallbackUrl || 'about:blank';
+      let restoreTo = String(rawSafe);
       try {
-        const safeObj = new URL(safeUrl);
-        if (!ALLOWED_PROTOCOLS.has(safeObj.protocol)) return;
+        const safeObj = new URL(restoreTo);
+        // Restore to http(s) URLs directly. For file:// entries, restore to the specific
+        // scan-entry file URL (per-URL sandboxing — no directory traversal). Anything
+        // else falls back to about:blank so we do not leave the browser on an
+        // attacker-directed non-http(s) page.
+        if (!ALLOWED_PROTOCOLS.has(safeObj.protocol)) {
+          if (safeObj.protocol === 'file:' && entryFileUrl && safeObj.href === entryFileUrl) {
+            restoreTo = entryFileUrl;
+          } else {
+            restoreTo = 'about:blank';
+          }
+        }
       } catch {
-        return;
+        restoreTo = 'about:blank';
       }
+      // Avoid navigation storms when the current URL already matches the restore target.
+      if (attemptedUrl === restoreTo) return;
       try {
-        await page.goto(safeUrl, { waitUntil: 'domcontentloaded' });
+        await page.goto(restoreTo, { waitUntil: 'domcontentloaded' });
       } catch {
         // page might be closing; ignore
       }
@@ -106,6 +231,11 @@ export function addUrlGuardScript(context, opts = {}) {
         if (isMainFrame) lastAllowedUrlByPage.set(page, urlObj.toString());
         return;
       }
+
+      // Permit navigation to the exact scan-entry file:// URL when the scan was
+      // started against a local file. Any *other* file:// URL is still treated as
+      // disallowed and will trigger restoration.
+      if (entryFileUrl && urlObj.href === entryFileUrl) return;
 
       // Skip browser-internal transitional states (about:blank, about:srcdoc, etc.).
       // page.goto() navigates through about:blank before loading the target URL.
