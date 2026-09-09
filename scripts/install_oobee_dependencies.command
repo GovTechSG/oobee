@@ -27,7 +27,7 @@ NODE_VERSION="22.19.0"
 #     origin, so this is TLS-level integrity, not signature verification.
 
 NODE_SHA256_DARWIN_ARM64="c59006db713c770d6ec63ae16cb3edc11f49ee093b5c415d667bb4f436c6526d"
-NODE_SHA256_DARWIN_X64="3cfed4795cd97277559763c5f56e711852d2cc2420bda1cea30c8aa9ac77ce0c"
+NODE_SHA256_DARWIN_X64="3cfed4795cd97277559763c5f56e711852d2cc2420bda1cea30c8aa9ac77ce0c" # guardrails-disable-line
 VERAPDF_SHA256="b6c50ab65d574bff0cbc0449ffacf587e325a3a53f8a6ecc0d578966abc800ec"
 
 # Verify a file's SHA-256 against an expected digest. Aborts (exit 1) on

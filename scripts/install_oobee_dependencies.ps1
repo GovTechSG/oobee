@@ -15,8 +15,8 @@ $ErrorActionPreference = 'Stop'
 # that terminates the script on mismatch.
 
 $NodeVersion = "22.19.0"
-$NodeSha256WinX64 = "ea3fad0e67a991d8477d8c01344b56e69c676ccb733f065b22436994b1253f86"
-$VeraPdfSha256   = "b6c50ab65d574bff0cbc0449ffacf587e325a3a53f8a6ecc0d578966abc800ec"
+$NodeSha256WinX64 = "ea3fad0e67a991d8477d8c01344b56e69c676ccb733f065b22436994b1253f86" # guardrails-disable-line
+$VeraPdfSha256   = "b6c50ab65d574bff0cbc0449ffacf587e325a3a53f8a6ecc0d578966abc800ec" # guardrails-disable-line
 
 function Assert-Sha256 {
     param(
