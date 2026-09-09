@@ -259,7 +259,7 @@ const crawlSitemap = async ({
         },
       ],
       preNavigationHooks: [
-        ...preNavigationHooks(extraHTTPHeaders),
+        ...preNavigationHooks(extraHTTPHeaders, userUrl || sitemapUrl),
         async ({ request, page }, gotoOptions) => {
           const url = request.url.toLowerCase();
 

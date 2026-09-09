@@ -45,7 +45,13 @@ jobs:
             ./oobee-portable-windows.zip.sha256
 
       - name: Release Windows artifact
-        uses: softprops/action-gh-release@v1
+        # Pin third-party actions to a commit SHA — a mutable tag can be
+        # repointed by the action owner (or anyone who compromises the
+        # upstream repo) to a version that exfiltrates OIDC tokens or the
+        # GITHUB_TOKEN scoped to this workflow. The trailing comment names
+        # the tag the SHA corresponds to so Dependabot can keep the pin
+        # current without dropping back to a floating tag.
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -190,7 +196,8 @@ jobs:
             ./oobee-portable-mac.zip.sha256
 
       - name: Release Mac artifact
-        uses: softprops/action-gh-release@v1
+        # See Windows job above for rationale on the SHA pin + tag comment.
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |

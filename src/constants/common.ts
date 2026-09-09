@@ -1048,6 +1048,85 @@ export const isDisallowedInRobotsTxt = (url: string): boolean => {
   return false;
 };
 
+// Reject hostnames pointing at private, loopback, or link-local address
+// space. Used to guard the recursive sitemap fetch against a hostile
+// server listing ``http://169.254.169.254/latest/meta-data/...`` (cloud
+// metadata) or ``http://127.0.0.1/...`` (loopback) as a child sitemap.
+// Both IP literals and DNS names are handled: for names we resolve via
+// the OS resolver and check every returned address. Failure to resolve
+// is not fatal — the subsequent page.goto() will handle DNS errors —
+// but if any resolved address falls in a blocked range we refuse.
+const INTERNAL_ADDR_RANGES: string[] = [
+  '127.0.0.0/8',
+  '10.0.0.0/8',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+  '169.254.0.0/16',
+  '100.64.0.0/10',
+  '0.0.0.0/8',
+];
+const isIpv4Literal = (s: string): boolean =>
+  /^(\d{1,3}\.){3}\d{1,3}$/.test(s) && s.split('.').every(o => Number(o) >= 0 && Number(o) <= 255);
+const ipv4ToInt = (ip: string): number =>
+  ip.split('.').reduce((acc, o) => (acc << 8) + Number(o), 0) >>> 0;
+const ipv4InRange = (ip: string, cidr: string): boolean => {
+  const [range, bitsStr] = cidr.split('/');
+  const bits = Number(bitsStr);
+  const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
+  return (ipv4ToInt(ip) & mask) === (ipv4ToInt(range) & mask);
+};
+const isInternalIpv4 = (ip: string): boolean =>
+  INTERNAL_ADDR_RANGES.some(r => ipv4InRange(ip, r));
+async function isInternalOrLoopbackUrl(candidate: string): Promise<boolean> {
+  let host: string;
+  try {
+    host = new URL(candidate).hostname;
+  } catch {
+    return false;
+  }
+  if (!host) return false;
+  const lower = host.toLowerCase();
+  // Loopback / IPv6 loopback / RFC 6761 special names — cover before DNS.
+  if (lower === 'localhost' || lower.endsWith('.localhost') || lower === '[::1]' || lower === '::1') {
+    return true;
+  }
+  // Strip IPv6 brackets so ``[::1]`` / ``[fe80::…]`` are recognised.
+  const bare = lower.replace(/^\[|\]$/g, '');
+  if (isIpv4Literal(bare)) {
+    return isInternalIpv4(bare);
+  }
+  if (bare.includes(':')) {
+    // IPv6 literal — treat any ULA (fc00::/7) / link-local (fe80::/10) /
+    // loopback (::1) as internal. We match on prefix rather than parse.
+    if (bare === '::1' || bare.startsWith('fe8') || bare.startsWith('fe9') ||
+        bare.startsWith('fea') || bare.startsWith('feb') ||
+        bare.startsWith('fc') || bare.startsWith('fd')) {
+      return true;
+    }
+  }
+  try {
+    const { lookup } = await import('dns/promises');
+    const records = await lookup(bare, { all: true });
+    for (const r of records) {
+      if (r.family === 4 && isInternalIpv4(r.address)) return true;
+      if (r.family === 6) {
+        const a = r.address.toLowerCase();
+        if (a === '::1' || a.startsWith('fe8') || a.startsWith('fe9') ||
+            a.startsWith('fea') || a.startsWith('feb') ||
+            a.startsWith('fc') || a.startsWith('fd') ||
+            a.startsWith('::ffff:127.') || a.startsWith('::ffff:10.') ||
+            a.startsWith('::ffff:169.254.') || a.startsWith('::ffff:192.168.')) {
+          return true;
+        }
+      }
+    }
+  } catch {
+    // DNS failure — let page.goto() surface the network error naturally.
+    return false;
+  }
+  return false;
+}
+
 export const getLinksFromSitemap = async (
   sitemapUrl: string,
   _maxLinksCount: number,
@@ -1340,6 +1419,28 @@ export const getLinksFromSitemap = async (
           if (childSitemapPath.endsWith('.xml') || childSitemapPath.endsWith('.txt')) {
             if (isImageSitemapUrl(childSitemapUrlText)) {
               consoleLogger.info(`Skipping image sitemap: ${childSitemapUrlText}`);
+              continue;
+            }
+            // A sitemap index is scanned-content — a hostile server can list
+            // arbitrary child URLs. addToUrlList() below already enforces
+            // the operator's crawl strategy (same-domain/host/etc.) via
+            // isFollowStrategy, but the recursive descent used to fetch
+            // ``.xml``/``.txt`` children with a real browser (page.goto())
+            // with no scope check, letting the child sitemap URL point at
+            // internal HTTP endpoints (169.254.169.254, 127.0.0.1) or an
+            // off-scope host. Apply the same strategy gate here, and refuse
+            // hosts that resolve into private/link-local/loopback ranges
+            // before invoking page.goto().
+            if (userUrl && !isFollowStrategy(childSitemapUrlText, userUrl, strategy)) {
+              consoleLogger.info(
+                `Skipping off-strategy child sitemap: ${childSitemapUrlText}`,
+              );
+              continue;
+            }
+            if (await isInternalOrLoopbackUrl(childSitemapUrlText)) {
+              consoleLogger.warn(
+                `Refusing to fetch child sitemap targeting internal address: ${childSitemapUrlText}`,
+              );
               continue;
             }
             await fetchUrls(childSitemapUrlText, extraHTTPHeaders); // Recursive call for nested sitemaps
@@ -2133,6 +2234,13 @@ export const submitForm = async (
   // body is guarded because building the payload can throw independently of the
   // network call (e.g. encodeURIComponent raises URIError on lone surrogates,
   // which can appear in scanned page content).
+  // Opt-out: OOBEE_DISABLE_TELEMETRY=1 skips this submission entirely so
+  // PII (email, name, entry URL) is never sent off-device.
+  const telemetryOptOut = /^(1|true|yes)$/i.test(process.env.OOBEE_DISABLE_TELEMETRY ?? '');
+  if (telemetryOptOut) {
+    consoleLogger.info('Skipping telemetry submission: OOBEE_DISABLE_TELEMETRY is set');
+    return;
+  }
   try {
     const additionalPageDataJson = JSON.stringify({
       redirectsScanned: numberOfRedirectsScanned,

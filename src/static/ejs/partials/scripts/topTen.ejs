@@ -27,7 +27,11 @@
         listItem.className = 'd-flex justify-content-between';
 
         const link = document.createElement('a');
-        link.href = page.url;
+        // page.url is scanned-page content — a crafted javascript:/data: URL
+        // would otherwise fire in the reviewer's origin the moment they
+        // click the entry. Route through the shared allowlist helper
+        // (http/https/mailto only) exactly like pageAccordionBuilder does.
+        link.href = isSafeReportHref(page.url);
         link.target = '_blank';
         link.rel = 'noopener';
         link.className = 'page-links';

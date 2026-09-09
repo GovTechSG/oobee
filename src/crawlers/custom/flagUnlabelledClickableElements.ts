@@ -1082,8 +1082,9 @@ function hasPointerCursor(node: Node): boolean {
 
   function flagElements() {
     const currentFlaggedElementsByDocument: Record<string, HTMLElement[]> = {}; // Temporary object to hold current flagged elements
+    const MAX_TRAVERSAL_ELEMENTS = 50000;
 
-    /* 
+    /*
         Collects all the elements and places then into an array
         Then places the array in the correct frame
     */
@@ -1092,7 +1093,7 @@ function hasPointerCursor(node: Node): boolean {
     const allElements = Array.from(document.querySelectorAll<HTMLElement>('*'));
     let indexofAllElements: number = 0;
 
-    while (indexofAllElements < allElements.length) {
+    while (indexofAllElements < allElements.length && indexofAllElements < MAX_TRAVERSAL_ELEMENTS) {
       const element = allElements[indexofAllElements] as HTMLElement;
       // if it selects a frameset
       if (
@@ -1104,12 +1105,15 @@ function hasPointerCursor(node: Node): boolean {
       }
 
       // If the element has a shadowRoot, add its children
-      if (element.shadowRoot) {
+      if (element.shadowRoot && allElements.length < MAX_TRAVERSAL_ELEMENTS) {
         allElements.push(
           ...(Array.from(element.shadowRoot.querySelectorAll('*')) as HTMLElement[]),
         );
       }
       indexofAllElements++;
+    }
+    if (indexofAllElements >= MAX_TRAVERSAL_ELEMENTS) {
+      customConsoleWarn(`Reached MAX_TRAVERSAL_ELEMENTS (${MAX_TRAVERSAL_ELEMENTS}) on main document; halting further traversal.`);
     }
     currentFlaggedElementsByDocument[''] = currentFlaggedElements; // Key "" represents the main document
 
@@ -1123,7 +1127,7 @@ function hasPointerCursor(node: Node): boolean {
           const iframeFlaggedElements: HTMLElement[] = [];
           const iframeElements = Array.from(iframeDocument.querySelectorAll<HTMLElement>('*'));
           let indexOfIframeElements: number = 0;
-          while (indexOfIframeElements < iframeElements.length) {
+          while (indexOfIframeElements < iframeElements.length && indexOfIframeElements < MAX_TRAVERSAL_ELEMENTS) {
             const element = iframeElements[indexOfIframeElements] as HTMLElement;
             if (
               shouldFlagElement(element, allowNonClickableFlagging) ||
@@ -1133,12 +1137,15 @@ function hasPointerCursor(node: Node): boolean {
               iframeFlaggedElements.push(element);
             }
             // If the element has a shadowRoot, add its children
-            if (element.shadowRoot) {
+            if (element.shadowRoot && iframeElements.length < MAX_TRAVERSAL_ELEMENTS) {
               iframeElements.push(
                 ...(Array.from(element.shadowRoot.querySelectorAll('*')) as HTMLElement[]),
               );
             }
             indexOfIframeElements++;
+          }
+          if (indexOfIframeElements >= MAX_TRAVERSAL_ELEMENTS) {
+            customConsoleWarn(`Reached MAX_TRAVERSAL_ELEMENTS (${MAX_TRAVERSAL_ELEMENTS}) on iframe ${index}; halting further traversal.`);
           }
           const iframeXPath = getXPath(iframe);
           currentFlaggedElementsByDocument[iframeXPath] = iframeFlaggedElements;
@@ -1158,7 +1165,7 @@ function hasPointerCursor(node: Node): boolean {
           const iframeFlaggedElements: HTMLElement[] = [];
           const iframeElements = Array.from(iframeDocument.querySelectorAll<HTMLElement>('*'));
           let indexOfIframeElements: number = 0;
-          while (indexOfIframeElements < iframeElements.length) {
+          while (indexOfIframeElements < iframeElements.length && indexOfIframeElements < MAX_TRAVERSAL_ELEMENTS) {
             const element = iframeElements[indexOfIframeElements] as HTMLElement;
             if (
               shouldFlagElement(element, allowNonClickableFlagging) ||
@@ -1168,12 +1175,15 @@ function hasPointerCursor(node: Node): boolean {
               iframeFlaggedElements.push(element);
             }
             // If the element has a shadowRoot, add its children
-            if (element.shadowRoot) {
+            if (element.shadowRoot && iframeElements.length < MAX_TRAVERSAL_ELEMENTS) {
               iframeElements.push(
                 ...(Array.from(element.shadowRoot.querySelectorAll('*')) as HTMLElement[]),
               );
             }
             indexOfIframeElements++;
+          }
+          if (indexOfIframeElements >= MAX_TRAVERSAL_ELEMENTS) {
+            customConsoleWarn(`Reached MAX_TRAVERSAL_ELEMENTS (${MAX_TRAVERSAL_ELEMENTS}) on frame ${index}; halting further traversal.`);
           }
           const iframeXPath = getXPath(frame);
           currentFlaggedElementsByDocument[iframeXPath] = iframeFlaggedElements;
