@@ -6,14 +6,47 @@ if ((Split-Path -Path $pwd -Leaf) -eq "scripts") {
 $ProgressPreferences = 'SilentlyContinue'
 $ErrorActionPreference = 'Stop'
 
+# --- Security: SHA-256 verification for every downloaded artifact ---
+#
+# See the sibling install_oobee_dependencies.command for the rationale.
+# In short: this script previously fetched Node.js, Corretto, and the
+# veraPDF installer over TLS and immediately unpacked whatever bytes
+# arrived. Every download below is now paired with an SHA-256 check
+# that terminates the script on mismatch.
+
+$NodeVersion = "22.19.0"
+$NodeSha256WinX64 = "ea3fad0e67a991d8477d8c01344b56e69c676ccb733f065b22436994b1253f86" # guardrails-disable-line
+$VeraPdfSha256   = "b6c50ab65d574bff0cbc0449ffacf587e325a3a53f8a6ecc0d578966abc800ec" # guardrails-disable-line
+
+function Assert-Sha256 {
+    param(
+        [Parameter(Mandatory=$true)][string]$Path,
+        [Parameter(Mandatory=$true)][string]$Expected,
+        [Parameter(Mandatory=$true)][string]$Label
+    )
+    if (-not (Test-Path $Path)) {
+        Write-Error "$Label`: expected file '$Path' was not downloaded"
+        exit 1
+    }
+    $actual = (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLowerInvariant()
+    $exp = $Expected.ToLowerInvariant()
+    if ($actual -ne $exp) {
+        Write-Error "$Label`: SHA-256 mismatch (expected $exp, actual $actual)"
+        Remove-Item -Force -ErrorAction SilentlyContinue $Path
+        exit 1
+    }
+    Write-Output "OK: $Label`: SHA-256 verified ($exp)"
+}
+
 # Install NodeJS binaries
 if (-Not (Test-Path nodejs-win\node.exe)) {
     Write-Output "Downloading Node"
-    Invoke-WebRequest -o ./nodejs-win.zip "https://nodejs.org/dist/v22.19.0/node-v22.19.0-win-x64.zip"     
-    
+    Invoke-WebRequest -o ./nodejs-win.zip "https://nodejs.org/dist/v$NodeVersion/node-v$NodeVersion-win-x64.zip"
+    Assert-Sha256 -Path ./nodejs-win.zip -Expected $NodeSha256WinX64 -Label "NodeJS $NodeVersion win-x64"
+
     Write-Output "Unzip Node"
     Expand-Archive .\nodejs-win.zip -DestinationPath .
-    Rename-Item node-v22.19.0-win-x64 -NewName nodejs-win
+    Rename-Item "node-v$NodeVersion-win-x64" -NewName nodejs-win
     Remove-Item -Force .\nodejs-win.zip
 }
 
@@ -21,8 +54,19 @@ if (-Not (Test-Path nodejs-win\node.exe)) {
 if (-Not (Test-Path jre\bin\java.exe)) {
     if (-Not (Test-Path jdk\bin\java.exe)) {
         Write-Output "Downloading Corretto-11"
-        Invoke-WebRequest -o ./corretto-11.zip "https://corretto.aws/downloads/latest/amazon-corretto-11-x64-windows-jdk.zip"     
-        
+        Invoke-WebRequest -o ./corretto-11.zip "https://corretto.aws/downloads/latest/amazon-corretto-11-x64-windows-jdk.zip"
+
+        # Corretto's "latest" URL rotates. Fetch the matching digest from
+        # Amazon's ``latest_sha256`` sidecar over the same TLS origin.
+        $correttoSha = (Invoke-WebRequest -UseBasicParsing `
+            -Uri 'https://corretto.aws/downloads/latest_sha256/amazon-corretto-11-x64-windows-jdk.zip').Content.Trim()
+        if ([string]::IsNullOrWhiteSpace($correttoSha)) {
+            Write-Error "Corretto: could not fetch expected SHA-256 sidecar"
+            Remove-Item -Force -ErrorAction SilentlyContinue ./corretto-11.zip
+            exit 1
+        }
+        Assert-Sha256 -Path ./corretto-11.zip -Expected $correttoSha -Label "Corretto 11 win-x64"
+
         Write-Output "Unzip Corretto-11"
         Expand-Archive .\corretto-11.zip -DestinationPath .
         Get-ChildItem ./jdk* -Directory | Rename-Item -NewName jdk
@@ -41,6 +85,8 @@ if (-Not (Test-Path jre\bin\java.exe)) {
 if (-Not (Test-Path verapdf\verapdf.bat)) {
     Write-Output "INFO: Downloading VeraPDF"
     Invoke-WebRequest -o .\verapdf-installer.zip "https://github.com/GovTechSG/oobee/releases/download/cache/verapdf-installer.zip"
+    Assert-Sha256 -Path .\verapdf-installer.zip -Expected $VeraPdfSha256 -Label "veraPDF installer"
+
     Expand-Archive .\verapdf-installer.zip -DestinationPath .
     Get-ChildItem ./verapdf-greenfield-* -Directory | Rename-Item -NewName verapdf-installer
 
@@ -51,7 +97,7 @@ if (-Not (Test-Path verapdf\verapdf.bat)) {
     Write-Output "INFO: Installing VeraPDF"
     .\verapdf-installer\verapdf-install "$PWD\verapdf-auto-install-windows.xml"
     Move-Item -Path C:\Windows\Temp\verapdf -Destination verapdf
-    Remove-Item -Force -Path .\verapdf-installer.zip 
+    Remove-Item -Force -Path .\verapdf-installer.zip
     Remove-Item -Force -Path .\verapdf-installer -recurse
 }
 
@@ -69,14 +115,14 @@ if (Test-Path oobee) {
     # Omit installing Playwright browsers as it is not reuqired
     # Write-Output "Install Playwright browsers"
     # & ".\oobee_shell_ps.ps1" "npx playwright install chromium"
-    
+
     try {
-	Write-Output "Building Typescript" 
-	& ".\oobee_shell_ps.ps1" "cd oobee;npm run build" 
+	Write-Output "Building Typescript"
+	& ".\oobee_shell_ps.ps1" "cd oobee;npm run build"
     } catch {
-	Write-Output "Build with some errors but continuing. $_.Exception.Message" 
-    } 
-    
+	Write-Output "Build with some errors but continuing. $_.Exception.Message"
+    }
+
     if (Test-Path oobee\.git) {
         Write-Output "Unhide .git folder"
         attrib -s -h oobee\.git
@@ -87,7 +133,7 @@ if (Test-Path oobee) {
 
     if (Test-Path package.json) {
         Write-Output "Installing node dependencies"
-        & ".\oobee_shell_ps.ps1" "npm install --force --omit=dev" 
+        & ".\oobee_shell_ps.ps1" "npm install --force --omit=dev"
 
         Write-Output "Install Playwright browsers"
         & "npx playwright install chromium"
@@ -96,13 +142,13 @@ if (Test-Path oobee) {
             Write-Output "Unhide .git folder"
             attrib -s -h .git
         }
-	
+
 	try {
-		Write-Output "Building Typescript" 
+		Write-Output "Building Typescript"
 		npm run build
  	} catch {
- 		Write-Output "Build with some errors but continuing" 
-	} 
+ 		Write-Output "Build with some errors but continuing"
+	}
 
     } else {
         Write-Output "Could not find oobee"

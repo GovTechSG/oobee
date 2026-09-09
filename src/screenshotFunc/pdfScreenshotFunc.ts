@@ -130,6 +130,22 @@ export async function getPdfScreenshots(
       // Render the page on a Node canvas with 200% scale.
       const viewport = page.getViewport({ scale: 2.0 });
 
+      // PDF page geometry (MediaBox) is attacker-controlled — during a
+      // crawl we download PDFs linked from arbitrary scanned sites. A
+      // crafted PDF declaring an enormous page size would force
+      // canvasFactory.create to allocate a W*H*4 byte buffer and OOM the
+      // scan worker. Clamp against the same MAX_CROP_DIMENSION used for
+      // the crop canvas below (200% of a typical A0 page is well under
+      // this bound; anything above is treated as malformed).
+      if (!isFinitePositive(viewport.width) || !isFinitePositive(viewport.height) ||
+          viewport.width > MAX_CROP_DIMENSION || viewport.height > MAX_CROP_DIMENSION) {
+        consoleLogger.warn(
+          `Skipping PDF page ${pageNum}: viewport dimensions out of bounds (${viewport.width}x${viewport.height})`,
+        );
+        page.cleanup();
+        continue;
+      }
+
       const canvasAndContext =
         pageCanvasCache[pageNum] ?? canvasFactory.create(viewport.width, viewport.height);
       if (!pageCanvasCache[pageNum]) {

@@ -1523,11 +1523,58 @@ export const createCrawleeSubFolders = async (
   return { dataset, requestQueue };
 };
 
-export const preNavigationHooks = (extraHTTPHeaders: Record<string, string>) => {
+export const preNavigationHooks = (
+  extraHTTPHeaders: Record<string, string>,
+  entryUrl?: string,
+) => {
+  // Resolve the entry origin once. splitAuthHeaders binds Basic credentials
+  // to this origin via Playwright's httpCredentials.origin so the browser
+  // refuses to auto-attach them after a cross-origin redirect. The
+  // Authorization header carries no such binding — if we attach it to
+  // ``request.headers`` unconditionally the crawler will send it to every
+  // navigation, including cross-origin redirects and off-scope subdomains,
+  // leaking the operator's bearer/basic token to attacker-controlled hosts.
+  // Compute the entry origin here so the per-request hook can drop the
+  // Authorization header whenever it would cross that boundary.
+  const entryOrigin = (() => {
+    if (!entryUrl) return undefined;
+    try {
+      return new URL(entryUrl).origin;
+    } catch {
+      return undefined;
+    }
+  })();
+
   return [
     async (crawlingContext: CrawlingContext, gotoOptions: PlaywrightGotoOptions) => {
       if (extraHTTPHeaders && Object.keys(extraHTTPHeaders).length > 0) {
-        crawlingContext.request.headers = extraHTTPHeaders;
+        let headersForRequest = extraHTTPHeaders;
+        // Same-origin Authorization only. If the entry origin was unknown
+        // (older callers), fall through to defense-in-depth: drop
+        // Authorization entirely rather than leak it — the credential must
+        // instead flow via httpCredentials + addAuthRouteHandler which
+        // enforce their own same-origin bounds.
+        const hasAuthHeader = Object.keys(extraHTTPHeaders).some(
+          k => k.toLowerCase() === 'authorization',
+        );
+        if (hasAuthHeader) {
+          let sameOrigin = false;
+          if (entryOrigin) {
+            try {
+              sameOrigin = new URL(crawlingContext.request.url).origin === entryOrigin;
+            } catch {
+              sameOrigin = false;
+            }
+          }
+          if (!sameOrigin) {
+            const filtered: Record<string, string> = {};
+            for (const [k, v] of Object.entries(extraHTTPHeaders)) {
+              if (k.toLowerCase() !== 'authorization') filtered[k] = v;
+            }
+            headersForRequest = filtered;
+          }
+        }
+        crawlingContext.request.headers = headersForRequest;
       }
       // Use domcontentloaded — fires as soon as the DOM is parsed, before
       // images/stylesheets/network requests settle. This avoids indefinite

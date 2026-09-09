@@ -404,7 +404,12 @@
     if (!copyButtonElem || !xpath) return;
 
     const copyTooltipItem = new bootstrap.Tooltip(copyButtonElem);
-    const textToCopy = createElementFromString(`<textarea>${xpath}</textarea>`);
+    // xpath is scanned-page content — createElementFromString parses via
+    // innerHTML, so interpolating it as raw markup is a DOM XSS sink. Build
+    // the textarea with textContent so any '<script>' / '</textarea><img>'
+    // payload is treated as literal text.
+    const textToCopy = document.createElement('textarea');
+    textToCopy.textContent = xpath;
 
     copyButtonElem.onclick = event => {
       textToCopy.select();

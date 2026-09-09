@@ -331,9 +331,37 @@ async function resolveHostname(
 ): Promise<{ ip: string; bypass: boolean; blocked: boolean } | null> {
   // The SOCKS5 client may have already resolved DNS locally and passed an IP
   // literal (atyp 0x01/0x04). Skip DNS in that case and check the list directly.
+  //
+  // Setting ``blocked: isInternalIp(hostname)`` here (instead of a hard-coded
+  // ``false``) plugs the SSRF gap in the caller: a scanned page that hands the
+  // proxy ``169.254.169.254`` or ``127.0.0.1`` via SOCKS would otherwise be
+  // direct-forwarded on the bypass and INCLUDE_PROXY branches, letting the
+  // driven browser reach cloud-metadata / loopback services. handleSocks5
+  // already treats ``blocked`` as a refusal (0x02) so both branches inherit
+  // the guard the sibling handleSocks5FamilyLocal already applies.
   if (isIpLiteral(hostname)) {
-    return { ip: hostname, bypass: ipInRanges(hostname, bypassRanges), blocked: false };
+    return {
+      ip: hostname,
+      bypass: ipInRanges(hostname, bypassRanges),
+      blocked: isInternalIp(hostname),
+    };
   }
+
+  // Wraps a DNS-resolved address in the same block-if-internal contract as
+  // the IP-literal path. Handles the DNS-rebinding case where a hostile
+  // hostname resolves into internal / metadata address space.
+  const wrapResolved = (
+    ip: string,
+    bypass: boolean,
+  ): { ip: string; bypass: boolean; blocked: boolean } => {
+    if (isInternalIp(ip)) {
+      consoleLogger.info(
+        `[cfProxyWorker] Refusing ${hostname}: resolved to internal ${ip}`,
+      );
+      return { ip, bypass: false, blocked: true };
+    }
+    return { ip, bypass, blocked: false };
+  };
 
   if (isFamilyDnsEnabled()) {
     const ip = await resolveViaFamilyDoH(hostname);
@@ -347,9 +375,9 @@ async function resolveHostname(
     }
     if (ipInRanges(ip, bypassRanges)) {
       consoleLogger.info(`[cfProxyWorker] Bypass IP matched ${ip} for ${hostname}`);
-      return { ip, bypass: true, blocked: false };
+      return wrapResolved(ip, true);
     }
-    return { ip, bypass: false, blocked: false };
+    return wrapResolved(ip, false);
   }
 
   try {
@@ -357,11 +385,11 @@ async function resolveHostname(
     for (const addr of addresses) {
       if (ipInRanges(addr, bypassRanges)) {
         consoleLogger.info(`[cfProxyWorker] Bypass IP matched ${addr} for ${hostname}`);
-        return { ip: addr, bypass: true, blocked: false };
+        return wrapResolved(addr, true);
       }
     }
     if (addresses.length > 0) {
-      return { ip: addresses[0], bypass: false, blocked: false };
+      return wrapResolved(addresses[0], false);
     }
   } catch (e) {
     // IPv4 failed, try IPv6
@@ -370,11 +398,11 @@ async function resolveHostname(
       for (const addr of addresses) {
         if (ipInRanges(addr, bypassRanges)) {
           consoleLogger.info(`[cfProxyWorker] Bypass IPv6 matched ${addr} for ${hostname}`);
-          return { ip: addr, bypass: true, blocked: false };
+          return wrapResolved(addr, true);
         }
       }
       if (addresses.length > 0) {
-        return { ip: addresses[0], bypass: false, blocked: false };
+        return wrapResolved(addresses[0], false);
       }
     } catch (err) {
       consoleLogger.warn(`[cfProxyWorker] DNS resolution failed for ${hostname}: ${(err as Error).message}`);

@@ -161,6 +161,17 @@ const crawlDomain = async ({
     }
   };
 
+  const isExcludedFromEnqueue = (candidateUrl: string): boolean => {
+    if (scannedUrlSet.has(normUrl(candidateUrl))) return true;
+    if (isBlacklisted(candidateUrl, blacklistedPatterns)) return true;
+    if (!isFollowStrategy(candidateUrl, url, strategy)) return true;
+    if (disallowedListOfPatterns.some(pattern => candidateUrl.toLowerCase().startsWith(pattern))) {
+      return true;
+    }
+    if (isDisallowedInRobotsTxt(candidateUrl)) return true;
+    return false;
+  };
+
   await enqueueUniqueRequest({
     url,
     skipNavigation: isUrlPdf(url),
@@ -438,7 +449,7 @@ const crawlDomain = async ({
       requestQueue,
       maxRequestRetries: 3,
       preNavigationHooks: [
-        ...preNavigationHooks(extraHTTPHeaders),
+        ...preNavigationHooks(extraHTTPHeaders, url),
         // Attach URL-scheme guards to each new BrowserContext the first time
         // Crawlee routes a request through it. Complements the up-front URL
         // filter below by catching in-page navigations (window.open,
@@ -893,11 +904,13 @@ const crawlDomain = async ({
                   const interceptedRequestUrl = interceptedRequest
                     .url()
                     .replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
-                  await enqueueUniqueRequest({
-                    url: interceptedRequestUrl,
-                    skipNavigation: isUrlPdf(interceptedRequest.url()),
-                    label: interceptedRequestUrl,
-                  });
+                  if (!isExcludedFromEnqueue(interceptedRequestUrl)) {
+                    await enqueueUniqueRequest({
+                      url: interceptedRequestUrl,
+                      skipNavigation: isUrlPdf(interceptedRequest.url()),
+                      label: interceptedRequestUrl,
+                    });
+                  }
                 }
               });
             }

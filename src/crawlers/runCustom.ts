@@ -8,7 +8,7 @@ import constants, {
   UrlsCrawled,
 } from '../constants/constants.js';
 import { DEBUG, initNewPage, log } from './custom/utils.js';
-import { guiInfoLog } from '../logs.js';
+import { consoleLogger, guiInfoLog } from '../logs.js';
 import { ViewportSettingsClass } from '../combine.js';
 import { addUrlGuardScript } from './guards/urlGuard.js';
 import {
@@ -146,11 +146,25 @@ const runCustom = async (
 
     const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(extraHTTPHeaders, url);
 
+    // Never send caller-supplied credentials to a server whose certificate
+    // couldn't be validated. Leaving ignoreHTTPSErrors:true when Basic /
+    // Authorization headers are attached lets an on-path attacker present
+    // any certificate, complete the TLS handshake, and capture the
+    // configured secret. Preserve the "scan sites with broken certs"
+    // ergonomics for credential-less scans, but hold TLS validation ON
+    // whenever the context carries credentials.
+    const hasCredentials = !!authHeader || !!httpCredentials;
+    if (hasCredentials) {
+      consoleLogger.info(
+        '[runCustom] Credentials detected — enforcing TLS certificate validation for this scan',
+      );
+    }
+
     const context = await launchPersistentSafeContext(userDataDirectory, {
       ...baseLaunchOptions,
       args: mergedArgs,
       headless: false,
-      ignoreHTTPSErrors: true,
+      ignoreHTTPSErrors: !hasCredentials,
       serviceWorkers: 'block' as const,
       viewport: null,
       ...(hasCustomViewport ? contextDeviceOptions : {}),

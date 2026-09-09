@@ -167,7 +167,16 @@ async function spawnChromeForWarmup(): Promise<void> {
     '--profile-directory=Default',
     '--no-first-run',
     '--no-default-browser-check',
-    '--ignore-certificate-errors',
+    // Do NOT pass --ignore-certificate-errors here. The security-relevant
+    // traffic in this warmup is the Safe Browsing hash-prefix database
+    // download; disabling TLS validation for that connection lets an
+    // on-path attacker substitute a stale/empty/tampered DB that then
+    // propagates into every scanning profile (injectSafeBrowsingDb),
+    // silently defeating the "we protect the analyst against malicious
+    // URLs" property. The generate_204 probe below only needs standard
+    // TLS to succeed — Google's cert chains anchor to public roots. If a
+    // corporate proxy MITMs egress, add the proxy CA to the system
+    // trust store rather than globally disabling certificate checks.
     // Warmup only visits google.com/generate_204 to trigger a DB download into
     // a throwaway profile — no untrusted content. --no-sandbox is safe here and
     // is required inside BuildKit / restricted containers where Chrome's
