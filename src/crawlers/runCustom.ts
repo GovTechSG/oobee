@@ -152,8 +152,15 @@ const runCustom = async (
     // any certificate, complete the TLS handshake, and capture the
     // configured secret. Preserve the "scan sites with broken certs"
     // ergonomics for credential-less scans, but hold TLS validation ON
-    // whenever the context carries credentials.
+    // whenever the context carries credentials AND require the operator
+    // to explicitly opt into insecure TLS via OOBEE_ALLOW_INSECURE_TLS
+    // — silent disable of TLS validation is what the scanner flagged.
     const hasCredentials = !!authHeader || !!httpCredentials;
+    const allowInsecureTls =
+      !hasCredentials &&
+      ['1', 'true', 'yes'].includes(
+        String(process.env.OOBEE_ALLOW_INSECURE_TLS || '').toLowerCase(),
+      );
     if (hasCredentials) {
       consoleLogger.info(
         '[runCustom] Credentials detected — enforcing TLS certificate validation for this scan',
@@ -164,7 +171,7 @@ const runCustom = async (
       ...baseLaunchOptions,
       args: mergedArgs,
       headless: false,
-      ignoreHTTPSErrors: !hasCredentials,
+      ignoreHTTPSErrors: allowInsecureTls,
       serviceWorkers: 'block' as const,
       viewport: null,
       ...(hasCustomViewport ? contextDeviceOptions : {}),

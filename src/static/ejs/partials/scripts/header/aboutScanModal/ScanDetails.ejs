@@ -39,7 +39,23 @@
   const urlA = document.getElementById('urlScanned');
   const urlSpan = document.getElementById('urlScannedText');
   urlSpan.textContent = scanData.urlScanned;
-  urlA.href = scanData.urlScanned;
+  // scanData.urlScanned is the user-supplied CLI target; refuse
+  // javascript:/data:/vbscript: schemes so an attacker who managed to
+  // seed a crafted URL into a shared report can't run script when the
+  // reviewer clicks the link.
+  const SAFE_HREF_SCHEMES = /^(https?:|mailto:|file:)/i;
+  const isSafeScannedHref = (url) => {
+    if (typeof url !== 'string') return false;
+    const trimmed = url.trim();
+    if (trimmed === '') return false;
+    if (/^[./]/.test(trimmed)) return true;
+    return SAFE_HREF_SCHEMES.test(trimmed);
+  };
+  if (isSafeScannedHref(scanData.urlScanned)) {
+    urlA.href = scanData.urlScanned;
+  } else {
+    urlA.removeAttribute('href');
+  }
 
   document.getElementById('aboutStartTime').innerHTML = formattedViewerLocalStartTime;
 

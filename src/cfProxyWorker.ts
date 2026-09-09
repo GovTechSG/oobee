@@ -129,17 +129,37 @@ function cidrMatch(ip: string, cidr: string): boolean {
 }
 
 function ipToBytes(ip: string): number[] | null {
-  if (ip.includes('.')) {
+  // Pure IPv4 dotted-quad (no colons anywhere).
+  if (ip.includes('.') && !ip.includes(':')) {
     const parts = ip.split('.').map(Number);
     if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
     return parts;
   }
   if (ip.includes(':')) {
-    // Minimal IPv6 parse (supports :: compression).
-    const [head, tail] = ip.split('::');
+    // IPv4-mapped / IPv4-compatible form: the last hextet may be written as
+    // a dotted-quad, e.g. `::ffff:127.0.0.1` or `::ffff:192.168.0.0`. Peel
+    // that trailing quad off before the hextet parse so the four octets
+    // become the last four bytes (matching the wire format). Without this
+    // the whole INTERNAL_IP_RANGES table (and any user-provided IPv4-mapped
+    // literal in that form) fails to parse and the SSRF guard silently
+    // permits internal targets — the exact bug asgard flagged.
+    let trailingV4Bytes: number[] | null = null;
+    let ipNoV4 = ip;
+    const lastColon = ip.lastIndexOf(':');
+    const afterLastColon = ip.slice(lastColon + 1);
+    if (afterLastColon.includes('.')) {
+      const parts = afterLastColon.split('.').map(Number);
+      if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+      trailingV4Bytes = parts;
+      ipNoV4 = ip.slice(0, lastColon);
+    }
+    // Minimal IPv6 parse (supports :: compression). Two synthetic hextets
+    // stand in for the dotted-quad tail so `missing` accounts for it.
+    const trailingGroups = trailingV4Bytes ? 2 : 0;
+    const [head, tail] = ipNoV4.split('::');
     const headParts = head ? head.split(':') : [];
     const tailParts = tail ? tail.split(':') : [];
-    const missing = 8 - headParts.length - tailParts.length;
+    const missing = 8 - headParts.length - tailParts.length - trailingGroups;
     if (missing < 0) return null;
     const groups = [...headParts, ...Array(missing).fill('0'), ...tailParts];
     const bytes = [];
@@ -148,6 +168,8 @@ function ipToBytes(ip: string): number[] | null {
       if (Number.isNaN(n) || n < 0 || n > 0xffff) return null;
       bytes.push(n >> 8, n & 0xff);
     }
+    if (trailingV4Bytes) bytes.push(...trailingV4Bytes);
+    if (bytes.length !== 16) return null;
     return bytes;
   }
   return null;
