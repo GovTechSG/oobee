@@ -392,11 +392,17 @@ export const checkUrlConnectivityWithBrowser = async (
     }
   }
 
+  // Never forward Basic credentials over a session that ignores TLS validation:
+  // a MITM presenting any cert would receive the decoded username/password.
+  // When creds are attached we verify TLS; scans without creds keep the
+  // legacy permissive default so self-signed / staging hosts still work.
+  const ignoreHTTPSErrors = !httpCredentials;
+
   const contextOptions: Record<string, unknown> = {
     ...restDevice,
     ...(Object.keys(nonAuthHeaders).length > 0 && { extraHTTPHeaders: nonAuthHeaders }),
     ...(httpCredentials && { httpCredentials }),
-    ignoreHTTPSErrors: true,
+    ignoreHTTPSErrors,
     ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
   };
 
@@ -1307,6 +1313,40 @@ export const getLinksFromSitemap = async (
         // to fetch and apply the stylesheet, which may load additional resources
         // (fonts, CSS, images) that prevent 'networkidle' from ever being reached.
         const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+        // DNS rebinding defence: the isInternalOrLoopbackUrl() pre-check runs
+        // its own resolver, but a hostile authoritative DNS can return a public
+        // IP to us and a private IP to the browser milliseconds later. Verify
+        // the remote address the browser actually connected to falls outside
+        // link-local / loopback / RFC1918 ranges before trusting the body.
+        if (response) {
+          try {
+            const serverAddr = await response.serverAddr();
+            const remoteIp = serverAddr?.ipAddress;
+            if (remoteIp) {
+              const bare = remoteIp.replace(/^\[|\]$/g, '').toLowerCase();
+              const isInternal =
+                (isIpv4Literal(bare) && isInternalIpv4(bare)) ||
+                bare === '::1' ||
+                bare.startsWith('fe8') || bare.startsWith('fe9') ||
+                bare.startsWith('fea') || bare.startsWith('feb') ||
+                bare.startsWith('fc') || bare.startsWith('fd') ||
+                bare.startsWith('::ffff:127.') || bare.startsWith('::ffff:10.') ||
+                bare.startsWith('::ffff:169.254.') || bare.startsWith('::ffff:192.168.');
+              if (isInternal) {
+                consoleLogger.warn(
+                  `Refusing sitemap body from internal address ${remoteIp} (host ${url})`,
+                );
+                data = '';
+                return;
+              }
+            }
+          } catch {
+            // serverAddr() is best-effort — Chromium may not report it for
+            // service-worker/cached responses. Fall through so the operator
+            // still sees ordinary sitemap discovery for those cases.
+          }
+        }
 
         // Prefer the raw response body — this gives us the original XML before
         // the browser applies any XSL transformation (which would turn the XML

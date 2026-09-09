@@ -93,6 +93,15 @@ NodeCanvasFactory.prototype = {
 
 const canvasFactory = new NodeCanvasFactory();
 
+// Cumulative memory budget for cached page canvases across the whole PDF.
+// The per-page dimension clamp (MAX_CROP_DIMENSION) bounds a single canvas
+// to ~256MB (8192*8192*4B), but a crafted PDF can declare many pages each
+// near that bound and each carrying a violation, so the number of retained
+// canvases must also be bounded. 512MB gives ample room for typical A4/A3
+// documents (each page ~4-24MB at scale 2.0) while stopping a many-page
+// PDF from OOM-killing the scan worker.
+const PAGE_CANVAS_BUDGET_BYTES = 512 * 1024 * 1024;
+
 export async function getPdfScreenshots(
   pdfFilePath: string,
   items: TransformedRuleObject['items'],
@@ -110,7 +119,9 @@ export async function getPdfScreenshots(
   const structureTree = await pdf._pdfInfo.structureTree;
 
   // save some resources by caching page canvases to be reused by diff violations
-  const pageCanvasCache = {};
+  const pageCanvasCache: Record<string, { canvas: Canvas; context: SKRSContext2D }> = {};
+  let pageCanvasCacheBytes = 0;
+  let budgetExceededLogged = false;
 
   // iterate through each violation
   for (let i = 0; i < newItems.length; i++) {
@@ -146,10 +157,30 @@ export async function getPdfScreenshots(
         continue;
       }
 
+      const pageBytes = viewport.width * viewport.height * 4;
+      const alreadyCached = !!pageCanvasCache[pageNum];
+
+      // Cumulative-bytes guard: a single page passes MAX_CROP_DIMENSION but
+      // 50+ near-max pages together would still OOM. Refuse to render (and
+      // to cache) once the running total for this PDF exceeds the budget.
+      // Already-cached pages are free to reuse (they're already counted).
+      if (!alreadyCached && pageCanvasCacheBytes + pageBytes > PAGE_CANVAS_BUDGET_BYTES) {
+        if (!budgetExceededLogged) {
+          consoleLogger.warn(
+            `PDF page-canvas budget (${PAGE_CANVAS_BUDGET_BYTES} bytes) reached; skipping ` +
+            `screenshots for remaining pages of this PDF to avoid memory exhaustion.`,
+          );
+          budgetExceededLogged = true;
+        }
+        page.cleanup();
+        continue;
+      }
+
       const canvasAndContext =
         pageCanvasCache[pageNum] ?? canvasFactory.create(viewport.width, viewport.height);
-      if (!pageCanvasCache[pageNum]) {
+      if (!alreadyCached) {
         pageCanvasCache[pageNum] = canvasAndContext;
+        pageCanvasCacheBytes += pageBytes;
       }
       const { canvas: origCanvas, context: origCtx } = canvasAndContext;
 
@@ -175,6 +206,15 @@ export async function getPdfScreenshots(
       page.cleanup();
     }
   }
+
+  // Release all cached page canvases before returning. Without this the
+  // ~256MB-per-page buffers would sit in memory until GC eventually caught
+  // up, on top of the next PDF's cache — amplifying pressure on the worker.
+  for (const key of Object.keys(pageCanvasCache)) {
+    canvasFactory.destroy(pageCanvasCache[key]);
+    delete pageCanvasCache[key];
+  }
+
   return newItems;
 }
 

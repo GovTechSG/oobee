@@ -1,5 +1,16 @@
 <script>
   (function populatePrioritiseIssues() {
+    // Escape untrusted strings before splicing them into an innerHTML template
+    // literal. axe-core rule descriptions can contain characters that would
+    // otherwise be parsed as HTML markup, and disability labels are indirected
+    // through user-supplied scanData.
+    const escHtml = (value) =>
+      String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     const a11yRuleShortDescriptionMap = scanData?.a11yRuleShortDescriptionMap || {};
     const disabilityBadgesMap = scanData?.disabilityBadgesMap || {};
     const wcagLinks = scanData?.wcagLinks || {};
@@ -78,16 +89,16 @@
               disabilities.length > 0
                 ? `
               <div class="priority-issue-badges">
-                ${disabilities.map(disability => `<span class="disability-badge">${disability} Disability</span>`).join('')}
+                ${disabilities.map(disability => `<span class="disability-badge">${escHtml(disability)} Disability</span>`).join('')}
               </div>
             `
                 : '';
 
             return `
-              <li class="priority-issue-item" data-rule-id="${issue.ruleId}">
+              <li class="priority-issue-item" data-rule-id="${escHtml(issue.ruleId)}">
                 <button type="button" class="priority-issue-action d-flex g-one" aria-pressed="false">
                   <div class="d-flex justify-content-between align-items-center w-90">
-                      <div class="priority-issue-title">${issue.description}</div>
+                      <div class="priority-issue-title">${escHtml(issue.description)}</div>
                       ${disabilityBadges}
                   </div>
                 </button>
@@ -107,7 +118,7 @@
                 aria-expanded="false"
                 aria-controls="collapse${index}"
               >
-                <span class="h4 mb-0">WCAG ${wcagScore} -&nbsp;</span>
+                <span class="h4 mb-0">WCAG ${escHtml(wcagScore)} -&nbsp;</span>
                 <span class="h4 fw-normal mb-0">${criteria.issues.length} ${issueWord}</span>
                 <span class="wcag-score-badge">-1 WCAG Score</span>
                 <svg class="accordion-icon-collapsed" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

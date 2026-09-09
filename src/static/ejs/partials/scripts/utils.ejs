@@ -419,7 +419,22 @@
   }
 
   function escapeHtmlStringForArg(string) {
-    return htmlEscapeString(string)
+    // The output of this function is inlined verbatim into a single-quoted
+    // JavaScript string literal that lives inside an HTML onClick attribute
+    // built by string concatenation and then set via innerHTML. We must
+    // therefore make the payload safe in BOTH contexts.
+    //
+    // htmlEscapeString already handles the HTML side (&, <, >, ", ') but
+    // NEVER touches literal backslashes. Left un-escaped, a payload like
+    // `\'` would combine with the `\'` this function injects (see below)
+    // to produce `\\'` in the emitted JS — which the JS parser reads as
+    // ONE escaped backslash followed by a string-terminating quote,
+    // letting the following attacker-controlled bytes execute as JS.
+    // Escape backslashes FIRST so any subsequent `\` we introduce (for
+    // quotes / newlines) is a fresh, unambiguous escape.
+    if (string == null) return '';
+    const backslashEscaped = String(string).replace(/\\/g, '\\\\');
+    return htmlEscapeString(backslashEscaped)
       .replaceAll('&#039;', "\\'")
       .replace(/\r?\n/g, '\\n')
       .replace(/&gt;\s+(.*?)\s+&lt;\//g, '&gt;$1&lt;/');
