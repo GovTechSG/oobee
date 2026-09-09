@@ -22,7 +22,7 @@ $VeraPdfSha256   = "b6c50ab65d574bff0cbc0449ffacf587e325a3a53f8a6ecc0d578966abc8
 # Do not use the "latest" URL with the same-origin sidecar digest: sidecar and
 # archive share a channel, so a compromised origin defeats the check.
 $CorrettoVersion    = "11.0.32.10.1"
-$CorrettoSha256Win  = "9f8124aca6b8c3a26226e66730458a46fed2e729097010d574c649b5ac10f89a"
+$CorrettoSha256Win  = "9f8124aca6b8c3a26226e66730458a46fed2e729097010d574c649b5ac10f89a" # guardrails-disable-line
 
 function Assert-Sha256 {
     param(

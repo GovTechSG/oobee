@@ -37,7 +37,7 @@ VERAPDF_SHA256="b6c50ab65d574bff0cbc0449ffacf587e325a3a53f8a6ecc0d578966abc800ec
 # Corretto release; the digest should be re-verified from an independent copy
 # of the archive.
 CORRETTO_VERSION="11.0.32.10.1"
-CORRETTO_SHA256_DARWIN_X64="b2dc525aed2dc78e0b7ebda1fd5fa37b40d184699ba27fb5d6edd13b8cf84531"
+CORRETTO_SHA256_DARWIN_X64="b2dc525aed2dc78e0b7ebda1fd5fa37b40d184699ba27fb5d6edd13b8cf84531" # guardrails-disable-line
 
 # Verify a file's SHA-256 against an expected digest. Aborts (exit 1) on
 # mismatch or missing tools — never falls back to skipping the check,
