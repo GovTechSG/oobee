@@ -18,6 +18,12 @@ $NodeVersion = "22.19.0"
 $NodeSha256WinX64 = "ea3fad0e67a991d8477d8c01344b56e69c676ccb733f065b22436994b1253f86" # guardrails-disable-line
 $VeraPdfSha256   = "b6c50ab65d574bff0cbc0449ffacf587e325a3a53f8a6ecc0d578966abc800ec" # guardrails-disable-line
 
+# Pin Corretto to a versioned URL + maintainer-verified SHA-256 (asgard-0005).
+# Do not use the "latest" URL with the same-origin sidecar digest: sidecar and
+# archive share a channel, so a compromised origin defeats the check.
+$CorrettoVersion    = "11.0.32.10.1"
+$CorrettoSha256Win  = "9f8124aca6b8c3a26226e66730458a46fed2e729097010d574c649b5ac10f89a" # guardrails-disable-line
+
 function Assert-Sha256 {
     param(
         [Parameter(Mandatory=$true)][string]$Path,
@@ -53,19 +59,11 @@ if (-Not (Test-Path nodejs-win\node.exe)) {
 # Install Coretto-11
 if (-Not (Test-Path jre\bin\java.exe)) {
     if (-Not (Test-Path jdk\bin\java.exe)) {
-        Write-Output "Downloading Corretto-11"
-        Invoke-WebRequest -o ./corretto-11.zip "https://corretto.aws/downloads/latest/amazon-corretto-11-x64-windows-jdk.zip"
-
-        # Corretto's "latest" URL rotates. Fetch the matching digest from
-        # Amazon's ``latest_sha256`` sidecar over the same TLS origin.
-        $correttoSha = (Invoke-WebRequest -UseBasicParsing `
-            -Uri 'https://corretto.aws/downloads/latest_sha256/amazon-corretto-11-x64-windows-jdk.zip').Content.Trim()
-        if ([string]::IsNullOrWhiteSpace($correttoSha)) {
-            Write-Error "Corretto: could not fetch expected SHA-256 sidecar"
-            Remove-Item -Force -ErrorAction SilentlyContinue ./corretto-11.zip
-            exit 1
-        }
-        Assert-Sha256 -Path ./corretto-11.zip -Expected $correttoSha -Label "Corretto 11 win-x64"
+        Write-Output "Downloading Corretto $CorrettoVersion"
+        # Versioned URL + pinned SHA-256; do NOT trust Amazon's same-origin
+        # latest_sha256 sidecar for integrity.
+        Invoke-WebRequest -o ./corretto-11.zip "https://corretto.aws/downloads/resources/$CorrettoVersion/amazon-corretto-$CorrettoVersion-windows-x64-jdk.zip"
+        Assert-Sha256 -Path ./corretto-11.zip -Expected $CorrettoSha256Win -Label "Corretto $CorrettoVersion win-x64"
 
         Write-Output "Unzip Corretto-11"
         Expand-Archive .\corretto-11.zip -DestinationPath .

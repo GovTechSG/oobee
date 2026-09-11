@@ -1,0 +1,16 @@
+# Guardrails false positives (secrets engine only)
+#
+# NOTE: Guardrails' ignore file does NOT support per-engine scoping — listing
+# a path here suppresses ALL engines for that path. Only add entries here for
+# files where the alternative (in-line `guardrails-disable-line` comment) is
+# not syntactically possible.
+#
+# package.json — the "Hard-Coded Secrets → GitHub Key" heuristic misfires on
+# git-commit-SHA pins used by `github:` dependency refs (e.g.
+# `github:veraPDF/pdfjs-dist#<40-hex-commit-sha>`). A commit SHA is 40 hex
+# chars and preceded by the word "github", which is exactly the GitHub PAT
+# regex shape. JSON has no comment syntax, so `guardrails-disable-line`
+# cannot be applied to the offending line. Vulnerable-library scanning is
+# still exercised via Dependabot and `npm audit` in CI, so ignoring the file
+# here only removes the secret-engine false positive without losing SCA.
+package.json

@@ -30,6 +30,15 @@ NODE_SHA256_DARWIN_ARM64="c59006db713c770d6ec63ae16cb3edc11f49ee093b5c415d667bb4
 NODE_SHA256_DARWIN_X64="3cfed4795cd97277559763c5f56e711852d2cc2420bda1cea30c8aa9ac77ce0c" # guardrails-disable-line
 VERAPDF_SHA256="b6c50ab65d574bff0cbc0449ffacf587e325a3a53f8a6ecc0d578966abc800ec"
 
+# Pin Corretto to a specific version + SHA-256 verified out-of-band by an oobee
+# maintainer, rather than trusting Amazon's ``latest_sha256`` sidecar (which is
+# same-channel and thus meaningless if the origin itself is compromised — the
+# finding tracked as asgard-0005). Update both when rolling forward to a newer
+# Corretto release; the digest should be re-verified from an independent copy
+# of the archive.
+CORRETTO_VERSION="11.0.32.10.1"
+CORRETTO_SHA256_DARWIN_X64="b2dc525aed2dc78e0b7ebda1fd5fa37b40d184699ba27fb5d6edd13b8cf84531" # guardrails-disable-line
+
 # Verify a file's SHA-256 against an expected digest. Aborts (exit 1) on
 # mismatch or missing tools — never falls back to skipping the check,
 # because the whole point is to fail closed on tampered downloads.
@@ -107,20 +116,12 @@ export PATH="$JAVA_HOME/bin:$PATH"
 if ! [ -f jre/bin/java ]; then
   cd "$CORRETTO_BASEDIR"
   if ! [ -f amazon-corretto-11.jdk.x64/Contents/Home/bin/java ]; then
-      echo "Downloading Corretto (x64)"
-      curl -fSL -o ./corretto-11.tar.gz "https://corretto.aws/downloads/latest/amazon-corretto-11-x64-macos-jdk.tar.gz"
-      # Corretto's "latest" URL rotates; pair the download with the
-      # matching digest fetched at the same time from the same origin.
-      # This is TLS-integrity — no upstream signature verification — but
-      # is strictly better than the previous "trust whatever bytes arrive"
-      # behavior and matches Amazon's documented integrity workflow.
-      CORRETTO_EXPECTED="$(curl -fsSL 'https://corretto.aws/downloads/latest_sha256/amazon-corretto-11-x64-macos-jdk.tar.gz' | tr -d '[:space:]')"
-      if [ -z "$CORRETTO_EXPECTED" ]; then
-        echo "ERROR: Corretto: could not fetch expected SHA-256 sidecar" >&2
-        rm -f ./corretto-11.tar.gz
-        exit 1
-      fi
-      verify_sha256 ./corretto-11.tar.gz "$CORRETTO_EXPECTED" "Corretto 11 macOS x64"
+      echo "Downloading Corretto ${CORRETTO_VERSION} (x64)"
+      # Use the versioned URL (immutable per release) rather than the rotating
+      # "latest" URL, and verify against a maintainer-pinned SHA-256. Do not
+      # trust the same-origin ``latest_sha256`` sidecar for integrity.
+      curl -fSL -o ./corretto-11.tar.gz "https://corretto.aws/downloads/resources/${CORRETTO_VERSION}/amazon-corretto-${CORRETTO_VERSION}-macosx-x64.tar.gz"
+      verify_sha256 ./corretto-11.tar.gz "$CORRETTO_SHA256_DARWIN_X64" "Corretto ${CORRETTO_VERSION} macOS x64"
       tar -zxf ./corretto-11.tar.gz
       rm -f ./corretto-11.tar.gz
       mv amazon-corretto-11.jdk amazon-corretto-11.jdk.x64
@@ -147,10 +148,12 @@ if ! [ -f verapdf/verapdf ]; then
 
 fi
 
-if [ -d "/Applications/Cloudflare WARP.app" ]; then
-  curl -sSLJ -o "/tmp/Cloudflare_CA.pem" "https://developers.cloudflare.com/cloudflare-one/static/documentation/connections/Cloudflare_CA.pem"
-  export NODE_EXTRA_CA_CERTS="/tmp/Cloudflare_CA.pem"
-fi
+# asgard-0007: the Cloudflare WARP CA-trust block was removed. Downloading a
+# CA cert without integrity verification and exporting it as
+# NODE_EXTRA_CA_CERTS extended Node's trust store from an unverified source,
+# enabling TLS interception if the origin or the /tmp path was compromised.
+# Operators who need WARP-issued cert trust should install the CA into the
+# system trust store out-of-band and set NODE_EXTRA_CA_CERTS themselves.
 
 source "${__dir}/oobee_shell.sh"
 

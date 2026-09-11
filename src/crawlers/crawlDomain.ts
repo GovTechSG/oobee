@@ -887,6 +887,13 @@ const crawlDomain = async ({
             await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory, extraHTTPHeaders);
           await enqueueProcess(page, enqueueLinks, browserContext);
         } catch (e) {
+          // asgard-0013: this recovery path used to leak a browser page on every
+          // request that threw a non-`page.evaluate` error — the newPage() below
+          // was never paired with a close(). Under a long crawl of adversarial
+          // content that reliably throws, this accumulates renderer processes
+          // until the host is starved. Wrap in try/finally so the page is
+          // released regardless of what happens inside.
+          let recoveryPage: Awaited<ReturnType<typeof browserContext.newPage>> | undefined;
           try {
             if (!e.message.includes('page.evaluate')) {
               // do nothing;
@@ -895,7 +902,7 @@ const crawlDomain = async ({
                 urlScanned: request.url,
               });
 
-              const recoveryPage = await browserContext.newPage();
+              recoveryPage = await browserContext.newPage();
               await recoveryPage.goto(request.url);
 
               await recoveryPage.route('**/*', async route => {
@@ -916,6 +923,14 @@ const crawlDomain = async ({
             }
           } catch {
             // Recovery failed; Crawlee will retry the request automatically
+          } finally {
+            if (recoveryPage) {
+              try {
+                await recoveryPage.close();
+              } catch {
+                // page may already be closed / context torn down
+              }
+            }
           }
 
           // Do not push to urlsCrawled.error here — Crawlee will retry the request

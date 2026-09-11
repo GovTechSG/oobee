@@ -277,19 +277,20 @@
             .map(conf => {
               const formatted = formatWcagId(conf);
               if (wcagCriteriaLabels[formatted]) {
-                return `<span class="conformance-badge" title="${formatted}">${formatted}</span>`;
+                const safe = htmlEscapeString(formatted);
+                return `<span class="conformance-badge" title="${safe}">${safe}</span>`;
               }
             })
             .join('');
 
           const disabilitiesBadges = issue.disabilities
             .map(disability => {
-              return `<span class="conformance-badge" title="${disability}">${disability} Disability</span>`;
+              return `<span class="conformance-badge" title="${htmlEscapeString(disability)}">${htmlEscapeString(disability)} Disability</span>`;
             })
             .join('');
 
           return `
-          <tr class="issue-row" data-category="${issue.category}" data-rule-id="${issue.ruleId}" role="button" tabindex="0" aria-label="${issue.description}, ${severityLabel}, ${issue.totalItems} occurrences">
+          <tr class="issue-row" data-category="${htmlEscapeString(issue.category)}" data-rule-id="${htmlEscapeString(issue.ruleId)}" role="button" tabindex="0" aria-label="${htmlEscapeString(issue.description)}, ${htmlEscapeString(severityLabel)}, ${issue.totalItems} occurrences">
             <td>
               <span class="category-badge ${severityClass}">${severityLabel}</span>
             </td>

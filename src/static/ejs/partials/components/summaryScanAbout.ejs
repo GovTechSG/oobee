@@ -1,3 +1,16 @@
+<%
+  // asgard-0009: urlScanned is user-supplied CLI input. EJS `<%=` HTML-escapes
+  // the text nodes, but a value like ``javascript:alert(1)`` would still fire
+  // when a reviewer clicks the anchor. Only allow http(s) in the href;
+  // fall back to '#' otherwise. Mirrors the client-side guard in SiteInfo.ejs.
+  let safeUrlScannedHref = '#';
+  try {
+    const parsedScannedUrl = new URL(urlScanned);
+    if (parsedScannedUrl.protocol === 'http:' || parsedScannedUrl.protocol === 'https:') {
+      safeUrlScannedHref = parsedScannedUrl.href;
+    }
+  } catch (_) { /* keep safeUrlScannedHref = '#' */ }
+%>
 <h2>About this scan</h2>
 <ul class="p-0" style="list-style: none">
   <li class="svg-container">
@@ -34,7 +47,7 @@
         fill="#93928d"
       />
     </svg>
-    <a aria-label="URL scanned" href="<%= urlScanned %>" target="_blank"><%= urlScanned %></a>
+    <a aria-label="URL scanned" href="<%= safeUrlScannedHref %>" target="_blank" rel="noopener noreferrer"><%= urlScanned %></a>
   </li>
   <% if (viewport !== null) { %>
   <li class="svg-container">

@@ -155,6 +155,24 @@ const crawlSitemap = async ({
     userUrl || sitemapUrl,
   );
 
+  // Never send caller-supplied credentials to a server whose certificate
+  // couldn't be validated (asgard-0006). Matches the runCustom /
+  // launchPersistentSafeContext safe pattern: hold TLS validation ON whenever
+  // credentials are attached, and require an explicit opt-in env var for
+  // credential-less scans that legitimately need to reach hosts with broken
+  // certs.
+  const hasCredentials = !!httpCredentials;
+  const allowInsecureTls =
+    !hasCredentials &&
+    ['1', 'true', 'yes'].includes(
+      String(process.env.OOBEE_ALLOW_INSECURE_TLS || '').toLowerCase(),
+    );
+  if (hasCredentials) {
+    consoleLogger.info(
+      '[crawlSitemap] Credentials detected — enforcing TLS certificate validation for this scan',
+    );
+  }
+
   // Filter out URLs already scanned in previous phases to avoid navigating to
   // them at all (the handler-level check is a safety net, not the primary gate).
   const filteredSources = scannedUrlSet
@@ -193,7 +211,7 @@ const crawlSitemap = async ({
           async (_pageId, launchContext) => {
             launchContext.launchOptions = {
               ...launchContext.launchOptions,
-              ignoreHTTPSErrors: true,
+              ignoreHTTPSErrors: allowInsecureTls,
               ...playwrightDeviceDetailsObject,
               ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
