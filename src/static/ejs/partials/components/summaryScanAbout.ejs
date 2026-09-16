@@ -1,5 +1,5 @@
 <%
-  // asgard-0009: urlScanned is user-supplied CLI input. EJS `<%=` HTML-escapes
+  // asgard-0009: urlScanned is user-supplied CLI input. EJS output tags HTML-escape
   // the text nodes, but a value like ``javascript:alert(1)`` would still fire
   // when a reviewer clicks the anchor. Only allow http(s) in the href;
   // fall back to '#' otherwise. Mirrors the client-side guard in SiteInfo.ejs.
