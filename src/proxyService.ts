@@ -432,7 +432,7 @@ export function getProxyInfo(): ProxyInfo | null {
   // Starts a local SOCKS5 tunnel and points Chromium at it; the tunnel itself
   // handles bypass IPs by connecting directly (see cfProxyWorker.ts).
   //
-  // If CF_FAMILY_DNS is set without CF_WORKER_PROXY, start a local SOCKS5
+  // If FAMILY_DNS is set without CF_WORKER_PROXY, start a local SOCKS5
   // proxy that enforces Family DoH filtering and forwards directly. When both
   // are set, the worker path already applies Family DoH pre-resolution.
   let info: ProxyInfo | null;
@@ -532,7 +532,7 @@ export function proxyInfoToResolution(info: ProxyInfo | null): ProxyResolution {
 
   // If INCLUDE_PROXY is set, generate a PAC that only proxies the listed domains.
   //
-  // Exception: when CF_FAMILY_DNS is enabled, the local SOCKS5 proxy must see
+  // Exception: when FAMILY_DNS is enabled, the local SOCKS5 proxy must see
   // every hostname so Family DoH filtering applies universally. An include-only
   // PAC would return DIRECT for non-listed hosts and defeat the filter. In that
   // case we send all traffic through the local SOCKS5, and INCLUDE_PROXY is
