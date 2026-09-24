@@ -38,6 +38,10 @@ import {
   resolveInspectPresetScanEnabled,
   resolveInspectPresetMetadata,
 } from './inspectPresetScan.js';
+import {
+  resolveReportMetadataOverrides,
+  sanitizeReportTitle,
+} from './reportMetadata/reportMetadata.js';
 import { ItemsStore } from './mergeAxeResults/itemsStore.js';
 import {
   compressJsonFileStreaming,
@@ -823,7 +827,19 @@ const generateArtifacts = async (
   const isCustomFlow = scanType === ScannerTypes.CUSTOM;
   const isInspectPresetScan = resolveInspectPresetScanEnabled();
   const inspectPresetMetadata = resolveInspectPresetMetadata();
-  const resolvedUrlScanned = inspectPresetMetadata?.siteUrl || urlScanned;
+  const reportMetadataOverrides = resolveReportMetadataOverrides();
+  const resolvedUrlScanned =
+    reportMetadataOverrides.pageUrl ||
+    inspectPresetMetadata?.siteUrl ||
+    urlScanned;
+  const resolvedSiteName =
+    reportMetadataOverrides.pageTitle ||
+    (() => {
+      const raw = getEntryPageTitle(pagesScanned, urlScanned)
+        .replace(/^\d+\s*:\s*/, '')
+        .trim();
+      return sanitizeReportTitle(raw);
+    })();
 
   const allIssues: AllIssues = {
     storagePath,
@@ -836,14 +852,7 @@ const generateArtifacts = async (
     // but we also drop control characters and cap the length here so a
     // pathological title cannot bloat the JSON payload or render as
     // interactive content in any future consumer of allIssues.
-    siteName: (() => {
-      const raw = getEntryPageTitle(pagesScanned, urlScanned)
-        .replace(/^\d+\s*:\s*/, '')
-        .trim();
-      // eslint-disable-next-line no-control-regex
-      const stripped = raw.replace(/[ -]/g, '');
-      return stripped.length > 512 ? stripped.slice(0, 512) : stripped;
-    })(),
+    siteName: resolvedSiteName,
     startTime: scanDetails.startTime ? scanDetails.startTime : new Date(),
     endTime: scanDetails.endTime ? scanDetails.endTime : new Date(),
     urlScanned: resolvedUrlScanned,

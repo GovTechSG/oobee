@@ -145,6 +145,7 @@ The `constants` default export object holds runtime state:
 | `OOBEE_SCAN_METADATA` | Overrides `entryUrl` tag in Sentry events |
 | `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
 | `OOBEE_INSPECT_PRESET_SCAN` | `1`/`true`/`yes`/`on` = render the WOGAA Inspect preset rescan report design, including the combined Oobee/Inspect logo, rescan subtitle, viewport summary, and inspect-data text in the WCAG score card. |
+| `OOBEE_REPORT_PAGE_TITLE` / `OOBEE_REPORT_PAGE_URL` | Optional display overrides for report-level `siteName` and `urlScanned` metadata in generated report artifacts. Per-page crawled URLs/titles remain unchanged. |
 | `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl. `0` disables this check (default `0`) |
 | `OOBEE_MAX_RATCHET_CYCLES` | Max number of concurrency halvings without a full recovery before the crawl aborts. `0` disables this check (default `0`) |
 | `OOBEE_MAX_IDLE_MINUTES` | Max minutes without a successful page scan before the crawl aborts and generates a partial report. `0` disables this check (default `0`) |
