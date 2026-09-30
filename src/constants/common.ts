@@ -376,6 +376,11 @@ export const checkUrlConnectivityWithBrowser = async (
 
   let browserContext;
   let browserInstance;
+  // Status of the last main-frame document response. Chrome can abort
+  // navigation with net::ERR_HTTP_RESPONSE_CODE_FAILURE (e.g. 4xx/5xx with an
+  // empty body), so page.goto() throws and never returns the Response.
+  let mainFrameStatus: number | undefined;
+
 
   const rawDevice = (playwrightDeviceDetailsObject || {}) as Record<string, unknown>;
   const {
@@ -475,6 +480,16 @@ export const checkUrlConnectivityWithBrowser = async (
       return res;
     });
 
+    page.on('response', (r: any) => {
+      try {
+        if (r.request().isNavigationRequest() && r.frame() === page.mainFrame()) {
+          mainFrameStatus = r.status();
+        }
+      } catch {
+        // frame detached / page closed — ignore
+      }
+    });
+
     // OPTIMIZATION: Wait for 'domcontentloaded' only
     let response;
     try {
@@ -525,6 +540,10 @@ export const checkUrlConnectivityWithBrowser = async (
       res.status = hasDOM
         ? constants.urlCheckStatuses.success.code
         : constants.urlCheckStatuses.systemError.code;
+    } else if (finalStatus >= 400) {
+      // The server answered with an error status (e.g. 403 from a WAF/CDN or
+      // IP allowlist). Report the actual code instead of a generic system error.
+      res.status = constants.urlCheckStatuses.errorStatusReceived.code;
     } else {
       res.status = constants.urlCheckStatuses.systemError.code;
     }
@@ -556,6 +575,18 @@ export const checkUrlConnectivityWithBrowser = async (
       error.message.includes('net::ERR_BLOCKED_BY_RESPONSE')
     ) {
       res.status = constants.urlCheckStatuses.blockedByClient.code;
+    } else if (
+      error.message.includes('net::ERR_HTTP_RESPONSE_CODE_FAILURE') &&
+      mainFrameStatus === 401
+    ) {
+      res.httpStatus = mainFrameStatus;
+      res.status = constants.urlCheckStatuses.unauthorised.code;
+    } else if (
+      error.message.includes('net::ERR_HTTP_RESPONSE_CODE_FAILURE') ||
+      (mainFrameStatus !== undefined && mainFrameStatus >= 400)
+    ) {
+      if (mainFrameStatus !== undefined) res.httpStatus = mainFrameStatus;
+      res.status = constants.urlCheckStatuses.errorStatusReceived.code;
     } else {
       consoleLogger.error(error);
       res.status = constants.urlCheckStatuses.systemError.code;
