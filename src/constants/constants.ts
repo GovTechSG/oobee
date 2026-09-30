@@ -512,7 +512,6 @@ const urlCheckStatuses = {
     message: 'URL cannot be accessed. Please verify whether the website exists.',
   },
   errorStatusReceived: {
-    // unused for now
     code: 13,
     message: 'Provided URL cannot be accessed. Server responded with code ', // append it with the response code received,
   },

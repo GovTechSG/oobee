@@ -278,7 +278,10 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     // fall through (continue normal flow after success)
   } else {
     const match = Object.values(statuses).find((s: any) => s.code === res.status);
-    const msg = match && 'message' in match ? match.message : 'Unknown error';
+    let msg = match && 'message' in match ? match.message : 'Unknown error';
+    if (res.status === statuses.errorStatusReceived.code && res.httpStatus) {
+      msg = `${msg}${res.httpStatus}.`;
+    }
     printMessage([msg], messageOptions);
     consoleLogger.info(msg);
     cleanUpAndExit(res.status);
