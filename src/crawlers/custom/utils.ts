@@ -328,6 +328,7 @@ export const processPage = async (page, processPageParams) => {
 
     if (includeScreenshots) {
       consoleLogger.info(`Successfully screenshot page at: ${page.url()}`);
+      log(`Successfully screenshot page at: ${page.url()}`);
     }
 
     guiInfoLog(guiInfoStatusTypes.SCANNED, {
