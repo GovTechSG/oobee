@@ -29,7 +29,8 @@
     if (typeof url !== 'string') return false;
     const trimmed = url.trim();
     if (trimmed === '') return false;
-    if (/^[./]/.test(trimmed)) return true;
+    // Scheme-less relative paths (e.g. `screenshots/x.png`) can't execute; schemed URLs must be allow-listed.
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return true;
     return SAFE_IMG_SCHEMES.test(trimmed);
   };
 
