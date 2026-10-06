@@ -249,8 +249,20 @@ const crawlDomain = async ({
     // (navigation, popup/frame events, and potential page recreation).
     // Running iterations in parallel (for example with Promise.all) would race on shared `page`
     // state, causing stale element handles and nondeterministic enqueue/navigation behavior.
+    // Hard bound on click discovery. Crawlee can't cancel a timed-out
+    // requestHandler — it just closes the page — so without an exit on a
+    // closed page and a deadline, every Playwright call below fails instantly,
+    // the catch swallows it and this loop spins forever at 100% CPU (one leaked
+    // loop per timed-out page). On a CPU-starved container that compounds into
+    // multi-hour stalls.
+    const clickDiscoveryDeadline =
+      Date.now() + (Number(process.env.OOBEE_CLICK_DISCOVERY_MAX_MS) || 30000);
+    const isPageGone = (err?: unknown): boolean =>
+      workingPage.isClosed() ||
+      (err instanceof Error && /closed|crashed|destroyed/i.test(err.message));
     /* eslint-disable no-await-in-loop */
     while (!isAllElementsHandled) {
+      if (isPageGone() || Date.now() > clickDiscoveryDeadline) break;
       try {
         // navigate back to initial page if clicking on a element previously caused it to navigate to a new url
         if (workingPage.url() !== initialPageUrl) {
@@ -338,9 +350,10 @@ const crawlDomain = async ({
             }
           }
         }
-      } catch {
+      } catch (err) {
         // No logging for this case as it is best effort to handle dynamic client-side JavaScript redirects and clicks.
         // Handles browser page object been closed.
+        if (isPageGone(err)) break;
       }
     }
     /* eslint-enable no-await-in-loop */

@@ -2616,13 +2616,21 @@ export const waitForPageLoaded = async (page: Page) => {
   const maxMutations     = Number(process.env.OOBEE_MAX_MUTATIONS)        || 5000;
   const assetWaitMs      = Number(process.env.OOBEE_ASSET_WAIT_MS)        || 5000;
   const idleTimeout      = Number(process.env.OOBEE_IDLE_TIMEOUT_MS)      || 10000;
+  // Overall ceiling across every phase. The stacked per-phase budgets above
+  // sum to ~85-100s worst case, which exceeds the crawlers' 90s
+  // requestHandlerTimeoutSecs: Crawlee then closes the page mid-handler and
+  // the rest of the handler (axe, click discovery) runs against a dead page.
+  // Each phase below is clipped to whatever remains of this budget.
+  const totalBudgetMs    = Number(process.env.OOBEE_PAGE_LOAD_BUDGET_MS)  || 60000;
+  const budgetDeadline = Date.now() + totalBudgetMs;
+  const remaining = (phaseMs: number) => Math.max(0, Math.min(phaseMs, budgetDeadline - Date.now()));
 
   // Phase 1 — wait for the `load` event (or its own hard deadline).
   const phase1Start = Date.now();
   const loadReason = await Promise.race([
     page.waitForLoadState('load').then(() => 'load event fired').catch(() => 'load errored'),
     new Promise<string>(resolve =>
-      setTimeout(() => resolve('load hard deadline'), loadTimeout),
+      setTimeout(() => resolve('load hard deadline'), remaining(loadTimeout)),
     ),
   ]);
 
@@ -2631,7 +2639,7 @@ export const waitForPageLoaded = async (page: Page) => {
   // container) a renderer can still be parsing/compiling the framework bundle
   // well after `load`; the phase-2 quiet window would elapse before hydration
   // even begins and axe would scan the pre-hydration SSR markup.
-  const preIdle = await waitForMainThreadIdle(page, idleTimeout);
+  const preIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
 
   // Phase 2 — wait for the DOM to stabilize OR the stability budget.
   //
@@ -2641,9 +2649,10 @@ export const waitForPageLoaded = async (page: Page) => {
   // role="tab" children into a role="tablist" container). The observer's own
   // initial quiet window is the correct "no work in progress" signal.
   const phase2Start = Date.now();
+  const phase2BudgetMs = remaining(stabilityTimeout);
   const stabilityReason = await Promise.race([
     new Promise<string>(resolve =>
-      setTimeout(() => resolve('stability hard deadline'), stabilityTimeout),
+      setTimeout(() => resolve('stability hard deadline'), phase2BudgetMs),
     ),
     page.evaluate(
       ({
@@ -2727,7 +2736,7 @@ export const waitForPageLoaded = async (page: Page) => {
           });
         });
       },
-      { stabilityTimeout, quietMs, maxMutations },
+      { stabilityTimeout: phase2BudgetMs, quietMs, maxMutations },
     ).catch(() => 'observer errored'),
   ]);
 
@@ -2740,7 +2749,7 @@ export const waitForPageLoaded = async (page: Page) => {
   // ads, spin loops) rather than starved — don't pay the full idle budget
   // twice; one quiet window's worth is enough to catch a just-queued task.
   const preIdleTimedOut = !preIdle.reason.startsWith('main thread idle');
-  let postIdle = await waitForMainThreadIdle(page, preIdleTimedOut ? quietMs : idleTimeout);
+  let postIdle = await waitForMainThreadIdle(page, remaining(preIdleTimedOut ? quietMs : idleTimeout));
   let resettleReason = 'skipped';
   // Only resettle when the thread demonstrably did work and then went idle —
   // re-running for a perpetually busy page would just burn more budget.
@@ -2750,7 +2759,7 @@ export const waitForPageLoaded = async (page: Page) => {
   ) {
     // Bounded by the same cap as the initial quiet window's outer deadline so
     // a page that never stops mutating can't extend the wait indefinitely.
-    const resettleCapMs = Math.min(stabilityTimeout, quietMs * 4);
+    const resettleCapMs = remaining(Math.min(stabilityTimeout, quietMs * 4));
     let resettleTimer: ReturnType<typeof setTimeout>;
     resettleReason = await Promise.race([
       new Promise<string>(resolve => {
@@ -2784,7 +2793,7 @@ export const waitForPageLoaded = async (page: Page) => {
         .catch(() => 'resettle errored'),
     ]);
     clearTimeout(resettleTimer);
-    postIdle = await waitForMainThreadIdle(page, idleTimeout);
+    postIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
   }
   const postIdleMs = Date.now() - postIdleStart;
 
@@ -2797,7 +2806,7 @@ export const waitForPageLoaded = async (page: Page) => {
   const phase25Start = Date.now();
   const phase25Reason = await Promise.race([
     new Promise<string>(resolve =>
-      setTimeout(() => resolve('asset hard deadline'), assetWaitMs),
+      setTimeout(() => resolve('asset hard deadline'), remaining(assetWaitMs)),
     ),
     page
       .evaluate(
@@ -2840,7 +2849,12 @@ export const waitForPageLoaded = async (page: Page) => {
     pageUrl = '<unknown>';
   }
 
-  if (stabilityReason === 'stability hard deadline') {
+  if (Date.now() >= budgetDeadline) {
+    consoleLogger.warn(
+      `waitForPageLoaded: overall budget exhausted on ${pageUrl} (OOBEE_PAGE_LOAD_BUDGET_MS=${totalBudgetMs}); ` +
+        `later phases were cut short. load="${loadReason}" stability="${stabilityReason}" assets="${phase25Reason}" ${idleSummary}`,
+    );
+  } else if (stabilityReason === 'stability hard deadline') {
     consoleLogger.warn(
       `waitForPageLoaded: stability hard deadline on ${pageUrl} after ${phase1Ms}ms load + ${phase2Ms}ms stability + ${phase25Ms}ms assets. ` +
         `Page may still be hydrating. Consider raising OOBEE_STABILITY_TIMEOUT_MS (current: ${stabilityTimeout}) ` +
