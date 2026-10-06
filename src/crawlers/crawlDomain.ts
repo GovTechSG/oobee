@@ -1084,7 +1084,12 @@ const crawlDomain = async ({
       maxRequestsPerCrawl: Infinity,
       maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
       autoscaledPoolOptions: {
-        minConcurrency: specifiedMaxConcurrency ? Math.min(specifiedMaxConcurrency, 10) : 10,
+        // Start warm, but allow scaling all the way down to 1 when the CPU is
+        // saturated (e.g. concurrent scans sharing one container). A floor of
+        // 10 previously kept 10+ renderers per scan alive on 2 vCPUs, starving
+        // page hydration and producing load-dependent axe results.
+        minConcurrency: 1,
+        desiredConcurrency: Math.min(specifiedMaxConcurrency || maxConcurrency, 10),
         maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
         desiredConcurrencyRatio: 0.98, // Increase threshold for scaling up
         scaleUpStepRatio: 0.99, // Scale up faster

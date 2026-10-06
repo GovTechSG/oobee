@@ -365,6 +365,20 @@ export const isRunningInContainer = (): boolean =>
   !!process.env.K_SERVICE ||                      // Google Cloud Run
   !!process.env.GAE_SERVICE;                      // Google App Engine (flex/standard)
 
+// Default page-level concurrency, sized to the CPUs available to this process
+// (os.availableParallelism respects the CPU affinity mask, so it reports the
+// task's vCPUs on ECS Fargate / Kubernetes). Each concurrent page is a Chrome
+// renderer running page JS + axe; oversubscribing the CPU starves hydration
+// and makes results timing-dependent. 3 pages per core keeps an 8+ core
+// desktop at the historic default of 25 while a 2 vCPU container gets 6.
+const MAX_CONCURRENCY_CEILING = 25;
+const PAGES_PER_CPU = 3;
+const getDefaultMaxConcurrency = (): number => {
+  const cpuCount =
+    typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length;
+  return Math.max(2, Math.min(MAX_CONCURRENCY_CEILING, cpuCount * PAGES_PER_CPU));
+};
+
 let launchOptionsArgs: string[] = [];
 
 if (isRunningInContainer()) {
@@ -1023,7 +1037,7 @@ export default {
   cliZipFileName: 'oobee-scan-results.zip',
   exportDirectory: undefined,
   maxRequestsPerCrawl,
-  maxConcurrency: 25,
+  maxConcurrency: getDefaultMaxConcurrency(),
   urlsCrawledObj,
   impactOrder,
   launchOptionsArgs,
