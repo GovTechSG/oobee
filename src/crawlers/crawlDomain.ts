@@ -449,6 +449,14 @@ const crawlDomain = async ({
         launchOptions: getPlaywrightLaunchOptions(browser),
       },
       retryOnBlocked: false,
+      // Crawlee's session pool treats 401/403/429 as "blocked" by default: it
+      // throws before the requestHandler runs and retires the session, which
+      // retires the whole browser. Combined with maxRequestRetries and the
+      // ratelimit_ re-enqueue below, every blocked URL cost ~8 navigations and
+      // ~8 Chrome relaunches — hours on a 2 vCPU container when a WAF blocks
+      // most of a large sitemap. Let these statuses reach the requestHandler,
+      // which records them and retries once via the ratelimit_ re-enqueue.
+      sessionPoolOptions: { blockedStatusCodes: [] },
       browserPoolOptions: {
         useFingerprints: false,
         retireBrowserAfterPageCount: 500,
@@ -734,8 +742,32 @@ const crawlDomain = async ({
             }
 
             const responseStatus = response?.status();
-            if (responseStatus === 403) {
-              rateController.onFailure(responseStatus, activeCrawler.autoscaledPool);
+            if (responseStatus === 403 || responseStatus === 429) {
+              const isRetry = request.userData?.rateLimitRetried === true;
+              if (
+                rateController.onFailure(responseStatus, activeCrawler.autoscaledPool, {
+                  skipConcurrencyReduction: isRetry,
+                })
+              ) {
+                consoleLogger.info(
+                  `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
+                );
+                isAbortingScanNow = true;
+                activeCrawler.autoscaledPool?.abort();
+              }
+              // Retry once (at the back of the queue, after concurrency has
+              // dropped) before recording the URL as blocked.
+              if (!isRetry && !isAbortingScanNow) {
+                try {
+                  await requestQueue.addRequest({
+                    url: request.url,
+                    label: request.url,
+                    uniqueKey: `ratelimit_${request.url}`,
+                    userData: { rateLimitRetried: true },
+                  });
+                  return;
+                } catch {}
+              }
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
@@ -744,8 +776,8 @@ const crawlDomain = async ({
                 url: request.url,
                 pageTitle: request.url,
                 actualUrl,
-                metadata: STATUS_CODE_METADATA[403] || STATUS_CODE_METADATA[599],
-                httpStatusCode: 403,
+                metadata: STATUS_CODE_METADATA[responseStatus] || STATUS_CODE_METADATA[599],
+                httpStatusCode: responseStatus,
               });
               return;
             }

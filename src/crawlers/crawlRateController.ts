@@ -75,7 +75,7 @@ export class CrawlRateController {
 
   onFailure(
     httpStatus: number | undefined,
-    pool?: { maxConcurrency: number },
+    pool?: { maxConcurrency: number; desiredConcurrency?: number },
     options?: { skipConcurrencyReduction?: boolean },
   ): boolean {
     // Every failure adds to the consecutive streak; a single success resets it
@@ -94,6 +94,12 @@ export class CrawlRateController {
       pool.maxConcurrency > 1
     ) {
       pool.maxConcurrency = Math.max(1, Math.floor(pool.maxConcurrency / 2));
+      // AutoscaledPool only gates new tasks on desiredConcurrency, and the
+      // maxConcurrency setter doesn't clamp it — without this the halving has
+      // no effect until the autoscaler happens to scale down on its own.
+      if (typeof pool.desiredConcurrency === 'number' && pool.desiredConcurrency > pool.maxConcurrency) {
+        pool.desiredConcurrency = pool.maxConcurrency;
+      }
       // Reset the recovery counter — the halving invalidates any partial
       // progress the site had made toward earning concurrency back.
       this.successesSinceReduction = 0;
