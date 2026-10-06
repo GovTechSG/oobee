@@ -15,6 +15,7 @@ import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
 import { evaluateAltText } from './custom/evaluateAltText.js';
 import { escapeCssSelector } from './custom/escapeCssSelector.js';
+import { waitForMainThreadIdleInPage } from './custom/waitForMainThreadIdleInPage.js';
 import { framesCheck } from './custom/framesCheck.js';
 import { findElementByCssSelector } from './custom/findElementByCssSelector.js';
 import { getAxeConfiguration } from './custom/getAxeConfiguration.js';
@@ -142,9 +143,21 @@ const parentHtmlMaxBytes = (() => {
   return Number.isFinite(v) ? v : htmlMaxBytes;
 })();
 
+// Minimum wait before rechecking hydration-sensitive violations. Covers
+// network-driven late updates (fetch → set aria-controls, font swap) that the
+// main-thread idle gate can't see. CPU-starved hydration is handled by the
+// idle gate below, so this no longer has to be sized for the worst case.
 const axeRecheckHydrationMs = (() => {
   const value = parseInt(process.env.OOBEE_AXE_RECHECK_HYDRATION_MS ?? '', 10);
-  return Number.isFinite(value) && value >= 0 ? value : 5000;
+  return Number.isFinite(value) && value >= 0 ? value : 1000;
+})();
+
+// Upper bound on the main-thread idle wait that follows the minimum delay.
+// Defaults to 4000ms so worst-case total (1000 + 4000) matches the previous
+// fixed 5000ms sleep; healthy pages finish within a few idle callbacks.
+const axeRecheckIdleTimeoutMs = (() => {
+  const value = parseInt(process.env.OOBEE_AXE_RECHECK_IDLE_TIMEOUT_MS ?? '', 10);
+  return Number.isFinite(value) && value >= 0 ? value : 4000;
 })();
 
 const truncateHtml = (html: string, maxBytes = htmlMaxBytes, suffix = '…'): string => {
@@ -1122,7 +1135,9 @@ export const runAxeScript = async ({
       enableWcagAaa,
       gradingReadabilityFlag,
       axeRecheckHydrationMs,
+      axeRecheckIdleTimeoutMs,
       parentHtmlDepth,
+      waitForMainThreadIdleInPageFunctionString,
       evaluateAltTextFunctionString,
       escapeCssSelectorFunctionString,
       framesCheckFunctionString,
@@ -1140,6 +1155,7 @@ export const runAxeScript = async ({
         eval(flagUnlabelledClickableElementsFunctionString);
         eval(xPathToCssFunctionString);
         eval(getAxeConfigurationFunctionString);
+        eval(waitForMainThreadIdleInPageFunctionString);
         // remove so that axe does not scan
         document.querySelector(saflyIconSelector)?.remove();
 
@@ -1340,8 +1356,18 @@ export const runAxeScript = async ({
             );
 
             if (hasRecheckableViolation) {
+              // Short fixed delay for network-driven late updates, then wait
+              // for the main thread to go idle so CPU-starved hydration has
+              // actually run before we re-verify (a fixed sleep alone can
+              // elapse on a starved renderer with the hydration still queued).
               if (axeRecheckHydrationMs > 0) {
                 await new Promise(resolve => setTimeout(resolve, axeRecheckHydrationMs));
+              }
+              if (axeRecheckIdleTimeoutMs > 0) {
+                await waitForMainThreadIdleInPage({
+                  requiredIdle: 3,
+                  timeoutMs: axeRecheckIdleTimeoutMs,
+                });
               }
 
               // ---- aria-valid-attr-value --------------------------------
@@ -1487,7 +1513,9 @@ export const runAxeScript = async ({
       enableWcagAaa,
       gradingReadabilityFlag,
       axeRecheckHydrationMs,
+      axeRecheckIdleTimeoutMs,
       parentHtmlDepth: parentHtmlDepth,
+      waitForMainThreadIdleInPageFunctionString: waitForMainThreadIdleInPage.toString(),
       evaluateAltTextFunctionString: evaluateAltText.toString(),
       escapeCssSelectorFunctionString: escapeCssSelector.toString(),
       framesCheckFunctionString: framesCheck.toString(),

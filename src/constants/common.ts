@@ -45,6 +45,7 @@ import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
 import { ensureAndInjectSafeBrowsing, getSafeBrowsingIgnoredArgs } from '../safeBrowsingProfile.js';
+import { waitForMainThreadIdleInPage } from '../crawlers/custom/waitForMainThreadIdleInPage.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -2596,68 +2597,7 @@ export const waitForMainThreadIdle = async (
       );
     }),
     page
-      .evaluate(
-        ({ requiredIdle: REQUIRED_IDLE, timeoutMs: TIMEOUT_MS }) =>
-          new Promise<{ reason: string }>(resolve => {
-            // Idle periods shorter than this are treated as "busy" — e.g. a
-            // renderer squeezing a sliver of idle time between long tasks.
-            const MIN_IDLE_MS = 5;
-            const RIC_TIMEOUT_MS = 1000;
-            const startedAt = performance.now();
-
-            let consecutive = 0;
-            let everReset = false;
-            let sawLongTask = false;
-            let longTaskObserver: PerformanceObserver | undefined;
-            try {
-              longTaskObserver = new PerformanceObserver(list => {
-                if (list.getEntries().length > 0) sawLongTask = true;
-              });
-              longTaskObserver.observe({ type: 'longtask' });
-            } catch {
-              // longtask entries unsupported — fall back to idle periods alone
-            }
-
-            const ric: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => unknown =
-              typeof window.requestIdleCallback === 'function'
-                ? window.requestIdleCallback.bind(window)
-                : cb =>
-                    setTimeout(
-                      () => cb({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline),
-                      50,
-                    );
-
-            const finish = (reason: string) => {
-              longTaskObserver?.disconnect();
-              resolve({ reason });
-            };
-
-            const tick = (deadline: IdleDeadline) => {
-              const idle =
-                !deadline.didTimeout && deadline.timeRemaining() >= MIN_IDLE_MS && !sawLongTask;
-              sawLongTask = false;
-              if (idle) {
-                consecutive++;
-              } else {
-                consecutive = 0;
-                everReset = true;
-              }
-
-              if (consecutive >= REQUIRED_IDLE) {
-                finish(everReset ? 'main thread idle after work' : 'main thread idle');
-                return;
-              }
-              if (performance.now() - startedAt > TIMEOUT_MS) {
-                finish('main thread busy');
-                return;
-              }
-              ric(tick, { timeout: RIC_TIMEOUT_MS });
-            };
-
-            ric(tick, { timeout: RIC_TIMEOUT_MS });
-          }),
-        { requiredIdle, timeoutMs },
-      )
+      .evaluate(waitForMainThreadIdleInPage, { requiredIdle, timeoutMs })
       .catch(() => ({ reason: 'idle probe errored' })),
   ]);
   clearTimeout(deadlineTimer);
