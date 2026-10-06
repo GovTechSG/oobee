@@ -514,38 +514,54 @@ const crawlDomain = async ({
       ],
       postNavigationHooks: [
         async crawlingContext => {
-          const { page, request } = crawlingContext;
+          const { page, request, response } = crawlingContext;
+
+          // Blocked responses are recorded/retried without being scanned, so
+          // there's nothing to wait for. Without this, every 403/429 paid the
+          // full observer cap — serialised once the rate controller has
+          // dropped concurrency to 1, that's 5s × every blocked URL × 2.
+          const navStatus = response?.status();
+          if (navStatus === 403 || navStatus === 429) return;
 
           try {
             await page.evaluate(() => {
               return new Promise(resolve => {
-                let timeout;
+                let timeout: ReturnType<typeof setTimeout>;
+                let hardCap: ReturnType<typeof setTimeout>;
                 let mutationCount = 0;
                 const MAX_MUTATIONS = 500; // stop if things never quiet down
                 const OBSERVER_TIMEOUT = 5000; // hard cap on total wait
+                const QUIET_MS = 1000;
+
+                const finish = (reason: string) => {
+                  clearTimeout(timeout);
+                  clearTimeout(hardCap);
+                  observer.disconnect();
+                  resolve(reason);
+                };
 
                 const observer = new MutationObserver(() => {
                   clearTimeout(timeout);
 
                   mutationCount += 1;
                   if (mutationCount > MAX_MUTATIONS) {
-                    observer.disconnect();
-                    resolve('Too many mutations, exiting.');
+                    finish('Too many mutations, exiting.');
                     return;
                   }
 
                   // restart quiet‑period timer
-                  timeout = setTimeout(() => {
-                    observer.disconnect();
-                    resolve('DOM stabilized.');
-                  }, 1000);
+                  timeout = setTimeout(() => finish('DOM stabilized.'), QUIET_MS);
                 });
 
-                // overall timeout in case the page never settles
-                timeout = setTimeout(() => {
-                  observer.disconnect();
-                  resolve('Observer timeout reached.');
-                }, OBSERVER_TIMEOUT);
+                // Initial quiet window: a page that never mutates is already
+                // stable. This previously used OBSERVER_TIMEOUT, so every
+                // static page (incl. WAF block pages) waited the full 5s.
+                timeout = setTimeout(() => finish('No mutations, DOM stable.'), QUIET_MS);
+                // Overall cap in case the page never settles. Separate timer:
+                // the old code reused `timeout`, so the first mutation cleared
+                // the cap and a steady trickle of mutations could extend the
+                // wait indefinitely (bounded only by MAX_MUTATIONS).
+                hardCap = setTimeout(() => finish('Observer timeout reached.'), OBSERVER_TIMEOUT);
 
                 const root = document.documentElement || document.body || document;
                 if (!root || typeof observer.observe !== 'function') {
@@ -596,7 +612,12 @@ const crawlDomain = async ({
       }) => {
         const browserContext: BrowserContext = page.context();
         try {
-          await waitForPageLoaded(page);
+          // Blocked responses are recorded (or retried) below without being
+          // scanned — don't spend the full page-stability budget on a WAF page.
+          const earlyStatus = response?.status();
+          if (earlyStatus !== 403 && earlyStatus !== 429) {
+            await waitForPageLoaded(page);
+          }
           let actualUrl = page.url() || request.loadedUrl || request.url;
 
           if (page.url() !== 'about:blank') {
