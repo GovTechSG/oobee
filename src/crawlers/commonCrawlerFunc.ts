@@ -10,7 +10,7 @@ import {
 } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import { enrichColorContrastDOMContext, takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
-import { isFilePath } from '../constants/common.js';
+import { isFilePath, waitForMainThreadIdle } from '../constants/common.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
 import { evaluateAltText } from './custom/evaluateAltText.js';
@@ -992,6 +992,23 @@ export const runAxeScript = async ({
     pageTitle = await page.evaluate(() => document.title);
   } catch {
     // Page may already be in a bad state; title will remain null
+  }
+
+  // The 1000ms DOM-quiet window below is wall-clock based, so on a starved
+  // renderer (CPU contention) it can elapse while hydration JS is still queued.
+  // Gate on main-thread idle first. Crawler paths already did this in
+  // waitForPageLoaded, so it resolves within a few idle callbacks there; the
+  // custom-flow path (runAxeScan) has no prior gate and relies on this one.
+  // Bounded separately so perpetually busy pages don't pay the full idle
+  // budget a second time.
+  const preScanIdle = await waitForMainThreadIdle(
+    page,
+    Math.min(Number(process.env.OOBEE_IDLE_TIMEOUT_MS) || 10000, 5000),
+  );
+  if (!preScanIdle.reason.startsWith('main thread idle')) {
+    silentLogger.info(
+      `runAxeScript: main thread not idle before scan (${preScanIdle.reason}, ${preScanIdle.waitedMs}ms)`,
+    );
   }
 
   try {
