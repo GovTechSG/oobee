@@ -347,11 +347,39 @@ export const guiInfoStatusTypes = {
   DUPLICATE: 'duplicate',
 };
 
+// `/.dockerenv` is only created by the Docker daemon. Other container
+// runtimes (Podman, containerd, ECS Fargate, Azure Container Apps / App
+// Service, Google Cloud Run / App Engine, and Kubernetes) don't drop that
+// marker file, so we also check well-known runtime env vars.
+// OOBEE_IN_CONTAINER=1 is an explicit override for runtimes we don't detect
+// (e.g. Azure Container Instances, which surfaces no reliable env var).
+export const isRunningInContainer = (): boolean =>
+  process.env.OOBEE_IN_CONTAINER === '1' ||
+  fs.existsSync('/.dockerenv') ||
+  fs.existsSync('/run/.containerenv') ||
+  !!process.env.KUBERNETES_SERVICE_HOST ||        // Kubernetes (incl. GKE, EKS, AKS)
+  process.env.AWS_EXECUTION_ENV === 'AWS_ECS_FARGATE' ||
+  !!process.env.ECS_CONTAINER_METADATA_URI_V4 ||  // AWS ECS (Fargate + EC2)
+  !!process.env.CONTAINER_APP_NAME ||             // Azure Container Apps
+  !!process.env.WEBSITE_INSTANCE_ID ||            // Azure App Service (Linux containers)
+  !!process.env.K_SERVICE ||                      // Google Cloud Run
+  !!process.env.GAE_SERVICE;                      // Google App Engine (flex/standard)
+
 let launchOptionsArgs: string[] = [];
 
-// Check if running in docker container
-if (fs.existsSync('/.dockerenv')) {
+if (isRunningInContainer()) {
   launchOptionsArgs = ['--disable-gpu', '--disable-dev-shm-usage', '--no-zygote'];
+
+  // Propagate detection so every downstream check agrees:
+  // - OOBEE_IN_CONTAINER short-circuits isRunningInContainer() everywhere else.
+  // - CRAWLEE_CONTAINERIZED makes Crawlee's autoscaler read the cgroup CPU
+  //   quota/memory limit instead of host-wide /proc/stat. Crawlee's own
+  //   detection only checks /.dockerenv and "docker" in /proc/self/cgroup,
+  //   both of which are absent on ECS Fargate — so without this, the
+  //   autoscaler mis-reads CPU load and may not scale down under contention.
+  // Explicit user-provided values are respected.
+  process.env.OOBEE_IN_CONTAINER ??= '1';
+  process.env.CRAWLEE_CONTAINERIZED ??= '1';
 }
 
 export const impactOrder = {

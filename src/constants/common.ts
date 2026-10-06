@@ -30,6 +30,7 @@ import constants, {
   BrowserTypes,
   FileTypes,
   getEnumKey,
+  isRunningInContainer,
 } from './constants.js';
 import { consoleLogger } from '../logs.js';
 import { isUrlPdf, splitAuthHeaders, addAuthRouteHandler } from '../crawlers/commonCrawlerFunc.js';
@@ -1778,7 +1779,7 @@ export const getClonedProfilesWithRandomToken = (browser: string, randomToken: s
   // Keep the path short — Chrome creates Unix sockets inside TMPDIR-based paths,
   // and socket paths are limited to 107 bytes on Linux.
   // Use process.pid to isolate concurrent scan instances.
-  if (fs.existsSync('/.dockerenv')) {
+  if (isRunningInContainer()) {
     const baseDir = getDefaultChromiumDataDir();
     if (baseDir) {
       const scanTmpDir = path.join(baseDir, 'tmp', String(process.pid));
@@ -2533,25 +2534,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   // whenever a SOCKS5 proxy is set, which triggers Chrome's yellow
   // "unsupported command-line flag" banner. --test-type suppresses it (and the
   // automation info bar), matching what we already do in Docker.
-  // `/.dockerenv` is only created by the Docker daemon. Other container
-  // runtimes (Podman, containerd, ECS Fargate, Azure Container Apps / App
-  // Service, Google Cloud Run / App Engine, and Kubernetes) don't drop that
-  // marker file, so we also check well-known runtime env vars — otherwise we'd
-  // re-enable the Chrome sandbox and SIGABRT during zygote init under those
-  // seccomp profiles. OOBEE_IN_CONTAINER=1 is an explicit override for
-  // runtimes we don't detect (e.g. Azure Container Instances, which surfaces
-  // no reliable env var).
-  const inDocker =
-    process.env.OOBEE_IN_CONTAINER === '1' ||
-    fs.existsSync('/.dockerenv') ||
-    fs.existsSync('/run/.containerenv') ||
-    !!process.env.KUBERNETES_SERVICE_HOST ||        // Kubernetes (incl. GKE, EKS, AKS)
-    process.env.AWS_EXECUTION_ENV === 'AWS_ECS_FARGATE' ||
-    !!process.env.ECS_CONTAINER_METADATA_URI_V4 ||  // AWS ECS (Fargate + EC2)
-    !!process.env.CONTAINER_APP_NAME ||             // Azure Container Apps
-    !!process.env.WEBSITE_INSTANCE_ID ||            // Azure App Service (Linux containers)
-    !!process.env.K_SERVICE ||                      // Google Cloud Run
-    !!process.env.GAE_SERVICE;                      // Google App Engine (flex/standard)
+  // Container detection covers non-Docker runtimes too (see
+  // isRunningInContainer) — otherwise we'd re-enable the Chrome sandbox and
+  // SIGABRT during zygote init under those seccomp profiles.
+  const inDocker = isRunningInContainer();
   const usingProxy = resolution.kind === 'manual' || resolution.kind === 'pac';
   if ((inDocker || usingProxy) && !finalArgs.includes('--test-type')) {
     finalArgs.push('--test-type');
