@@ -2578,6 +2578,9 @@ export type MainThreadIdleResult = {
  * hasn't even started yet. A starved main thread does not yield idle periods,
  * so this check cannot be satisfied until the page's pending JS has run.
  */
+// Playwright's messages for a page that's gone — not net::ERR_CONNECTION_CLOSED.
+export const PAGE_GONE_ERROR_RE = /has been closed|Target crashed|was destroyed/i;
+
 export const waitForMainThreadIdle = async (
   page: Page,
   timeoutMs: number = Number(process.env.OOBEE_IDLE_TIMEOUT_MS) || 10000,
@@ -2599,7 +2602,7 @@ export const waitForMainThreadIdle = async (
     page
       .evaluate(waitForMainThreadIdleInPage, { requiredIdle, timeoutMs })
       .catch((err: unknown) =>
-        page.isClosed() || /closed/i.test(String((err as Error)?.message ?? err))
+        page.isClosed() || PAGE_GONE_ERROR_RE.test(String((err as Error)?.message ?? err))
           ? { reason: 'page closed' }
           : { reason: 'idle probe errored' },
       ),
@@ -2631,12 +2634,14 @@ export const waitForPageLoaded = async (page: Page) => {
 
   // Phase 1 — wait for the `load` event (or its own hard deadline).
   const phase1Start = Date.now();
+  let loadTimer: ReturnType<typeof setTimeout>;
   const loadReason = await Promise.race([
     page.waitForLoadState('load').then(() => 'load event fired').catch(() => 'load errored'),
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('load hard deadline'), remaining(loadTimeout)),
-    ),
+    new Promise<string>(resolve => {
+      loadTimer = setTimeout(() => resolve('load hard deadline'), remaining(loadTimeout));
+    }),
   ]);
+  clearTimeout(loadTimer);
 
   // Phase 1.5 — wait for the main thread to go idle before starting the
   // DOM-quiet window. Under CPU contention (e.g. concurrent scans sharing a
@@ -2655,10 +2660,11 @@ export const waitForPageLoaded = async (page: Page) => {
   // initial quiet window is the correct "no work in progress" signal.
   const phase2Start = Date.now();
   const phase2BudgetMs = remaining(stabilityTimeout);
+  let stabilityTimer: ReturnType<typeof setTimeout>;
   const stabilityReason = await Promise.race([
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('stability hard deadline'), phase2BudgetMs),
-    ),
+    new Promise<string>(resolve => {
+      stabilityTimer = setTimeout(() => resolve('stability hard deadline'), phase2BudgetMs);
+    }),
     page.evaluate(
       ({
         stabilityTimeout: OBSERVER_TIMEOUT,
@@ -2744,6 +2750,7 @@ export const waitForPageLoaded = async (page: Page) => {
       { stabilityTimeout: phase2BudgetMs, quietMs, maxMutations },
     ).catch(() => 'observer errored'),
   ]);
+  clearTimeout(stabilityTimer);
 
   // Post-quiet idle check — the quiet window is wall-clock based, so a
   // hydration task that was queued behind a starved main thread can run right
@@ -2810,10 +2817,11 @@ export const waitForPageLoaded = async (page: Page) => {
   // in phase 2 doesn't catch these — a font swap or SVG paint doesn't necessarily
   // produce a DOM mutation, but it does change measured geometry.
   const phase25Start = Date.now();
+  let assetTimer: ReturnType<typeof setTimeout>;
   const phase25Reason = await Promise.race([
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('asset hard deadline'), remaining(assetWaitMs)),
-    ),
+    new Promise<string>(resolve => {
+      assetTimer = setTimeout(() => resolve('asset hard deadline'), remaining(assetWaitMs));
+    }),
     page
       .evaluate(
         () =>
@@ -2837,6 +2845,7 @@ export const waitForPageLoaded = async (page: Page) => {
       )
       .catch(() => 'asset probe errored'),
   ]);
+  clearTimeout(assetTimer);
 
   const phase1Ms = phase2Start - phase1Start - preIdle.waitedMs;
   const phase2Ms = postIdleStart - phase2Start;

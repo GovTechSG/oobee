@@ -31,6 +31,7 @@ import {
   isDisallowedInRobotsTxt,
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
+  PAGE_GONE_ERROR_RE,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isSameHostname, normUrl, register } from '../utils.js';
 import {
@@ -259,7 +260,7 @@ const crawlDomain = async ({
       Date.now() + (Number(process.env.OOBEE_CLICK_DISCOVERY_MAX_MS) || 30000);
     const isPageGone = (err?: unknown): boolean =>
       workingPage.isClosed() ||
-      (err instanceof Error && /closed|crashed|destroyed/i.test(err.message));
+      (err instanceof Error && PAGE_GONE_ERROR_RE.test(err.message));
     /* eslint-disable no-await-in-loop */
     while (!isAllElementsHandled) {
       if (isPageGone() || Date.now() > clickDiscoveryDeadline) break;
@@ -534,10 +535,10 @@ const crawlDomain = async ({
           // full observer cap — serialised once the rate controller has
           // dropped concurrency to 1, that's 5s × every blocked URL × 2.
           const navStatus = response?.status();
-          if (navStatus === 403 || navStatus === 429) return;
+          const isBlockedResponse = navStatus === 403 || navStatus === 429;
 
           try {
-            await page.evaluate(() => {
+            if (!isBlockedResponse) await page.evaluate(() => {
               return new Promise(resolve => {
                 let timeout: ReturnType<typeof setTimeout>;
                 let hardCap: ReturnType<typeof setTimeout>;

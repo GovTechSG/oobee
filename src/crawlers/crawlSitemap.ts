@@ -556,7 +556,7 @@ const crawlSitemap = async ({
               return;
             }
 
-            if (page.isClosed()) return;
+            if (isAbortingScan || page.isClosed()) return;
 
             const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
