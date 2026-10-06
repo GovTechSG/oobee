@@ -2598,7 +2598,11 @@ export const waitForMainThreadIdle = async (
     }),
     page
       .evaluate(waitForMainThreadIdleInPage, { requiredIdle, timeoutMs })
-      .catch(() => ({ reason: 'idle probe errored' })),
+      .catch((err: unknown) =>
+        page.isClosed() || /closed/i.test(String((err as Error)?.message ?? err))
+          ? { reason: 'page closed' }
+          : { reason: 'idle probe errored' },
+      ),
   ]);
   clearTimeout(deadlineTimer);
 
@@ -2640,6 +2644,7 @@ export const waitForPageLoaded = async (page: Page) => {
   // well after `load`; the phase-2 quiet window would elapse before hydration
   // even begins and axe would scan the pre-hydration SSR markup.
   const preIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
+  if (page.isClosed()) return;
 
   // Phase 2 — wait for the DOM to stabilize OR the stability budget.
   //
@@ -2796,6 +2801,7 @@ export const waitForPageLoaded = async (page: Page) => {
     postIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
   }
   const postIdleMs = Date.now() - postIdleStart;
+  if (page.isClosed()) return;
 
   // Phase 2.5 — wait for fonts and images (raster + SVG-as-<img>) to finish
   // loading. Both are deterministic browser signals: font swap reflows every
@@ -2842,6 +2848,7 @@ export const waitForPageLoaded = async (page: Page) => {
   // (i.e. pages resolving via a hard deadline rather than a stability signal).
   // Emit warn only when we time out on stability — that's the case that most
   // often produces the intermittent hydration-timing findings.
+  if (page.isClosed()) return;
   let pageUrl: string;
   try {
     pageUrl = page.url();

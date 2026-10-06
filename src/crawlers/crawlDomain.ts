@@ -853,6 +853,8 @@ const crawlDomain = async ({
               return;
             }
 
+            if (isAbortingScanNow || page.isClosed()) return;
+
             const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
             if (results.axeScanFailed) {
