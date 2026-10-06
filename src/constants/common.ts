@@ -32,8 +32,14 @@ import constants, {
   getEnumKey,
 } from './constants.js';
 import { consoleLogger } from '../logs.js';
-import { isUrlPdf } from '../crawlers/commonCrawlerFunc.js';
-import { cleanUpAndExit, isFollowStrategy, randomThreeDigitNumberString, register } from '../utils.js';
+import { isUrlPdf, splitAuthHeaders, addAuthRouteHandler } from '../crawlers/commonCrawlerFunc.js';
+import {
+  cleanUpAndExit,
+  isFollowStrategy,
+  isTelemetryDisabled,
+  randomThreeDigitNumberString,
+  register,
+} from '../utils.js';
 import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
@@ -381,26 +387,24 @@ export const checkUrlConnectivityWithBrowser = async (
   } = rawDevice;
 
   const launchOptions = getPlaywrightLaunchOptions(browserToRun);
-  
-  const { Authorization, ...nonAuthHeaders } = localHeaders || {};
-  let httpCredentials = undefined;
-  if (Authorization?.startsWith('Basic ')) {
-    const decoded = Buffer.from(Authorization.slice(6), 'base64').toString();
-    const colonIdx = decoded.indexOf(':');
-    if (colonIdx > 0) {
-      httpCredentials = { username: decoded.slice(0, colonIdx), password: decoded.slice(colonIdx + 1) };
-    }
-  }
 
-  // Never forward Basic credentials over a session that ignores TLS validation:
-  // a MITM presenting any cert would receive the decoded username/password.
-  // When creds are attached we verify TLS; scans without creds keep the
-  // legacy permissive default so self-signed / staging hosts still work.
-  const ignoreHTTPSErrors = !httpCredentials;
+  const { authHeader, nonAuthHeaders, httpCredentials } = splitAuthHeaders(localHeaders, url);
+
+  // Never send caller-supplied credentials — Basic or any other Authorization
+  // header (e.g. Bearer tokens) — over a session that ignores TLS validation:
+  // an on-path attacker could present any certificate, complete the TLS
+  // handshake, and capture the configured secret. Hold TLS validation ON
+  // whenever the context carries credentials of any kind; credential-less
+  // scans only get the permissive default if the operator explicitly opts
+  // in via OOBEE_ALLOW_INSECURE_TLS.
+  const hasCredentials = !!authHeader || !!httpCredentials;
+  const ignoreHTTPSErrors =
+    !hasCredentials &&
+    ['1', 'true', 'yes'].includes(String(process.env.OOBEE_ALLOW_INSECURE_TLS || '').toLowerCase());
 
   const contextOptions: Record<string, unknown> = {
     ...restDevice,
-    ...(Object.keys(nonAuthHeaders).length > 0 && { extraHTTPHeaders: nonAuthHeaders }),
+    ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
     ...(httpCredentials && { httpCredentials }),
     ignoreHTTPSErrors,
     ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
@@ -447,24 +451,11 @@ export const checkUrlConnectivityWithBrowser = async (
   }
 
   try {
-    // Only enable generic Authorization header routing interception broadly if 
-    // a non-Basic Bearer auth string is heavily relied upon, thereby bypassing 
+    // Only enable generic Authorization header routing interception broadly if
+    // a non-Basic Bearer auth string is heavily relied upon, thereby bypassing
     // performance warnings inside the check checkUrl phase for typical public scans
-    if (Object.keys(localHeaders).length > 0) {
-      if (Authorization && !httpCredentials) {
-        const entryOrigin = new URL(url).origin;
-        await browserContext.route('**/*', async (route: any, request: any) => {
-          try {
-            if (new URL(request.url()).origin === entryOrigin) {
-              await route.continue({ headers: { ...request.headers(), Authorization } });
-            } else {
-              await route.continue();
-            }
-          } catch {
-            await route.continue();
-          }
-        });
-      }
+    if (authHeader && !httpCredentials) {
+      await addAuthRouteHandler(browserContext, url, authHeader);
     }
 
     const page = await browserContext.newPage();
@@ -1062,15 +1053,34 @@ export const isDisallowedInRobotsTxt = (url: string): boolean => {
 // the OS resolver and check every returned address. Failure to resolve
 // is not fatal — the subsequent page.goto() will handle DNS errors —
 // but if any resolved address falls in a blocked range we refuse.
-const INTERNAL_ADDR_RANGES: string[] = [
-  '127.0.0.0/8',
+//
+// The ranges are split in two because they carry very different risk. A
+// private-LAN or overlay-network address is a legitimate scan target — teams
+// routinely scan staging and intranet sites, and reach them over Tailscale or
+// a VPN — whereas loopback, link-local and metadata addresses only ever show
+// up here as an SSRF pivot. Operators who need the former set
+// OOBEE_ALLOW_INTERNAL_TARGETS=1; the latter stays refused either way, so no
+// setting can point the scanner at a cloud metadata endpoint.
+const ALWAYS_BLOCKED_ADDR_RANGES: string[] = [
+  '127.0.0.0/8', // loopback
+  '169.254.0.0/16', // link-local + AWS/GCP/Azure metadata (169.254.169.254)
+  '192.0.0.0/24', // IETF protocol assignments + Oracle Cloud legacy metadata (192.0.0.192)
+  '0.0.0.0/8', // this-network
+  // Alibaba Cloud's metadata endpoint sits inside the CGNAT block below, so it
+  // needs pinning here to stay unreachable once CGNAT is unblocked.
+  '100.100.100.200/32',
+];
+// Unblockable via OOBEE_ALLOW_INTERNAL_TARGETS. CGNAT is included because
+// Tailscale assigns every tailnet node a 100.64.0.0/10 address — scanning a
+// site over a tailnet is a normal workflow, not an SSRF attempt.
+const PRIVATE_NETWORK_ADDR_RANGES: string[] = [
   '10.0.0.0/8',
   '172.16.0.0/12',
   '192.168.0.0/16',
-  '169.254.0.0/16',
   '100.64.0.0/10',
-  '0.0.0.0/8',
 ];
+const allowsInternalTargets = (): boolean =>
+  /^(1|true|yes)$/i.test(process.env.OOBEE_ALLOW_INTERNAL_TARGETS ?? '');
 const isIpv4Literal = (s: string): boolean =>
   /^(\d{1,3}\.){3}\d{1,3}$/.test(s) && s.split('.').every(o => Number(o) >= 0 && Number(o) <= 255);
 const ipv4ToInt = (ip: string): number =>
@@ -1081,9 +1091,60 @@ const ipv4InRange = (ip: string, cidr: string): boolean => {
   const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
   return (ipv4ToInt(ip) & mask) === (ipv4ToInt(range) & mask);
 };
-const isInternalIpv4 = (ip: string): boolean =>
-  INTERNAL_ADDR_RANGES.some(r => ipv4InRange(ip, r));
-async function isInternalOrLoopbackUrl(candidate: string): Promise<boolean> {
+const isInternalIpv4 = (ip: string): boolean => {
+  if (ALWAYS_BLOCKED_ADDR_RANGES.some(r => ipv4InRange(ip, r))) return true;
+  if (allowsInternalTargets()) return false;
+  return PRIVATE_NETWORK_ADDR_RANGES.some(r => ipv4InRange(ip, r));
+};
+
+// Expand an IPv6 address to its eight 16-bit groups. Matching on string
+// prefixes instead is unsafe here: WHATWG URL rewrites ``[::ffff:127.0.0.1]``
+// to ``[::ffff:7f00:1]``, so a v4-mapped metadata address would sail past any
+// ``startsWith('::ffff:169.254.')`` style check.
+const ipv6ToGroups = (addr: string): number[] | null => {
+  const halves = addr.split('::');
+  if (halves.length > 2) return null;
+  const toGroups = (part: string): number[] | null => {
+    if (!part) return [];
+    const out: number[] = [];
+    for (const seg of part.split(':')) {
+      if (seg.includes('.')) {
+        if (!isIpv4Literal(seg)) return null;
+        const o = seg.split('.').map(Number);
+        out.push((o[0] << 8) | o[1], (o[2] << 8) | o[3]);
+      } else {
+        if (!/^[0-9a-f]{1,4}$/.test(seg)) return null;
+        out.push(parseInt(seg, 16));
+      }
+    }
+    return out;
+  };
+  const head = toGroups(halves[0]);
+  const tail = halves.length === 2 ? toGroups(halves[1]) : [];
+  if (!head || !tail) return null;
+  if (halves.length === 1) return head.length === 8 ? head : null;
+  const fill = 8 - head.length - tail.length;
+  if (fill < 1) return null;
+  return [...head, ...new Array(fill).fill(0), ...tail];
+};
+
+const isInternalIpv6 = (addr: string): boolean => {
+  const g = ipv6ToGroups(addr.toLowerCase());
+  if (!g) return false;
+  // ::ffff:0:0/96 — the same destination as the embedded IPv4 address, so
+  // defer to keep the v4 ranges and the escape hatch in one place.
+  if (g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0xffff) {
+    return isInternalIpv4(`${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`);
+  }
+  if (g.slice(0, 7).every(x => x === 0) && g[7] <= 1) return true; // :: and ::1
+  if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  // fc00::/7 ULA, which is where Tailscale's fd7a:115c:a1e0::/48 tailnet
+  // addresses live — so it follows the same opt-in as private IPv4 space.
+  if ((g[0] & 0xfe00) === 0xfc00) return !allowsInternalTargets();
+  return false;
+};
+
+export async function isInternalOrLoopbackUrl(candidate: string): Promise<boolean> {
   let host: string;
   try {
     host = new URL(candidate).hostname;
@@ -1092,39 +1153,18 @@ async function isInternalOrLoopbackUrl(candidate: string): Promise<boolean> {
   }
   if (!host) return false;
   const lower = host.toLowerCase();
-  // Loopback / IPv6 loopback / RFC 6761 special names — cover before DNS.
-  if (lower === 'localhost' || lower.endsWith('.localhost') || lower === '[::1]' || lower === '::1') {
-    return true;
-  }
+  // RFC 6761 special names — cover before DNS.
+  if (lower === 'localhost' || lower.endsWith('.localhost')) return true;
   // Strip IPv6 brackets so ``[::1]`` / ``[fe80::…]`` are recognised.
   const bare = lower.replace(/^\[|\]$/g, '');
-  if (isIpv4Literal(bare)) {
-    return isInternalIpv4(bare);
-  }
-  if (bare.includes(':')) {
-    // IPv6 literal — treat any ULA (fc00::/7) / link-local (fe80::/10) /
-    // loopback (::1) as internal. We match on prefix rather than parse.
-    if (bare === '::1' || bare.startsWith('fe8') || bare.startsWith('fe9') ||
-        bare.startsWith('fea') || bare.startsWith('feb') ||
-        bare.startsWith('fc') || bare.startsWith('fd')) {
-      return true;
-    }
-  }
+  if (isIpv4Literal(bare)) return isInternalIpv4(bare);
+  if (bare.includes(':')) return isInternalIpv6(bare);
   try {
     const { lookup } = await import('dns/promises');
     const records = await lookup(bare, { all: true });
     for (const r of records) {
       if (r.family === 4 && isInternalIpv4(r.address)) return true;
-      if (r.family === 6) {
-        const a = r.address.toLowerCase();
-        if (a === '::1' || a.startsWith('fe8') || a.startsWith('fe9') ||
-            a.startsWith('fea') || a.startsWith('feb') ||
-            a.startsWith('fc') || a.startsWith('fd') ||
-            a.startsWith('::ffff:127.') || a.startsWith('::ffff:10.') ||
-            a.startsWith('::ffff:169.254.') || a.startsWith('::ffff:192.168.')) {
-          return true;
-        }
-      }
+      if (r.family === 6 && isInternalIpv6(r.address)) return true;
     }
   } catch {
     // DNS failure — let page.goto() surface the network error naturally.
@@ -1269,7 +1309,21 @@ export const getLinksFromSitemap = async (
         return;
       }
     } else if (isValidHttpUrl(url)) {
-      // Do nothing, url is valid
+      // asgard-0009: every remote sitemap URL reaches page.goto() below,
+      // including the entry sitemap URL itself (e.g. one taken verbatim from
+      // a hostile target's robots.txt Sitemap: directive). Apply the same
+      // crawl-scope and internal/loopback checks used for recursively-
+      // discovered child sitemaps here so the entry request is covered too —
+      // otherwise a hostile robots.txt could point the scanner's browser at
+      // internal or link-local/cloud-metadata endpoints (blind SSRF).
+      if (userUrl && !isFollowStrategy(url, userUrl, strategy)) {
+        consoleLogger.info(`Skipping off-strategy sitemap: ${url}`);
+        return;
+      }
+      if (await isInternalOrLoopbackUrl(url)) {
+        consoleLogger.warn(`Refusing to fetch sitemap targeting internal address: ${url}`);
+        return;
+      }
     } else {
       printMessage([`Invalid Url/Filepath: ${url}`], messageOptions);
       return;
@@ -1325,14 +1379,9 @@ export const getLinksFromSitemap = async (
             const remoteIp = serverAddr?.ipAddress;
             if (remoteIp) {
               const bare = remoteIp.replace(/^\[|\]$/g, '').toLowerCase();
-              const isInternal =
-                (isIpv4Literal(bare) && isInternalIpv4(bare)) ||
-                bare === '::1' ||
-                bare.startsWith('fe8') || bare.startsWith('fe9') ||
-                bare.startsWith('fea') || bare.startsWith('feb') ||
-                bare.startsWith('fc') || bare.startsWith('fd') ||
-                bare.startsWith('::ffff:127.') || bare.startsWith('::ffff:10.') ||
-                bare.startsWith('::ffff:169.254.') || bare.startsWith('::ffff:192.168.');
+              const isInternal = isIpv4Literal(bare)
+                ? isInternalIpv4(bare)
+                : isInternalIpv6(bare);
               if (isInternal) {
                 consoleLogger.warn(
                   `Refusing sitemap body from internal address ${remoteIp} (host ${url})`,
@@ -2275,9 +2324,10 @@ export const submitForm = async (
   // network call (e.g. encodeURIComponent raises URIError on lone surrogates,
   // which can appear in scanned page content).
   // Opt-out: OOBEE_DISABLE_TELEMETRY=1 skips this submission entirely so
-  // PII (email, name, entry URL) is never sent off-device.
-  const telemetryOptOut = /^(1|true|yes)$/i.test(process.env.OOBEE_DISABLE_TELEMETRY ?? '');
-  if (telemetryOptOut) {
+  // PII (email, name, entry URL) is never sent off-device. Shared with the
+  // Sentry telemetry path via isTelemetryDisabled() so a single env var
+  // covers both paths (asgard-0008).
+  if (isTelemetryDisabled()) {
     consoleLogger.info('Skipping telemetry submission: OOBEE_DISABLE_TELEMETRY is set');
     return;
   }
@@ -2304,7 +2354,11 @@ export const submitForm = async (
       params.set(formDataFields.redirectUrlField, String(scannedUrl ?? ''));
     }
 
-    await axios.get(`${formDataFields.formUrl}?${params.toString()}`, { timeout: 2000 });
+    // Submit as a POST body rather than a GET query string so that PII
+    // (name, email) and scan-result content are not recorded in the
+    // receiving server's access logs, intermediary/proxy logs, or
+    // referrer/history mechanisms (asgard-0013).
+    await axios.post(formDataFields.formUrl, params, { timeout: 2000 });
   } catch (error) {
     // Never rethrow. Previously a timeout here would launch a second browser to
     // retry the request, which could throw "Executable doesn't exist" on

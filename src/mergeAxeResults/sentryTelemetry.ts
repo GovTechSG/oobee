@@ -1,8 +1,26 @@
 import * as Sentry from '@sentry/node';
 import { sentryConfig, setSentryUser, INSPECT_PRESET_SCAN_PRODUCT } from '../constants/constants.js';
-import { categorizeWcagCriteria, getUserDataTxt, getWcagCriteriaMap } from '../utils.js';
+import {
+  categorizeWcagCriteria,
+  getUserDataTxt,
+  getWcagCriteriaMap,
+  isTelemetryDisabled,
+  isTelemetryPiiConsentGiven,
+} from '../utils.js';
 import { resolveInspectPresetScanEnabled } from '../inspectPresetScan.js';
+import { consoleLogger } from '../logs.js';
 import type { AllIssues } from './types.js';
+
+// Reduce a scanned URL down to a coarse, credential- and query-string-free
+// host so that sensitive path segments or query tokens (API keys, session
+// tokens, etc.) are never shipped to the third-party telemetry endpoint.
+const sanitizeEntryUrlForTelemetry = (entryUrl: string): string => {
+  try {
+    return new URL(entryUrl).host;
+  } catch {
+    return 'unknown';
+  }
+};
 
 // Format WCAG tag in requested format: wcag111a_Occurrences
 const formatWcagTag = async (wcagId: string): Promise<string | null> => {
@@ -32,12 +50,24 @@ const sendWcagBreakdownToSentry = async (
   allIssues?: AllIssues,
   pagesScannedCount: number = 0,
 ) => {
+  // Opt-out: OOBEE_DISABLE_TELEMETRY=1 skips Sentry telemetry entirely so
+  // PII (email, name, entry URL, userId) is never sent off-device
+  // (asgard-0007 / asgard-0008). Mirrors the opt-out honoured by submitForm.
+  if (isTelemetryDisabled()) {
+    consoleLogger.info('Skipping Sentry telemetry submission: OOBEE_DISABLE_TELEMETRY is set');
+    return;
+  }
+  // PII (email, name, persistent userId) is only attached to telemetry when
+  // the operator has explicitly opted in via OOBEE_TELEMETRY_ALLOW_PII.
+  // Telemetry being enabled at all does not, by itself, authorize sending
+  // identifying data off-device.
+  const piiConsentGiven = isTelemetryPiiConsentGiven();
   try {
     // Initialize Sentry
     Sentry.init(sentryConfig);
-    // Set user ID for Sentry tracking
-    const userData = getUserDataTxt();
-    if (userData && userData.userId) {
+    // Set user ID for Sentry tracking, only when PII consent has been given
+    const userData = piiConsentGiven ? getUserDataTxt() : undefined;
+    if (piiConsentGiven && userData && userData.userId) {
       setSentryUser(userData.userId);
     }
 
@@ -145,7 +175,9 @@ const sendWcagBreakdownToSentry = async (
         event_type: 'accessibility_scan',
         scanType: scanInfo.scanType,
         browser: scanInfo.browser,
-        entryUrl: process.env.OOBEE_SCAN_METADATA ?? scanInfo.entryUrl,
+        entryUrl: sanitizeEntryUrlForTelemetry(
+          process.env.OOBEE_SCAN_METADATA ?? scanInfo.entryUrl,
+        ),
         ...(scanProduct && {
           scanProduct,
         }),
@@ -154,13 +186,13 @@ const sendWcagBreakdownToSentry = async (
         }),
       },
       user: {
-        ...(scanInfo.email && scanInfo.name
+        ...(piiConsentGiven && scanInfo.email && scanInfo.name
           ? {
               email: scanInfo.email,
               username: scanInfo.name,
             }
           : {}),
-        ...(userData && userData.userId ? { id: userData.userId } : {}),
+        ...(piiConsentGiven && userData && userData.userId ? { id: userData.userId } : {}),
       },
       extra: {
         additionalScanMetadata: ruleIdJson != null ? JSON.stringify(ruleIdJson) : '{}',

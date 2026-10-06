@@ -50,7 +50,7 @@
     }
 
     filteredItems[category].rules.forEach((rule, index) => {
-      const buttonAriaLabel = `${rule.description}, ${rule.totalItems} occurrences`;
+      const buttonAriaLabel = `${htmlEscapeString(rule.description)}, ${rule.totalItems} occurrences`;
       const oobeeAiSvgId = `${category}-${rule.rule}-${index}`;
       const isPurpleAiRule = oobeeAiRules.includes(rule.rule);
 

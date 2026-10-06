@@ -2,7 +2,7 @@
   Object.keys(scanItems).forEach(category => {
     if (category !== 'passed') {
       const ruleInCategory = scanItems[category].rules.forEach((rule, index) => {
-        helpUrl = `<a href=${rule.helpUrl} target="_blank" class="help-link"></a>`;
+        helpUrl = `<a href="${htmlEscapeString(isSafeReportHref(rule.helpUrl))}" target="_blank" rel="noopener" class="help-link"></a>`;
         wcagLink =
           rule.conformance[0] === 'best-practice'
             ? `<span style="color:#26241b">Best practice</span>`

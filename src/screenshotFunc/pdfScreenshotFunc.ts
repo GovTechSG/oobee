@@ -123,8 +123,26 @@ export async function getPdfScreenshots(
   let pageCanvasCacheBytes = 0;
   let budgetExceededLogged = false;
 
+  // Opt-in cap on how many violation items get screenshots (asgard-0006). Off
+  // by default so every violation still gets a screenshot as before; set
+  // OOBEE_PDF_MAX_SCREENSHOTS to bound total work on a crafted many-violation PDF.
+  const maxPdfScreenshots = (() => {
+    const v = parseInt(process.env.OOBEE_PDF_MAX_SCREENSHOTS ?? '', 10);
+    return Number.isFinite(v) && v > 0 ? v : 0; // 0 = unlimited
+  })();
+  let maxScreenshotsLogged = false;
+
   // iterate through each violation
   for (let i = 0; i < newItems.length; i++) {
+    if (maxPdfScreenshots > 0 && i >= maxPdfScreenshots) {
+      if (!maxScreenshotsLogged) {
+        consoleLogger.warn(
+          `PDF screenshot cap (OOBEE_PDF_MAX_SCREENSHOTS=${maxPdfScreenshots}) reached; skipping screenshots for remaining violations.`,
+        );
+        maxScreenshotsLogged = true;
+      }
+      break;
+    }
     const { context } = newItems[i];
     const bbox: IBboxLocation = { location: context };
     const bboxMap = buildBboxMap([bbox], structureTree);
@@ -184,13 +202,19 @@ export async function getPdfScreenshots(
       }
       const { canvas: origCanvas, context: origCtx } = canvasAndContext;
 
-      const renderContext = {
-        canvasContext: origCtx,
-        viewport,
-        canvasFactory,
-      };
-      const renderTask = page.render(renderContext); // render pdf page onto a canvas
-      await renderTask.promise;
+      // Only render each page once: the cached canvas already holds the clean
+      // rendered page and annotateAndSave never mutates it, so re-rendering per
+      // violation is wasted CPU. A crafted PDF with many violations on a single
+      // page would otherwise force O(violations) full-page renders (asgard-0006).
+      if (!alreadyCached) {
+        const renderContext = {
+          canvasContext: origCtx,
+          viewport,
+          canvasFactory,
+        };
+        const renderTask = page.render(renderContext); // render pdf page onto a canvas
+        await renderTask.promise;
+      }
 
       const finalScreenshotPath = annotateAndSave(
         origCanvas,

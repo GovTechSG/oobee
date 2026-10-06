@@ -198,6 +198,7 @@ const INTERNAL_IP_RANGES: string[] = [
   '169.254.0.0/16',     // link-local + AWS/GCP/Azure metadata (169.254.169.254)
   '100.64.0.0/10',      // CGNAT
   '0.0.0.0/8',          // this-network
+  '192.0.0.0/24',       // IETF protocol assignments + Oracle Cloud legacy metadata (192.0.0.192)
   '::/128',             // IPv6 unspecified — routes to loopback on common OS stacks (asgard-0011)
   '::1/128',            // IPv6 loopback
   'fc00::/7',           // IPv6 ULA
@@ -206,6 +207,7 @@ const INTERNAL_IP_RANGES: string[] = [
   '::ffff:10.0.0.0/104',
   '::ffff:169.254.0.0/112',
   '::ffff:192.168.0.0/112',
+  '::ffff:192.0.0.0/120', // IPv4-mapped Oracle Cloud legacy metadata block
 ];
 
 // asgard-0011: some IPv6 encodings embed an IPv4 destination that our IPv4
@@ -225,7 +227,13 @@ function isInternalIp(ip: string): boolean {
     const isNat64 =
       bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b &&
       bytes.slice(4, 12).every((b) => b === 0);
-    if (isMapped || isNat64) {
+    // asgard-0010: deprecated IPv4-compatible IPv6 (::a.b.c.d, RFC 4291
+    // §2.5.5.1): high 96 bits zero but *without* the ::ffff mapped-address
+    // marker in bytes[10..11]. Still normalise the embedded IPv4 and refuse
+    // if it lands in an internal range, closing the allowlist gap on
+    // network stacks that continue to route these legacy addresses.
+    const isCompat = bytes.slice(0, 12).every((b) => b === 0);
+    if (isMapped || isNat64 || isCompat) {
       const embedded = bytes.slice(12).join('.');
       if (ipInRanges(embedded, INTERNAL_IP_RANGES)) return true;
     }

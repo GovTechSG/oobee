@@ -1637,15 +1637,22 @@ export const splitAuthHeaders = (
 export const addAuthRouteHandler = async (
   context: BrowserContext,
   entryUrl: string,
-  authHeader: string | null
+  authHeader: string | null,
+  extraHeaders?: Record<string, string> | null,
 ) => {
-  if (!authHeader) return;
+  if (!authHeader && !extraHeaders) return;
 
   const entryOrigin = new URL(entryUrl).origin;
   await context.route('**/*', async (route, request) => {
     try {
       if (new URL(request.url()).origin === entryOrigin) {
-        await route.continue({ headers: { ...request.headers(), Authorization: authHeader } });
+        await route.continue({
+          headers: {
+            ...request.headers(),
+            ...(extraHeaders || {}),
+            ...(authHeader && { Authorization: authHeader }),
+          },
+        });
       } else {
         await route.continue();
       }

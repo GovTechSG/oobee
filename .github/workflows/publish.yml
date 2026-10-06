@@ -96,6 +96,13 @@ jobs:
   unpublish:
     if: ${{ inputs.action == 'unpublish' }}
     runs-on: ubuntu-latest
+    # Gate npm unpublish behind the same protected GitHub Environment as
+    # publish. Unpublishing is at least as destructive as publishing (it
+    # removes a public version from the registry and locks out republishing
+    # that version for 24 hours), so it must require the same designated-
+    # reviewer approval — repo write access via workflow_dispatch alone is
+    # not sufficient.
+    environment: npm-publish
     steps:
       - name: Validate inputs
         env:

@@ -315,6 +315,15 @@ docker run oobee node dist/cli.js ...
 
 12. **`extraHTTPHeaders` must not be mutated before being passed to crawlers** — `checkUrlConnectivityWithBrowser()` in `common.ts` needs an `Accept` header for its own connectivity check but must NOT add it to the shared `extraHTTPHeaders` object. Mutating the shared object causes crawlers to see a non-empty `extraHTTPHeaders` (at minimum `{ Accept: '...' }`), which silently triggers header rewriting and the Playwright performance warning for every unauthenticated scan. Always use a local copy: `const localHeaders = { ...extraHTTPHeaders }; localHeaders.Accept ||= '...';`.
 
+13. **EJS report partials share one global JS scope — never review one in isolation** — `report.ejs` inlines ~28 `<script>` partials into a single document. Classic script blocks share one global lexical scope, so a top-level `const`/`let`/`class` in one partial collides with the same name in *any other* partial. The second declaration throws `Uncaught SyntaxError: Identifier 'X' has already been declared`, and **that entire block never executes** — so whatever it was responsible for silently renders as empty or `N/A` while the rest of the report looks fine. Each file is valid on its own, so neither `tsc` nor file-scoped review can catch this (see pitfall 14 for how to verify). Prefer partial-specific names (`SAFE_SCANNED_HREF_SCHEMES`, not `SAFE_HREF_SCHEMES`) and treat any generic-sounding top-level name as a collision risk.
+
+14. **Verify EJS/report changes by rendering the whole document, not the partial you edited** — `tsc` does not typecheck `.ejs`, and the templates are only assembled at scan time, so template bugs reach users unless you render the full tree. After changing anything under `src/static/ejs/`:
+    - Render `report.ejs` end to end (it pulls in every partial) and confirm it produces the expected ~20k-line document, then extract every inline `<script>` and compile them **concatenated into one scope** — that reproduces the browser's cross-partial redeclaration check from pitfall 13. Compiling each block separately is not sufficient and will pass on genuinely broken reports.
+    - Open the rendered file in a browser and check the devtools console is clean. A single `SyntaxError` silently blanks a whole section rather than failing loudly.
+    - Grep every `.ejs` for duplicate top-level declarations before pushing.
+    - Prove your check works by reverting the fix and confirming the check fails (negative control) — a verification that cannot fail proves nothing.
+    - Remember `npm run copyfiles` is what moves `src/static/ejs/` into `dist/static/`. A stale `dist/` will keep reproducing a bug you already fixed in `src/`, and Oobee Desktop ships its own separately-versioned copy under `~/Library/Application Support/Oobee/Oobee Backend/oobee/dist/`.
+
 ## Testing Considerations
 
 When making changes, validate these areas which have well-established edge cases:
@@ -420,6 +429,11 @@ When `CF_WORKER_PROXY` is set, `proxyService.getProxyInfo()` starts a local SOCK
 - When axe reports color-contrast violations but cannot determine the actual colors, skip augmenting the message with contrast context (avoids crashes on null/undefined color values).
 - Violation messages are enriched with live DOM context (element text, computed styles, dimensions) via `page.evaluate()` during scan. Handle cases where elements are no longer in DOM at evaluation time.
 - Selected hydration-sensitive violations are re-verified against the live DOM after axe completes. When `aria-valid-attr-value`, `target-size`, `aria-hidden-focus`, `color-contrast`, or `color-contrast-enhanced` appears, `runAxeScript()` waits once using `OOBEE_AXE_RECHECK_HYDRATION_MS` (default 5000ms), then rechecks only the rules that appeared. If none of these violations appear, no extra wait is added.
+
+### HTML Report EJS Templates
+- Changes under `src/static/ejs/` are **not** covered by `tsc` or the Jest suite. Render the full `report.ejs` and compile all inline scripts in one shared scope before pushing — see Common Pitfalls 13 and 14 for the failure mode and the verification recipe.
+- The report's JS is split across ~28 partials that share one global scope. Reading only the partial you changed will not reveal cross-partial name collisions, which fail silently as blank or `N/A` sections.
+- `report.ejs` expects a full scan payload. To render without a real scan, stub the locals — note `include()` copies the locals object (so Proxy traps are dropped in partials) and several partials do `const x = <%- JSON.stringify(local) %>;`, so stubs must serialise to a valid JS literal or you will get misleading `Unexpected token ';'` errors that are artifacts of the stub rather than real defects.
 
 ## Report Output Structure
 

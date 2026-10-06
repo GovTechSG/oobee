@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY. Re-generate with: node dist/generateOobeeClientScanner.js
  *
  * Embedded at generation time:
- *   App version : 0.11.17
+ *   App version : 0.11.18
  *   Sentry DSN  : (from OOBEE_CLIENT_SENTRY_DSN env var or constants.ts default)
  *   Sentry SDK  : @sentry/browser 10.58.0 (loaded from CDN at runtime)
  *
@@ -35002,7 +35002,7 @@
   // ── Sentry browser telemetry (Sentry JS SDK, loaded from CDN) ────────────
   
   var _oobeeSentryDsn          = "https://82bc6c2052e64ef3d0b0e394fbda4602@o4509047624761344.ingest.us.sentry.io/4512082239094784";
-  var _oobeeAppVersion         = "0.11.17";
+  var _oobeeAppVersion         = "0.11.18";
   var _oobeeSentryVersion      = "10.58.0";
   // Subresource Integrity hash for the Sentry SDK bundle. Public integrity
   // pin (not a secret) — the browser needs to see it to verify the CDN

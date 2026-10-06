@@ -122,6 +122,51 @@ export function addUrlGuardScript(context, opts = {}) {
             // Location wrapping is best-effort; fall through to other guards.
           }
 
+          // Attempt to also intercept the assignment forms `window.location = x`,
+          // `document.location = x`, and the bare global `location = x`. Per the
+          // HTML spec, Window's and Document's `location` attribute is
+          // [Unforgeable]: its own-property descriptor is non-configurable, so
+          // `Object.defineProperty` on it will throw (or be a no-op) in
+          // spec-compliant browsers, and assigning to it invokes the internal
+          // Location-object-setter directly rather than the JS-visible
+          // Location.prototype.href setter wrapped above. This means the
+          // override below is best-effort only and is NOT expected to take
+          // effect in modern browsers/Playwright — it is kept in case a given
+          // engine does expose a configurable descriptor. The `framenavigated`
+          // listener registered in attachGuardsToPage (see below) is the
+          // authoritative guard for this sink: it fires once the navigation has
+          // landed and restores the main frame (or resets the subframe) to a
+          // safe URL. Do not remove or delay that listener on the assumption
+          // this init-script layer covers `window.location=`/`document.location=`.
+          const guardLocationProperty = (obj: unknown) => {
+            try {
+              const desc = Object.getOwnPropertyDescriptor(obj as object, 'location');
+              if (!desc || !desc.configurable || typeof desc.get !== 'function') return;
+              const origGet = desc.get;
+              const origSet = desc.set;
+              Object.defineProperty(obj as object, 'location', {
+                configurable: true,
+                enumerable: !!desc.enumerable,
+                get: origGet,
+                set(u: unknown) {
+                  if (!isAllowedProtocol(u)) return;
+                  if (typeof origSet === 'function') {
+                    origSet.call(this, u);
+                  } else {
+                    // No native setter exposed on this engine; forward through
+                    // the (already-guarded) Location.prototype.href setter.
+                    (origGet.call(this) as any).href = u;
+                  }
+                },
+              });
+            } catch {
+              // `location` is non-configurable on this engine; best-effort only,
+              // the framenavigated listener remains the authoritative guard.
+            }
+          };
+          guardLocationProperty(window);
+          guardLocationProperty(document);
+
           // Block anchor clicks and form submits pointing at disallowed schemes.
           const onClick = (e: Event) => {
             let el: any = e.target;
@@ -215,6 +260,14 @@ export function addUrlGuardScript(context, opts = {}) {
     // Fires for every frame, not just the main frame. Subframes navigating to
     // dangerous schemes can still exfiltrate parent-context data via
     // postMessage or credential-attaching requests, so we react to them too.
+    //
+    // This listener is also the *authoritative* (not merely secondary) guard
+    // against `window.location = x` / `document.location = x` / bare
+    // `location = x` assignments: those invoke the [Unforgeable] Window/Document
+    // `location` accessor's internal setter directly, which cannot be wrapped
+    // from page script (see guardLocationProperty above), so the init-script
+    // allow-list layer cannot reliably prevent that sink. Do not remove, delay,
+    // or gate this listener behind the init-script layer succeeding.
     page.on('framenavigated', async frame => {
       const urlStr = frame.url();
       const isMainFrame = frame === page.mainFrame();

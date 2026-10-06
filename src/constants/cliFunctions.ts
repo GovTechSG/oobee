@@ -1,7 +1,7 @@
 import { Options } from 'yargs';
 import printMessage from 'print-message';
 import { BrowserTypes, RuleFlags, ScannerTypes } from './constants.js';
-import { cleanUpAndExit } from '../utils.js';
+import { cleanUpAndExit, isTelemetryDisabled } from '../utils.js';
 
 export const messageOptions = {
   border: false,
@@ -189,9 +189,9 @@ export const cliOptions: { [key: string]: Options } = {
   },
   k: {
     alias: 'nameEmail',
-    describe: `To personalise your experience, we will be collecting your name, email address and app usage data. Your information fully complies with GovTech’s Privacy Policy. Please provide your name and email address in this format "John Doe:john@domain.com".`,
+    describe: `To personalise your experience, we will be collecting your name, email address and app usage data. Your information fully complies with GovTech’s Privacy Policy. Please provide your name and email address in this format "John Doe:john@domain.com". Optional when OOBEE_DISABLE_TELEMETRY=1 is set.`,
     type: 'string',
-    demandOption: true,
+    demandOption: !isTelemetryDisabled(),
   },
   t: {
     alias: 'specifiedMaxConcurrency',

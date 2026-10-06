@@ -887,16 +887,37 @@ export const scanHTML = async (
     tags.push('wcag2aaa');
   }
 
+  // Opt-in DoS bounds for this experimental library API (asgard-0005). Both are
+  // OFF by default so existing callers passing large/complex HTML are unchanged;
+  // set the env vars to guard against untrusted HTML exhausting CPU/memory.
+  const scanHtmlMaxBytes = (() => {
+    const v = parseInt(process.env.OOBEE_SCANHTML_MAX_BYTES ?? '', 10);
+    return Number.isFinite(v) && v > 0 ? v : 0; // 0 = unlimited
+  })();
+  const scanHtmlAxeTimeoutMs = (() => {
+    const v = parseInt(process.env.OOBEE_SCANHTML_AXE_TIMEOUT_MS ?? '', 10);
+    return Number.isFinite(v) && v > 0 ? v : 0; // 0 = no timeout
+  })();
+
   const htmlItems = Array.isArray(htmlContent) ? htmlContent : [htmlContent];
   const scanData = [];
 
   for (let i = 0; i < htmlItems.length; i++) {
     const htmlString = htmlItems[i];
+
+    if (scanHtmlMaxBytes > 0) {
+      const htmlByteLength = Buffer.byteLength(htmlString, 'utf8');
+      if (htmlByteLength > scanHtmlMaxBytes) {
+        throw new Error(
+          `scanHTML: htmlContent${htmlItems.length > 1 ? `[${i}]` : ''} is ${htmlByteLength} bytes, exceeding the ${scanHtmlMaxBytes}-byte OOBEE_SCANHTML_MAX_BYTES limit.`,
+        );
+      }
+    }
+
     const dom = new JSDOM(htmlString);
 
     // Configure axe for node environment
-    // eslint-disable-next-line no-await-in-loop
-    const axeScanResults = await axe.run(
+    const axeRun = axe.run(
       dom.window.document.documentElement as unknown as Element,
       {
         runOnly: {
@@ -906,7 +927,27 @@ export const scanHTML = async (
         resultTypes: ['violations', 'passes', 'incomplete'],
       },
     );
-    
+
+    let axeTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    // eslint-disable-next-line no-await-in-loop
+    const axeScanResults = await (scanHtmlAxeTimeoutMs > 0
+      ? Promise.race([
+          axeRun,
+          new Promise<never>((_resolve, reject) => {
+            axeTimeoutId = setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    `scanHTML: axe.run exceeded the ${scanHtmlAxeTimeoutMs}ms OOBEE_SCANHTML_AXE_TIMEOUT_MS limit.`,
+                  ),
+                ),
+              scanHtmlAxeTimeoutMs,
+            );
+          }),
+        ])
+      : axeRun);
+    if (axeTimeoutId) clearTimeout(axeTimeoutId);
+
     scanData.push({
       axeScanResults,
       pageUrl: htmlItems.length > 1 ? `${pageUrl}-${i + 1}` : pageUrl,

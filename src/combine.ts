@@ -351,7 +351,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         generateJsonFiles,
         browser,
       );
-      const [name, email] = nameEmail.split(':');
+      const [name, email] = (nameEmail ?? '').split(':');
 
       // Upload results to S3 if environment variables are set
       if (isS3UploadEnabled()) {

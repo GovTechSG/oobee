@@ -5,7 +5,7 @@ import { EnqueueStrategy } from 'crawlee';
 import constants, { BrowserTypes, RuleFlags, ScannerTypes, UrlsCrawled } from '../constants/constants.js';
 import generateArtifacts from '../mergeAxeResults.js';
 import { createAndUpdateResultsFolders, getStoragePath } from '../utils.js';
-import { checkUrlConnectivityWithBrowser, submitForm } from '../constants/common.js';
+import { checkUrlConnectivityWithBrowser, isInternalOrLoopbackUrl, submitForm } from '../constants/common.js';
 import runCustom from './runCustom.js';
 import { consoleLogger } from '../logs.js';
 
@@ -324,12 +324,44 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
   };
 };
 
+// Opt-in SSRF hardening for the exported scanCustomFlow entry point. Off by
+// default so operator/CLI scans of localhost, internal hosts and file:// URLs
+// keep working unchanged; consumers that expose config.url to untrusted
+// callers set OOBEE_SSRF_PROTECTION=1 to restrict scans to public http(s).
+const isSsrfProtectionEnabled = (): boolean =>
+  /^(1|true|yes)$/i.test(process.env.OOBEE_SSRF_PROTECTION ?? '');
+
+const assertSafeCustomFlowUrl = async (url: string): Promise<void> => {
+  if (!isSsrfProtectionEnabled()) return;
+
+  let parsedEntryUrl: URL;
+  try {
+    parsedEntryUrl = new URL(url);
+  } catch {
+    throw new Error('Invalid URL supplied to scanCustomFlow.');
+  }
+
+  if (parsedEntryUrl.protocol !== 'http:' && parsedEntryUrl.protocol !== 'https:') {
+    throw new Error(
+      `Unsupported URL scheme "${parsedEntryUrl.protocol}" - OOBEE_SSRF_PROTECTION only permits http:// or https:// scan targets.`,
+    );
+  }
+
+  if (await isInternalOrLoopbackUrl(parsedEntryUrl.href)) {
+    throw new Error(
+      `scanCustomFlow refuses to scan "${parsedEntryUrl.hostname}" - it resolves to a private, loopback, or link-local address (OOBEE_SSRF_PROTECTION is enabled).`,
+    );
+  }
+};
+
 const validateCustomFlowEntryUrl = async (options: {
   url: string;
   browser: BrowserTypes;
   extraHTTPHeaders?: Record<string, string>;
   playwrightDeviceDetailsObject?: UnknownRecord;
 }): Promise<void> => {
+  await assertSafeCustomFlowUrl(options.url);
+
   const previousHeadless = process.env.CRAWLEE_HEADLESS;
   process.env.CRAWLEE_HEADLESS = '1';
 

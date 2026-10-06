@@ -271,6 +271,39 @@
     }
   };
 
+  // asgard-0003: item.html is the raw markup of an element from the scanned
+  // (untrusted) page. Strip anything that could execute or reach the network
+  // (event handler attributes, javascript: URLs, <script>/<iframe>/etc.)
+  // before the node is ever brought into the live document.
+  function sanitizeElementForContext(rootElement) {
+    const DANGEROUS_TAGS = ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'form'];
+
+    if (DANGEROUS_TAGS.includes(rootElement.tagName?.toLowerCase())) {
+      return null;
+    }
+
+    rootElement.querySelectorAll(DANGEROUS_TAGS.join(',')).forEach(el => el.remove());
+
+    const elementsToClean = [rootElement, ...rootElement.querySelectorAll('*')];
+    elementsToClean.forEach(el => {
+      Array.from(el.attributes || []).forEach(attr => {
+        const name = attr.name.toLowerCase();
+        const value = attr.value || '';
+
+        if (name.startsWith('on') || name === 'srcdoc') {
+          el.removeAttribute(attr.name);
+        } else if (
+          ['href', 'src', 'action', 'formaction', 'xlink:href'].includes(name) &&
+          /^\s*javascript:/i.test(value)
+        ) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+
+    return rootElement;
+  }
+
   // Helper function to extract element context from HTML/CSS
   function extractElementContext(html) {
     const context = {
@@ -283,24 +316,39 @@
     };
 
     try {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = html;
-      const element = tempDiv.querySelector('*') || tempDiv;
+      // Parse the untrusted markup with DOMParser into a detached, inert
+      // document: per spec, scripts are unexecutable and elements such as
+      // <img>/<svg> do not load resources or fire on* handlers there, so
+      // nothing runs while we inspect it.
+      const parsedDoc = new DOMParser().parseFromString(html, 'text/html');
+      const parsedElement = parsedDoc.body && parsedDoc.body.querySelector('*');
 
-      if (element && element.parentNode) {
-        document.body.appendChild(tempDiv);
-        const computedStyle = window.getComputedStyle(element);
+      if (parsedElement) {
+        // Defense in depth: strip event handlers/dangerous elements before
+        // the node is imported into the live document.
+        const sanitizedElement = sanitizeElementForContext(parsedElement);
 
-        context.foreground = rgbToHex(computedStyle.color) || context.foreground;
-        context.background = rgbToHex(computedStyle.backgroundColor) || context.background;
-        context.fontSize = parseFloat(computedStyle.fontSize) || context.fontSize;
-        context.fontWeight = computedStyle.fontWeight || context.fontWeight;
+        if (sanitizedElement) {
+          const tempDiv = document.createElement('div');
+          tempDiv.style.position = 'absolute';
+          tempDiv.style.visibility = 'hidden';
+          tempDiv.appendChild(document.importNode(sanitizedElement, true));
+          document.body.appendChild(tempDiv);
 
-        if (element.style && element.style.cssText) {
-          context.css = element.style.cssText;
+          const element = tempDiv.firstElementChild;
+          const computedStyle = window.getComputedStyle(element);
+
+          context.foreground = rgbToHex(computedStyle.color) || context.foreground;
+          context.background = rgbToHex(computedStyle.backgroundColor) || context.background;
+          context.fontSize = parseFloat(computedStyle.fontSize) || context.fontSize;
+          context.fontWeight = computedStyle.fontWeight || context.fontWeight;
+
+          if (element.style && element.style.cssText) {
+            context.css = element.style.cssText;
+          }
+
+          document.body.removeChild(tempDiv);
         }
-
-        document.body.removeChild(tempDiv);
       }
 
       if (context.foreground && context.background) {

@@ -44,13 +44,23 @@ jobs:
         run: node dist/generateOobeeClientScanner.js
 
       - name: Create branch and commit changes
+        # asgard-0002: pass GitHub Actions expressions through the env block
+        # rather than splicing them into the shell script text. `${{ }}` is
+        # textually substituted before the shell parses the line, so a value
+        # containing shell metacharacters (e.g. an unsanitized package.json
+        # version field) would break out of the intended command.
+        # Environment variables are safe because the shell reads them after
+        # parsing. Mirrors the pattern used in docker-test.yml.
+        env:
+          CURRENT_VERSION: ${{ steps.current.outputs.version }}
+          NEW_VERSION: ${{ steps.bump.outputs.version }}
         run: |
-          BRANCH="bump/version-${{ steps.bump.outputs.version }}"
+          BRANCH="bump/version-$NEW_VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add package.json package-lock.json oobee-client-scanner.js oobee-client-scanner.js.sha384
-          git commit -m "chore: bump version ${{ steps.current.outputs.version }} → ${{ steps.bump.outputs.version }}"
+          git commit -m "chore: bump version $CURRENT_VERSION → $NEW_VERSION"
           git push origin "$BRANCH"
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
@@ -59,9 +69,13 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
       - name: Create pull request
+        env:
+          CURRENT_VERSION: ${{ steps.current.outputs.version }}
+          NEW_VERSION: ${{ steps.bump.outputs.version }}
+          BASE_REF: ${{ github.ref_name }}
         run: |
           gh pr create \
-            --title "chore: bump version to ${{ steps.bump.outputs.version }}" \
-            --body "Automated version bump from ${{ steps.current.outputs.version }} to ${{ steps.bump.outputs.version }}." \
+            --title "chore: bump version to $NEW_VERSION" \
+            --body "Automated version bump from $CURRENT_VERSION to $NEW_VERSION." \
             --head "$BRANCH" \
-            --base "${{ github.ref_name }}"
+            --base "$BASE_REF"

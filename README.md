@@ -114,6 +114,9 @@ verapdf --version
 | CF_WORKER_PROXY_PORT | Optional. Local SOCKS5 bind port for the tunnel. | `8877` |
 | CF_FAMILY_DNS | Optional. Resolves DNS queries through [Cloudflare Families DNS over HTTPS (DoH)](https://blog.cloudflare.com/introducing-1-1-1-1-for-families/) for safer browsing. Does not work when `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` is used.  | |
 | GOOGLE_SAFE_BROWSING | When set, enables Google Safe Browsing URL protection. Blocks phishing, malware, and unwanted software URLs — blocked pages are classified as "Blocked by Safe Browsing" in reports. Requires Google Chrome (not Chromium or Edge). On macOS and Windows, copies the threat database from your system Chrome profile. On Docker Linux, connects to a pre-warmed Chrome instance. | |
+| OOBEE_DISABLE_TELEMETRY | Set to `1`, `true`, or `yes` to opt out of **all** telemetry submissions (Google Form and Sentry). When set, PII (name, email, entry URL, userId) is never sent off-device. Also relaxes the `-k user:email` requirement so scans can run non-interactively without providing a name/email. | |
+| OOBEE_ALLOW_INSECURE_TLS | Set to `1`, `true`, or `yes` to allow the scanner to accept invalid/self-signed TLS certificates on scanned targets. Only takes effect when no credentials (`Authorization` header / `httpCredentials`) are attached — credentialed scans always require a valid certificate to avoid leaking tokens to a MITM. | |
+| SB_PREPOPULATED_SHA256 | Optional pinned SHA-256 hex digest for a pre-populated Safe Browsing DB zip. When set, any pre-populated zip whose contents do not match the digest is rejected, closing the risk of a locally-planted or stale archive silently disabling Safe Browsing. | |
 
 #### Environment variables used internally (Do not set)
 Do not set these environment variables or behaviour might change unexpectedly.
