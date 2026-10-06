@@ -2561,6 +2561,110 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   return options;
 };
 
+export type MainThreadIdleResult = {
+  reason: string;
+  waitedMs: number;
+};
+
+/**
+ * Waits until the page's main thread has had `requiredIdle` consecutive idle
+ * periods (requestIdleCallback with real idle time and no long tasks observed
+ * in between), or until `timeoutMs` elapses.
+ *
+ * This is the CPU-contention-safe complement to DOM-quiet heuristics: a
+ * wall-clock "no mutations for N ms" window can elapse while a starved
+ * renderer is still parsing/compiling the framework bundle, so hydration
+ * hasn't even started yet. A starved main thread does not yield idle periods,
+ * so this check cannot be satisfied until the page's pending JS has run.
+ */
+export const waitForMainThreadIdle = async (
+  page: Page,
+  timeoutMs: number = Number(process.env.OOBEE_IDLE_TIMEOUT_MS) || 10000,
+): Promise<MainThreadIdleResult> => {
+  const requiredIdle = Number(process.env.OOBEE_IDLE_CALLBACKS) || 3;
+  const start = Date.now();
+  if (timeoutMs <= 0) {
+    return { reason: 'no idle budget', waitedMs: 0 };
+  }
+
+  let deadlineTimer: ReturnType<typeof setTimeout>;
+  const result = await Promise.race([
+    new Promise<{ reason: string }>(resolve => {
+      deadlineTimer = setTimeout(
+        () => resolve({ reason: 'idle hard deadline' }),
+        timeoutMs,
+      );
+    }),
+    page
+      .evaluate(
+        ({ requiredIdle: REQUIRED_IDLE, timeoutMs: TIMEOUT_MS }) =>
+          new Promise<{ reason: string }>(resolve => {
+            // Idle periods shorter than this are treated as "busy" — e.g. a
+            // renderer squeezing a sliver of idle time between long tasks.
+            const MIN_IDLE_MS = 5;
+            const RIC_TIMEOUT_MS = 1000;
+            const startedAt = performance.now();
+
+            let consecutive = 0;
+            let everReset = false;
+            let sawLongTask = false;
+            let longTaskObserver: PerformanceObserver | undefined;
+            try {
+              longTaskObserver = new PerformanceObserver(list => {
+                if (list.getEntries().length > 0) sawLongTask = true;
+              });
+              longTaskObserver.observe({ type: 'longtask' });
+            } catch {
+              // longtask entries unsupported — fall back to idle periods alone
+            }
+
+            const ric: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => unknown =
+              typeof window.requestIdleCallback === 'function'
+                ? window.requestIdleCallback.bind(window)
+                : cb =>
+                    setTimeout(
+                      () => cb({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline),
+                      50,
+                    );
+
+            const finish = (reason: string) => {
+              longTaskObserver?.disconnect();
+              resolve({ reason });
+            };
+
+            const tick = (deadline: IdleDeadline) => {
+              const idle =
+                !deadline.didTimeout && deadline.timeRemaining() >= MIN_IDLE_MS && !sawLongTask;
+              sawLongTask = false;
+              if (idle) {
+                consecutive++;
+              } else {
+                consecutive = 0;
+                everReset = true;
+              }
+
+              if (consecutive >= REQUIRED_IDLE) {
+                finish(everReset ? 'main thread idle after work' : 'main thread idle');
+                return;
+              }
+              if (performance.now() - startedAt > TIMEOUT_MS) {
+                finish('main thread busy');
+                return;
+              }
+              ric(tick, { timeout: RIC_TIMEOUT_MS });
+            };
+
+            ric(tick, { timeout: RIC_TIMEOUT_MS });
+          }),
+        { requiredIdle, timeoutMs },
+      )
+      .catch(() => ({ reason: 'idle probe errored' })),
+  ]);
+  clearTimeout(deadlineTimer);
+
+  return { ...result, waitedMs: Date.now() - start };
+};
+
 export const waitForPageLoaded = async (page: Page) => {
   // Budgets are stacked (load, then stability), not shared, so a slow-loading
   // page still gets a fresh window to hydrate. Defaults are sized for busy
@@ -2571,6 +2675,7 @@ export const waitForPageLoaded = async (page: Page) => {
   const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 1500;
   const maxMutations     = Number(process.env.OOBEE_MAX_MUTATIONS)        || 5000;
   const assetWaitMs      = Number(process.env.OOBEE_ASSET_WAIT_MS)        || 5000;
+  const idleTimeout      = Number(process.env.OOBEE_IDLE_TIMEOUT_MS)      || 10000;
 
   // Phase 1 — wait for the `load` event (or its own hard deadline).
   const phase1Start = Date.now();
@@ -2580,6 +2685,13 @@ export const waitForPageLoaded = async (page: Page) => {
       setTimeout(() => resolve('load hard deadline'), loadTimeout),
     ),
   ]);
+
+  // Phase 1.5 — wait for the main thread to go idle before starting the
+  // DOM-quiet window. Under CPU contention (e.g. concurrent scans sharing a
+  // container) a renderer can still be parsing/compiling the framework bundle
+  // well after `load`; the phase-2 quiet window would elapse before hydration
+  // even begins and axe would scan the pre-hydration SSR markup.
+  const preIdle = await waitForMainThreadIdle(page, idleTimeout);
 
   // Phase 2 — wait for the DOM to stabilize OR the stability budget.
   //
@@ -2679,6 +2791,63 @@ export const waitForPageLoaded = async (page: Page) => {
     ).catch(() => 'observer errored'),
   ]);
 
+  // Post-quiet idle check — the quiet window is wall-clock based, so a
+  // hydration task that was queued behind a starved main thread can run right
+  // as it closes. If the main thread did work since, give the DOM one more
+  // (bounded) quiet window to settle that work.
+  const postIdleStart = Date.now();
+  // A page that never yielded idle in phase 1.5 is perpetually busy (heavy
+  // ads, spin loops) rather than starved — don't pay the full idle budget
+  // twice; one quiet window's worth is enough to catch a just-queued task.
+  const preIdleTimedOut = !preIdle.reason.startsWith('main thread idle');
+  let postIdle = await waitForMainThreadIdle(page, preIdleTimedOut ? quietMs : idleTimeout);
+  let resettleReason = 'skipped';
+  // Only resettle when the thread demonstrably did work and then went idle —
+  // re-running for a perpetually busy page would just burn more budget.
+  if (
+    postIdle.reason === 'main thread idle after work' &&
+    stabilityReason !== 'stability hard deadline'
+  ) {
+    // Bounded by the same cap as the initial quiet window's outer deadline so
+    // a page that never stops mutating can't extend the wait indefinitely.
+    const resettleCapMs = Math.min(stabilityTimeout, quietMs * 4);
+    let resettleTimer: ReturnType<typeof setTimeout>;
+    resettleReason = await Promise.race([
+      new Promise<string>(resolve => {
+        resettleTimer = setTimeout(() => resolve('resettle hard deadline'), resettleCapMs);
+      }),
+      page
+        .evaluate(
+          ({ quietMs: QUIET_MS }) =>
+            new Promise<string>(resolve => {
+              const root = document.documentElement || document.body;
+              if (!(root instanceof Node)) {
+                resolve('no root to observe');
+                return;
+              }
+              let timeout: ReturnType<typeof setTimeout>;
+              const observer = new MutationObserver(() => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                  observer.disconnect();
+                  resolve('resettled after mutations');
+                }, QUIET_MS);
+              });
+              timeout = setTimeout(() => {
+                observer.disconnect();
+                resolve('resettle quiet window elapsed');
+              }, QUIET_MS);
+              observer.observe(root, { childList: true, subtree: true, attributes: true });
+            }),
+          { quietMs },
+        )
+        .catch(() => 'resettle errored'),
+    ]);
+    clearTimeout(resettleTimer);
+    postIdle = await waitForMainThreadIdle(page, idleTimeout);
+  }
+  const postIdleMs = Date.now() - postIdleStart;
+
   // Phase 2.5 — wait for fonts and images (raster + SVG-as-<img>) to finish
   // loading. Both are deterministic browser signals: font swap reflows every
   // text-bearing element (color-contrast), and image/SVG load resolves the
@@ -2714,9 +2883,12 @@ export const waitForPageLoaded = async (page: Page) => {
       .catch(() => 'asset probe errored'),
   ]);
 
-  const phase1Ms = phase2Start - phase1Start;
-  const phase2Ms = phase25Start - phase2Start;
+  const phase1Ms = phase2Start - phase1Start - preIdle.waitedMs;
+  const phase2Ms = postIdleStart - phase2Start;
   const phase25Ms = Date.now() - phase25Start;
+  const idleSummary =
+    `preIdle="${preIdle.reason}" (${preIdle.waitedMs}ms) ` +
+    `postIdle="${postIdle.reason}" resettle="${resettleReason}" (${postIdleMs}ms)`;
   // Log at debug level so operators can spot pages that need bigger budgets
   // (i.e. pages resolving via a hard deadline rather than a stability signal).
   // Emit warn only when we time out on stability — that's the case that most
@@ -2732,11 +2904,18 @@ export const waitForPageLoaded = async (page: Page) => {
     consoleLogger.warn(
       `waitForPageLoaded: stability hard deadline on ${pageUrl} after ${phase1Ms}ms load + ${phase2Ms}ms stability + ${phase25Ms}ms assets. ` +
         `Page may still be hydrating. Consider raising OOBEE_STABILITY_TIMEOUT_MS (current: ${stabilityTimeout}) ` +
-        `or OOBEE_QUIET_MS (current: ${quietMs}).`,
+        `or OOBEE_QUIET_MS (current: ${quietMs}). ${idleSummary}`,
+    );
+  } else if (postIdle.reason !== 'main thread idle' && postIdle.reason !== 'main thread idle after work') {
+    // The main thread never went idle within budget — almost always CPU
+    // starvation (too many concurrent pages/scans for the available cores).
+    consoleLogger.warn(
+      `waitForPageLoaded: main thread still busy on ${pageUrl} — results may reflect a partially hydrated page. ` +
+        `Consider lowering concurrency (-t) or raising OOBEE_IDLE_TIMEOUT_MS (current: ${idleTimeout}). ${idleSummary}`,
     );
   } else {
     consoleLogger.debug(
-      `waitForPageLoaded: ${pageUrl} load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms) assets="${phase25Reason}" (${phase25Ms}ms)`,
+      `waitForPageLoaded: ${pageUrl} load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms) assets="${phase25Reason}" (${phase25Ms}ms) ${idleSummary}`,
     );
   }
 };
