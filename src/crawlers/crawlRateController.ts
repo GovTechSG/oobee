@@ -1,3 +1,4 @@
+import { execFile } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import { consoleLogger } from '../logs.js';
@@ -43,6 +44,7 @@ export class CrawlRateController {
   static readonly MEM_LOW = Number(process.env.OOBEE_MEM_PRESSURE_LOW) || 0.75;
   static readonly MEM_HOLD_MS = 60000;
   static readonly CRASH_COOLDOWN_MS = 15000;
+  static readonly CRASH_FREE_RECOVERY_MS = 120000;
 
   constructor(maxRequestsPerCrawl: number, maxConcurrency: number) {
     this.maxPages = maxRequestsPerCrawl;
@@ -197,6 +199,20 @@ export class CrawlRateController {
     }
   }
 
+  // No memory reading on this platform: recover memCap by 1 after each
+  // crash-free CRASH_FREE_RECOVERY_MS so a crash doesn't cap the rest of the scan.
+  onNoMemorySample(pool?: ConcurrencyPool): void {
+    if (this.memCap >= this.originalMaxConcurrency) return;
+    const now = Date.now();
+    if (now - this.lastMemChange < CrawlRateController.CRASH_FREE_RECOVERY_MS) return;
+    this.memCap = Math.min(this.originalMaxConcurrency, this.memCap + 1);
+    this.lastMemChange = now;
+    this.apply(pool);
+    consoleLogger.info(
+      `No renderer crash for ${CrawlRateController.CRASH_FREE_RECOVERY_MS / 1000}s — recovering concurrency to ${this.target} (mem cap ${this.memCap})`,
+    );
+  }
+
   onFailure(
     httpStatus: number | undefined,
     pool?: ConcurrencyPool,
@@ -276,8 +292,51 @@ export const readMemoryPressure = (): number | undefined => {
     const used = v1Used - readCgroupInactiveFile('/sys/fs/cgroup/memory/memory.stat', 'total_inactive_file');
     return Math.min(1, Math.max(0, used / Math.min(v1Limit, hostTotal)));
   }
-  if (process.platform === 'darwin') return undefined; // freemem excludes reclaimable cache on macOS
-  return 1 - os.freemem() / hostTotal;
+  return readHostMemoryPressure(hostTotal);
+};
+
+const clampRatio = (n: number): number | undefined =>
+  Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : undefined;
+
+// Linux without a cgroup limit (e.g. Fargate with only a task-level size, or
+// bare metal): MemAvailable counts reclaimable cache; os.freemem() does not.
+const readLinuxMemAvailable = (hostTotal: number): number | undefined => {
+  try {
+    const m = fs.readFileSync('/proc/meminfo', 'utf8').match(/^MemAvailable:\s+(\d+) kB$/m);
+    return m ? clampRatio(1 - (Number(m[1]) * 1024) / hostTotal) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+// macOS: os.freemem() is only truly free pages, so it reads ~100% used on any
+// Mac. vm_stat's inactive/speculative/purgeable pages are reclaimable. vm_stat
+// is a subprocess, so it is sampled in the background and the last value used.
+let darwinRatio: number | undefined;
+let darwinSampling = false;
+const sampleDarwin = (hostTotal: number): void => {
+  if (darwinSampling) return;
+  darwinSampling = true;
+  execFile('vm_stat', { timeout: 3000 }, (err, stdout) => {
+    darwinSampling = false;
+    if (err) return;
+    const pageSize = Number(stdout.match(/page size of (\d+) bytes/)?.[1]) || 4096;
+    const pages = (label: string) => Number(stdout.match(new RegExp(`^Pages ${label}:\\s+(\\d+)\\.`, 'm'))?.[1]) || 0;
+    const reclaimable = pages('free') + pages('inactive') + pages('speculative') + pages('purgeable');
+    darwinRatio = clampRatio(1 - (reclaimable * pageSize) / hostTotal);
+  });
+};
+
+const readHostMemoryPressure = (hostTotal: number): number | undefined => {
+  if (process.platform === 'linux') {
+    return readLinuxMemAvailable(hostTotal) ?? clampRatio(1 - os.freemem() / hostTotal);
+  }
+  if (process.platform === 'darwin') {
+    sampleDarwin(hostTotal);
+    return darwinRatio;
+  }
+  // Windows: os.freemem() is ullAvailPhys, which already includes standby cache.
+  return clampRatio(1 - os.freemem() / hostTotal);
 };
 
 // Re-pins the live pool to the controller's target (each crawler.run() builds a
@@ -300,6 +359,7 @@ export const startConcurrencyEnforcer = (
     if (!pool) return;
     const memRatio = readMemoryPressure();
     if (memRatio !== undefined) controller.onMemorySample(memRatio, pool);
+    else controller.onNoMemorySample(pool);
     if (pool.minConcurrency !== controller.target || pool.maxConcurrency !== controller.target) {
       controller.apply(pool);
     }
