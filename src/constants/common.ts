@@ -30,6 +30,7 @@ import constants, {
   BrowserTypes,
   FileTypes,
   getEnumKey,
+  isRunningInContainer,
 } from './constants.js';
 import { consoleLogger } from '../logs.js';
 import { isUrlPdf, splitAuthHeaders, addAuthRouteHandler } from '../crawlers/commonCrawlerFunc.js';
@@ -44,6 +45,7 @@ import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
 import { ensureAndInjectSafeBrowsing, getSafeBrowsingIgnoredArgs } from '../safeBrowsingProfile.js';
+import { waitForMainThreadIdleInPage } from '../crawlers/custom/waitForMainThreadIdleInPage.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -1778,7 +1780,7 @@ export const getClonedProfilesWithRandomToken = (browser: string, randomToken: s
   // Keep the path short — Chrome creates Unix sockets inside TMPDIR-based paths,
   // and socket paths are limited to 107 bytes on Linux.
   // Use process.pid to isolate concurrent scan instances.
-  if (fs.existsSync('/.dockerenv')) {
+  if (isRunningInContainer()) {
     const baseDir = getDefaultChromiumDataDir();
     if (baseDir) {
       const scanTmpDir = path.join(baseDir, 'tmp', String(process.pid));
@@ -2533,25 +2535,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   // whenever a SOCKS5 proxy is set, which triggers Chrome's yellow
   // "unsupported command-line flag" banner. --test-type suppresses it (and the
   // automation info bar), matching what we already do in Docker.
-  // `/.dockerenv` is only created by the Docker daemon. Other container
-  // runtimes (Podman, containerd, ECS Fargate, Azure Container Apps / App
-  // Service, Google Cloud Run / App Engine, and Kubernetes) don't drop that
-  // marker file, so we also check well-known runtime env vars — otherwise we'd
-  // re-enable the Chrome sandbox and SIGABRT during zygote init under those
-  // seccomp profiles. OOBEE_IN_CONTAINER=1 is an explicit override for
-  // runtimes we don't detect (e.g. Azure Container Instances, which surfaces
-  // no reliable env var).
-  const inDocker =
-    process.env.OOBEE_IN_CONTAINER === '1' ||
-    fs.existsSync('/.dockerenv') ||
-    fs.existsSync('/run/.containerenv') ||
-    !!process.env.KUBERNETES_SERVICE_HOST ||        // Kubernetes (incl. GKE, EKS, AKS)
-    process.env.AWS_EXECUTION_ENV === 'AWS_ECS_FARGATE' ||
-    !!process.env.ECS_CONTAINER_METADATA_URI_V4 ||  // AWS ECS (Fargate + EC2)
-    !!process.env.CONTAINER_APP_NAME ||             // Azure Container Apps
-    !!process.env.WEBSITE_INSTANCE_ID ||            // Azure App Service (Linux containers)
-    !!process.env.K_SERVICE ||                      // Google Cloud Run
-    !!process.env.GAE_SERVICE;                      // Google App Engine (flex/standard)
+  // Container detection covers non-Docker runtimes too (see
+  // isRunningInContainer) — otherwise we'd re-enable the Chrome sandbox and
+  // SIGABRT during zygote init under those seccomp profiles.
+  const inDocker = isRunningInContainer();
   const usingProxy = resolution.kind === 'manual' || resolution.kind === 'pac';
   if ((inDocker || usingProxy) && !finalArgs.includes('--test-type')) {
     finalArgs.push('--test-type');
@@ -2575,7 +2562,57 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   return options;
 };
 
-export const waitForPageLoaded = async (page: Page) => {
+export type MainThreadIdleResult = {
+  reason: string;
+  waitedMs: number;
+};
+
+/**
+ * Waits until the page's main thread has had `requiredIdle` consecutive idle
+ * periods (requestIdleCallback with real idle time and no long tasks observed
+ * in between), or until `timeoutMs` elapses.
+ *
+ * This is the CPU-contention-safe complement to DOM-quiet heuristics: a
+ * wall-clock "no mutations for N ms" window can elapse while a starved
+ * renderer is still parsing/compiling the framework bundle, so hydration
+ * hasn't even started yet. A starved main thread does not yield idle periods,
+ * so this check cannot be satisfied until the page's pending JS has run.
+ */
+// Playwright's messages for a page that's gone — not net::ERR_CONNECTION_CLOSED.
+export const PAGE_GONE_ERROR_RE = /has been closed|Target crashed|was destroyed/i;
+
+export const waitForMainThreadIdle = async (
+  page: Page,
+  timeoutMs: number = Number(process.env.OOBEE_IDLE_TIMEOUT_MS) || 10000,
+): Promise<MainThreadIdleResult> => {
+  const requiredIdle = Number(process.env.OOBEE_IDLE_CALLBACKS) || 3;
+  const start = Date.now();
+  if (timeoutMs <= 0) {
+    return { reason: 'no idle budget', waitedMs: 0 };
+  }
+
+  let deadlineTimer: ReturnType<typeof setTimeout>;
+  const result = await Promise.race([
+    new Promise<{ reason: string }>(resolve => {
+      deadlineTimer = setTimeout(
+        () => resolve({ reason: 'idle hard deadline' }),
+        timeoutMs,
+      );
+    }),
+    page
+      .evaluate(waitForMainThreadIdleInPage, { requiredIdle, timeoutMs })
+      .catch((err: unknown) =>
+        page.isClosed() || PAGE_GONE_ERROR_RE.test(String((err as Error)?.message ?? err))
+          ? { reason: 'page closed' }
+          : { reason: 'idle probe errored' },
+      ),
+  ]);
+  clearTimeout(deadlineTimer);
+
+  return { ...result, waitedMs: Date.now() - start };
+};
+
+export const waitForPageLoaded = async (page: Page): Promise<{ mainThreadBusy: boolean }> => {
   // Budgets are stacked (load, then stability), not shared, so a slow-loading
   // page still gets a fresh window to hydrate. Defaults are sized for busy
   // Docker containers under CPU contention; lower them locally via env vars
@@ -2585,15 +2622,34 @@ export const waitForPageLoaded = async (page: Page) => {
   const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 1500;
   const maxMutations     = Number(process.env.OOBEE_MAX_MUTATIONS)        || 5000;
   const assetWaitMs      = Number(process.env.OOBEE_ASSET_WAIT_MS)        || 5000;
+  const idleTimeout      = Number(process.env.OOBEE_IDLE_TIMEOUT_MS)      || 10000;
+  // Overall ceiling across every phase. The stacked per-phase budgets above
+  // sum to ~85-100s worst case, which exceeds the crawlers' 90s
+  // requestHandlerTimeoutSecs: Crawlee then closes the page mid-handler and
+  // the rest of the handler (axe, click discovery) runs against a dead page.
+  // Each phase below is clipped to whatever remains of this budget.
+  const totalBudgetMs    = Number(process.env.OOBEE_PAGE_LOAD_BUDGET_MS)  || 60000;
+  const budgetDeadline = Date.now() + totalBudgetMs;
+  const remaining = (phaseMs: number) => Math.max(0, Math.min(phaseMs, budgetDeadline - Date.now()));
 
   // Phase 1 — wait for the `load` event (or its own hard deadline).
   const phase1Start = Date.now();
+  let loadTimer: ReturnType<typeof setTimeout>;
   const loadReason = await Promise.race([
     page.waitForLoadState('load').then(() => 'load event fired').catch(() => 'load errored'),
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('load hard deadline'), loadTimeout),
-    ),
+    new Promise<string>(resolve => {
+      loadTimer = setTimeout(() => resolve('load hard deadline'), remaining(loadTimeout));
+    }),
   ]);
+  clearTimeout(loadTimer);
+
+  // Phase 1.5 — wait for the main thread to go idle before starting the
+  // DOM-quiet window. Under CPU contention (e.g. concurrent scans sharing a
+  // container) a renderer can still be parsing/compiling the framework bundle
+  // well after `load`; the phase-2 quiet window would elapse before hydration
+  // even begins and axe would scan the pre-hydration SSR markup.
+  const preIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
+  if (page.isClosed()) return { mainThreadBusy: false };
 
   // Phase 2 — wait for the DOM to stabilize OR the stability budget.
   //
@@ -2603,10 +2659,12 @@ export const waitForPageLoaded = async (page: Page) => {
   // role="tab" children into a role="tablist" container). The observer's own
   // initial quiet window is the correct "no work in progress" signal.
   const phase2Start = Date.now();
+  const phase2BudgetMs = remaining(stabilityTimeout);
+  let stabilityTimer: ReturnType<typeof setTimeout>;
   const stabilityReason = await Promise.race([
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('stability hard deadline'), stabilityTimeout),
-    ),
+    new Promise<string>(resolve => {
+      stabilityTimer = setTimeout(() => resolve('stability hard deadline'), phase2BudgetMs);
+    }),
     page.evaluate(
       ({
         stabilityTimeout: OBSERVER_TIMEOUT,
@@ -2689,9 +2747,68 @@ export const waitForPageLoaded = async (page: Page) => {
           });
         });
       },
-      { stabilityTimeout, quietMs, maxMutations },
+      { stabilityTimeout: phase2BudgetMs, quietMs, maxMutations },
     ).catch(() => 'observer errored'),
   ]);
+  clearTimeout(stabilityTimer);
+
+  // Post-quiet idle check — the quiet window is wall-clock based, so a
+  // hydration task that was queued behind a starved main thread can run right
+  // as it closes. If the main thread did work since, give the DOM one more
+  // (bounded) quiet window to settle that work.
+  const postIdleStart = Date.now();
+  // A page that never yielded idle in phase 1.5 is perpetually busy (heavy
+  // ads, spin loops) rather than starved — don't pay the full idle budget
+  // twice; one quiet window's worth is enough to catch a just-queued task.
+  const preIdleTimedOut = !preIdle.reason.startsWith('main thread idle');
+  let postIdle = await waitForMainThreadIdle(page, remaining(preIdleTimedOut ? quietMs : idleTimeout));
+  let resettleReason = 'skipped';
+  // Only resettle when the thread demonstrably did work and then went idle —
+  // re-running for a perpetually busy page would just burn more budget.
+  if (
+    postIdle.reason === 'main thread idle after work' &&
+    stabilityReason !== 'stability hard deadline'
+  ) {
+    // Bounded by the same cap as the initial quiet window's outer deadline so
+    // a page that never stops mutating can't extend the wait indefinitely.
+    const resettleCapMs = remaining(Math.min(stabilityTimeout, quietMs * 4));
+    let resettleTimer: ReturnType<typeof setTimeout>;
+    resettleReason = await Promise.race([
+      new Promise<string>(resolve => {
+        resettleTimer = setTimeout(() => resolve('resettle hard deadline'), resettleCapMs);
+      }),
+      page
+        .evaluate(
+          ({ quietMs: QUIET_MS }) =>
+            new Promise<string>(resolve => {
+              const root = document.documentElement || document.body;
+              if (!(root instanceof Node)) {
+                resolve('no root to observe');
+                return;
+              }
+              let timeout: ReturnType<typeof setTimeout>;
+              const observer = new MutationObserver(() => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                  observer.disconnect();
+                  resolve('resettled after mutations');
+                }, QUIET_MS);
+              });
+              timeout = setTimeout(() => {
+                observer.disconnect();
+                resolve('resettle quiet window elapsed');
+              }, QUIET_MS);
+              observer.observe(root, { childList: true, subtree: true, attributes: true });
+            }),
+          { quietMs },
+        )
+        .catch(() => 'resettle errored'),
+    ]);
+    clearTimeout(resettleTimer);
+    postIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
+  }
+  const postIdleMs = Date.now() - postIdleStart;
+  if (page.isClosed()) return { mainThreadBusy: false };
 
   // Phase 2.5 — wait for fonts and images (raster + SVG-as-<img>) to finish
   // loading. Both are deterministic browser signals: font swap reflows every
@@ -2700,10 +2817,11 @@ export const waitForPageLoaded = async (page: Page) => {
   // in phase 2 doesn't catch these — a font swap or SVG paint doesn't necessarily
   // produce a DOM mutation, but it does change measured geometry.
   const phase25Start = Date.now();
+  let assetTimer: ReturnType<typeof setTimeout>;
   const phase25Reason = await Promise.race([
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('asset hard deadline'), assetWaitMs),
-    ),
+    new Promise<string>(resolve => {
+      assetTimer = setTimeout(() => resolve('asset hard deadline'), remaining(assetWaitMs));
+    }),
     page
       .evaluate(
         () =>
@@ -2727,14 +2845,19 @@ export const waitForPageLoaded = async (page: Page) => {
       )
       .catch(() => 'asset probe errored'),
   ]);
+  clearTimeout(assetTimer);
 
-  const phase1Ms = phase2Start - phase1Start;
-  const phase2Ms = phase25Start - phase2Start;
+  const phase1Ms = phase2Start - phase1Start - preIdle.waitedMs;
+  const phase2Ms = postIdleStart - phase2Start;
   const phase25Ms = Date.now() - phase25Start;
+  const idleSummary =
+    `preIdle="${preIdle.reason}" (${preIdle.waitedMs}ms) ` +
+    `postIdle="${postIdle.reason}" resettle="${resettleReason}" (${postIdleMs}ms)`;
   // Log at debug level so operators can spot pages that need bigger budgets
   // (i.e. pages resolving via a hard deadline rather than a stability signal).
   // Emit warn only when we time out on stability — that's the case that most
   // often produces the intermittent hydration-timing findings.
+  if (page.isClosed()) return { mainThreadBusy: false };
   let pageUrl: string;
   try {
     pageUrl = page.url();
@@ -2742,17 +2865,39 @@ export const waitForPageLoaded = async (page: Page) => {
     pageUrl = '<unknown>';
   }
 
-  if (stabilityReason === 'stability hard deadline') {
+  if (Date.now() >= budgetDeadline) {
+    consoleLogger.warn(
+      `waitForPageLoaded: overall budget exhausted on ${pageUrl} (OOBEE_PAGE_LOAD_BUDGET_MS=${totalBudgetMs}); ` +
+        `later phases were cut short. load="${loadReason}" stability="${stabilityReason}" assets="${phase25Reason}" ${idleSummary}`,
+    );
+  } else if (stabilityReason === 'stability hard deadline') {
     consoleLogger.warn(
       `waitForPageLoaded: stability hard deadline on ${pageUrl} after ${phase1Ms}ms load + ${phase2Ms}ms stability + ${phase25Ms}ms assets. ` +
         `Page may still be hydrating. Consider raising OOBEE_STABILITY_TIMEOUT_MS (current: ${stabilityTimeout}) ` +
-        `or OOBEE_QUIET_MS (current: ${quietMs}).`,
+        `or OOBEE_QUIET_MS (current: ${quietMs}). ${idleSummary}`,
+    );
+  } else if (preIdle.reason === 'page closed' || postIdle.reason === 'page closed') {
+    consoleLogger.warn(
+      `waitForPageLoaded: page closed or renderer crashed (likely out of memory) on ${pageUrl} during the idle gate. ${idleSummary}`,
+    );
+  } else if (postIdle.reason !== 'main thread idle' && postIdle.reason !== 'main thread idle after work') {
+    // The main thread never went idle within budget — almost always CPU
+    // starvation (too many concurrent pages/scans for the available cores).
+    consoleLogger.warn(
+      `waitForPageLoaded: main thread still busy on ${pageUrl} — results may reflect a partially hydrated page. ` +
+        `Consider lowering concurrency (-t) or raising OOBEE_IDLE_TIMEOUT_MS (current: ${idleTimeout}). ${idleSummary}`,
     );
   } else {
     consoleLogger.debug(
-      `waitForPageLoaded: ${pageUrl} load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms) assets="${phase25Reason}" (${phase25Ms}ms)`,
+      `waitForPageLoaded: ${pageUrl} load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms) assets="${phase25Reason}" (${phase25Ms}ms) ${idleSummary}`,
     );
   }
+  return {
+    mainThreadBusy:
+      postIdle.reason !== 'main thread idle' &&
+      postIdle.reason !== 'main thread idle after work' &&
+      postIdle.reason !== 'page closed',
+  };
 };
 
 function isValidHttpUrl(urlString: string) {

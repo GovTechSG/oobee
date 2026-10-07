@@ -10,11 +10,12 @@ import {
 } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
 import { enrichColorContrastDOMContext, takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
-import { isFilePath } from '../constants/common.js';
+import { isFilePath, waitForMainThreadIdle } from '../constants/common.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
 import { evaluateAltText } from './custom/evaluateAltText.js';
 import { escapeCssSelector } from './custom/escapeCssSelector.js';
+import { waitForMainThreadIdleInPage } from './custom/waitForMainThreadIdleInPage.js';
 import { framesCheck } from './custom/framesCheck.js';
 import { findElementByCssSelector } from './custom/findElementByCssSelector.js';
 import { getAxeConfiguration } from './custom/getAxeConfiguration.js';
@@ -122,7 +123,7 @@ type FilteredResults = {
 // (retireBrowserAfterPageCount) and idle-close boundaries.
 const isTransientPageTeardown = (e: unknown): boolean => {
   const msg = (e as Error)?.message ?? '';
-  return /Target (page, context or browser has been closed|closed)|Execution context was destroyed|page (has been |was )closed|Browser has been closed|Navigation failed because page (was|has been) closed/i.test(
+  return /Target (page, context or browser has been closed|closed)|Execution context was destroyed|page (has been |was )closed|Browser has been closed|Navigation failed because page (was|has been) closed|Target crashed/i.test(
     msg,
   );
 };
@@ -142,9 +143,21 @@ const parentHtmlMaxBytes = (() => {
   return Number.isFinite(v) ? v : htmlMaxBytes;
 })();
 
+// Minimum wait before rechecking hydration-sensitive violations. Covers
+// network-driven late updates (fetch → set aria-controls, font swap) that the
+// main-thread idle gate can't see. CPU-starved hydration is handled by the
+// idle gate below, so this no longer has to be sized for the worst case.
 const axeRecheckHydrationMs = (() => {
   const value = parseInt(process.env.OOBEE_AXE_RECHECK_HYDRATION_MS ?? '', 10);
-  return Number.isFinite(value) && value >= 0 ? value : 5000;
+  return Number.isFinite(value) && value >= 0 ? value : 1000;
+})();
+
+// Upper bound on the main-thread idle wait that follows the minimum delay.
+// Defaults to 4000ms so worst-case total (1000 + 4000) matches the previous
+// fixed 5000ms sleep; healthy pages finish within a few idle callbacks.
+const axeRecheckIdleTimeoutMs = (() => {
+  const value = parseInt(process.env.OOBEE_AXE_RECHECK_IDLE_TIMEOUT_MS ?? '', 10);
+  return Number.isFinite(value) && value >= 0 ? value : 4000;
 })();
 
 const truncateHtml = (html: string, maxBytes = htmlMaxBytes, suffix = '…'): string => {
@@ -994,6 +1007,23 @@ export const runAxeScript = async ({
     // Page may already be in a bad state; title will remain null
   }
 
+  // The 1000ms DOM-quiet window below is wall-clock based, so on a starved
+  // renderer (CPU contention) it can elapse while hydration JS is still queued.
+  // Gate on main-thread idle first. Crawler paths already did this in
+  // waitForPageLoaded, so it resolves within a few idle callbacks there; the
+  // custom-flow path (runAxeScan) has no prior gate and relies on this one.
+  // Bounded separately so perpetually busy pages don't pay the full idle
+  // budget a second time.
+  const preScanIdle = await waitForMainThreadIdle(
+    page,
+    Math.min(Number(process.env.OOBEE_IDLE_TIMEOUT_MS) || 10000, 5000),
+  );
+  if (!preScanIdle.reason.startsWith('main thread idle')) {
+    silentLogger.info(
+      `runAxeScript: main thread not idle before scan (${preScanIdle.reason}, ${preScanIdle.waitedMs}ms)`,
+    );
+  }
+
   try {
     // Checking for DOM mutations before proceeding to scan
     await page.evaluate(() => {
@@ -1105,7 +1135,9 @@ export const runAxeScript = async ({
       enableWcagAaa,
       gradingReadabilityFlag,
       axeRecheckHydrationMs,
+      axeRecheckIdleTimeoutMs,
       parentHtmlDepth,
+      waitForMainThreadIdleInPageFunctionString,
       evaluateAltTextFunctionString,
       escapeCssSelectorFunctionString,
       framesCheckFunctionString,
@@ -1123,6 +1155,7 @@ export const runAxeScript = async ({
         eval(flagUnlabelledClickableElementsFunctionString);
         eval(xPathToCssFunctionString);
         eval(getAxeConfigurationFunctionString);
+        eval(waitForMainThreadIdleInPageFunctionString);
         // remove so that axe does not scan
         document.querySelector(saflyIconSelector)?.remove();
 
@@ -1323,8 +1356,18 @@ export const runAxeScript = async ({
             );
 
             if (hasRecheckableViolation) {
+              // Short fixed delay for network-driven late updates, then wait
+              // for the main thread to go idle so CPU-starved hydration has
+              // actually run before we re-verify (a fixed sleep alone can
+              // elapse on a starved renderer with the hydration still queued).
               if (axeRecheckHydrationMs > 0) {
                 await new Promise(resolve => setTimeout(resolve, axeRecheckHydrationMs));
+              }
+              if (axeRecheckIdleTimeoutMs > 0) {
+                await waitForMainThreadIdleInPage({
+                  requiredIdle: 3,
+                  timeoutMs: axeRecheckIdleTimeoutMs,
+                });
               }
 
               // ---- aria-valid-attr-value --------------------------------
@@ -1470,7 +1513,9 @@ export const runAxeScript = async ({
       enableWcagAaa,
       gradingReadabilityFlag,
       axeRecheckHydrationMs,
+      axeRecheckIdleTimeoutMs,
       parentHtmlDepth: parentHtmlDepth,
+      waitForMainThreadIdleInPageFunctionString: waitForMainThreadIdleInPage.toString(),
       evaluateAltTextFunctionString: evaluateAltText.toString(),
       escapeCssSelectorFunctionString: escapeCssSelector.toString(),
       framesCheckFunctionString: framesCheck.toString(),
