@@ -1,5 +1,5 @@
 import crawlee, { EnqueueStrategy, LaunchContext, Request, RequestList, Dataset } from 'crawlee';
-import { CrawlRateController } from './crawlRateController.js';
+import { CrawlRateController, startConcurrencyEnforcer } from './crawlRateController.js';
 import fs from 'fs';
 import {
   createCrawleeSubFolders,
@@ -379,7 +379,8 @@ const crawlSitemap = async ({
           // scanned — don't spend the full page-stability budget on a WAF page.
           const earlyStatus = response?.status();
           if (earlyStatus !== 403 && earlyStatus !== 429) {
-            await waitForPageLoaded(page);
+            const { mainThreadBusy } = await waitForPageLoaded(page);
+            rateController.onPageLoad(mainThreadBusy, crawler.autoscaledPool);
           }
 
           // Cross-phase dedup for intelligent scans: skip URLs already scanned by a
@@ -842,15 +843,14 @@ const crawlSitemap = async ({
         }
       },
       maxRequestsPerCrawl: Infinity,
-      maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
+      maxConcurrency: rateController.target,
       autoscaledPoolOptions: {
-        // Start warm, but allow scaling all the way down to 1 when the CPU is
-        // saturated (e.g. concurrent scans sharing one container). A floor of
-        // 10 previously kept 10+ renderers per scan alive on 2 vCPUs, starving
-        // page hydration and producing load-dependent axe results.
-        minConcurrency: 1,
-        desiredConcurrency: Math.min(specifiedMaxConcurrency || maxConcurrency, 10),
-        maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
+        // Pinned to the rate controller's target (min = desired = max). Only
+        // 403/429 and measured main-thread starvation lower it — not Crawlee's
+        // overload heuristic, which on shared CI runners pins scans at 1.
+        minConcurrency: rateController.target,
+        desiredConcurrency: rateController.target,
+        maxConcurrency: rateController.target,
         desiredConcurrencyRatio: 0.98, // Increase threshold for scaling up
         scaleUpStepRatio: 0.99, // Scale up faster
         scaleDownStepRatio: 0.1, // Scale down slower
@@ -877,9 +877,11 @@ const crawlSitemap = async ({
   // arrives during crawler.run() can abort the autoscaledPool. Without this,
   // the container's SIGKILL lands mid-write and produces a corrupted results.zip.
   registerCrawler(crawler);
+  const stopEnforcer = startConcurrencyEnforcer('sitemap', () => crawler.autoscaledPool, rateController);
   try {
     await crawler.run();
   } finally {
+    stopEnforcer();
     // Always unregister and clear the idle watchdog, even if crawler.run()
     // threw — otherwise a later phase could inherit a stale reference or the
     // interval could keep firing after the crawler has exited.

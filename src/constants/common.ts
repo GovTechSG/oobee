@@ -2612,7 +2612,7 @@ export const waitForMainThreadIdle = async (
   return { ...result, waitedMs: Date.now() - start };
 };
 
-export const waitForPageLoaded = async (page: Page) => {
+export const waitForPageLoaded = async (page: Page): Promise<{ mainThreadBusy: boolean }> => {
   // Budgets are stacked (load, then stability), not shared, so a slow-loading
   // page still gets a fresh window to hydrate. Defaults are sized for busy
   // Docker containers under CPU contention; lower them locally via env vars
@@ -2649,7 +2649,7 @@ export const waitForPageLoaded = async (page: Page) => {
   // well after `load`; the phase-2 quiet window would elapse before hydration
   // even begins and axe would scan the pre-hydration SSR markup.
   const preIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
-  if (page.isClosed()) return;
+  if (page.isClosed()) return { mainThreadBusy: false };
 
   // Phase 2 — wait for the DOM to stabilize OR the stability budget.
   //
@@ -2808,7 +2808,7 @@ export const waitForPageLoaded = async (page: Page) => {
     postIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
   }
   const postIdleMs = Date.now() - postIdleStart;
-  if (page.isClosed()) return;
+  if (page.isClosed()) return { mainThreadBusy: false };
 
   // Phase 2.5 — wait for fonts and images (raster + SVG-as-<img>) to finish
   // loading. Both are deterministic browser signals: font swap reflows every
@@ -2857,7 +2857,7 @@ export const waitForPageLoaded = async (page: Page) => {
   // (i.e. pages resolving via a hard deadline rather than a stability signal).
   // Emit warn only when we time out on stability — that's the case that most
   // often produces the intermittent hydration-timing findings.
-  if (page.isClosed()) return;
+  if (page.isClosed()) return { mainThreadBusy: false };
   let pageUrl: string;
   try {
     pageUrl = page.url();
@@ -2888,6 +2888,9 @@ export const waitForPageLoaded = async (page: Page) => {
       `waitForPageLoaded: ${pageUrl} load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms) assets="${phase25Reason}" (${phase25Ms}ms) ${idleSummary}`,
     );
   }
+  return {
+    mainThreadBusy: postIdle.reason !== 'main thread idle' && postIdle.reason !== 'main thread idle after work',
+  };
 };
 
 function isValidHttpUrl(urlString: string) {
