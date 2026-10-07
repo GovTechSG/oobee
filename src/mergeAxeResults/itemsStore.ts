@@ -44,13 +44,12 @@ export class ItemsStore {
     const filePath = this.getRuleFilePath(category, ruleId);
     let line = JSON.stringify(entry);
 
-    // JSON.stringify should never produce literal newlines inside strings, but HTML content
-    // from page evaluation may contain edge-case characters (e.g. unescaped control chars in
-    // non-spec-compliant innerHTML). Strip any embedded \r or \n that would break JSONL format readline parsing.
-    line = line.replace(/[\n\r]/g, (match) => {
+    // readline also splits on U+2028/U+2029, which JSON.stringify leaves unescaped
+    // (e.g. in page titles), so escape every line terminator readline recognises.
+    line = line.replace(/[\n\r\u2028\u2029]/g, (match) => {
       if (match === '\n') return '\\n';
       if (match === '\r') return '\\r';
-      return match;
+      return match === '\u2028' ? '\\u2028' : '\\u2029';
     });
     line += '\n';
 
