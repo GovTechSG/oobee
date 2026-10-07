@@ -2876,6 +2876,10 @@ export const waitForPageLoaded = async (page: Page): Promise<{ mainThreadBusy: b
         `Page may still be hydrating. Consider raising OOBEE_STABILITY_TIMEOUT_MS (current: ${stabilityTimeout}) ` +
         `or OOBEE_QUIET_MS (current: ${quietMs}). ${idleSummary}`,
     );
+  } else if (preIdle.reason === 'page closed' || postIdle.reason === 'page closed') {
+    consoleLogger.warn(
+      `waitForPageLoaded: page closed or renderer crashed (likely out of memory) on ${pageUrl} during the idle gate. ${idleSummary}`,
+    );
   } else if (postIdle.reason !== 'main thread idle' && postIdle.reason !== 'main thread idle after work') {
     // The main thread never went idle within budget — almost always CPU
     // starvation (too many concurrent pages/scans for the available cores).
@@ -2889,7 +2893,10 @@ export const waitForPageLoaded = async (page: Page): Promise<{ mainThreadBusy: b
     );
   }
   return {
-    mainThreadBusy: postIdle.reason !== 'main thread idle' && postIdle.reason !== 'main thread idle after work',
+    mainThreadBusy:
+      postIdle.reason !== 'main thread idle' &&
+      postIdle.reason !== 'main thread idle after work' &&
+      postIdle.reason !== 'page closed',
   };
 };
 

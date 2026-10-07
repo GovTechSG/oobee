@@ -496,6 +496,10 @@ const crawlDomain = async ({
       maxRequestRetries: 3,
       preNavigationHooks: [
         ...preNavigationHooks(extraHTTPHeaders, url),
+        // Renderer crashes are almost always OOM; let the controller shed load.
+        async ({ page, request }) => {
+          page.once('crash', () => rateController.onRendererCrash(crawler.autoscaledPool, request.url));
+        },
         // Attach URL-scheme guards to each new BrowserContext the first time
         // Crawlee routes a request through it. Complements the up-front URL
         // filter below by catching in-page navigations (window.open,

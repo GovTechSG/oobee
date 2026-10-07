@@ -123,7 +123,7 @@ type FilteredResults = {
 // (retireBrowserAfterPageCount) and idle-close boundaries.
 const isTransientPageTeardown = (e: unknown): boolean => {
   const msg = (e as Error)?.message ?? '';
-  return /Target (page, context or browser has been closed|closed)|Execution context was destroyed|page (has been |was )closed|Browser has been closed|Navigation failed because page (was|has been) closed/i.test(
+  return /Target (page, context or browser has been closed|closed)|Execution context was destroyed|page (has been |was )closed|Browser has been closed|Navigation failed because page (was|has been) closed|Target crashed/i.test(
     msg,
   );
 };

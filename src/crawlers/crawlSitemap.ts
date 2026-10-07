@@ -315,6 +315,10 @@ const crawlSitemap = async ({
       ],
       preNavigationHooks: [
         ...preNavigationHooks(extraHTTPHeaders, userUrl || sitemapUrl),
+        // Renderer crashes are almost always OOM; let the controller shed load.
+        async ({ page, request }) => {
+          page.once('crash', () => rateController.onRendererCrash(crawler.autoscaledPool, request.url));
+        },
         // asgard-0004: when origin-scoping is enabled, send non-Authorization
         // operator headers only to the entry origin via a same-origin route
         // handler instead of the context-wide extraHTTPHeaders above.

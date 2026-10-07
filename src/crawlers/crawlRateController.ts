@@ -1,3 +1,5 @@
+import fs from 'fs';
+import os from 'os';
 import { consoleLogger } from '../logs.js';
 
 export interface ConcurrencyPool {
@@ -12,6 +14,7 @@ export interface ConcurrencyPool {
 // silently drop a `-t 10` scan to 1. Only two signals lower the target:
 //   - 403/429 from the site (rateCap, halved per hit, fast recovery)
 //   - pages whose main thread never went idle, i.e. real CPU starvation (cpuCap)
+//   - renderer crashes / sustained container memory pressure (memCap)
 export class CrawlRateController {
   private scannedCount = 0;
   private readonly maxPages: number;
@@ -25,6 +28,10 @@ export class CrawlRateController {
   private readonly originalMaxConcurrency: number;
   private rateCap: number;
   private cpuCap: number;
+  private memCap: number;
+  private lastMemChange = 0;
+  private memHighSince = 0;
+  private memLowSince = 0;
   private recentBusy: boolean[] = [];
   private pagesSinceCpuChange = 0;
 
@@ -32,6 +39,10 @@ export class CrawlRateController {
   static readonly CPU_WINDOW = 10;
   static readonly CPU_BUSY_DOWN = 4;
   static readonly CPU_BUSY_UP = 1;
+  static readonly MEM_HIGH = Number(process.env.OOBEE_MEM_PRESSURE_HIGH) || 0.9;
+  static readonly MEM_LOW = Number(process.env.OOBEE_MEM_PRESSURE_LOW) || 0.75;
+  static readonly MEM_HOLD_MS = 60000;
+  static readonly CRASH_COOLDOWN_MS = 15000;
 
   constructor(maxRequestsPerCrawl: number, maxConcurrency: number) {
     this.maxPages = maxRequestsPerCrawl;
@@ -41,16 +52,18 @@ export class CrawlRateController {
     this.originalMaxConcurrency = maxConcurrency;
     this.rateCap = maxConcurrency;
     this.cpuCap = maxConcurrency;
+    this.memCap = maxConcurrency;
   }
 
   get target(): number {
-    return Math.max(1, Math.min(this.rateCap, this.cpuCap));
+    return Math.max(1, Math.min(this.rateCap, this.cpuCap, this.memCap));
   }
 
-  get state(): { rateCap: number; cpuCap: number; ceiling: number; ratchetCycles: number } {
+  get state(): { rateCap: number; cpuCap: number; memCap: number; ceiling: number; ratchetCycles: number } {
     return {
       rateCap: this.rateCap,
       cpuCap: this.cpuCap,
+      memCap: this.memCap,
       ceiling: this.originalMaxConcurrency,
       ratchetCycles: this.ratchetCycles,
     };
@@ -129,6 +142,61 @@ export class CrawlRateController {
     );
   }
 
+  // A renderer crash is almost always OOM: halve immediately. Concurrent pages
+  // usually crash together, so one halving per cooldown, not one per page.
+  onRendererCrash(pool?: ConcurrencyPool, url?: string): void {
+    const now = Date.now();
+    if (now - this.lastMemChange < CrawlRateController.CRASH_COOLDOWN_MS || this.memCap <= 1) return;
+    this.memCap = Math.max(1, Math.floor(Math.min(this.memCap, this.target) / 2));
+    this.lastMemChange = now;
+    this.memLowSince = 0;
+    this.apply(pool);
+    consoleLogger.info(
+      `Renderer crashed (likely out of memory)${url ? ` on ${url}` : ''} — reducing concurrency to ${this.target} (mem cap ${this.memCap})`,
+    );
+  }
+
+  // Container memory usage ratio (0..1). Steps memCap down after sustained
+  // high pressure and back up after sustained headroom.
+  onMemorySample(ratio: number, pool?: ConcurrencyPool): void {
+    if (!Number.isFinite(ratio)) return;
+    const now = Date.now();
+    if (ratio >= CrawlRateController.MEM_HIGH) {
+      this.memLowSince = 0;
+      this.memHighSince ||= now;
+      if (
+        this.memCap > 1 &&
+        now - this.memHighSince >= CrawlRateController.MEM_HOLD_MS &&
+        now - this.lastMemChange >= CrawlRateController.MEM_HOLD_MS
+      ) {
+        this.memCap = Math.max(1, Math.floor(Math.min(this.memCap, this.target) * 0.75));
+        this.lastMemChange = now;
+        this.apply(pool);
+        consoleLogger.info(
+          `Memory pressure (${(ratio * 100).toFixed(0)}% of container limit) — reducing concurrency to ${this.target} (mem cap ${this.memCap})`,
+        );
+      }
+    } else if (ratio <= CrawlRateController.MEM_LOW) {
+      this.memHighSince = 0;
+      this.memLowSince ||= now;
+      if (
+        this.memCap < this.originalMaxConcurrency &&
+        now - this.memLowSince >= CrawlRateController.MEM_HOLD_MS &&
+        now - this.lastMemChange >= CrawlRateController.MEM_HOLD_MS
+      ) {
+        this.memCap = Math.min(this.originalMaxConcurrency, this.memCap + 1);
+        this.lastMemChange = now;
+        this.apply(pool);
+        consoleLogger.info(
+          `Memory headroom (${(ratio * 100).toFixed(0)}% of container limit) — recovering concurrency to ${this.target} (mem cap ${this.memCap})`,
+        );
+      }
+    } else {
+      this.memHighSince = 0;
+      this.memLowSince = 0;
+    }
+  }
+
   onFailure(
     httpStatus: number | undefined,
     pool?: ConcurrencyPool,
@@ -173,6 +241,45 @@ export class CrawlRateController {
   }
 }
 
+// Real memory usage vs the container limit (cgroup v2, then v1), else host RAM.
+// Not Crawlee's memInfo: that compares against availableMemoryRatio (25% of the
+// limit by default) and reads 100% overloaded on any busy shared runner.
+const readNum = (f: string): number | undefined => {
+  try {
+    const v = fs.readFileSync(f, 'utf8').trim();
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  } catch {
+    return undefined;
+  }
+};
+const readCgroupInactiveFile = (f: string, key: string): number => {
+  try {
+    const m = fs.readFileSync(f, 'utf8').match(new RegExp(`^${key} (\\d+)$`, 'm'));
+    return m ? Number(m[1]) : 0;
+  } catch {
+    return 0;
+  }
+};
+export const readMemoryPressure = (): number | undefined => {
+  const hostTotal = os.totalmem();
+  const v2Limit = readNum('/sys/fs/cgroup/memory.max');
+  const v2Used = readNum('/sys/fs/cgroup/memory.current');
+  if (v2Limit && v2Used && v2Limit < hostTotal * 4) {
+    // Page cache is reclaimable; counting it would read as constant pressure.
+    const used = v2Used - readCgroupInactiveFile('/sys/fs/cgroup/memory.stat', 'inactive_file');
+    return Math.min(1, Math.max(0, used / Math.min(v2Limit, hostTotal)));
+  }
+  const v1Limit = readNum('/sys/fs/cgroup/memory/memory.limit_in_bytes');
+  const v1Used = readNum('/sys/fs/cgroup/memory/memory.usage_in_bytes');
+  if (v1Limit && v1Used && v1Limit < hostTotal * 4) {
+    const used = v1Used - readCgroupInactiveFile('/sys/fs/cgroup/memory/memory.stat', 'total_inactive_file');
+    return Math.min(1, Math.max(0, used / Math.min(v1Limit, hostTotal)));
+  }
+  if (process.platform === 'darwin') return undefined; // freemem excludes reclaimable cache on macOS
+  return 1 - os.freemem() / hostTotal;
+};
+
 // Re-pins the live pool to the controller's target (each crawler.run() builds a
 // fresh AutoscaledPool from the static options) and, when OOBEE_AUTOSCALE_DEBUG=1
 // or OOBEE_VERBOSE=1, logs Crawlee's overload snapshot so CI logs show which
@@ -191,6 +298,8 @@ export const startConcurrencyEnforcer = (
   const timer = setInterval(() => {
     const pool = getPool();
     if (!pool) return;
+    const memRatio = readMemoryPressure();
+    if (memRatio !== undefined) controller.onMemorySample(memRatio, pool);
     if (pool.minConcurrency !== controller.target || pool.maxConcurrency !== controller.target) {
       controller.apply(pool);
     }
@@ -209,9 +318,9 @@ export const startConcurrencyEnforcer = (
     consoleLogger.info(
       `[autoscale ${label}] current=${pool.currentConcurrency} desired=${pool.desiredConcurrency} ` +
         `min=${pool.minConcurrency} max=${pool.maxConcurrency} | target=${controller.target} rateCap=${s.rateCap} ` +
-        `cpuCap=${s.cpuCap} ceiling=${s.ceiling} | crawlee hist idle=${hist?.isSystemIdle} ` +
+        `cpuCap=${s.cpuCap} memCap=${s.memCap} ceiling=${s.ceiling} | crawlee hist idle=${hist?.isSystemIdle} ` +
         `mem=${fmt(hist?.memInfo)} cpu=${fmt(hist?.cpuInfo)} loop=${fmt(hist?.eventLoopInfo)} client=${fmt(hist?.clientInfo)} ` +
-        `| now mem=${fmt(cur?.memInfo)} cpu=${fmt(cur?.cpuInfo)}`,
+        `| now mem=${fmt(cur?.memInfo)} cpu=${fmt(cur?.cpuInfo)} | container mem=${memRatio === undefined ? 'n/a' : `${(memRatio * 100).toFixed(0)}%`}`,
     );
   }, tickMs);
   timer.unref?.();
