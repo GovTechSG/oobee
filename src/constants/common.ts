@@ -1008,7 +1008,29 @@ const getRobotsTxtViaPlaywright = async (
 
     const page = await browserContext.newPage();
 
-    await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    // asgard-0007: robots.txt is fetched for whatever origin is being scanned,
+    // including intranet/localhost/Tailscale targets, so a blanket internal-IP
+    // refusal (asgard's patch) would silently drop robots rules for those scans.
+    // Instead: never touch metadata space, and refuse an internal server only
+    // when the robots origin itself is public — that is the redirect / DNS
+    // rebinding pivot. Throwing is safe: callers treat it as "no robots.txt".
+    if (await isLinkLocalOrMetadataUrl(robotsUrl)) {
+      throw new Error('Refusing robots.txt fetch targeting a link-local/metadata address');
+    }
+    const originIsInternal = await isInternalOrLoopbackUrl(robotsUrl);
+    const response = await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    let remoteIp: string | undefined;
+    try {
+      remoteIp = (await response?.serverAddr())?.ipAddress;
+    } catch {
+      // best-effort: not reported for cached / service-worker responses
+    }
+    if (remoteIp) {
+      const kind = classifyServerAddress(remoteIp);
+      if (kind === 'metadata' || (kind === 'internal' && !originIsInternal)) {
+        throw new Error(`Refusing robots.txt body served from internal address ${remoteIp}`);
+      }
+    }
     const robotsTxt: string | null = await page.evaluate(() => document.body.textContent);
     return robotsTxt;
   } catch (e) {
