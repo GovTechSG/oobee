@@ -129,13 +129,13 @@ describe('e2e: local crawls keep working on every address family', () => {
     });
   }
 
-  test('IPv6 literal [::1]: scans the entry page and writes screenshots', async () => {
-    // Known baseline: the crawler enqueues only the entry page for bracketed
-    // IPv6 hosts on master too (6->1). Assert the fix did not make it worse.
+  test(`IPv6 literal [::1]: crawls all ${PAGES} pages and writes screenshots`, async () => {
     const { code, dir, log } = await runCli(['-c', '2', '-u', `http://[::1]:${p6}/p1.html`, '-p', '10', '-a', 'screenshots']);
     assert.ok(dir, `no results dir. log tail:\n${log.slice(-800)}`);
     assert.equal(code, 0);
-    assert.ok(scannedUrls(dir).length >= 1);
+    const urls = scannedUrls(dir);
+    assert.equal(urls.length, PAGES, `${urls}`);
+    assert.ok(urls.every(u => u.startsWith(`http://[::1]:${p6}/`)), `${urls}`);
     const items = allItems(dir);
     assert.ok(items.some(i => i.rule === 'image-alt'));
     assert.ok(assertScreenshotsResolve(dir, items) > 0);

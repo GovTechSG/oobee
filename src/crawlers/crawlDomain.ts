@@ -368,13 +368,25 @@ const crawlDomain = async ({
     enqueueLinks: PlaywrightCrawlingContext['enqueueLinks'],
     browserContext: BrowserContext,
   ) => {
+    // Crawlee builds its strategy filter as a glob from the origin, and minimatch
+    // reads "[::1]" as a character class, so every link on an IPv6-literal site
+    // was dropped. For those hosts, filter with isFollowStrategy ourselves.
+    const pageUrl = page.url();
+    const isIpv6Host = (() => {
+      try {
+        return new URL(pageUrl).hostname.startsWith('[');
+      } catch {
+        return false;
+      }
+    })();
     try {
       await enqueueLinks({
         // set selector matches anchor elements with href but not contains # or starting with mailto:
         selector: `a:not(${disallowedSelectorPatterns})`,
-        strategy,
+        strategy: isIpv6Host ? EnqueueStrategy.All : strategy,
         requestQueue,
         transformRequestFunction: (req: RequestOptions): RequestOptions | null => {
+          if (isIpv6Host && !isFollowStrategy(req.url, url, strategy)) return null;
           try {
             req.url = req.url.replace(/(?<=&|\?)utm_.*?(&|$)/gim, '');
           } catch (e) {
