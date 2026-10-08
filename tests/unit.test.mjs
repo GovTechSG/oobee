@@ -1,5 +1,5 @@
-// Regression tests for the asgard-2026-09-16 fixes. Run against dist/ (what
-// ships): `npm run build && npm run test:unit`.
+// Unit tests for address classification, text extraction, scanHTML and the
+// report UI. Run against dist/ (what ships): `npm run build && npm run test:unit`.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ const common = await import(dist('constants/common.js'));
 const { extractText } = await import(dist('crawlers/custom/extractText.js'));
 const { scanHTML, scanCustomFlow } = await import(dist('npmIndex.js'));
 
-describe('asgard-0003/0005/0007 address classification', () => {
+describe('address classification', () => {
   // Public must stay public and every intranet range must stay "internal" (not
   // refused) — users scan intranet / VPN / Tailscale sites.
   const cases = [
@@ -73,8 +73,8 @@ describe('asgard-0003/0005/0007 address classification', () => {
   });
 });
 
-// Mirrors the pre-fix extractor exactly, to prove the tail-trim is output-identical.
-const legacySentences = paragraphs => {
+// Reference sentence splitter: extractText must produce exactly this output.
+const referenceSentences = paragraphs => {
   const out = [];
   for (const raw of paragraphs) {
     const m = raw.trim().match(/[^.!?]*[.!?]+/g);
@@ -95,8 +95,8 @@ const runExtractText = (fn, paragraphs) => {
   return JSON.parse(JSON.stringify(dom.window.eval(`(${fn.toString()})()`)));
 };
 
-describe('asgard-0001/0002 readability extraction', () => {
-  test('output identical to legacy regex on mixed inputs', () => {
+describe('extractText sentence splitting', () => {
+  test('matches the reference splitter on mixed and random inputs', () => {
     const samples = [
       ['Hello world. How are you? Fine!', 'trailing fragment without stop', 'No terminator at all'],
       ['A... B?! C', 'Mr. Smith went. Then left', '  spaced.  out .  '],
@@ -111,10 +111,10 @@ describe('asgard-0001/0002 readability extraction', () => {
         ),
       );
     }
-    for (const s of samples) assert.deepEqual(runExtractText(extractText, s), legacySentences(s));
+    for (const s of samples) assert.deepEqual(runExtractText(extractText, s), referenceSentences(s));
   });
 
-  test('punctuation-free 200k paragraph is linear (was ~quadratic)', () => {
+  test('punctuation-free 200k paragraph completes in linear time', () => {
     const big = 'a'.repeat(200_000);
     const t0 = performance.now();
     const out = runExtractText(extractText, [`Real sentence. ${big}`]);
@@ -127,9 +127,23 @@ describe('asgard-0001/0002 readability extraction', () => {
     const long = `${'word '.repeat(5000)}end.`;
     assert.deepEqual(runExtractText(extractText, [long]), [long.trim()]);
   });
+
+  test('splits on . ! ? and keeps runs of terminators with their sentence', () => {
+    assert.deepEqual(runExtractText(extractText, ['One. Two! Three? Four?! Five...']), [
+      'One.', 'Two!', 'Three?', 'Four?!', 'Five...',
+    ]);
+  });
+
+  test('drops trailing text without a terminator and empty paragraphs', () => {
+    assert.deepEqual(runExtractText(extractText, ['Kept. dropped tail', '', '   ', 'No stop']), ['Kept.']);
+  });
+
+  test('preserves paragraph order across elements', () => {
+    assert.deepEqual(runExtractText(extractText, ['B first.', 'A second.']), ['B first.', 'A second.']);
+  });
 });
 
-describe('asgard-0006 scanHTML bounds', () => {
+describe('scanHTML', () => {
   const html = '<html><body><img src="a.png"><button></button><p>some padding text to exceed fifty bytes</p></body></html>';
   const cfg = { name: 'Test', email: 'test@example.com' };
   const withEnv = async (env, fn) => {
@@ -176,9 +190,31 @@ describe('asgard-0006 scanHTML bounds', () => {
       assert.rejects(scanHTML(['<p>ok</p>', html], cfg), /htmlContent\[1\]/),
     );
   });
+
+  test('invalid limit values fall back to the default', async () => {
+    for (const v of ['abc', '-5', ' ']) await withEnv({ OOBEE_SCANHTML_MAX_BYTES: v }, () => scanHTML(html, cfg));
+  });
+
+  test('accessible HTML has no must-fix image-alt issue', async () => {
+    const ok = '<html lang="en"><head><title>t</title></head><body><main><img src="a.png" alt="logo"></main></body></html>';
+    const res = await scanHTML(ok, cfg);
+    assert.ok(!('image-alt' in (res.mustFix?.rules ?? {})));
+  });
+
+  test('array input scans every document', async () => {
+    const res = await scanHTML([html, html], cfg);
+    assert.equal(res.mustFix.rules['image-alt'].totalItems, 2);
+  });
+
+  test('OOBEE_SCANHTML_AXE_TIMEOUT_MS aborts a slow axe run', async () => {
+    const heavy = `<html><body>${'<div><img src="x"><a href="#"></a></div>'.repeat(4000)}</body></html>`;
+    await withEnv({ OOBEE_SCANHTML_AXE_TIMEOUT_MS: '1' }, () =>
+      assert.rejects(scanHTML(heavy, cfg), /OOBEE_SCANHTML_AXE_TIMEOUT_MS/),
+    );
+  });
 });
 
-describe('asgard-0009 Gen AI error rendering', () => {
+describe('Gen AI error rendering', () => {
   const ejs = fs.readFileSync(path.join(root, 'src/static/ejs/partials/scripts/ruleModal/utilities.ejs'), 'utf8');
 
   test('error message no longer reaches innerHTML', () => {
@@ -204,7 +240,7 @@ describe('asgard-0009 Gen AI error rendering', () => {
   });
 });
 
-describe('asgard-0003 custom flow entry guard', () => {
+describe('scanCustomFlow entry URL', () => {
   test('metadata entry URL is refused before any browser launches', async () => {
     const session = scanCustomFlow({
       url: 'http://169.254.169.254/latest/meta-data/',

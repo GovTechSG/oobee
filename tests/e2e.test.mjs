@@ -1,5 +1,5 @@
-// End-to-end CLI scans proving security fixes did not change what a scan
-// finds or produces. Needs a built dist/, Chromium, and (PDF test) the veraPDF
+// End-to-end CLI scans: crawling, screenshots, robots, headers and PDFs over
+// IPv4, localhost and IPv6. Needs a built dist/, Chromium, and (PDF test) the veraPDF
 // + JRE bundled with Oobee Desktop (or on PATH). Live-site tests are opt-in:
 //   E2E_LIVE=1 npm run test:e2e
 // Telemetry is always disabled.
@@ -95,7 +95,7 @@ const handler = (req, res) => {
 };
 const listen = (srv, host) => new Promise(r => srv.listen(0, host, () => r(srv.address().port)));
 
-describe('e2e: local crawls keep working on every address family', () => {
+describe('e2e: local site crawls', () => {
   let p4;
   let p6;
   before(async () => {
@@ -109,8 +109,7 @@ describe('e2e: local crawls keep working on every address family', () => {
     server6.close();
   });
 
-  // Internal targets are legitimate scan targets (intranet/VPN). The new
-  // egress guard must not refuse them when the *entry* URL is itself internal.
+  // Internal hosts are legitimate scan targets (intranet, VPN, dev servers).
   const targets = [
     ['IPv4 literal', () => `http://127.0.0.1:${p4}/p1.html`, PAGES],
     ['localhost', () => `http://localhost:${p4}/p1.html`, PAGES],
@@ -148,7 +147,7 @@ describe('e2e: local crawls keep working on every address family', () => {
     assert.ok(allItems(dir).every(i => !i.screenshotPath));
   });
 
-  test('robots.txt is still honoured on an internal origin (-r yes skips /p5.html)', async () => {
+  test('robots.txt is honoured (-r yes skips /p5.html)', async () => {
     const { dir } = await runCli(['-c', '2', '-u', `http://127.0.0.1:${p4}/p1.html`, '-p', '10', '-r', 'yes']);
     assert.ok(dir);
     const urls = scannedUrls(dir);
@@ -156,7 +155,7 @@ describe('e2e: local crawls keep working on every address family', () => {
     assert.ok(urls.some(u => u.endsWith('/p4.html')));
   });
 
-  test('operator header reaches the same-site entry page (scope default keeps working)', async () => {
+  test('-m header is sent to the entry site', async () => {
     const seen = [];
     const hdr = http.createServer((req, res) => {
       seen.push({ url: req.url, h: req.headers['x-oobee-test'] });
@@ -173,7 +172,7 @@ describe('e2e: local crawls keep working on every address family', () => {
     }
   });
 
-  test('metadata entry URL is refused (no results produced, nothing fetched)', async () => {
+  test('cloud-metadata entry URL is refused without fetching', async () => {
     let hit = false;
     const fake = http.createServer((_, res) => {
       hit = true;

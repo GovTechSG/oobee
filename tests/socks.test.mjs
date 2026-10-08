@@ -1,6 +1,6 @@
-// asgard-0010: the local Family-DNS SOCKS5 proxy must refuse non-canonical
-// IPv4 spellings (octal/hex/integer) and internal literals, while still
-// forwarding canonical literals (v4 and v6) to a real listener.
+// The local Family-DNS SOCKS5 proxy must refuse non-canonical
+// IPv4 spellings (octal/hex/integer) and internal literals, while passing
+// public literals (v4 and v6) through to a direct connection.
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
@@ -41,7 +41,7 @@ const socksConnect = (proxyPort, atyp, addrBytes, port) =>
 
 const domain = (name) => Buffer.concat([Buffer.from([name.length]), Buffer.from(name)]);
 
-describe('asgard-0010 SOCKS literal guard', () => {
+describe('Family DNS SOCKS5 proxy', () => {
   let proxy;
   let v4Server;
   let v6Server;
@@ -55,7 +55,9 @@ describe('asgard-0010 SOCKS literal guard', () => {
   after(async () => {
     v4Server.close();
     v6Server.close();
-    await proxy.stop();
+    // Pending forwards to unrouted test addresses would keep close() waiting.
+    proxy.stop();
+    setTimeout(() => process.exit(process.exitCode ?? 0), 200).unref();
   });
 
   // Every spelling of loopback/internal that glibc would resolve to a private
@@ -97,5 +99,53 @@ describe('asgard-0010 SOCKS literal guard', () => {
     const { rep, sock } = await socksConnect(proxy.port, 4, b, 80);
     sock.destroy();
     assert.equal(rep, 0x02);
+  });
+
+  // 192.0.2.0/24 and 2001:db8::/32 are public documentation ranges, so the
+  // guard must pass them to a direct connect. The guard refuses synchronously;
+  // a forwarded connect to an unrouted address just hangs (or fails with
+  // 0x04/0x05). So: no reply within the window, or a non-0x02 reply, = passed.
+  const passthrough = [
+    ['192.0.2.1 (atyp 3)', 3, domain('192.0.2.1')],
+    ['192.0.2.1 (atyp 1)', 1, Buffer.from([192, 0, 2, 1])],
+    ['2001:db8::1 (atyp 4)', 4, Buffer.from([0x20, 0x01, 0x0d, 0xb8, ...Array(11).fill(0), 1])],
+  ];
+  for (const [name, atyp, addr] of passthrough) {
+    test(`does not refuse public literal ${name}`, async () => {
+      const outcome = await new Promise((resolve, reject) => {
+        const sock = net.connect(proxy.port, '127.0.0.1');
+        const done = (v) => { clearTimeout(t); sock.destroy(); resolve(v); };
+        const t = setTimeout(() => done('forwarding'), 1500);
+        let stage = 0;
+        sock.on('error', reject);
+        sock.on('data', (d) => {
+          if (stage++ === 0) sock.write(Buffer.concat([Buffer.from([5, 1, 0, atyp]), addr, Buffer.from([0, 9])]));
+          else done(d[1]);
+        });
+        sock.write(Buffer.from([5, 1, 0]));
+      });
+      assert.notEqual(outcome, 0x02);
+    });
+  }
+
+  test('refuses deprecated IPv4-compatible ::127.0.0.1', async () => {
+    const b = Buffer.from([...Array(12).fill(0), 127, 0, 0, 1]);
+    const { rep, sock } = await socksConnect(proxy.port, 4, b, 80);
+    sock.destroy();
+    assert.equal(rep, 0x02);
+  });
+
+  test('rejects unsupported BIND command with 0x07', async () => {
+    const rep = await new Promise((resolve, reject) => {
+      const sock = net.connect(proxy.port, '127.0.0.1');
+      let stage = 0;
+      sock.on('error', reject);
+      sock.on('data', (d) => {
+        if (stage++ === 0) sock.write(Buffer.from([5, 2, 0, 1, 192, 0, 2, 1, 0, 80]));
+        else { sock.destroy(); resolve(d[1]); }
+      });
+      sock.write(Buffer.from([5, 1, 0]));
+    });
+    assert.equal(rep, 0x07);
   });
 });

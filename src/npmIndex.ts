@@ -935,12 +935,15 @@ export const scanHTML = async (
           axeRun,
           new Promise<never>((_resolve, reject) => {
             axeTimeoutId = setTimeout(
-              () =>
+              () => {
+                // Stops the abandoned axe run's timers so it can't keep the process alive.
+                dom.window.close();
                 reject(
                   new Error(
                     `scanHTML: axe.run exceeded the ${scanHtmlAxeTimeoutMs}ms OOBEE_SCANHTML_AXE_TIMEOUT_MS limit.`,
                   ),
-                ),
+                );
+              },
               scanHtmlAxeTimeoutMs,
             );
           }),
