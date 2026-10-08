@@ -128,12 +128,32 @@ function cidrMatch(ip: string, cidr: string): boolean {
   return (ipBytes[fullBytes] & mask) === (rangeBytes[fullBytes] & mask);
 }
 
+// Strict decimal octets only. Number('0177') is 177 but glibc inet_aton /
+// getaddrinfo read it as octal 127, so a lenient parse lets `0177.0.0.1` pass
+// the internal-range check and then connect to loopback (asgard-0010).
+const CANONICAL_OCTET = /^(0|[1-9]\d{0,2})$/;
+
+function parseDottedQuad(s: string): number[] | null {
+  const parts = s.split('.');
+  if (parts.length !== 4 || !parts.every((p) => CANONICAL_OCTET.test(p))) return null;
+  const bytes = parts.map(Number);
+  return bytes.some((n) => n > 255) ? null : bytes;
+}
+
+// Hosts made only of decimal/octal/hex numeric labels (`0177.0.0.1`,
+// `0x7f.1`, `2130706433`) are not real DNS names (no TLD is all-numeric),
+// yet the OS resolver would still turn them into IPs. Refuse them outright
+// rather than let them fall through to DNS and dodge the literal guard.
+const NUMERIC_HOST = /^(0x[0-9a-f]*|\d+)(\.(0x[0-9a-f]*|\d+)){0,3}\.?$/i;
+
+function isNonCanonicalNumericHost(s: string): boolean {
+  return NUMERIC_HOST.test(s) && parseDottedQuad(s) === null;
+}
+
 function ipToBytes(ip: string): number[] | null {
   // Pure IPv4 dotted-quad (no colons anywhere).
   if (ip.includes('.') && !ip.includes(':')) {
-    const parts = ip.split('.').map(Number);
-    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
-    return parts;
+    return parseDottedQuad(ip);
   }
   if (ip.includes(':')) {
     // IPv4-mapped / IPv4-compatible form: the last hextet may be written as
@@ -148,9 +168,8 @@ function ipToBytes(ip: string): number[] | null {
     const lastColon = ip.lastIndexOf(':');
     const afterLastColon = ip.slice(lastColon + 1);
     if (afterLastColon.includes('.')) {
-      const parts = afterLastColon.split('.').map(Number);
-      if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
-      trailingV4Bytes = parts;
+      trailingV4Bytes = parseDottedQuad(afterLastColon);
+      if (!trailingV4Bytes) return null;
       ipNoV4 = ip.slice(0, lastColon);
     }
     // Minimal IPv6 parse (supports :: compression). Two synthetic hextets
@@ -391,6 +410,9 @@ async function resolveHostname(
   // driven browser reach cloud-metadata / loopback services. handleSocks5
   // already treats ``blocked`` as a refusal (0x02) so both branches inherit
   // the guard the sibling handleSocks5FamilyLocal already applies.
+  if (isNonCanonicalNumericHost(hostname)) {
+    return { ip: hostname, bypass: false, blocked: true };
+  }
   if (isIpLiteral(hostname)) {
     return {
       ip: hostname,
@@ -879,6 +901,12 @@ async function handleSocks5FamilyLocal(clientSocket: net.Socket): Promise<void> 
   // Block any literal that points at internal / metadata addresses before
   // opening the direct TCP forward, otherwise a scanned page could pivot the
   // driven browser onto 169.254.169.254 or 127.0.0.1 via a SOCKS request.
+  if (isNonCanonicalNumericHost(hostname)) {
+    consoleLogger.info(`[familyDnsProxy] Refusing SOCKS connect to non-canonical numeric host ${hostname}`);
+    try { clientSocket.write(socksReply(0x02)); } catch { /* ignore */ }
+    clientSocket.end();
+    return;
+  }
   if (isIpLiteral(hostname)) {
     if (isInternalIp(hostname)) {
       consoleLogger.info(`[familyDnsProxy] Refusing SOCKS connect to internal IP literal ${hostname}`);
