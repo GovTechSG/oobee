@@ -1,6 +1,7 @@
 import crawlee, { EnqueueStrategy, LaunchContext, Request, RequestList, Dataset } from 'crawlee';
 import { CrawlRateController, startConcurrencyEnforcer } from './crawlRateController.js';
 import fs from 'fs';
+import { getDomain } from 'tldts';
 import {
   createCrawleeSubFolders,
   getPreLaunchHook,
@@ -9,7 +10,6 @@ import {
   runAxeScript,
   isUrlPdf,
   splitAuthHeaders,
-  addAuthRouteHandler,
 } from './commonCrawlerFunc.js';
 
 import constants, {
@@ -156,14 +156,52 @@ const crawlSitemap = async ({
     userUrl || sitemapUrl,
   );
 
-  // Opt-in: origin-scope operator-supplied non-Authorization headers (Cookie,
-  // X-Api-Key, ...) so they only reach the entry origin instead of every
-  // origin the scanned page contacts (asgard-0004). Off by default so scans
-  // that rely on these headers being sent context-wide are unchanged.
-  const scopeHeadersToOrigin = /^(1|true|yes)$/i.test(
-    process.env.OOBEE_SCOPE_HEADERS_TO_ORIGIN ?? '',
-  );
+  // asgard-0004: operator headers (Cookie, X-Api-Key, WAF bypass tokens, ...)
+  // are scoped to the entry URL's registrable domain by default, so a sitemap
+  // entry or third-party subresource on another site never receives them.
+  // Site rather than origin is the default because these headers commonly
+  // authenticate same-site subdomains too (static./cdn./api.) — stripping
+  // them there could change what renders, which would invalidate the scan.
+  // OOBEE_SCOPE_HEADERS_TO_ORIGIN=1 tightens to exact origin;
+  // OOBEE_UNSCOPED_OPERATOR_HEADERS=1 restores the legacy send-everywhere
+  // behaviour for setups that genuinely need it.
+  const envOn = (v?: string) => /^(1|true|yes)$/i.test(v ?? '');
+  const headerScope: 'all' | 'origin' | 'site' = envOn(process.env.OOBEE_UNSCOPED_OPERATOR_HEADERS)
+    ? 'all'
+    : envOn(process.env.OOBEE_SCOPE_HEADERS_TO_ORIGIN)
+      ? 'origin'
+      : 'site';
+  const scopeHeaders = headerScope !== 'all';
   const headerScopedContexts = new WeakSet<object>();
+  const scopeEntry = (() => {
+    try {
+      const u = new URL(userUrl || sitemapUrl);
+      return { origin: u.origin, site: getDomain(u.hostname, { allowPrivateDomains: true }) || u.hostname };
+    } catch {
+      return null;
+    }
+  })();
+  const isInHeaderScope = (target: string): boolean => {
+    if (!scopeEntry) return false;
+    try {
+      const u = new URL(target);
+      if (headerScope === 'origin') return u.origin === scopeEntry.origin;
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+      return (getDomain(u.hostname, { allowPrivateDomains: true }) || u.hostname) === scopeEntry.site;
+    } catch {
+      return false;
+    }
+  };
+  // preNavigationHooks copies whatever it is given onto request.headers,
+  // which Crawlee applies page-wide via setExtraHTTPHeaders — that would
+  // re-leak the non-auth headers to every subresource. When scoping, hand it
+  // only Authorization (which it already origin-gates) and let the route
+  // handler below attach the rest per request.
+  const navHeaders = scopeHeaders
+    ? Object.fromEntries(
+        Object.entries(extraHTTPHeaders || {}).filter(([k]) => k.toLowerCase() === 'authorization'),
+      )
+    : extraHTTPHeaders;
 
   // Never send caller-supplied credentials to a server whose certificate
   // couldn't be validated (asgard-0006). Matches the runCustom /
@@ -237,7 +275,7 @@ const crawlSitemap = async ({
               ...playwrightDeviceDetailsObject,
               ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
-              ...(!scopeHeadersToOrigin && nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+              ...(!scopeHeaders && nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
               ...(httpCredentials && { httpCredentials }),
             };
           },
@@ -314,20 +352,30 @@ const crawlSitemap = async ({
         },
       ],
       preNavigationHooks: [
-        ...preNavigationHooks(extraHTTPHeaders, userUrl || sitemapUrl),
+        ...preNavigationHooks(navHeaders, userUrl || sitemapUrl),
         // Renderer crashes are almost always OOM; let the controller shed load.
         async ({ page, request }) => {
           page.once('crash', () => rateController.onRendererCrash(crawler.autoscaledPool, request.url));
         },
-        // asgard-0004: when origin-scoping is enabled, send non-Authorization
-        // operator headers only to the entry origin via a same-origin route
-        // handler instead of the context-wide extraHTTPHeaders above.
+        // asgard-0004: attach non-Authorization operator headers per request,
+        // only when the request is within headerScope. fallback() (not
+        // continue()) so any later-registered route handler still runs.
         async ({ page }) => {
-          if (!scopeHeadersToOrigin || !nonAuthHeaders) return;
+          if (!scopeHeaders || !nonAuthHeaders) return;
           const ctx = page.context();
           if (headerScopedContexts.has(ctx)) return;
           headerScopedContexts.add(ctx);
-          await addAuthRouteHandler(ctx, userUrl || sitemapUrl, null, nonAuthHeaders);
+          await ctx.route('**/*', async (route, req) => {
+            try {
+              if (isInHeaderScope(req.url())) {
+                await route.fallback({ headers: { ...req.headers(), ...nonAuthHeaders } });
+                return;
+              }
+            } catch {
+              // fall through to an unmodified request
+            }
+            await route.fallback();
+          });
         },
         async ({ request, page }, gotoOptions) => {
           const url = request.url.toLowerCase();

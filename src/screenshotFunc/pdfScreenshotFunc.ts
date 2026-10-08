@@ -123,12 +123,17 @@ export async function getPdfScreenshots(
   let pageCanvasCacheBytes = 0;
   let budgetExceededLogged = false;
 
-  // Opt-in cap on how many violation items get screenshots (asgard-0006). Off
-  // by default so every violation still gets a screenshot as before; set
-  // OOBEE_PDF_MAX_SCREENSHOTS to bound total work on a crafted many-violation PDF.
+  // Cap on screenshots per rule per PDF (asgard-0008). Items past the cap are
+  // still returned and reported — only their screenshot is omitted, which the
+  // report already handles — so no violation is under-reported. 500 is far
+  // beyond what a reviewer can use per rule, yet stops a crafted PDF forcing
+  // unbounded renders and PNG writes. Asgard's patch also capped the items
+  // themselves, which would drop real violations; rejected. "0" = unlimited.
   const maxPdfScreenshots = (() => {
-    const v = parseInt(process.env.OOBEE_PDF_MAX_SCREENSHOTS ?? '', 10);
-    return Number.isFinite(v) && v > 0 ? v : 0; // 0 = unlimited
+    const raw = process.env.OOBEE_PDF_MAX_SCREENSHOTS;
+    if (raw === undefined || raw.trim() === '') return 500;
+    const v = parseInt(raw, 10);
+    return Number.isFinite(v) && v >= 0 ? v : 500;
   })();
   let maxScreenshotsLogged = false;
 
