@@ -1200,6 +1200,16 @@ const isMetadataIpv6 = (addr: string): boolean => {
   return g[0] === 0xfd00 && g[1] === 0x0ec2 && g.slice(2, 7).every(x => x === 0) && g[7] === 0x254;
 };
 
+// Classifies the IP the browser actually connected to (response.serverAddr()),
+// for DNS-rebinding checks where only an address — not a URL — is available.
+export const classifyServerAddress = (remoteIp: string): 'metadata' | 'internal' | 'public' => {
+  const bare = remoteIp.replace(/^\[|\]$/g, '').toLowerCase();
+  const v4 = isIpv4Literal(bare);
+  if (v4 ? isMetadataIpv4(bare) : isMetadataIpv6(bare)) return 'metadata';
+  if (v4 ? isInternalIpv4(bare) : isInternalIpv6(bare)) return 'internal';
+  return 'public';
+};
+
 export async function isLinkLocalOrMetadataUrl(candidate: string): Promise<boolean> {
   let host: string;
   try {

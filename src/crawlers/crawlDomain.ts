@@ -32,6 +32,9 @@ import {
   getUrlsFromRobotsTxt,
   waitForPageLoaded,
   PAGE_GONE_ERROR_RE,
+  isInternalOrLoopbackUrl,
+  isLinkLocalOrMetadataUrl,
+  classifyServerAddress,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isSameHostname, normUrl, register } from '../utils.js';
 import {
@@ -452,6 +455,25 @@ const crawlDomain = async ({
     );
   }
 
+  // asgard-0005: egress policy for URLs discovered on scanned pages.
+  // Not a blanket private-range block (as asgard suggested): crawling an
+  // intranet, localhost dev server or Tailscale-hosted site is a core use
+  // case, and its own links naturally point at internal addresses.
+  //  - link-local / cloud-metadata: always refused; no a11y target lives there.
+  //  - loopback / RFC1918 / CGNAT / ULA: refused only when the entry URL is
+  //    itself public, i.e. a public site trying to pivot the browser inward.
+  //    OOBEE_ALLOW_INTERNAL_TARGETS=1 still lifts the private-range part.
+  const entryIsInternal = await isInternalOrLoopbackUrl(url);
+  const isRefusedEgressUrl = async (target: string): Promise<boolean> => {
+    if (await isLinkLocalOrMetadataUrl(target)) return true;
+    if (entryIsInternal) return false;
+    return isInternalOrLoopbackUrl(target);
+  };
+  const isRefusedServerAddress = (remoteIp: string): boolean => {
+    const kind = classifyServerAddress(remoteIp);
+    return kind === 'metadata' || (kind === 'internal' && !entryIsInternal);
+  };
+
   // Shared with handlePdfDownload so PDFs stream through the same client the crawler uses.
   const httpClient = new crawlee.GotScrapingHttpClient();
 
@@ -518,6 +540,11 @@ const crawlDomain = async ({
             const parsed = new URL(request.url);
             if (!ALLOWED_NAV_PROTOCOLS.has(parsed.protocol)) {
               // Reject file://, javascript:, data:, etc. before navigation.
+              request.skipNavigation = true;
+              return;
+            }
+            if (await isRefusedEgressUrl(request.url)) {
+              consoleLogger.warn(`Refusing to navigate to internal/metadata address: ${request.url}`);
               request.skipNavigation = true;
               return;
             }
@@ -641,6 +668,33 @@ const crawlDomain = async ({
 
           if (page.url() !== 'about:blank') {
             actualUrl = page.url();
+          }
+
+          // asgard-0005: the pre-nav check can't see 3xx targets or a DNS answer
+          // that changes between our lookup and the browser's. Check the address
+          // the browser really connected to before scanning/capturing anything.
+          if (response) {
+            let remoteIp: string | undefined;
+            try {
+              remoteIp = (await response.serverAddr())?.ipAddress;
+            } catch {
+              // best-effort: Chromium omits it for cached / service-worker responses
+            }
+            if (remoteIp && isRefusedServerAddress(remoteIp)) {
+              consoleLogger.warn(`Refusing content from internal address ${remoteIp} (${actualUrl})`);
+              guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                numScanned: urlsCrawled.scanned.length,
+                urlScanned: request.url,
+              });
+              urlsCrawled.userExcluded.push({
+                url: request.url,
+                pageTitle: request.url,
+                actualUrl: request.url,
+                metadata: STATUS_CODE_METADATA[1],
+                httpStatusCode: 1,
+              });
+              return;
+            }
           }
 
           if (actualUrl.startsWith('chrome-error:')) {
