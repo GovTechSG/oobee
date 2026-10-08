@@ -754,9 +754,16 @@ export const createBasicFormHTMLSnippet = filteredResults => {
 const moveElemScreenshots = (randomToken: string, storagePath: string) => {
   const currentScreenshotsPath = `${randomToken}/elemScreenshots`;
   const resultsScreenshotsPath = `${storagePath}/elemScreenshots`;
-  if (fs.existsSync(currentScreenshotsPath)) {
+  if (!fs.existsSync(currentScreenshotsPath)) return;
+  if (path.resolve(currentScreenshotsPath) === path.resolve(resultsScreenshotsPath)) return;
+  // PDF screenshots are written straight into the results dir, so with -i all the
+  // destination already exists; merge into it instead of moving over it.
+  if (!fs.existsSync(resultsScreenshotsPath)) {
     fs.moveSync(currentScreenshotsPath, resultsScreenshotsPath);
+    return;
   }
+  fs.copySync(currentScreenshotsPath, resultsScreenshotsPath, { overwrite: false });
+  fs.removeSync(currentScreenshotsPath);
 };
 
 const formatAboutStartTime = (dateString: string) => {

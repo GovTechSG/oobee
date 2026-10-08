@@ -86,7 +86,7 @@ const handler = (req, res) => {
   }
   if (req.url === '/docs.html') {
     res.writeHead(200, { 'content-type': 'text/html' });
-    return res.end('<html lang="en"><head><title>Docs</title></head><body><main><a href="/table.pdf">pdf</a></main></body></html>');
+    return res.end('<html lang="en"><head><title>Docs</title></head><body><main><img src="/a.png"><a href="/table.pdf">pdf</a></main></body></html>');
   }
   const n = m ? Number(m[1]) : 1;
   const next = n < PAGES ? `<a href="/p${n + 1}.html">next</a>` : '';
@@ -208,13 +208,15 @@ describe('e2e: local crawls keep working on every address family', () => {
     assert.equal(screenshotsOnDisk(unlimited.dir, 'pdf'), fullItems.length);
   });
 
-  // Known baseline: on master, -i all with HTML+PDF screenshots crashes in
-  // moveElemScreenshots (fs.moveSync "dest already exists"). Opt-in until fixed.
-  test('HTML page linking to a PDF scans both (-i all)', { skip: (!hasVera && 'veraPDF/JRE not found') || (!process.env.E2E_KNOWN_BROKEN && 'pre-existing moveElemScreenshots crash') }, async () => {
-    const { dir } = await runCli(['-c', '2', '-u', `http://127.0.0.1:${p4}/docs.html`, '-p', '5', '-i', 'all']);
-    assert.ok(dir);
+  test('-i all: HTML + linked PDF both scanned, both screenshot sets kept', { skip: !hasVera && 'veraPDF/JRE not found' }, async () => {
+    const { code, dir, log } = await runCli(['-c', '2', '-u', `http://127.0.0.1:${p4}/docs.html`, '-p', '5', '-i', 'all', '-a', 'screenshots']);
+    assert.ok(dir, log.slice(-800));
+    assert.equal(code, 0);
     const urls = scannedUrls(dir);
     assert.ok(urls.some(u => u.endsWith('/docs.html')) && urls.some(u => u.endsWith('/table.pdf')), `${urls}`);
+    assert.ok(screenshotsOnDisk(dir, 'pdf') > 0, 'pdf screenshots');
+    assert.ok(screenshotsOnDisk(dir, 'html') > 0, 'html screenshots');
+    assert.ok(assertScreenshotsResolve(dir, allItems(dir)) > 0);
   });
 });
 
