@@ -21,7 +21,22 @@ export async function extractAndGradeText(page: Page): Promise<string> {
 
         for (let i = 0; i < limit; i += 1) {
           const element = elements[i] as HTMLElement;
-          const text = element.innerText.trim();
+          const rawText = element.innerText.trim();
+          // The sentence regex only backtracks quadratically on a trailing run with
+          // no terminator (every start position scans to the end and fails). That
+          // tail can never yield a match, so dropping it first is output-identical
+          // and keeps match() linear. Slicing to maxChars instead would still allow
+          // ~18s per 200k-char paragraph and would also truncate real sentences.
+          let lastTerminator = -1;
+          for (let j = rawText.length - 1; j >= 0; j -= 1) {
+            const c = rawText[j];
+            if (c === '.' || c === '!' || c === '?') {
+              lastTerminator = j;
+              break;
+            }
+          }
+          if (lastTerminator < 0) continue;
+          const text = rawText.slice(0, lastTerminator + 1);
           const sentencePattern = /[^.!?]*[.!?]+/g; // Match sentences ending with ., !, or ?
           const matches = text.match(sentencePattern);
           if (!matches) continue;
