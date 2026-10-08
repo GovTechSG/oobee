@@ -14,11 +14,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/',
-      '__mocks__/',
-      '__tests__/',
       '**/test.js',
-      'src/constants/__tests__/',
-      'src/crawlers/__tests__/',
     ],
   },
   ...compat.extends('airbnb-base', 'plugin:prettier/recommended'),
