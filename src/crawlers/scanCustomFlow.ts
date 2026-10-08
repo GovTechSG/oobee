@@ -5,7 +5,12 @@ import { EnqueueStrategy } from 'crawlee';
 import constants, { BrowserTypes, RuleFlags, ScannerTypes, UrlsCrawled } from '../constants/constants.js';
 import generateArtifacts from '../mergeAxeResults.js';
 import { createAndUpdateResultsFolders, getStoragePath } from '../utils.js';
-import { checkUrlConnectivityWithBrowser, isInternalOrLoopbackUrl, submitForm } from '../constants/common.js';
+import {
+  checkUrlConnectivityWithBrowser,
+  isInternalOrLoopbackUrl,
+  isLinkLocalOrMetadataUrl,
+  submitForm,
+} from '../constants/common.js';
 import runCustom from './runCustom.js';
 import { consoleLogger } from '../logs.js';
 
@@ -331,7 +336,18 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
 const isSsrfProtectionEnabled = (): boolean =>
   /^(1|true|yes)$/i.test(process.env.OOBEE_SSRF_PROTECTION ?? '');
 
+// The full guard stays opt-in rather than default-on: config.url is chosen by
+// the operator, and custom flow is routinely pointed at localhost dev servers,
+// intranet/VPN/Tailscale staging hosts and local file:// pages. Flipping the
+// default would break those scans for every existing integrator. What *is*
+// unconditional is the link-local / cloud-metadata refusal below — no
+// accessibility target lives there, so blocking it costs no workflow while
+// removing the credential-theft case for embedders who forgot the flag.
 const assertSafeCustomFlowUrl = async (url: string): Promise<void> => {
+  if (await isLinkLocalOrMetadataUrl(url)) {
+    throw new Error('scanCustomFlow refuses to scan a link-local or cloud-metadata address.');
+  }
+
   if (!isSsrfProtectionEnabled()) return;
 
   let parsedEntryUrl: URL;

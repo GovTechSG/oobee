@@ -1177,6 +1177,51 @@ const isInternalIpv6 = (addr: string): boolean => {
   return false;
 };
 
+// Narrower than isInternalOrLoopbackUrl: only link-local / cloud-metadata /
+// this-network space. Operator-chosen entry URLs (custom flow) legitimately
+// target localhost dev servers and intranet hosts, but nothing a user wants
+// an accessibility report for lives in these ranges, so they are refused on
+// every path regardless of OOBEE_ALLOW_INTERNAL_TARGETS / OOBEE_SSRF_PROTECTION.
+const METADATA_ADDR_RANGES: string[] = [
+  '169.254.0.0/16',
+  '192.0.0.0/24',
+  '0.0.0.0/8',
+  '100.100.100.200/32',
+];
+const isMetadataIpv4 = (ip: string): boolean => METADATA_ADDR_RANGES.some(r => ipv4InRange(ip, r));
+const isMetadataIpv6 = (addr: string): boolean => {
+  const g = ipv6ToGroups(addr.toLowerCase());
+  if (!g) return false;
+  if (g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0xffff) {
+    return isMetadataIpv4(`${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`);
+  }
+  if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  // AWS IMDS IPv6 endpoint fd00:ec2::254
+  return g[0] === 0xfd00 && g[1] === 0x0ec2 && g.slice(2, 7).every(x => x === 0) && g[7] === 0x254;
+};
+
+export async function isLinkLocalOrMetadataUrl(candidate: string): Promise<boolean> {
+  let host: string;
+  try {
+    host = new URL(candidate).hostname;
+  } catch {
+    return false;
+  }
+  if (!host) return false;
+  const bare = host.toLowerCase().replace(/^\[|\]$/g, '');
+  if (isIpv4Literal(bare)) return isMetadataIpv4(bare);
+  if (bare.includes(':')) return isMetadataIpv6(bare);
+  try {
+    const { lookup } = await import('dns/promises');
+    const records = await lookup(bare, { all: true });
+    return records.some(r =>
+      r.family === 4 ? isMetadataIpv4(r.address) : isMetadataIpv6(r.address),
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function isInternalOrLoopbackUrl(candidate: string): Promise<boolean> {
   let host: string;
   try {
