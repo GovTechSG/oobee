@@ -887,17 +887,17 @@ export const scanHTML = async (
     tags.push('wcag2aaa');
   }
 
-  // Opt-in DoS bounds for this experimental library API (asgard-0005). Both are
-  // OFF by default so existing callers passing large/complex HTML are unchanged;
-  // set the env vars to guard against untrusted HTML exhausting CPU/memory.
-  const scanHtmlMaxBytes = (() => {
-    const v = parseInt(process.env.OOBEE_SCANHTML_MAX_BYTES ?? '', 10);
-    return Number.isFinite(v) && v > 0 ? v : 0; // 0 = unlimited
-  })();
-  const scanHtmlAxeTimeoutMs = (() => {
-    const v = parseInt(process.env.OOBEE_SCANHTML_AXE_TIMEOUT_MS ?? '', 10);
-    return Number.isFinite(v) && v > 0 ? v : 0; // 0 = no timeout
-  })();
+  // DoS bounds for scanHTML (asgard-0006). Defaults sit far above any real page
+  // so legitimate callers never hit them, while a multi-hundred-MB payload can
+  // no longer OOM the host. Asgard's few-MB default was rejected: CMS exports
+  // and single-file reports legitimately reach tens of MB. Set "0" for unlimited.
+  const readBound = (raw: string | undefined, fallback: number): number => {
+    if (raw === undefined || raw.trim() === '') return fallback;
+    const v = parseInt(raw, 10);
+    return Number.isFinite(v) && v >= 0 ? v : fallback; // 0 = unlimited
+  };
+  const scanHtmlMaxBytes = readBound(process.env.OOBEE_SCANHTML_MAX_BYTES, 50 * 1024 * 1024);
+  const scanHtmlAxeTimeoutMs = readBound(process.env.OOBEE_SCANHTML_AXE_TIMEOUT_MS, 5 * 60 * 1000);
 
   const htmlItems = Array.isArray(htmlContent) ? htmlContent : [htmlContent];
   const scanData = [];
