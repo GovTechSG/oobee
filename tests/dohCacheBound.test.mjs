@@ -59,12 +59,29 @@ describe('resolveViaFamilyDoH cache', () => {
   beforeEach(() => {
     realFetch = globalThis.fetch;
     queries = 0;
+    // Answers in RFC 8484 wireformat (application/dns-message): echoes the
+    // question and adds one A record for A queries, no answer for AAAA.
     globalThis.fetch = async (url) => {
       queries += 1;
-      const isA = new URL(url).searchParams.get('type') === 'A';
-      return new Response(JSON.stringify({ Answer: isA ? [{ type: 1, data: '93.184.216.34' }] : [] }), {
+      const query = Buffer.from(new URL(url).searchParams.get('dns'), 'base64url');
+      const qtype = query.readUInt16BE(query.length - 4);
+      const header = Buffer.from(query.subarray(0, 12));
+      header.writeUInt16BE(0x8180, 2); // QR + RD + RA, RCODE 0
+      const parts = [header, query.subarray(12)];
+      if (qtype === 1) {
+        header.writeUInt16BE(1, 6); // ANCOUNT
+        const answer = Buffer.alloc(16);
+        answer.writeUInt16BE(0xc00c, 0); // pointer to the question name
+        answer.writeUInt16BE(1, 2); // TYPE A
+        answer.writeUInt16BE(1, 4); // CLASS IN
+        answer.writeUInt32BE(60, 6); // TTL
+        answer.writeUInt16BE(4, 10); // RDLENGTH
+        Buffer.from([93, 184, 216, 34]).copy(answer, 12);
+        parts.push(answer);
+      }
+      return new Response(Buffer.concat(parts), {
         status: 200,
-        headers: { 'content-type': 'application/dns-json' },
+        headers: { 'content-type': 'application/dns-message' },
       });
     };
     clearDohCache();
