@@ -397,6 +397,17 @@ export const createPdfEgressGuards = (entryIsInternal: boolean) => {
   return { assertUrlAllowed, dnsLookup, followRedirect };
 };
 
+// asgard-0009 (2026-10-09 scan): PDF URLs come from scanned pages and can carry
+// a malformed percent-escape (e.g. "%E0%A4%A"), on which decodeURI throws
+// URIError and aborts the PDF scan. Fall back to the raw URL instead.
+export const safeDecodeUri = (value: string): string => {
+  try {
+    return decodeURI(value);
+  } catch {
+    return value;
+  }
+};
+
 let inFlightPdfDownloads = 0;
 const waitingPdfDownloads: (() => void)[] = [];
 
@@ -433,7 +444,7 @@ export const handlePdfDownload = (
 ): { pdfFileName: string; url: string } => {
   const pdfFileName = randomUUID();
   const { url } = request;
-  const pageTitle = decodeURI(request.url).split('/').pop() || request.url;
+  const pageTitle = safeDecodeUri(request.url).split('/').pop() || request.url;
   const pdfFilePath = `${getPdfStoragePath(randomToken)}/${pdfFileName}.pdf`;
 
   const recordNotScanned = (bucket: PageInfo[], metadata: string, httpStatusCode: number) => {
@@ -675,7 +686,7 @@ export const mapPdfScanResults = async (
       const filePath = path.join(getPdfStoragePath(randomToken), rawFileName);
 
 
-      const pageTitle = decodeURI(url).split('/').pop();
+      const pageTitle = safeDecodeUri(url).split('/').pop();
       translated.url = url;
       translated.pageTitle = pageTitle;
       
