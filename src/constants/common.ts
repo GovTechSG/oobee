@@ -1537,10 +1537,12 @@ export const getLinksFromSitemap = async (
         // the remote address the browser actually connected to falls outside
         // link-local / loopback / RFC1918 ranges before trusting the body.
         if (response) {
+          let remoteIpSeen = false;
           try {
             const serverAddr = await response.serverAddr();
             const remoteIp = serverAddr?.ipAddress;
             if (remoteIp) {
+              remoteIpSeen = true;
               const bare = remoteIp.replace(/^\[|\]$/g, '').toLowerCase();
               const isInternal = isIpv4Literal(bare)
                 ? isInternalIpv4(bare)
@@ -1555,8 +1557,16 @@ export const getLinksFromSitemap = async (
             }
           } catch {
             // serverAddr() is best-effort — Chromium may not report it for
-            // service-worker/cached responses. Fall through so the operator
-            // still sees ordinary sitemap discovery for those cases.
+            // service-worker/cached responses.
+          }
+          // asgard-0012 (2026-10-09 scan): when serverAddr() gave nothing, the
+          // post-connect check above never ran. Re-resolve the host now and
+          // refuse internal answers, so a rebinding resolver must keep serving
+          // the internal IP to us as well — not just once to the browser.
+          if (!remoteIpSeen && !isFilePath(url) && (await isInternalOrLoopbackUrl(url))) {
+            consoleLogger.warn(`Refusing sitemap body: ${url} now resolves to an internal address`);
+            data = '';
+            return;
           }
         }
 
