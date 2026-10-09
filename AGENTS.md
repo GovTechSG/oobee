@@ -159,6 +159,9 @@ The `constants` default export object holds runtime state:
 | `OOBEE_IDLE_CALLBACKS` | Consecutive `requestIdleCallback` idle periods (with no long tasks) required to treat the main thread as idle. Default 3. |
 | `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML for desktop and mobile viewports to `pageDOMs/desktopPageDOMs/` and `pageDOMs/mobilePageDOMs/` in results directory. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
 | `OOBEE_SAVE_PAGE_SCREENSHOT` | `1` or `true` = save full-page desktop + mobile viewport screenshots to `pageDOMs/desktopPageScreenshots/` and `pageDOMs/mobilePageScreenshots/`. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
+| `OOBEE_CAPTURE_MAX_ELEMENTS` | Max computed-style records per viewport when `OOBEE_SAVE_COMPUTED_STYLES` is on. Default 100000. Output gets `truncated: true` and `truncatedReason` when hit. |
+| `OOBEE_CAPTURE_MAX_STYLES_BYTES` | Approximate size cap for those computed-style records per viewport. Default 100 MB. |
+| `OOBEE_CAPTURE_MAX_DOM_BYTES` | Max saved DOM HTML per viewport when `OOBEE_SAVE_DOM` is on. Larger DOMs are skipped and recorded in `domManifest.json` errors. Default 100 MB. |
 | `GOOGLE_SAFE_BROWSING` | `1` = enable Google Safe Browsing (requires Chrome, not Chromium) |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | Proxy configuration |
 | `NO_PROXY` / `INCLUDE_PROXY` | Proxy bypass/include lists |
