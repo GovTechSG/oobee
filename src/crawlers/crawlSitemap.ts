@@ -29,6 +29,7 @@ import {
   isSkippedUrl,
   waitForPageLoaded,
   isFilePath,
+  isInternalOrLoopbackUrl,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, normUrl, register } from '../utils.js';
 import {
@@ -242,6 +243,10 @@ const crawlSitemap = async ({
   // Having it available enables: download re-enqueue for PDF scanning,
   // 403 rate-limit retry, and enqueueLinks for intelligent sitemap discovery.
   const { requestQueue } = await createCrawleeSubFolders(randomToken, requestQueueName);
+
+  // asgard-0004: PDF downloads may reach internal addresses only when the
+  // operator's own entry URL is internal (localhost / intranet scans).
+  const entryIsInternal = await isInternalOrLoopbackUrl(userUrl || sitemapUrl);
 
   // Shared with handlePdfDownload so PDFs stream through the same client the crawler uses.
   const httpClient = new crawlee.GotScrapingHttpClient();
@@ -482,6 +487,7 @@ const crawlSitemap = async ({
                 httpClient,
                 urlsCrawled,
                 session,
+                entryIsInternal,
               );
 
               uuidToPdfMapping[pdfFileName] = url;
