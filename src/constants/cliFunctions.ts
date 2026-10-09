@@ -196,7 +196,7 @@ export const cliOptions: { [key: string]: Options } = {
   t: {
     alias: 'specifiedMaxConcurrency',
     describe:
-      'Maximum number of pages to scan concurrently. Use for sites with throttling. Defaults to 25.',
+      'Maximum number of pages to scan concurrently. Use for sites with throttling. Defaults to 3 × available CPUs (min 2, max 25).',
     type: 'number',
     demandOption: false,
   },

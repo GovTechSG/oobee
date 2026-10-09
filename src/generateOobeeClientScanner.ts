@@ -106,9 +106,21 @@ function fetchSentryBundleSri(version: string): Promise<string | null> {
 // Prefer OOBEE_SENTRY_SDK_SRI when set (lets CI pin the hash without a
 // build-time network fetch). Otherwise fetch the CDN bundle at generation
 // time and compute a SHA-384.
+//
+// asgard-0007: a value that is set but malformed is treated as an error, not
+// silently ignored, so a typo can't quietly fall back to the network fetch.
+const SRI_PATTERN = /^sha(256|384|512)-[A-Za-z0-9+/]+={0,2}$/;
+
 async function resolveSentrySri(version: string): Promise<string | null> {
-  const envSri = process.env.OOBEE_SENTRY_SDK_SRI;
-  if (envSri && /^sha(256|384|512)-/.test(envSri)) return envSri;
+  const envSri = process.env.OOBEE_SENTRY_SDK_SRI?.trim();
+  if (envSri) {
+    if (!SRI_PATTERN.test(envSri)) {
+      throw new Error(
+        `OOBEE_SENTRY_SDK_SRI is set but is not a valid sha256/384/512 SRI value: ${envSri}`,
+      );
+    }
+    return envSri;
+  }
   return fetchSentryBundleSri(version);
 }
 
@@ -325,15 +337,21 @@ const sentryTelemetryScript = (
         resolve(window.Sentry);
         return;
       }
+      // asgard-0007: never inject the CDN script without an integrity pin.
+      // The generator refuses to emit a bundle without one; this is defence
+      // in depth for a hand-edited or older bundle. Telemetry is skipped,
+      // the scan itself is unaffected.
+      if (!_oobeeSentrySdkSri) {
+        reject(new Error('[oobee] No SRI pin for the Sentry SDK; refusing to load it.'));
+        return;
+      }
       var script = document.createElement('script');
       script.src = 'https://browser.sentry-cdn.com/' + _oobeeSentryVersion + '/bundle.min.js';
       script.crossOrigin = 'anonymous';
-      if (_oobeeSentrySdkSri) {
-        // Pin the CDN response with Subresource Integrity so the browser
-        // refuses to execute a tampered Sentry bundle even if the CDN
-        // (or a MITM against a scanned page) serves modified code.
-        script.integrity = _oobeeSentrySdkSri;
-      }
+      // Pin the CDN response with Subresource Integrity so the browser
+      // refuses to execute a tampered Sentry bundle even if the CDN
+      // (or a MITM against a scanned page) serves modified code.
+      script.integrity = _oobeeSentrySdkSri;
       script.onload = function() {
         if (window.Sentry && typeof window.Sentry.init === 'function') {
           resolve(window.Sentry);
@@ -706,13 +724,18 @@ const outputPath = outputArg
 
 (async () => {
   const sentrySdkSri = await resolveSentrySri(SENTRY_NODE_VERSION);
+  // asgard-0007: fail closed. Shipping a bundle whose loader runs the Sentry
+  // CDN script without an integrity pin would let a CDN compromise or MITM
+  // execute code on every page embedding the scanner. Nothing is written,
+  // so a previously generated (pinned) bundle is left untouched.
   if (!sentrySdkSri) {
-    console.warn(
-      `[generateOobeeClientScanner] WARNING: could not resolve Sentry SDK SRI for ` +
-      `@sentry/browser ${SENTRY_NODE_VERSION}. Generated bundle will load the CDN ` +
-      `script without integrity pinning. Set OOBEE_SENTRY_SDK_SRI to a sha384-... ` +
-      `value to pin it explicitly.`,
+    console.error(
+      `[generateOobeeClientScanner] Refusing to emit a bundle without an SRI pin: ` +
+      `could not resolve the Sentry SDK SRI for @sentry/browser ${SENTRY_NODE_VERSION} ` +
+      `(CDN fetch failed). Retry, or set OOBEE_SENTRY_SDK_SRI to the sha384-... value ` +
+      `of https://browser.sentry-cdn.com/${SENTRY_NODE_VERSION}/bundle.min.js.`,
     );
+    process.exit(1);
   }
   const bundleSource = generateClientBundle(sentrySdkSri);
   writeFileSync(outputPath, bundleSource, 'utf-8');
@@ -731,7 +754,7 @@ const outputPath = outputArg
   console.log(`  App version  : ${APP_VERSION}`);
   console.log(`  Sentry DSN   : ${SENTRY_DSN.slice(0, 40)}…`);
   console.log(`  Sentry SDK   : @sentry/browser ${SENTRY_NODE_VERSION} (CDN)`);
-  console.log(`  Sentry SRI   : ${sentrySdkSri || '(none — bundle loads without integrity)'}`);
+  console.log(`  Sentry SRI   : ${sentrySdkSri}`);
   console.log(`  Bundle SRI   : ${bundleSri}  (also written to ${outputPath}.sha384)`);
 })().catch((err) => {
   console.error('[generateOobeeClientScanner] failed:', err);

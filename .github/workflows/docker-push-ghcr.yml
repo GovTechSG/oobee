@@ -4,8 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag for the image (e.g. 0.10.87)'
-        required: true
+        description: 'Release tag for the image (e.g. 0.10.87). Ignored when "test_push" is checked'
+        required: false
+        type: string
+      test_push:
+        description: 'Push as test: tag the image only as "test" (no version tag, no "latest")'
+        required: false
+        type: boolean
+        default: false
+      branch:
+        description: 'Oobee branch to build from (test push only). Leave blank to use the branch running this workflow'
+        required: false
         type: string
   release:
     types: [published]
@@ -16,6 +25,7 @@ permissions:
 
 env:
   RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
+  TEST_PUSH: ${{ github.event_name == 'workflow_dispatch' && inputs.test_push && 'true' || 'false' }}
   REGISTRY: ghcr.io
 
 jobs:
@@ -32,6 +42,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ (github.event_name == 'workflow_dispatch' && inputs.test_push && inputs.branch) || github.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -104,16 +116,21 @@ jobs:
         # anything outside the strict tag allowlist before use.
         env:
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          TEST_PUSH: ${{ env.TEST_PUSH }}
           REGISTRY: ${{ env.REGISTRY }}
           REPO_NAME: ${{ steps.repo.outputs.name }}
         run: |
           set -euo pipefail
-          if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^[A-Za-z0-9._-]+$'; then
-            echo "Refusing to publish: RELEASE_TAG contains characters outside [A-Za-z0-9._-]" >&2
-            exit 1
-          fi
           IMAGE="${REGISTRY}/${REPO_NAME}"
+          if [ "$TEST_PUSH" = "true" ]; then
+            TAG_ARGS=(--tag "${IMAGE}:test")
+          else
+            if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+              echo "Refusing to publish: RELEASE_TAG is empty or contains characters outside [A-Za-z0-9._-]" >&2
+              exit 1
+            fi
+            TAG_ARGS=(--tag "${IMAGE}:${RELEASE_TAG}" --tag "${IMAGE}:latest")
+          fi
           docker buildx imagetools create \
-            --tag "${IMAGE}:${RELEASE_TAG}" \
-            --tag "${IMAGE}:latest" \
+            "${TAG_ARGS[@]}" \
             $(printf "${IMAGE}@sha256:%s " *)

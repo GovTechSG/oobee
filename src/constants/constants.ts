@@ -347,11 +347,53 @@ export const guiInfoStatusTypes = {
   DUPLICATE: 'duplicate',
 };
 
+// `/.dockerenv` is only created by the Docker daemon. Other container
+// runtimes (Podman, containerd, ECS Fargate, Azure Container Apps / App
+// Service, Google Cloud Run / App Engine, and Kubernetes) don't drop that
+// marker file, so we also check well-known runtime env vars.
+// OOBEE_IN_CONTAINER=1 is an explicit override for runtimes we don't detect
+// (e.g. Azure Container Instances, which surfaces no reliable env var).
+export const isRunningInContainer = (): boolean =>
+  process.env.OOBEE_IN_CONTAINER === '1' ||
+  fs.existsSync('/.dockerenv') ||
+  fs.existsSync('/run/.containerenv') ||
+  !!process.env.KUBERNETES_SERVICE_HOST ||        // Kubernetes (incl. GKE, EKS, AKS)
+  process.env.AWS_EXECUTION_ENV === 'AWS_ECS_FARGATE' ||
+  !!process.env.ECS_CONTAINER_METADATA_URI_V4 ||  // AWS ECS (Fargate + EC2)
+  !!process.env.CONTAINER_APP_NAME ||             // Azure Container Apps
+  !!process.env.WEBSITE_INSTANCE_ID ||            // Azure App Service (Linux containers)
+  !!process.env.K_SERVICE ||                      // Google Cloud Run
+  !!process.env.GAE_SERVICE;                      // Google App Engine (flex/standard)
+
+// Default page-level concurrency, sized to the CPUs available to this process
+// (os.availableParallelism respects the CPU affinity mask, so it reports the
+// task's vCPUs on ECS Fargate / Kubernetes). Each concurrent page is a Chrome
+// renderer running page JS + axe; oversubscribing the CPU starves hydration
+// and makes results timing-dependent. 3 pages per core keeps an 8+ core
+// desktop at the historic default of 25 while a 2 vCPU container gets 6.
+const MAX_CONCURRENCY_CEILING = 25;
+const PAGES_PER_CPU = 3;
+const getDefaultMaxConcurrency = (): number => {
+  const cpuCount =
+    typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length;
+  return Math.max(2, Math.min(MAX_CONCURRENCY_CEILING, cpuCount * PAGES_PER_CPU));
+};
+
 let launchOptionsArgs: string[] = [];
 
-// Check if running in docker container
-if (fs.existsSync('/.dockerenv')) {
+if (isRunningInContainer()) {
   launchOptionsArgs = ['--disable-gpu', '--disable-dev-shm-usage', '--no-zygote'];
+
+  // Propagate detection so every downstream check agrees:
+  // - OOBEE_IN_CONTAINER short-circuits isRunningInContainer() everywhere else.
+  // - CRAWLEE_CONTAINERIZED makes Crawlee's autoscaler read the cgroup CPU
+  //   quota/memory limit instead of host-wide /proc/stat. Crawlee's own
+  //   detection only checks /.dockerenv and "docker" in /proc/self/cgroup,
+  //   both of which are absent on ECS Fargate — so without this, the
+  //   autoscaler mis-reads CPU load and may not scale down under contention.
+  // Explicit user-provided values are respected.
+  process.env.OOBEE_IN_CONTAINER ??= '1';
+  process.env.CRAWLEE_CONTAINERIZED ??= '1';
 }
 
 export const impactOrder = {
@@ -512,7 +554,6 @@ const urlCheckStatuses = {
     message: 'URL cannot be accessed. Please verify whether the website exists.',
   },
   errorStatusReceived: {
-    // unused for now
     code: 13,
     message: 'Provided URL cannot be accessed. Server responded with code ', // append it with the response code received,
   },
@@ -996,7 +1037,7 @@ export default {
   cliZipFileName: 'oobee-scan-results.zip',
   exportDirectory: undefined,
   maxRequestsPerCrawl,
-  maxConcurrency: 25,
+  maxConcurrency: getDefaultMaxConcurrency(),
   urlsCrawledObj,
   impactOrder,
   launchOptionsArgs,

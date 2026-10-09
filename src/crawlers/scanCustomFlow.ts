@@ -5,7 +5,12 @@ import { EnqueueStrategy } from 'crawlee';
 import constants, { BrowserTypes, RuleFlags, ScannerTypes, UrlsCrawled } from '../constants/constants.js';
 import generateArtifacts from '../mergeAxeResults.js';
 import { createAndUpdateResultsFolders, getStoragePath } from '../utils.js';
-import { checkUrlConnectivityWithBrowser, isInternalOrLoopbackUrl, submitForm } from '../constants/common.js';
+import {
+  checkUrlConnectivityWithBrowser,
+  isInternalOrLoopbackUrl,
+  isLinkLocalOrMetadataUrl,
+  submitForm,
+} from '../constants/common.js';
 import runCustom from './runCustom.js';
 import { consoleLogger } from '../logs.js';
 
@@ -326,20 +331,73 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
 
 // Opt-in SSRF hardening for the exported scanCustomFlow entry point. Off by
 // default so operator/CLI scans of localhost, internal hosts and file:// URLs
-// keep working unchanged; consumers that expose config.url to untrusted
-// callers set OOBEE_SSRF_PROTECTION=1 to restrict scans to public http(s).
+// keep working unchanged. SECURITY: consumers that forward config.url from
+// untrusted end users MUST set OOBEE_SSRF_PROTECTION=1 — without it the
+// scanner can reach internal hosts and local files and embed them in reports.
 const isSsrfProtectionEnabled = (): boolean =>
   /^(1|true|yes)$/i.test(process.env.OOBEE_SSRF_PROTECTION ?? '');
 
-const assertSafeCustomFlowUrl = async (url: string): Promise<void> => {
-  if (!isSsrfProtectionEnabled()) return;
+// Entry URL policy for scanCustomFlow (asgard-0002).
+//
+// Threat model: scanCustomFlow is public npm API. If an embedder forwards an
+// untrusted config.url, the scanner's browser fetches it and the rendered
+// content ends up in the report — a readable SSRF / local-file-read channel.
+//
+// Why the internal-host / file:// block stays OPT-IN (OOBEE_SSRF_PROTECTION):
+// config.url is normally chosen by the operator, and custom flow is routinely
+// pointed at localhost dev servers, intranet/VPN/Tailscale staging hosts and
+// local file:// pages. Making the block default-on would break those scans
+// for every existing integrator (CLI, Oobee Desktop, CI pipelines). The risk
+// is instead pushed to the one party who can judge it — an embedder exposing
+// config.url to end users — and documented as a hard requirement.
+//
+// What is UNCONDITIONAL, because no legitimate workflow needs it:
+//  1. Scheme allowlist: http:, https: (both allowed — plain http intranet and
+//     dev servers are common) and file:. data:, javascript:, blob:, ftp:,
+//     chrome:, view-source:, gopher: etc. are never accessibility targets and
+//     only serve as script-injection or scheme-confusion vectors.
+//  2. file: must be local (empty host or "localhost"). file://host/share is a
+//     UNC/SMB path on Windows: it reads remote shares and leaks the user's
+//     NTLM hash to the named host.
+//  3. Link-local / cloud-metadata addresses: nothing to scan there; refusing
+//     them removes the credential-theft case for embedders who forgot the flag.
+//
+// Windows drive paths (C:\site\index.html) parse with a single-letter scheme
+// ("c:"); they are local files and were accepted before this guard, so they
+// are treated as file: rather than refused as an unknown scheme.
+const ALWAYS_ALLOWED_CUSTOM_FLOW_SCHEMES = new Set(['http:', 'https:', 'file:']);
+const isWindowsDrivePath = (protocol: string): boolean => /^[a-z]:$/i.test(protocol);
 
+export const assertSafeCustomFlowUrl = async (url: string): Promise<void> => {
   let parsedEntryUrl: URL;
   try {
     parsedEntryUrl = new URL(url);
   } catch {
     throw new Error('Invalid URL supplied to scanCustomFlow.');
   }
+
+  const isDrivePath = isWindowsDrivePath(parsedEntryUrl.protocol);
+  if (!isDrivePath && !ALWAYS_ALLOWED_CUSTOM_FLOW_SCHEMES.has(parsedEntryUrl.protocol)) {
+    throw new Error(
+      `Unsupported URL scheme "${parsedEntryUrl.protocol}" - scanCustomFlow only permits http://, https:// or local file:// scan targets.`,
+    );
+  }
+
+  if (
+    parsedEntryUrl.protocol === 'file:' &&
+    parsedEntryUrl.hostname !== '' &&
+    parsedEntryUrl.hostname.toLowerCase() !== 'localhost'
+  ) {
+    throw new Error(
+      `scanCustomFlow refuses remote file:// host "${parsedEntryUrl.hostname}" - only local files may be scanned.`,
+    );
+  }
+
+  if (await isLinkLocalOrMetadataUrl(url)) {
+    throw new Error('scanCustomFlow refuses to scan a link-local or cloud-metadata address.');
+  }
+
+  if (!isSsrfProtectionEnabled()) return;
 
   if (parsedEntryUrl.protocol !== 'http:' && parsedEntryUrl.protocol !== 'https:') {
     throw new Error(

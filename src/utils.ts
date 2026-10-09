@@ -12,6 +12,7 @@ import constants, {
   BrowserTypes,
   destinationPath,
   getIntermediateScreenshotsPath,
+  isRunningInContainer,
 } from './constants/constants.js';
 import { consoleLogger, errorsTxtPath, silentLogger } from './logs.js';
 import { getAxeConfiguration } from './crawlers/custom/getAxeConfiguration.js';
@@ -485,7 +486,7 @@ export const cleanUp = async (randomToken?: string, isError: boolean = false): P
     }
   }
 
-  if (process.env.TMPDIR && fs.existsSync('/.dockerenv')) try {
+  if (process.env.TMPDIR && isRunningInContainer()) try {
     fs.rmSync(process.env.TMPDIR, { recursive: true, force: true });
   } catch (error) {
     consoleLogger.warn(`Unable to force remove browser tmp dir: ${error.message}`);

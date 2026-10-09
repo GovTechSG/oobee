@@ -1,7 +1,7 @@
 {
   "name": "@govtechsg/oobee",
   "main": "dist/npmIndex.js",
-  "version": "0.11.18",
+  "version": "0.11.19",
   "type": "module",
   "author": "Government Technology Agency <info@tech.gov.sg>",
   "bin": {
@@ -69,7 +69,6 @@
     "eslint-plugin-import": "^2.27.4",
     "eslint-plugin-prettier": "^5.0.0",
     "globals": "^15.2.0",
-    "jest": "^30.5.1",
     "readable-stream": "^4.7.0",
     "typescript-eslint": "^8.36.0"
   },
@@ -87,11 +86,11 @@
     "fast-xml-parser": ">=5.3.8",
     "js-yaml": "^4.3.2",
     "minimatch": "^10.2.4",
-    "brace-expansion": "^5.0.9",
+    "brace-expansion": "^5.0.12",
     "glob": "^13.0.6",
     "flatted": "^3.4.1",
     "file-type": "^21.3.3",
-    "adm-zip": ">=0.6.0",
+    "adm-zip": ">=0.6.1",
     "nanoid": "^3.3.18"
   },
   "optionalDependencies": {
@@ -109,7 +108,9 @@
     "copyfiles": "node ./scripts/copyFiles.js src/static/ejs dist/static && node ./scripts/copyFiles.js src/constants/errorMeta.json dist/constants && node ./scripts/copyFiles.js exclusions.txt dist",
     "start": "node --max-old-space-size=10000 dist/index.js",
     "cli": "node --max-old-space-size=10000 dist/cli.js",
-    "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
+    "test": "npm run test:unit",
+    "test:unit": "OOBEE_DISABLE_TELEMETRY=1 DISABLE_OOBEE_TELEMETRY=1 node --test tests/core.test.mjs tests/unit.test.mjs tests/socks.test.mjs tests/ssrfRedirect.test.mjs tests/customFlowUrlGuard.test.mjs tests/safeBrowsingZip.test.mjs tests/pdfEgressGuard.test.mjs tests/readabilityBound.test.mjs tests/pdfLocationBound.test.mjs tests/clientScannerSri.test.mjs tests/dohCacheBound.test.mjs tests/pageCaptureBound.test.mjs tests/familyDnsEnv.test.mjs",
+    "test:e2e": "OOBEE_DISABLE_TELEMETRY=1 DISABLE_OOBEE_TELEMETRY=1 node --test tests/e2e.test.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --fix --report-unused-disable-directives --max-warnings 0"
   },
