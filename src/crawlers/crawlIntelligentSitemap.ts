@@ -13,6 +13,7 @@ import {
   initModifiedUserAgent,
   launchPersistentSafeContext,
   isRefusedRedirectTarget,
+  isRefusedNavigation,
 } from '../constants/common.js';
 import { register } from '../utils.js';
 
@@ -126,18 +127,12 @@ const crawlIntelligentSitemap = async (
       }
       const response = await page.goto(parsedUrl);
       if (!response) return false;
-      const hops = new Set<string>();
-      let hop = response.request();
-      while (hop) {
-        hops.add(hop.url());
-        hop = hop.redirectedFrom();
-      }
-      hops.add(page.url());
-      for (const hopUrl of hops) {
-        if (await isRefusedRedirectTarget(url, hopUrl)) {
-          consoleLogger.warn(`Refusing sitemap probe ${parsedUrl}: redirected to ${hopUrl}`);
-          return false;
-        }
+      // Shared proxy-safe check: every redirect hop plus the connected
+      // address when the connection was direct.
+      const refusedAt = await isRefusedNavigation(url, response, page.url());
+      if (refusedAt) {
+        consoleLogger.warn(`Refusing sitemap probe ${parsedUrl}: reached internal address ${refusedAt}`);
+        return false;
       }
       return response.ok();
     } catch (e) {
