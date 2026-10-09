@@ -186,6 +186,16 @@ export async function extractZipBufferSafely(data: Buffer, destDir: string): Pro
     if (written > SB_ZIP_MAX_UNCOMPRESSED_BYTES) {
       throw new Error(`[SafeBrowsing] Archive exceeds ${SB_ZIP_MAX_UNCOMPRESSED_BYTES} uncompressed bytes`);
     }
+    // `wx` alone is not enough on Windows: creating a file over a dangling
+    // symlink follows the link and creates its target. Refuse anything
+    // (file, dir, symlink, junction) already at the target path.
+    let existing: fs.Stats | undefined;
+    try {
+      existing = fs.lstatSync(target);
+    } catch {}
+    if (existing) {
+      throw new Error(`[SafeBrowsing] Refusing to overwrite existing path during extraction: ${file.name}`);
+    }
     fs.writeFileSync(target, content, { flag: 'wx', mode: 0o644 });
   }
 }
