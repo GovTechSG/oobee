@@ -38,6 +38,8 @@ import {
   isInternalOrLoopbackUrl,
   isLinkLocalOrMetadataUrl,
   classifyServerAddress,
+  getDirectServerAddr,
+  getResponseHopUrls,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isSameHostname, normUrl, register } from '../utils.js';
 import {
@@ -708,17 +710,26 @@ const crawlDomain = async ({
           }
 
           // asgard-0005: the pre-nav check can't see 3xx targets or a DNS answer
-          // that changes between our lookup and the browser's. Check the address
-          // the browser really connected to before scanning/capturing anything.
+          // that changes between our lookup and the browser's. Crawlee routes
+          // Chrome through a local proxy (and FAMILY_DNS / CF Worker add a
+          // SOCKS5 one), so serverAddr() is usually the proxy's 127.0.0.1 and
+          // can't be trusted. Check every redirect hop and the final URL
+          // (fresh DNS lookup each), plus the connected address only when the
+          // connection was direct.
           if (response) {
-            let remoteIp: string | undefined;
-            try {
-              remoteIp = (await response.serverAddr())?.ipAddress;
-            } catch {
-              // best-effort: Chromium omits it for cached / service-worker responses
+            let refusedAt: string | null = null;
+            for (const hopUrl of getResponseHopUrls(response, actualUrl)) {
+              if (await isRefusedEgressUrl(hopUrl)) {
+                refusedAt = hopUrl;
+                break;
+              }
             }
-            if (remoteIp && isRefusedServerAddress(remoteIp)) {
-              consoleLogger.warn(`Refusing content from internal address ${remoteIp} (${actualUrl})`);
+            if (!refusedAt) {
+              const directIp = await getDirectServerAddr(response);
+              if (directIp && isRefusedServerAddress(directIp)) refusedAt = directIp;
+            }
+            if (refusedAt) {
+              consoleLogger.warn(`Refusing content from internal address ${refusedAt} (${actualUrl})`);
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
