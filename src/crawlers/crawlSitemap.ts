@@ -32,6 +32,9 @@ import {
   isFilePath,
   isInternalOrLoopbackUrl,
   isLinkLocalOrMetadataUrl,
+  classifyServerAddress,
+  getDirectServerAddr,
+  getResponseHopUrls,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, normUrl, register } from '../utils.js';
 import {
@@ -466,19 +469,21 @@ const crawlSitemap = async ({
         // reports 127.0.0.1 (that refused every page). Instead re-check every
         // redirect hop and the final URL; isRefusedEgressUrl resolves DNS again,
         // so a host that has since rebound to an internal address is refused.
+        // Uses the shared proxy-safe helpers: every hop is re-checked, and the
+        // connected address is only trusted on a direct connection.
         if (response) {
-          const hops = new Set<string>();
-          let hop = response.request();
-          while (hop) {
-            hops.add(hop.url());
-            hop = hop.redirectedFrom();
-          }
-          hops.add(page.url());
-          let refusedHop: string | undefined;
-          for (const hopUrl of hops) {
+          let refusedHop: string | null = null;
+          for (const hopUrl of getResponseHopUrls(response, page.url())) {
             if (await isRefusedEgressUrl(hopUrl)) {
               refusedHop = hopUrl;
               break;
+            }
+          }
+          if (!refusedHop) {
+            const directIp = await getDirectServerAddr(response);
+            if (directIp) {
+              const kind = classifyServerAddress(directIp);
+              if (kind === 'metadata' || (kind === 'internal' && !entryIsInternal)) refusedHop = directIp;
             }
           }
           if (refusedHop) {
