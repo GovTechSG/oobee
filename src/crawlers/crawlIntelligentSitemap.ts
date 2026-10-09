@@ -7,7 +7,14 @@ import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
 import { ViewportSettingsClass } from '../combine.js';
-import { getPlaywrightLaunchOptions, getSitemapsFromRobotsTxt, initModifiedUserAgent, launchPersistentSafeContext } from '../constants/common.js';
+import {
+  getPlaywrightLaunchOptions,
+  getSitemapsFromRobotsTxt,
+  initModifiedUserAgent,
+  launchPersistentSafeContext,
+  isRefusedRedirectTarget,
+  isRefusedServerAddrForEntry,
+} from '../constants/common.js';
 import { register } from '../utils.js';
 
 const crawlIntelligentSitemap = async (
@@ -103,10 +110,31 @@ const crawlIntelligentSitemap = async (
     return sitemapExist ? sitemapLink : '';
   }
 
+  // asgard-0003 (2026-10-09 scan): the probed sitemap paths are on the scanned
+  // (untrusted) site, which can redirect them anywhere. Apply the same policy
+  // as checkUrlConnectivityWithBrowser, pinned to the operator's entry URL:
+  // refuse a probe that targets, redirects to, or is served from an
+  // internal/metadata address the operator did not choose. A refused probe is
+  // treated as "no sitemap here", so the scan falls back to a domain crawl.
   const checkUrlExists = async (page: Page, parsedUrl: string) => {
     try {
+      if (await isRefusedRedirectTarget(url, parsedUrl)) {
+        consoleLogger.warn(`Refusing sitemap probe to internal/metadata address: ${parsedUrl}`);
+        return false;
+      }
       const response = await page.goto(parsedUrl);
-      return response?.ok() ?? false;
+      if (!response) return false;
+      const finalUrl = page.url();
+      if (finalUrl !== parsedUrl && (await isRefusedRedirectTarget(url, finalUrl))) {
+        consoleLogger.warn(`Refusing sitemap probe ${parsedUrl}: redirected to ${finalUrl}`);
+        return false;
+      }
+      const remoteIp = (await response.serverAddr().catch(() => null))?.ipAddress;
+      if (remoteIp && (await isRefusedServerAddrForEntry(url, remoteIp))) {
+        consoleLogger.warn(`Refusing sitemap probe ${parsedUrl}: served from ${remoteIp}`);
+        return false;
+      }
+      return response.ok();
     } catch (e) {
       consoleLogger.error(e);
       return false;
