@@ -8,12 +8,18 @@ export function extractText(): string[] {
     // this much anyway, so stopping here changes no score. Must stay inline:
     // this function is serialised via toString() and runs in the page.
     const maxChars = 1_000_000;
+    // asgard-0004 (2026-10-09 re-scan): bound each paragraph BEFORE the
+    // terminator scan / match() below. Without this, a single huge <p> (tens
+    // of MB) forced an O(paragraph-size) match() allocation per paragraph,
+    // regardless of maxChars — that only bounds total pushed OUTPUT, checked
+    // after match() already ran. No real paragraph approaches this size.
+    const maxParagraphChars = maxChars;
     let totalChars = 0;
     let stop = false;
 
     elements.forEach(element => {
       if (stop) return;
-      const rawText = element.innerText.trim();
+      const rawText = element.innerText.trim().slice(0, maxParagraphChars);
       // Drop the trailing run after the last terminator: it can never match, and it is
       // the only input on which the regex below backtracks quadratically.
       // Kept inline since this function is serialised via toString().

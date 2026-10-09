@@ -8,12 +8,20 @@ import textReadability from 'text-readability';
 // inside page.evaluate so we never materialise the oversized text in Node.
 const MAX_PARAGRAPHS = 2000;
 const MAX_TEXT_CHARS = 200_000;
+// asgard-0004 (2026-10-09 re-scan): a single paragraph's rawText previously had
+// no size bound before the terminator scan / match() call below, so a lone
+// huge <p> (tens of MB) forced an O(paragraph-size) match() allocation before
+// MAX_TEXT_CHARS (an output cap, checked only after matches() already ran)
+// ever had a chance to apply. Cap each paragraph to this many chars up front.
+// No real article paragraph approaches this; it is the same order of
+// magnitude as the whole-page MAX_TEXT_CHARS cap.
+const MAX_PARAGRAPH_CHARS = MAX_TEXT_CHARS;
 
 export async function extractAndGradeText(page: Page): Promise<string> {
   try {
     // Extract text content from all specified elements (e.g., paragraphs)
     const sentences: string[] = await page.evaluate(
-      ({ maxParagraphs, maxChars }) => {
+      ({ maxParagraphs, maxChars, maxParagraphChars }) => {
         const elements = document.querySelectorAll('p'); // Adjust selector as needed
         const extractedSentences: string[] = [];
         let totalChars = 0;
@@ -21,7 +29,9 @@ export async function extractAndGradeText(page: Page): Promise<string> {
 
         for (let i = 0; i < limit; i += 1) {
           const element = elements[i] as HTMLElement;
-          const rawText = element.innerText.trim();
+          // Bound the paragraph BEFORE the terminator scan / match() below, so
+          // neither one ever runs over an attacker-sized string.
+          const rawText = element.innerText.trim().slice(0, maxParagraphChars);
           // The sentence regex only backtracks quadratically on a trailing run with
           // no terminator (every start position scans to the end and fails). That
           // tail can never yield a match, so dropping it first is output-identical
@@ -56,7 +66,7 @@ export async function extractAndGradeText(page: Page): Promise<string> {
 
         return extractedSentences;
       },
-      { maxParagraphs: MAX_PARAGRAPHS, maxChars: MAX_TEXT_CHARS },
+      { maxParagraphs: MAX_PARAGRAPHS, maxChars: MAX_TEXT_CHARS, maxParagraphChars: MAX_PARAGRAPH_CHARS },
     );
 
     // Check if any valid sentences were extracted
