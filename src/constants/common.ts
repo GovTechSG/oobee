@@ -33,7 +33,7 @@ import constants, {
   isRunningInContainer,
 } from './constants.js';
 import { consoleLogger } from '../logs.js';
-import { isUrlPdf, splitAuthHeaders, addAuthRouteHandler } from '../crawlers/commonCrawlerFunc.js';
+import { isUrlPdf, splitAuthHeaders, addAuthRouteHandler, makeHeaderScopeMatcher } from '../crawlers/commonCrawlerFunc.js';
 import {
   cleanUpAndExit,
   isFollowStrategy,
@@ -893,6 +893,15 @@ export const getUrlsFromRobotsTxt = async (
   browserToRun: string,
   userDataDirectory: string,
   extraHTTPHeaders: Record<string, string>,
+  // asgard-0002 (2026-10-09 re-scan): the operator's full headers (including
+  // Authorization) used to be sent to whatever origin `url` resolves to. Under
+  // the default same-domain crawl strategy `url` is the page currently being
+  // scanned — which can be a sibling subdomain, not the operator's entry URL —
+  // so the credential was reaching hosts the operator never targeted directly.
+  // Pin header scoping to the operator's actual entry URL, defaulting to `url`
+  // itself for callers (prepareData, intelligent-sitemap) where the robots.txt
+  // IS for the entry URL's own origin.
+  entryUrl: string = url,
 ): Promise<void> => {
   if (!constants.robotsTxtUrls) return;
 
@@ -907,6 +916,7 @@ export const getUrlsFromRobotsTxt = async (
       browserToRun,
       userDataDirectory,
       extraHTTPHeaders,
+      entryUrl,
     );
     consoleLogger.info(`Fetched robots.txt from ${robotsUrl}`);
   } catch (e) {
@@ -987,10 +997,38 @@ const getRobotsTxtViaPlaywright = async (
   browser: string,
   userDataDirectory: string,
   extraHTTPHeaders: Record<string, string>,
+  entryUrl: string,
 ): Promise<string> => {
   let robotsDataDir = '';
   let browserContext;
   let browserInstance;
+
+  // asgard-0002 (2026-10-09 re-scan): this fetch only ever navigates to
+  // `robotsUrl` itself (no subresources), so scoping can be computed once up
+  // front instead of via a per-request route handler. Authorization is only
+  // sent when robotsUrl is the exact entry origin (matches addAuthRouteHandler's
+  // same-origin rule elsewhere); other headers (Cookie, X-Api-Key, ...) are
+  // sent only when robotsUrl is within the entry URL's configured scope
+  // (site/origin/all, per OOBEE_SCOPE_HEADERS_TO_ORIGIN / OOBEE_UNSCOPED_OPERATOR_HEADERS).
+  const scopedHeaders = ((): Record<string, string> | undefined => {
+    if (!extraHTTPHeaders || Object.keys(extraHTTPHeaders).length === 0) return undefined;
+    const inScope = makeHeaderScopeMatcher(entryUrl);
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(extraHTTPHeaders)) {
+      if (k.toLowerCase() === 'authorization') {
+        let sameOrigin = false;
+        try {
+          sameOrigin = new URL(robotsUrl).origin === new URL(entryUrl).origin;
+        } catch {
+          sameOrigin = false;
+        }
+        if (sameOrigin) out[k] = v;
+      } else if (inScope(robotsUrl)) {
+        out[k] = v;
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  })();
 
   // Bug in Chrome which causes browser pool crash when userDataDirectory is set in non-headless mode
   if (process.env.CRAWLEE_HEADLESS === '1') {
@@ -1005,7 +1043,7 @@ const getRobotsTxtViaPlaywright = async (
     if (process.env.CRAWLEE_HEADLESS === '1') {
       browserContext = await launchPersistentSafeContext(robotsDataDir, {
         ...getPlaywrightLaunchOptions(browser),
-        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(scopedHeaders && { extraHTTPHeaders: scopedHeaders }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
       register(browserContext);
@@ -1016,10 +1054,11 @@ const getRobotsTxtViaPlaywright = async (
       register(browserInstance as unknown as { close: () => Promise<void> });
 
       browserContext = await browserInstance.newContext({
-        ...(extraHTTPHeaders && { extraHTTPHeaders }),
+        ...(scopedHeaders && { extraHTTPHeaders: scopedHeaders }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
     }
+
 
     const page = await browserContext.newPage();
 
@@ -1071,7 +1110,7 @@ export const getSitemapsFromRobotsTxt = async (
 
   let robotsTxt: string;
   try {
-    robotsTxt = await getRobotsTxtViaPlaywright(robotsUrl, browser, userDataDirectory, extraHTTPHeaders);
+    robotsTxt = await getRobotsTxtViaPlaywright(robotsUrl, browser, userDataDirectory, extraHTTPHeaders, url);
   } catch (e) {
     consoleLogger.info(`Unable to fetch robots.txt from ${robotsUrl} for sitemap discovery`);
     return [];

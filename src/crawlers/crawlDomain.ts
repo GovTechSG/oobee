@@ -1100,7 +1100,7 @@ const crawlDomain = async ({
           }
 
           if (followRobots)
-            await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory, extraHTTPHeaders);
+            await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory, extraHTTPHeaders, url);
           await enqueueProcess(page, enqueueLinks, browserContext);
         } catch (e) {
           // asgard-0013: this recovery path used to leak a browser page on every
