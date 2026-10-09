@@ -256,6 +256,14 @@ Google Safe Browsing protects users by blocking navigation to phishing/malware U
 - `src/crawlers/crawlSitemap.ts` — same blocked-page detection
 - `src/crawlers/runCustom.ts` — uses `launchPersistentSafeContext()`
 
+### Prepopulated DB zip (asgard-0003)
+
+`findPrePopulatedSource()` can seed the DB from `SB_PREPOPULATED_ZIP`, `/data/safe-browsing-db.zip`, `/opt/oobee-safe-browsing/safe-browsing-db.zip` or `~/.oobee/safe-browsing-db.zip`:
+- The zip is opened **once**. `readVerifiedPrePopulatedZip()` checks owner/mode via `fstat` on that descriptor, size-limits it, and hashes the same buffer against `SB_PREPOPULATED_SHA256` if set. The same buffer is then extracted, so the file can't be swapped between check and extraction.
+- Extraction uses `extractZipBufferSafely()` (JSZip, in-process), never `unzip`. The whole archive is validated before any write. Symlink/special entries, absolute paths, drive letters, backslashes and `..` segments are refused, plus entry-count and size limits. Files are written with `wx` into a fresh `mkdtemp` staging dir, which is deleted after the DB files are copied.
+- `copyDirectory()` copies regular files only (`lstat`) and removes a symlink at the destination instead of writing through it.
+- Set `SB_PREPOPULATED_SHA256` whenever the zip lives on a shared mount.
+
 ### What Does NOT Work
 
 - Chromium (Playwright's bundled browser) — lacks Safe Browsing entirely

@@ -1,5 +1,6 @@
-import { type ChildProcess, spawn, execFileSync } from 'child_process';
+import { type ChildProcess, spawn } from 'child_process';
 import fs from 'fs';
+import JSZip from 'jszip';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
@@ -36,52 +37,157 @@ const SB_PREPOPULATED_SHA256 = process.env.SB_PREPOPULATED_SHA256;
  * mounted volume (e.g. /data, /opt) cannot plant a substitute database that
  * gets silently trusted.
  */
-function isOwnedAndNotWorldWritable(p: string): boolean {
+function hasTrustedOwnerAndMode(st: fs.Stats, p: string): boolean {
   if (process.platform === 'win32') return true; // POSIX permission/owner bits are not meaningful here
+  if ((st.mode & 0o022) !== 0) {
+    sbDebug(`[SafeBrowsing] Rejecting ${p}: group/world-writable (mode=${(st.mode & 0o777).toString(8)})`);
+    return false;
+  }
+  const uid = typeof process.getuid === 'function' ? process.getuid() : undefined;
+  if (uid !== undefined && st.uid !== uid && st.uid !== 0) {
+    sbDebug(`[SafeBrowsing] Rejecting ${p}: owned by uid ${st.uid}, expected ${uid} or root`);
+    return false;
+  }
+  return true;
+}
+
+function isOwnedAndNotWorldWritable(p: string): boolean {
+  if (process.platform === 'win32') return true;
   try {
-    const st = fs.statSync(p);
-    if ((st.mode & 0o022) !== 0) {
-      sbDebug(`[SafeBrowsing] Rejecting ${p}: group/world-writable (mode=${(st.mode & 0o777).toString(8)})`);
-      return false;
-    }
-    const uid = typeof process.getuid === 'function' ? process.getuid() : undefined;
-    if (uid !== undefined && st.uid !== uid && st.uid !== 0) {
-      sbDebug(`[SafeBrowsing] Rejecting ${p}: owned by uid ${st.uid}, expected ${uid} or root`);
-      return false;
-    }
-    return true;
+    return hasTrustedOwnerAndMode(fs.statSync(p), p);
   } catch (e) {
     sbDebug(`[SafeBrowsing] Failed to stat ${p}: ${e}`);
     return false;
   }
 }
 
+// asgard-0003: upper bounds for the prepopulated Safe Browsing zip. A real DB
+// is tens of MB across a handful of files; anything far beyond that is a zip
+// bomb or not a Safe Browsing DB at all.
+const SB_ZIP_MAX_BYTES = 512 * 1024 * 1024;
+const SB_ZIP_MAX_ENTRIES = 1000;
+const SB_ZIP_MAX_UNCOMPRESSED_BYTES = 1024 * 1024 * 1024;
+
 /**
- * Verifies a candidate prepopulated Safe Browsing zip before it is extracted
- * and trusted: the file must be owned by us/root and not group/world
- * writable, and — when an expected digest has been pinned via
- * SB_PREPOPULATED_SHA256 — its SHA-256 hash must match exactly. Without a
- * pinned digest we fall back to the ownership/permission check only and log
- * that provenance could not be fully established.
+ * Reads a candidate prepopulated Safe Browsing zip ONCE and verifies exactly
+ * those bytes (asgard-0003).
+ *
+ * Previously ownership/permissions, the optional SHA-256 and the `unzip`
+ * extraction were three separate opens of `zipPath`, so on a shared mount
+ * (/data, /opt) the file could be swapped between check and extraction
+ * (TOCTOU). Here the file is opened once, ownership/mode are checked with
+ * fstat on that descriptor, and the same buffer is hashed and then extracted.
+ * Nothing re-reads the path afterwards.
  */
-function verifyPrePopulatedZip(zipPath: string): boolean {
-  if (!isOwnedAndNotWorldWritable(zipPath)) return false;
-  if (SB_PREPOPULATED_SHA256) {
-    try {
-      const actual = crypto.createHash('sha256').update(fs.readFileSync(zipPath)).digest('hex');
+function readVerifiedPrePopulatedZip(zipPath: string): Buffer | null {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(zipPath, 'r');
+    const st = fs.fstatSync(fd);
+    if (!st.isFile()) {
+      sbDebug(`[SafeBrowsing] Rejecting ${zipPath}: not a regular file`);
+      return null;
+    }
+    if (!hasTrustedOwnerAndMode(st, zipPath)) return null;
+    if (st.size > SB_ZIP_MAX_BYTES) {
+      consoleLogger.info(`[SafeBrowsing] Rejecting pre-populated zip ${zipPath}: ${st.size} bytes exceeds ${SB_ZIP_MAX_BYTES}`);
+      return null;
+    }
+    const data = fs.readFileSync(fd);
+
+    if (SB_PREPOPULATED_SHA256) {
+      const actual = crypto.createHash('sha256').update(data).digest('hex');
       if (actual.toLowerCase() !== SB_PREPOPULATED_SHA256.trim().toLowerCase()) {
         consoleLogger.info(`[SafeBrowsing] Rejecting pre-populated zip ${zipPath}: SHA-256 mismatch (expected ${SB_PREPOPULATED_SHA256}, got ${actual})`);
-        return false;
+        return null;
       }
       sbDebug(`[SafeBrowsing] Pre-populated zip ${zipPath} matched pinned SHA-256`);
-    } catch (e) {
-      sbDebug(`[SafeBrowsing] Failed to hash ${zipPath}: ${e}`);
-      return false;
+    } else {
+      consoleLogger.info(`[SafeBrowsing] WARNING: no SB_PREPOPULATED_SHA256 pinned digest configured; trusting ${zipPath} based on ownership/permission checks and archive content validation only`);
     }
-  } else {
-    consoleLogger.info(`[SafeBrowsing] WARNING: no SB_PREPOPULATED_SHA256 pinned digest configured; trusting ${zipPath} based on ownership/permission checks only`);
+    return data;
+  } catch (e) {
+    sbDebug(`[SafeBrowsing] Failed to read ${zipPath}: ${e}`);
+    return null;
+  } finally {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch {}
+    }
   }
-  return true;
+}
+
+const S_IFMT = 0o170000;
+const S_IFREG = 0o100000;
+const S_IFDIR = 0o040000;
+
+/**
+ * Extracts an in-memory zip into `destDir` with full containment
+ * (asgard-0003). Replaces `unzip -o`, which restores symlink entries, so an
+ * archive with `link -> /elsewhere` followed by `link/evil` could write
+ * outside the profile directory on some unzip builds.
+ *
+ * The whole archive is validated BEFORE anything is written; one bad entry
+ * rejects it. Refused: symlinks and other special entry types; absolute
+ * paths, drive letters, backslashes, NUL bytes and `.`/`..` segments; names
+ * that resolve outside `destDir`; too many entries or too many bytes.
+ * Files are written with `wx`, so a pre-existing file or symlink at a target
+ * path fails extraction instead of being followed. `destDir` must be a fresh
+ * empty directory owned by this process.
+ */
+export async function extractZipBufferSafely(data: Buffer, destDir: string): Promise<void> {
+  const zip = await JSZip.loadAsync(data);
+  const realDest = fs.realpathSync(destDir);
+  const entries = Object.values(zip.files);
+  if (entries.length > SB_ZIP_MAX_ENTRIES) {
+    throw new Error(`[SafeBrowsing] Archive has ${entries.length} entries (max ${SB_ZIP_MAX_ENTRIES})`);
+  }
+
+  const plan: { file: JSZip.JSZipObject; target: string; isDir: boolean }[] = [];
+  for (const file of entries) {
+    // JSZip strips "../" from `name`; judge the raw stored name instead.
+    const rawName: string = (file as any).unsafeOriginalName ?? file.name;
+    if (
+      !rawName ||
+      rawName.includes('\0') ||
+      rawName.includes('\\') ||
+      rawName.startsWith('/') ||
+      /^[a-zA-Z]:/.test(rawName)
+    ) {
+      throw new Error(`[SafeBrowsing] Refusing unsafe archive entry name: ${JSON.stringify(rawName)}`);
+    }
+    const segments = rawName.replace(/\/$/, '').split('/');
+    if (segments.some(s => s === '' || s === '.' || s === '..')) {
+      throw new Error(`[SafeBrowsing] Refusing archive entry with path traversal: ${JSON.stringify(rawName)}`);
+    }
+    const type = (typeof file.unixPermissions === 'number' ? file.unixPermissions : 0) & S_IFMT;
+    if (type !== 0 && type !== S_IFREG && type !== S_IFDIR) {
+      throw new Error(`[SafeBrowsing] Refusing symlink or special-file archive entry: ${JSON.stringify(rawName)}`);
+    }
+    const target = path.resolve(realDest, ...segments);
+    if (!target.startsWith(realDest + path.sep)) {
+      throw new Error(`[SafeBrowsing] Archive entry escapes extraction dir: ${JSON.stringify(rawName)}`);
+    }
+    plan.push({ file, target, isDir: file.dir || type === S_IFDIR });
+  }
+
+  let written = 0;
+  for (const { file, target, isDir } of plan) {
+    if (isDir) {
+      fs.mkdirSync(target, { recursive: true });
+      continue;
+    }
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    const realParent = fs.realpathSync(path.dirname(target));
+    if (realParent !== realDest && !realParent.startsWith(realDest + path.sep)) {
+      throw new Error(`[SafeBrowsing] Archive entry parent escapes extraction dir: ${file.name}`);
+    }
+    const content = await file.async('nodebuffer');
+    written += content.length;
+    if (written > SB_ZIP_MAX_UNCOMPRESSED_BYTES) {
+      throw new Error(`[SafeBrowsing] Archive exceeds ${SB_ZIP_MAX_UNCOMPRESSED_BYTES} uncompressed bytes`);
+    }
+    fs.writeFileSync(target, content, { flag: 'wx', mode: 0o644 });
+  }
 }
 
 function getChromeExecutable(): string | null {
@@ -107,12 +213,14 @@ function getChromeExecutable(): string | null {
   return candidates.find(p => fs.existsSync(p)) ?? null;
 }
 
-function findPrePopulatedSource(): string | null {
+type PrePopulatedSource = { dir: string; cleanup?: string };
+
+async function findPrePopulatedSource(): Promise<PrePopulatedSource | null> {
   const envPath = process.env.SB_PREPOPULATED_DIR;
   if (envPath) {
     const nestedDir = path.join(envPath, 'Safe Browsing');
-    if (isDbDir(nestedDir) && isOwnedAndNotWorldWritable(envPath) && isOwnedAndNotWorldWritable(nestedDir)) return nestedDir;
-    if (isDbDir(envPath) && isOwnedAndNotWorldWritable(envPath)) return envPath;
+    if (isDbDir(nestedDir) && isOwnedAndNotWorldWritable(envPath) && isOwnedAndNotWorldWritable(nestedDir)) return { dir: nestedDir };
+    if (isDbDir(envPath) && isOwnedAndNotWorldWritable(envPath)) return { dir: envPath };
     sbDebug(`[SafeBrowsing] SB_PREPOPULATED_DIR=${envPath} rejected (missing DB or fails ownership/permission check)`);
   }
 
@@ -126,25 +234,31 @@ function findPrePopulatedSource(): string | null {
   for (const zipPath of zipCandidates) {
     if (fs.existsSync(zipPath)) {
       sbDebug(`[SafeBrowsing] Found pre-populated zip: ${zipPath}`);
-      if (!verifyPrePopulatedZip(zipPath)) {
+      // Read once: the bytes checked are exactly the bytes extracted (no TOCTOU).
+      const zipData = readVerifiedPrePopulatedZip(zipPath);
+      if (!zipData) {
         consoleLogger.info(`[SafeBrowsing] Skipping untrusted pre-populated zip: ${zipPath}`);
         continue;
       }
-      const extractDir = path.join(BASE_PROFILE_DIR, 'Safe Browsing');
-      fs.mkdirSync(extractDir, { recursive: true });
+      // Extract into a fresh private staging dir, never straight into the live
+      // profile, so a rejected archive leaves nothing behind. The caller copies
+      // the validated DB files into SB_DIR.
+      let stagingDir: string | undefined;
       try {
-        // Invoke unzip via argv (execFileSync, no shell) so a zipPath /
-        // extractDir containing shell metacharacters cannot break out of
-        // the quoted string. zipCandidates includes env-derived paths
-        // (OOBEE_SAFE_BROWSING_DB / OOBEE_SAFE_BROWSING_DB_ZIP).
-        execFileSync('unzip', ['-o', '-q', zipPath, '-d', extractDir], { stdio: 'pipe' });
-        if (isDbDir(extractDir)) {
+        stagingDir = fs.mkdtempSync(path.join(BASE_PROFILE_DIR, '.sb-extract-'));
+        await extractZipBufferSafely(zipData, stagingDir);
+        // Accept DB files at the archive root or under "Safe Browsing/".
+        const nested = path.join(stagingDir, 'Safe Browsing');
+        const dbDir = isDbDir(nested) ? nested : stagingDir;
+        if (isDbDir(dbDir)) {
           consoleLogger.info(`[SafeBrowsing] Using verified pre-populated DB from ${zipPath}`);
-          return extractDir;
+          return { dir: dbDir, cleanup: stagingDir };
         }
+        sbDebug(`[SafeBrowsing] ${zipPath} does not contain a Safe Browsing DB`);
       } catch (e) {
-        sbDebug(`[SafeBrowsing] Failed to extract zip: ${e}`);
+        consoleLogger.info(`[SafeBrowsing] Rejecting pre-populated zip ${zipPath}: ${(e as Error).message}`);
       }
+      if (stagingDir) fs.rmSync(stagingDir, { recursive: true, force: true });
     }
   }
 
@@ -167,7 +281,7 @@ function findPrePopulatedSource(): string | null {
   if (foundDir) {
     consoleLogger.info(`[SafeBrowsing] Using pre-populated DB from local Chrome/Chromium profile: ${foundDir}`);
   }
-  return foundDir ?? null;
+  return foundDir ? { dir: foundDir } : null;
 }
 
 function isDbDir(dir: string): boolean {
@@ -180,10 +294,23 @@ function isDbDir(dir: string): boolean {
   );
 }
 
+// Flat copy of a Safe Browsing DB dir. asgard-0003: only regular files are
+// copied (lstat, so symlinks are never followed), and a symlink already sitting
+// at the destination is removed rather than written through — otherwise a
+// planted `dst/UrlMalware.store.x -> /elsewhere` would redirect the write.
 function copyDirectory(src: string, dst: string): void {
   fs.mkdirSync(dst, { recursive: true });
   for (const file of fs.readdirSync(src)) {
-    fs.copyFileSync(path.join(src, file), path.join(dst, file));
+    const from = path.join(src, file);
+    const to = path.join(dst, file);
+    if (!fs.lstatSync(from).isFile()) {
+      sbDebug(`[SafeBrowsing] Skipping non-regular file in DB dir: ${from}`);
+      continue;
+    }
+    try {
+      if (fs.lstatSync(to).isSymbolicLink()) fs.unlinkSync(to);
+    } catch {}
+    fs.copyFileSync(from, to);
   }
 }
 
@@ -316,15 +443,19 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
 
   fs.mkdirSync(BASE_PROFILE_DIR, { recursive: true });
 
-  const prePopulated = findPrePopulatedSource();
-  sbDebug(`[SafeBrowsing] findPrePopulatedSource() = ${prePopulated}`);
+  const prePopulated = await findPrePopulatedSource();
+  sbDebug(`[SafeBrowsing] findPrePopulatedSource() = ${prePopulated?.dir}`);
   if (prePopulated) {
-    sbDebug(`[SafeBrowsing] Found pre-populated DB at: ${prePopulated}`);
-    const files = fs.readdirSync(prePopulated);
-    sbDebug(`[SafeBrowsing] Files: ${files.join(', ')}`);
-    printMessage([`Copying Safe Browsing threat database from verified pre-populated source: ${prePopulated}`], messageOptions);
-    copyDirectory(prePopulated, SB_DIR);
-    printMessage(['Google Safe Browsing enabled (local hash-prefix DB active)'], messageOptions);
+    try {
+      sbDebug(`[SafeBrowsing] Found pre-populated DB at: ${prePopulated.dir}`);
+      const files = fs.readdirSync(prePopulated.dir);
+      sbDebug(`[SafeBrowsing] Files: ${files.join(', ')}`);
+      printMessage([`Copying Safe Browsing threat database from verified pre-populated source: ${prePopulated.dir}`], messageOptions);
+      copyDirectory(prePopulated.dir, SB_DIR);
+      printMessage(['Google Safe Browsing enabled (local hash-prefix DB active)'], messageOptions);
+    } finally {
+      if (prePopulated.cleanup) fs.rmSync(prePopulated.cleanup, { recursive: true, force: true });
+    }
     return;
   }
 
