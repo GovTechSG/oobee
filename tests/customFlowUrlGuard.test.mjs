@@ -3,14 +3,12 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 process.env.OOBEE_DISABLE_TELEMETRY = '1';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const { assertSafeCustomFlowUrl } = await import(
-  path.join(root, 'dist', 'crawlers', 'scanCustomFlow.js')
-);
+const { assertSafeCustomFlowUrl } = await import(pathToFileURL(path.join(root, 'dist', 'crawlers', 'scanCustomFlow.js')).href);
 
 const allowed = url => assert.doesNotReject(assertSafeCustomFlowUrl(url));
 const refused = url => assert.rejects(assertSafeCustomFlowUrl(url));
