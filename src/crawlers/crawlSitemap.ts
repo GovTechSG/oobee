@@ -32,7 +32,6 @@ import {
   isFilePath,
   isInternalOrLoopbackUrl,
   isLinkLocalOrMetadataUrl,
-  classifyServerAddress,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, normUrl, register } from '../utils.js';
 import {
@@ -269,10 +268,6 @@ const crawlSitemap = async ({
     if (entryIsInternal) return false;
     return isInternalOrLoopbackUrl(target);
   };
-  const isRefusedServerAddress = (remoteIp: string): boolean => {
-    const kind = classifyServerAddress(remoteIp);
-    return kind === 'metadata' || (kind === 'internal' && !entryIsInternal);
-  };
   const recordRefusedEgress = (requestUrl: string) => {
     guiInfoLog(guiInfoStatusTypes.SKIPPED, {
       numScanned: urlsCrawled.scanned.length,
@@ -466,11 +461,28 @@ const crawlSitemap = async ({
         }
 
         // asgard-0004: the pre-nav check can't see 3xx targets or a DNS answer
-        // that changes after our lookup; check the address actually connected to.
+        // that changes after our lookup. response.serverAddr() can't be used
+        // here: Crawlee routes Chrome through its own local proxy, so it always
+        // reports 127.0.0.1 (that refused every page). Instead re-check every
+        // redirect hop and the final URL; isRefusedEgressUrl resolves DNS again,
+        // so a host that has since rebound to an internal address is refused.
         if (response) {
-          const remoteIp = (await response.serverAddr().catch(() => null))?.ipAddress;
-          if (remoteIp && isRefusedServerAddress(remoteIp)) {
-            consoleLogger.warn(`Refusing content from internal address ${remoteIp} (${request.url})`);
+          const hops = new Set<string>();
+          let hop = response.request();
+          while (hop) {
+            hops.add(hop.url());
+            hop = hop.redirectedFrom();
+          }
+          hops.add(page.url());
+          let refusedHop: string | undefined;
+          for (const hopUrl of hops) {
+            if (await isRefusedEgressUrl(hopUrl)) {
+              refusedHop = hopUrl;
+              break;
+            }
+          }
+          if (refusedHop) {
+            consoleLogger.warn(`Refusing content from internal address ${refusedHop} (${request.url})`);
             recordRefusedEgress(request.url);
             return;
           }
