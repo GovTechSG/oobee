@@ -4,14 +4,12 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 process.env.OOBEE_DISABLE_TELEMETRY = '1';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const { isRefusedRedirectTarget, isRefusedServerAddrForEntry } = await import(
-  path.join(root, 'dist', 'constants', 'common.js')
-);
+const { isRefusedRedirectTarget, isRefusedServerAddrForEntry } = await import(pathToFileURL(path.join(root, 'dist', 'constants', 'common.js')).href);
 
 // IP literals only, so no case depends on DNS resolution.
 const PUBLIC_ENTRY = 'http://93.184.216.34/';
