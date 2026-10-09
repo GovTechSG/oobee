@@ -3,13 +3,20 @@ export function extractText(): string[] {
     // Extract text content from all specified elements (e.g., paragraphs)
     const elements = document.querySelectorAll('p'); // Adjust selector as needed
     const extractedSentences: string[] = [];
+    // asgard-0005: bound the text returned to Node. Same value as
+    // MAX_READABILITY_TEXT_CHARS in gradeReadability.ts, which grades at most
+    // this much anyway, so stopping here changes no score. Must stay inline:
+    // this function is serialised via toString() and runs in the page.
+    const maxChars = 1_000_000;
+    let totalChars = 0;
+    let stop = false;
 
     elements.forEach(element => {
+      if (stop) return;
       const rawText = element.innerText.trim();
       // Drop the trailing run after the last terminator: it can never match, and it is
-      // the only input on which the regex below backtracks quadratically. No length cap,
-      // because integrators feed this output to gradeReadability and truncation would
-      // skew their scores. Kept inline since this function is serialised via toString().
+      // the only input on which the regex below backtracks quadratically.
+      // Kept inline since this function is serialised via toString().
       let lastTerminator = -1;
       for (let j = rawText.length - 1; j >= 0; j -= 1) {
         const c = rawText[j];
@@ -25,12 +32,16 @@ export function extractText(): string[] {
       const matches = text.match(sentencePattern);
       if (matches) {
         // Add only sentences that end with punctuation
-        matches.forEach(sentence => {
+        for (const sentence of matches) {
           const trimmedSentence = sentence.trim(); // Trim whitespace from each sentence
-          if (trimmedSentence.length > 0) {
-            extractedSentences.push(trimmedSentence);
+          if (trimmedSentence.length === 0) continue;
+          if (totalChars + trimmedSentence.length > maxChars) {
+            stop = true;
+            break;
           }
-        });
+          extractedSentences.push(trimmedSentence);
+          totalChars += trimmedSentence.length + 1; // +1 for gradeReadability's join separator
+        }
       }
     });
 
