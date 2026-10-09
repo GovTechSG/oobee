@@ -748,7 +748,16 @@ const transformRule = async (
 
 export const doPdfScreenshots = async (randomToken: string, result: TranslatedObject) => {
   const { filePath, pageTitle } = result;
-  const formattedPageTitle = pageTitle.replaceAll(' ', '_').split('.')[0];
+  // asgard-0002 (2026-10-09 scan): pageTitle comes from the PDF's URL, so it is
+  // attacker-controlled and ends up in a filename and in report markup. Keep
+  // the existing shape (spaces -> _, cut at the first '.') and then allow only
+  // [A-Za-z0-9_-] so quotes, tabs or angle brackets can't reach either.
+  const formattedPageTitle =
+    String(pageTitle || '')
+      .replaceAll(' ', '_')
+      .split('.')[0]
+      .replace(/[^A-Za-z0-9_-]/g, '_')
+      .slice(0, 100) || 'pdf';
   const screenshotsDir = path.join(getStoragePath(randomToken), 'elemScreenshots', 'pdf');
 
   ensureDirSync(screenshotsDir);

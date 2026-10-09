@@ -265,7 +265,7 @@
           <div class="fw-semibold">Screenshot</div>
           <div class="page-item-card-section-content bg-grey-w-border">
             <img
-              src="${screenshotPath}"
+              src="${htmlEscapeString(screenshotPath)}"
               onerror="this.onerror = null; this.closest('div.hide-on-img-error').remove();"
               alt="Screenshot of affected element" />
           </div>
