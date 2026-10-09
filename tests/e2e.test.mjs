@@ -26,7 +26,7 @@ const hasVera = extraPath.includes('verapdf') && extraPath.includes('jre');
 
 const runCli = (args, env = {}) =>
   new Promise((resolve) => {
-    const child = spawn(process.execPath, [cli, ...args, '-h', 'yes', '-g', 'yes', '-k', 'Test:test@example.com', '-e', outRoot], {
+    const child = spawn(process.execPath, [cli, ...args, '-h', 'yes', '-g', 'yes', '-k', 'Oobee Test:accessibility@tech.gov.sg', '-e', outRoot], {
       cwd: root,
       env: {
         ...process.env,

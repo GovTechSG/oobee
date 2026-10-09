@@ -145,7 +145,7 @@ describe('extractText sentence splitting', () => {
 
 describe('scanHTML', () => {
   const html = '<html><body><img src="a.png"><button></button><p>some padding text to exceed fifty bytes</p></body></html>';
-  const cfg = { name: 'Test', email: 'test@example.com' };
+  const cfg = { name: 'Oobee Test', email: 'accessibility@tech.gov.sg' };
   const withEnv = async (env, fn) => {
     const prev = {};
     for (const k of Object.keys(env)) {
@@ -244,8 +244,8 @@ describe('scanCustomFlow entry URL', () => {
   test('metadata entry URL is refused before any browser launches', async () => {
     const session = scanCustomFlow({
       url: 'http://169.254.169.254/latest/meta-data/',
-      name: 'Test',
-      email: 'test@example.com',
+      name: 'Oobee Test',
+      email: 'accessibility@tech.gov.sg',
     });
     session.ready.catch(() => {});
     await assert.rejects(session.result, /link-local or cloud-metadata/);
