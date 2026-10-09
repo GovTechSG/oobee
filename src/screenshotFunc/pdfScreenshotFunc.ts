@@ -703,7 +703,15 @@ const getTagsFromErrorPlace = (context: string, structure: StructureTree) => {
   return defaultValue;
 };
 
-const calculateLocation = location => {
+// asgard-0006: upper bound on the page span of a single veraPDF location.
+// The `pages[start-end]` range comes from a PDF downloaded from a scanned
+// (untrusted) site, and calculateLocation emits one entry per page in it —
+// buildBboxMap then renders each of those pages. A crafted range such as
+// pages[0-50000000] would otherwise exhaust the heap. 10,000 pages is far
+// beyond any single element spanning real document pages.
+export const MAX_PDF_LOCATION_PAGE_SPAN = 10_000;
+
+export const calculateLocation = location => {
   const bboxes = [];
   const [pages, boundingBox] = location.split('/');
   const [start, end] = pages.replace('pages[', '').replace(']', '').split('-');
@@ -711,15 +719,27 @@ const calculateLocation = location => {
   const width = parseFloat(x1) - parseFloat(x);
 
   if (end) {
-    for (let i = parseInt(start) + 1; i <= parseInt(end) + 1; i++) {
+    const startPage = parseInt(start, 10);
+    const endPage = parseInt(end, 10);
+    if (
+      !Number.isFinite(startPage) ||
+      !Number.isFinite(endPage) ||
+      startPage < 0 ||
+      endPage < startPage ||
+      endPage - startPage > MAX_PDF_LOCATION_PAGE_SPAN
+    ) {
+      console.error(`Location page range not supported: ${pages}`);
+      return bboxes;
+    }
+    for (let i = startPage + 1; i <= endPage + 1; i++) {
       switch (i) {
-        case parseInt(start) + 1:
+        case startPage + 1:
           bboxes.push({
             page: i,
             location: [parseFloat(x), parseFloat(y1), width, 'bottom'],
           });
           break;
-        case parseInt(end) + 1:
+        case endPage + 1:
           bboxes.push({
             page: i,
             location: [parseFloat(x), parseFloat(y), width, 'top'],
