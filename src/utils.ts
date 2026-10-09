@@ -1096,14 +1096,65 @@ export const setThresholdLimits = (setWarnLevel: string): void => {
   process.env.WARN_LEVEL = setWarnLevel;
 };
 
+// asgard-0001 (2026-10-09 scan): the zip output name comes from the CLI `-o`
+// flag, the npm `init({ zip })` option and `scanCustomFlow({ zip })`. It is
+// used to delete and then write a file, so:
+//  - a relative name must stay inside the results directory; one that climbs
+//    out with `..` is reduced to its file name inside the results directory;
+//  - an absolute path is still honoured (operators pass `-o /abs/out.zip`),
+//    but it must end in `.zip` and may only replace an existing zip archive.
+//    A non-zip file, directory or symlink at that path is refused, so the
+//    name can no longer be used to delete or overwrite arbitrary files.
+export const resolveZipOutputPath = (zipName: string, resultsPath: string): string => {
+  let name = String(zipName || '').trim() || 'oobee-scan-results.zip';
+  if (!name.toLowerCase().endsWith('.zip')) name += '.zip';
+  if (path.isAbsolute(name)) return path.resolve(name);
+
+  const root = path.resolve(resultsPath);
+  const candidate = path.resolve(root, name);
+  const rel = path.relative(root, candidate);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) {
+    const fallback = path.join(root, path.basename(candidate));
+    consoleLogger.warn(`Zip name "${zipName}" escapes the results directory; writing ${fallback} instead`);
+    return fallback;
+  }
+  return candidate;
+};
+
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b]); // "PK"
+
+// Refuses to replace anything at zipFilePath that is not a regular zip file.
+const assertReplaceableZipTarget = (zipFilePath: string): void => {
+  let st: fs.Stats;
+  try {
+    st = fs.lstatSync(zipFilePath);
+  } catch {
+    return; // nothing there yet
+  }
+  if (!st.isFile()) {
+    throw new Error(`Refusing to overwrite ${zipFilePath}: not a regular file`);
+  }
+  if (st.size === 0) return;
+  const head = Buffer.alloc(2);
+  const fd = fs.openSync(zipFilePath, 'r');
+  try {
+    fs.readSync(fd, head, 0, 2, 0);
+  } finally {
+    fs.closeSync(fd);
+  }
+  if (!head.equals(ZIP_MAGIC)) {
+    throw new Error(`Refusing to overwrite ${zipFilePath}: existing file is not a zip archive`);
+  }
+};
+
 export const zipResults = async (zipName: string, resultsPath: string): Promise<void> => {
-  // Resolve and validate the output path
-  const zipFilePath = path.isAbsolute(zipName) ? zipName : path.join(resultsPath, zipName);
+  const zipFilePath = resolveZipOutputPath(zipName, resultsPath);
+  assertReplaceableZipTarget(zipFilePath);
 
   // Ensure parent dir exists
   fs.mkdirSync(path.dirname(zipFilePath), { recursive: true });
 
-  // Remove any prior file atomically
+  // Remove any prior zip (checked above to be a regular zip file)
   try { fs.unlinkSync(zipFilePath); } catch { /* ignore if not exists */ }
 
   // CWD must exist and be a directory

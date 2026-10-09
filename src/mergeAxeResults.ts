@@ -25,6 +25,7 @@ import {
   getProgressPercentage,
   retryFunction,
   zipResults,
+  resolveZipOutputPath,
   getIssuesPercentage,
   register,
   getEntryPageTitle,
@@ -1192,12 +1193,9 @@ const generateArtifacts = async (
     }
   }
 
-  if (
-    !path.isAbsolute(constants.cliZipFileName) ||
-    path.dirname(constants.cliZipFileName) === '.'
-  ) {
-    constants.cliZipFileName = path.join(storagePath, constants.cliZipFileName);
-  }
+  // asgard-0001: confine relative names to storagePath (path.join would let
+  // `../..` climb out); absolute paths are checked again inside zipResults.
+  constants.cliZipFileName = resolveZipOutputPath(constants.cliZipFileName, storagePath);
 
   try {
     await fs.ensureDir(storagePath);
