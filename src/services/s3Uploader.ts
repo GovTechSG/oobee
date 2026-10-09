@@ -19,6 +19,15 @@ const sanitizeS3MetadataValue = (value: string): string => {
     .trim(); // e.g. " Homepage | Community Chest " -> "Homepage | Community Chest"
 };
 
+// asgard-0013 (2026-10-09 scan): siteName is the scanned page's <title>, so it
+// is attacker-controlled. On top of the header-safety above, drop HTML
+// metacharacters and cap the length, so a consumer that renders S3 metadata
+// without escaping can't be handed markup. "&" becomes "and" to keep titles
+// like "Arts & Culture" readable.
+export const sanitizeSiteNameMetadata = (value: string): string =>
+  sanitizeS3MetadataValue(String(value ?? '').replace(/&/g, ' and ').replace(/[<>"'`]/g, ''))
+    .slice(0, 256);
+
 export interface UploadedFileInfo {
   filename: string;
   s3Path: string;
@@ -109,7 +118,7 @@ export const uploadFolderToS3 = async (
     metadata.userrole = sanitizeS3MetadataValue(scanMetadata.userRole);
   }
   if (scanMetadata.siteName) {
-    metadata.sitename = sanitizeS3MetadataValue(scanMetadata.siteName);
+    metadata.sitename = sanitizeSiteNameMetadata(scanMetadata.siteName);
   }
   if (scanMetadata.durationExceeded !== undefined) {
     metadata.durationexceeded = sanitizeS3MetadataValue(scanMetadata.durationExceeded);
