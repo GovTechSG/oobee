@@ -82,7 +82,7 @@ export function isPageCaptureEnabled(): boolean {
 // Curated list of CSS properties that matter for accessibility triage —
 // colour contrast, focus visibility, sizing/spacing, text handling. A full
 // getComputedStyle dump per element runs to ~500 properties; this cuts it
-// to ~20 without losing the ones LLM-based analysis actually reasons about.
+// to ~30 without losing the ones LLM-based analysis actually reasons about.
 // Order chosen roughly by usefulness for downstream tooling.
 const CAPTURED_CSS_PROPERTIES: string[] = [
   'color',
@@ -107,6 +107,169 @@ const CAPTURED_CSS_PROPERTIES: string[] = [
   'display',
   'pointer-events',
   'cursor',
+  // Box model — needed to explain a target-size (WCAG 2.5.8) or spacing
+  // verdict. The `rect` below settles whether an element meets the 24×24
+  // threshold; these say which declaration to change to fix it. `margin-*`
+  // / `max-*` / `position` are deliberately omitted — the rect makes them
+  // redundant for the verdict and they are not free at ~300 elements/page.
+  'box-sizing',
+  'height',
+  'width',
+  'min-height',
+  'min-width',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
+];
+
+// Pseudo-element styles are invisible to a plain getComputedStyle on the host,
+// so a contrast or target-size finding against placeholder text, a list marker,
+// an icon drawn with ::before, or a range slider's thumb cannot be triaged
+// without capturing them separately.
+//
+// Every entry carries an eligibility gate, and the gate is not optional:
+// getComputedStyle(el, pseudo) never returns null for a pseudo the host cannot
+// render — Chrome silently returns the host's own inherited styles. Verified in
+// Chromium 1228 that `input[type=text]::file-selector-button` and `div::marker`
+// both report the host's `color`, so an ungated read would record an input's
+// text colour as its placeholder colour: worse than recording nothing.
+//
+// `requiresAuthoredRule` covers the pseudos that render on almost any element
+// and so admit no useful eligibility test (::first-line/::first-letter,
+// scrollbars). For those the gate is whether a stylesheet actually declares a
+// rule for the pseudo. Comparing the pseudo's computed style against the host's
+// looks like a cheaper test but does not work: properties such as `background`
+// and `border` do not inherit into ::first-line, and a pseudo's `width`
+// resolves to `auto` where the host's resolves to used pixels, so every pseudo
+// on every element reads as "different" and nothing gets filtered.
+//
+// Not capturable here: pseudos that take an argument (`::highlight()`,
+// `::part()`, `::slotted()`) cannot be enumerated, `::view-transition-*` only
+// exist mid-transition, and pseudo-CLASSES (`:focus-visible`, `:hover`) are
+// rejected by getComputedStyle — forcing those needs a CDP round trip per
+// element, which is out of proportion to a whole-page capture.
+interface PseudoRule {
+  pseudo: string;
+  // Uppercase tagName whitelist. Omitted = applies to any element.
+  hostTags?: string[];
+  // Checked only for INPUT hosts, so ::placeholder can also allow TEXTAREA.
+  inputTypes?: string[];
+  requiresPlaceholder?: boolean;
+  requiresListItem?: boolean;
+  requiresContent?: boolean;
+  requiresScrollable?: boolean;
+  requiresBlockText?: boolean;
+  requiresAuthoredRule?: boolean;
+}
+
+const CAPTURED_PSEUDO_RULES: PseudoRule[] = [
+  // Generated content: icon fonts, decorative glyphs, CSS-drawn focus rings.
+  { pseudo: '::before', requiresContent: true },
+  { pseudo: '::after', requiresContent: true },
+
+  // Form controls whose visible text/affordance lives in the shadow tree.
+  {
+    pseudo: '::placeholder',
+    hostTags: ['INPUT', 'TEXTAREA'],
+    inputTypes: ['text', 'search', 'url', 'tel', 'email', 'password', 'number'],
+    requiresPlaceholder: true,
+  },
+  { pseudo: '::file-selector-button', hostTags: ['INPUT'], inputTypes: ['file'] },
+  { pseudo: '::marker', requiresListItem: true },
+
+  // Typographic pseudos — a drop cap or styled first line can fail contrast on
+  // its own while the rest of the paragraph passes.
+  { pseudo: '::first-line', requiresBlockText: true, requiresAuthoredRule: true },
+  { pseudo: '::first-letter', requiresBlockText: true, requiresAuthoredRule: true },
+
+  // Dialog/disclosure internals.
+  { pseudo: '::backdrop', hostTags: ['DIALOG'] },
+  { pseudo: '::details-content', hostTags: ['DETAILS'] },
+
+  // Caption text for media — contrast here is a common 1.4.3 failure.
+  { pseudo: '::cue', hostTags: ['VIDEO', 'AUDIO'] },
+
+  // Native control internals that are themselves tap targets (WCAG 2.5.8) or
+  // carry their own colours independent of the host.
+  { pseudo: '::-webkit-search-cancel-button', hostTags: ['INPUT'], inputTypes: ['search'] },
+  {
+    pseudo: '::-webkit-calendar-picker-indicator',
+    hostTags: ['INPUT'],
+    inputTypes: ['date', 'datetime-local', 'month', 'time', 'week'],
+  },
+  { pseudo: '::-webkit-slider-thumb', hostTags: ['INPUT'], inputTypes: ['range'] },
+  { pseudo: '::-webkit-slider-runnable-track', hostTags: ['INPUT'], inputTypes: ['range'] },
+  { pseudo: '::-webkit-inner-spin-button', hostTags: ['INPUT'], inputTypes: ['number'] },
+  { pseudo: '::-webkit-color-swatch', hostTags: ['INPUT'], inputTypes: ['color'] },
+  { pseudo: '::-webkit-progress-bar', hostTags: ['PROGRESS'] },
+  { pseudo: '::-webkit-progress-value', hostTags: ['PROGRESS'] },
+  { pseudo: '::-webkit-meter-bar', hostTags: ['METER'] },
+  { pseudo: '::-webkit-meter-optimum-value', hostTags: ['METER'] },
+  { pseudo: '::-webkit-meter-suboptimum-value', hostTags: ['METER'] },
+  { pseudo: '::-webkit-meter-even-less-good-value', hostTags: ['METER'] },
+
+  // Custom scrollbars: both a contrast surface and a tap target.
+  { pseudo: '::-webkit-scrollbar', requiresScrollable: true, requiresAuthoredRule: true },
+  { pseudo: '::-webkit-scrollbar-thumb', requiresScrollable: true, requiresAuthoredRule: true },
+  { pseudo: '::-webkit-scrollbar-track', requiresScrollable: true, requiresAuthoredRule: true },
+];
+
+// Highlight pseudos. WCAG 1.4.3 applies to selected text, and an author who
+// overrides ::selection can easily drop it below 4.5:1 — but these apply to
+// every element and in practice are authored once globally, so capturing them
+// per element is 300x redundant (measured: 71% of the output file). Captured
+// once against html and body instead.
+const DOCUMENT_PSEUDO_ELEMENTS: string[] = [
+  '::selection',
+  '::target-text',
+  '::spelling-error',
+  '::grammar-error',
+];
+
+const CAPTURED_PSEUDO_ELEMENTS: string[] = [
+  ...CAPTURED_PSEUDO_RULES.map(r => r.pseudo),
+  ...DOCUMENT_PSEUDO_ELEMENTS,
+];
+
+// A pseudo-element has no getBoundingClientRect, so unlike a real element its
+// computed width/height is the only geometry available — which is why the box
+// model is captured here too, for the slider-thumb / scrollbar tap targets.
+const CAPTURED_PSEUDO_CSS_PROPERTIES: string[] = [
+  'content',
+  'color',
+  'background-color',
+  'background-image',
+  'opacity',
+  'font-size',
+  'font-weight',
+  'font-style',
+  'line-height',
+  'text-decoration',
+  'visibility',
+  'display',
+  'box-sizing',
+  'width',
+  'height',
+  'min-width',
+  'min-height',
+  'border-color',
+  'border-style',
+  'border-width',
+  'outline-color',
+  'outline-style',
+  'outline-width',
+];
+
+// `display` values that can host ::first-line / ::first-letter. Flex and grid
+// containers are excluded: they have no first formatted line.
+const BLOCK_TEXT_DISPLAYS: string[] = [
+  'block',
+  'list-item',
+  'inline-block',
+  'table-cell',
+  'table-caption',
+  'flow-root',
 ];
 
 // asgard-0011: upper bounds on page capture. The captured page is scanned
@@ -142,6 +305,15 @@ const SKIPPED_TAGS = new Set([
   'BASE',
 ]);
 
+interface ComputedStylesCapture {
+  elements: Array<Record<string, unknown>>;
+  documentPseudoStyles: Record<string, Record<string, Record<string, string>>>;
+  authoredPseudoElements: string[];
+  unreadableStylesheets: number;
+  // asgard-0011: set when the element or size cap stopped the capture early.
+  truncated: string | null;
+}
+
 /**
  * Runs inside the page context to enumerate every visible element, compute a
  * stable CSS selector for it (id-anchored where possible, otherwise the
@@ -151,12 +323,99 @@ const SKIPPED_TAGS = new Set([
  * Kept as a single self-contained function because Playwright's page.evaluate
  * serialises the arg — no imports or outer bindings survive.
  */
-export async function captureComputedStyles(
-  page: Page,
-): Promise<{ elements: Array<Record<string, unknown>>; truncated: string | null }> {
+export async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture> {
   return page.evaluate(
-    ({ props, skipped, maxElements, maxChars }) => {
+    ({
+      props,
+      skipped,
+      pseudoRules,
+      pseudoProps,
+      docPseudos,
+      blockTextDisplays,
+      maxElements,
+      maxChars,
+    }) => {
       const skippedSet = new Set(skipped);
+      const blockTextDisplaySet = new Set(blockTextDisplays);
+
+      const round1 = (n: number): number => Math.round(n * 10) / 10;
+
+      // A background-image can be a multi-kilobyte data URI; at ~300 elements a
+      // page that uses them would dominate the output file.
+      const clip = (v: string): string => (v.length > 200 ? `${v.slice(0, 200)}...` : v);
+
+      // Every selector text in the document, for the requiresAuthoredRule gate.
+      // Cross-origin stylesheets throw on .cssRules; those are skipped, so the
+      // gate can only under-report, never invent an authored rule.
+      const selectorTexts: string[] = [];
+      const collectSelectors = (rules: CSSRuleList): void => {
+        for (const rule of Array.from(rules)) {
+          const asStyle = rule as CSSStyleRule;
+          if (typeof asStyle.selectorText === 'string') selectorTexts.push(asStyle.selectorText);
+          const nested = (rule as CSSGroupingRule).cssRules;
+          if (nested) collectSelectors(nested);
+        }
+      };
+      let readableStylesheets = 0;
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          if (sheet.cssRules) {
+            collectSelectors(sheet.cssRules);
+            readableStylesheets += 1;
+          }
+        } catch {
+          // Cross-origin stylesheet — unreadable by design.
+        }
+      }
+      const allSelectors = selectorTexts.join('\n');
+      // Match the single-colon spelling: it is a substring of the double-colon
+      // form, so `:first-letter` catches both `::first-letter` and the legacy
+      // `:first-letter`, while the leading colon keeps a class name like
+      // `.selection-box` from registering as an authored `::selection` rule.
+      const authoredPseudos = new Set(
+        docPseudos
+          .concat(pseudoRules.filter(r => r.requiresAuthoredRule).map(r => r.pseudo))
+          .filter(pseudo => allSelectors.includes(pseudo.replace(/^::/, ':'))),
+      );
+
+      function canRenderPseudo(
+        el: Element,
+        rule: typeof pseudoRules[number],
+        cs: CSSStyleDeclaration,
+        pcs: CSSStyleDeclaration,
+      ): boolean {
+        if (rule.requiresAuthoredRule && !authoredPseudos.has(rule.pseudo)) return false;
+        if (rule.hostTags && !rule.hostTags.includes(el.tagName)) return false;
+        if (rule.inputTypes && el instanceof HTMLInputElement) {
+          if (!rule.inputTypes.includes(el.type)) return false;
+        }
+        if (rule.requiresPlaceholder) {
+          const placeholder = el.getAttribute('placeholder');
+          if (!placeholder) return false;
+        }
+        if (rule.requiresListItem && !cs.getPropertyValue('display').includes('list-item')) {
+          return false;
+        }
+        if (rule.requiresContent) {
+          const content = pcs.getPropertyValue('content');
+          if (content === 'none' || content === 'normal' || content === '') return false;
+        }
+        if (
+          rule.requiresScrollable &&
+          el.scrollHeight <= el.clientHeight &&
+          el.scrollWidth <= el.clientWidth
+        ) {
+          return false;
+        }
+        if (rule.requiresBlockText) {
+          if (!blockTextDisplaySet.has(cs.getPropertyValue('display'))) return false;
+          const hasDirectText = Array.from(el.childNodes).some(
+            n => n.nodeType === Node.TEXT_NODE && (n.textContent || '').trim() !== '',
+          );
+          if (!hasDirectText) return false;
+        }
+        return true;
+      }
 
       // asgard-0011: each element's position among same-tag siblings, built in
       // one pass per parent and reused. The previous code walked every earlier
@@ -239,13 +498,26 @@ export async function captureComputedStyles(
         const outer = el.outerHTML || '';
         const selector = selectorFor(el);
         const outerHtmlPrefix = outer.length > 200 ? outer.slice(0, 200) : outer;
+        // Document-relative, not viewport-relative: getBoundingClientRect is
+        // measured from the current scroll position, so raw x/y would shift
+        // between captures of the same page and quietly break any spacing or
+        // overlap reasoning downstream. Always emitted, so a 0x0 rect from
+        // `display: none` stays distinguishable from "not captured".
+        const box = el.getBoundingClientRect();
         const record: Record<string, unknown> = {
           selector,
           tag: el.tagName.toLowerCase(),
           styles,
+          rect: {
+            x: round1(box.left + window.scrollX),
+            y: round1(box.top + window.scrollY),
+            w: round1(box.width),
+            h: round1(box.height),
+          },
           outerHtmlPrefix,
         };
-        size += selector.length + outerHtmlPrefix.length;
+        // +40 approximates the serialised rect.
+        size += selector.length + outerHtmlPrefix.length + 40;
         if (el instanceof HTMLElement && el.id) {
           record.id = el.id;
           size += el.id.length;
@@ -255,6 +527,29 @@ export async function captureComputedStyles(
           record.classes = classes;
           for (const c of classes) size += c.length + 3;
         }
+
+        const pseudoStyles: Record<string, Record<string, string>> = {};
+        for (const rule of pseudoRules) {
+          let pcs: CSSStyleDeclaration | null = null;
+          try {
+            pcs = window.getComputedStyle(el, rule.pseudo);
+          } catch {
+            // Pseudo unknown to this browser build.
+            continue;
+          }
+          if (!pcs) continue;
+          if (!canRenderPseudo(el, rule, cs, pcs)) continue;
+          const entry: Record<string, string> = {};
+          for (const prop of pseudoProps) {
+            const value = clip(pcs.getPropertyValue(prop));
+            entry[prop] = value;
+            size += prop.length + value.length;
+          }
+          pseudoStyles[rule.pseudo] = entry;
+        }
+        if (Object.keys(pseudoStyles).length > 0) record.pseudoStyles = pseudoStyles;
+
+        // asgard-0011: pseudo-styles count toward the size cap too.
         if (approxChars + size > maxChars) {
           truncated = 'maxBytes';
           break;
@@ -262,29 +557,83 @@ export async function captureComputedStyles(
         approxChars += size;
         results.push(record);
       }
-      return { elements: results, truncated };
+
+      // Highlight pseudos, once per document root rather than per element.
+      // Only when a stylesheet declares them: for an unstyled ::selection
+      // getComputedStyle reports the inherited colour and a transparent
+      // background, which is not what the browser paints — it uses a system
+      // highlight colour it does not expose. Recording that would read as a
+      // real selection colour and invite a wrong contrast verdict.
+      const documentPseudoStyles: Record<
+        string,
+        Record<string, Record<string, string>>
+      > = {};
+      for (const [host, el] of [
+        ['html', document.documentElement],
+        ['body', document.body],
+      ] as Array<[string, Element | null]>) {
+        if (!el) continue;
+        const forHost: Record<string, Record<string, string>> = {};
+        for (const pseudo of docPseudos) {
+          if (!authoredPseudos.has(pseudo)) continue;
+          let pcs: CSSStyleDeclaration | null = null;
+          try {
+            pcs = window.getComputedStyle(el, pseudo);
+          } catch {
+            continue;
+          }
+          if (!pcs) continue;
+          const entry: Record<string, string> = {};
+          for (const prop of pseudoProps) entry[prop] = clip(pcs.getPropertyValue(prop));
+          forHost[pseudo] = entry;
+        }
+        if (Object.keys(forHost).length > 0) documentPseudoStyles[host] = forHost;
+      }
+
+      return {
+        elements: results,
+        documentPseudoStyles,
+        authoredPseudoElements: Array.from(authoredPseudos),
+        unreadableStylesheets: document.styleSheets.length - readableStylesheets,
+        truncated,
+      };
     },
     {
       props: CAPTURED_CSS_PROPERTIES,
       skipped: Array.from(SKIPPED_TAGS),
+      pseudoRules: CAPTURED_PSEUDO_RULES,
+      pseudoProps: CAPTURED_PSEUDO_CSS_PROPERTIES,
+      docPseudos: DOCUMENT_PSEUDO_ELEMENTS,
+      blockTextDisplays: BLOCK_TEXT_DISPLAYS,
       maxElements: getCaptureMaxElements(),
       maxChars: getCaptureMaxStylesBytes(),
     },
   );
 }
 
-// Builds the computed-styles JSON for one viewport. Fields are unchanged for
-// normal pages; `truncated` / `truncatedReason` are only added when a cap
-// was hit, so consumers can tell a partial capture from a complete one.
-async function buildComputedStylesJson(page: Page, url: string, viewport: string): Promise<string> {
-  const { elements, truncated } = await captureComputedStyles(page);
+// Builds the computed-styles JSON for one viewport. `truncated` /
+// `truncatedReason` are only added when a cap was hit (asgard-0011), so
+// consumers can tell a partial capture from a complete one.
+async function buildComputedStylesJson(
+  page: Page,
+  url: string,
+  viewport: string,
+  viewportSize: { width: number; height: number } | null,
+): Promise<string> {
+  const capture = await captureComputedStyles(page);
   const payload = {
     url,
     viewport,
+    viewportSize,
     capturedAt: new Date().toISOString(),
     properties: CAPTURED_CSS_PROPERTIES,
-    elements,
-    ...(truncated && { truncated: true, truncatedReason: truncated }),
+    pseudoProperties: CAPTURED_PSEUDO_CSS_PROPERTIES,
+    capturedPseudoElements: CAPTURED_PSEUDO_ELEMENTS,
+    authoredPseudoElements: capture.authoredPseudoElements,
+    unreadableStylesheets: capture.unreadableStylesheets,
+    documentPseudoStyles: capture.documentPseudoStyles,
+    elements: capture.elements,
+    ...(capture.truncated && { truncated: true, truncatedReason: capture.truncated }),
   };
   return JSON.stringify(payload);
 }
@@ -335,6 +684,13 @@ export async function capturePageData(
     errors: [],
   };
 
+  // Read before the first capture, not after: the "desktop" slot is captured at
+  // whatever viewport the scan is configured for, so on a mobile scan it holds
+  // narrow-viewport geometry despite the slot name. Recording the real size is
+  // what lets downstream tooling cite the viewport a measurement came from
+  // instead of assuming the slot label.
+  const currentViewport = page.viewportSize();
+
   if (isSaveDomEnabled()) {
     try {
       await fs.ensureDir(desktopDomDir);
@@ -366,7 +722,7 @@ export async function capturePageData(
     try {
       await fs.ensureDir(desktopComputedStylesDir);
       const stylesPath = await getUniqueFilePath(desktopComputedStylesDir, fileName, '.json');
-      const json = await buildComputedStylesJson(page, url, 'desktop');
+      const json = await buildComputedStylesJson(page, url, 'desktop', currentViewport);
       await fs.writeFile(stylesPath, json, 'utf-8');
       entry.desktopComputedStyles = `pageDOMs/desktopPageComputedStyles/${getRelativeName(stylesPath, desktopComputedStylesDir)}`;
     } catch (err) {
@@ -376,7 +732,6 @@ export async function capturePageData(
     }
   }
 
-  const currentViewport = page.viewportSize();
   try {
     await page.setViewportSize({
       width: MOBILE_VIEWPORT_WIDTH,
@@ -415,7 +770,10 @@ export async function capturePageData(
       try {
         await fs.ensureDir(mobileComputedStylesDir);
         const stylesPath = await getUniqueFilePath(mobileComputedStylesDir, fileName, '.json');
-        const json = await buildComputedStylesJson(page, url, 'mobile');
+        const json = await buildComputedStylesJson(page, url, 'mobile', {
+          width: MOBILE_VIEWPORT_WIDTH,
+          height: MOBILE_VIEWPORT_HEIGHT,
+        });
         await fs.writeFile(stylesPath, json, 'utf-8');
         entry.mobileComputedStyles = `pageDOMs/mobilePageComputedStyles/${getRelativeName(stylesPath, mobileComputedStylesDir)}`;
       } catch (err) {
