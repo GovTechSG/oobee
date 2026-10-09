@@ -968,22 +968,6 @@ async function handleSocks5(
   // the worker where INCLUDE_PROXY_FOR_UPSTREAM can route it via the upstream
   // proxy. Worker handles resolution and any blocking on its side.
   if (!isIpLiteral(hostname) && shouldForceTunnel(hostname, workerCfg.upstreamHosts)) {
-    // asgard-0016 (2026-10-09 scan): this branch skips resolveHostname(), so
-    // the local internal/metadata refusal never ran. Resolve locally and
-    // refuse if any answer is internal. A local lookup failure is not a
-    // refusal: upstream-routed hosts may only resolve on the Worker side.
-    let localAddrs: string[] = [];
-    try {
-      localAddrs = (await dns.lookup(hostname, { all: true })).map(a => a.address);
-    } catch {
-      localAddrs = [];
-    }
-    if (localAddrs.some(a => isInternalIp(a))) {
-      consoleLogger.warn(`[cfProxyWorker] Refusing force-tunnel to ${hostname} — resolves to an internal address`);
-      clientSocket.write(socksReply(0x02)); // connection not allowed by ruleset
-      clientSocket.end();
-      return;
-    }
     consoleLogger.info(`[cfProxyWorker] Force-tunnel match for ${hostname} — sending to Worker`);
   } else {
     const resolution = await resolveHostname(hostname, workerCfg.bypassRanges);
