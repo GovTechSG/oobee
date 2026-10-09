@@ -30,6 +30,8 @@ import {
   waitForPageLoaded,
   isFilePath,
   isInternalOrLoopbackUrl,
+  isLinkLocalOrMetadataUrl,
+  classifyServerAddress,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, normUrl, register } from '../utils.js';
 import {
@@ -248,6 +250,41 @@ const crawlSitemap = async ({
   // operator's own entry URL is internal (localhost / intranet scans).
   const entryIsInternal = await isInternalOrLoopbackUrl(userUrl || sitemapUrl);
 
+  // asgard-0004 (2026-10-09 scan): sitemap <loc> entries are scanned content,
+  // so they can point anywhere. Same policy as crawlDomain's navigation guard:
+  //  - link-local / cloud-metadata: always refused;
+  //  - loopback / private: refused unless the operator's entry is internal.
+  // Non-http(s) entries (local-file sitemaps) are not network egress.
+  const isRefusedEgressUrl = async (target: string): Promise<boolean> => {
+    let protocol = '';
+    try {
+      protocol = new URL(target).protocol;
+    } catch {
+      return false;
+    }
+    if (protocol !== 'http:' && protocol !== 'https:') return false;
+    if (await isLinkLocalOrMetadataUrl(target)) return true;
+    if (entryIsInternal) return false;
+    return isInternalOrLoopbackUrl(target);
+  };
+  const isRefusedServerAddress = (remoteIp: string): boolean => {
+    const kind = classifyServerAddress(remoteIp);
+    return kind === 'metadata' || (kind === 'internal' && !entryIsInternal);
+  };
+  const recordRefusedEgress = (requestUrl: string) => {
+    guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+      numScanned: urlsCrawled.scanned.length,
+      urlScanned: requestUrl,
+    });
+    urlsCrawled.userExcluded.push({
+      url: requestUrl,
+      pageTitle: requestUrl,
+      actualUrl: requestUrl,
+      metadata: STATUS_CODE_METADATA[0],
+      httpStatusCode: 0,
+    });
+  };
+
   // Shared with handlePdfDownload so PDFs stream through the same client the crawler uses.
   const httpClient = new crawlee.GotScrapingHttpClient();
 
@@ -383,6 +420,12 @@ const crawlSitemap = async ({
           });
         },
         async ({ request, page }, gotoOptions) => {
+          if (await isRefusedEgressUrl(request.url)) {
+            consoleLogger.warn(`Refusing to navigate to internal/metadata address: ${request.url}`);
+            request.skipNavigation = true;
+            request.userData.isRefusedEgress = true;
+            return;
+          }
           const url = request.url.toLowerCase();
 
           const isNotSupportedDocument = disallowedListOfPatterns.some(pattern =>
@@ -414,6 +457,23 @@ const crawlSitemap = async ({
       },
       requestHandlerTimeoutSecs: 90,
       requestHandler: async ({ page, request, response, enqueueLinks, session }) => {
+        // asgard-0004: refused before navigation (internal/metadata target).
+        if (request.userData?.isRefusedEgress) {
+          recordRefusedEgress(request.url);
+          return;
+        }
+
+        // asgard-0004: the pre-nav check can't see 3xx targets or a DNS answer
+        // that changes after our lookup; check the address actually connected to.
+        if (response) {
+          const remoteIp = (await response.serverAddr().catch(() => null))?.ipAddress;
+          if (remoteIp && isRefusedServerAddress(remoteIp)) {
+            consoleLogger.warn(`Refusing content from internal address ${remoteIp} (${request.url})`);
+            recordRefusedEgress(request.url);
+            return;
+          }
+        }
+
         // Log documents that are not supported
         if (request.userData?.isNotSupportedDocument) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
