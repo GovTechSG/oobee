@@ -790,6 +790,7 @@ const crawlDomain = async ({
               httpClient,
               urlsCrawled,
               session,
+              entryIsInternal,
             );
 
             uuidToPdfMapping[pdfFileName] = downloadedPdfUrl;
