@@ -524,18 +524,12 @@ export const checkUrlConnectivityWithBrowser = async (
     // its final URL becomes the crawl seed. A public entry URL must not be able
     // to redirect us onto an internal/loopback/metadata address, otherwise the
     // seed (and crawlDomain's entryIsInternal flag) is silently flipped.
-    if (await isRefusedRedirectTarget(url, finalUrl)) {
-      consoleLogger.info(
-        `Connectivity check refused: ${url} redirected to internal address ${finalUrl}`,
-      );
-      res.status = constants.urlCheckStatuses.systemError.code;
-      return res;
-    }
-    const serverAddr = await response.serverAddr().catch(() => null);
-    if (serverAddr?.ipAddress && (await isRefusedServerAddrForEntry(url, serverAddr.ipAddress))) {
-      consoleLogger.info(
-        `Connectivity check refused: ${url} resolved to internal server address ${serverAddr.ipAddress}`,
-      );
+    // Checks every redirect hop and the final URL; the connected address only
+    // when the connection was direct (behind FAMILY_DNS / CF Worker / proxy it
+    // is the proxy's address and would refuse every public site).
+    const refusedAt = await isRefusedNavigation(url, response, finalUrl);
+    if (refusedAt) {
+      consoleLogger.info(`Connectivity check refused: ${url} reached internal address ${refusedAt}`);
       res.status = constants.urlCheckStatuses.systemError.code;
       return res;
     }
@@ -1040,12 +1034,13 @@ const getRobotsTxtViaPlaywright = async (
     }
     const originIsInternal = await isInternalOrLoopbackUrl(robotsUrl);
     const response = await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
-    let remoteIp: string | undefined;
-    try {
-      remoteIp = (await response?.serverAddr())?.ipAddress;
-    } catch {
-      // best-effort: not reported for cached / service-worker responses
+    // Redirect hops + direct-connection address (proxy-safe; see isRefusedNavigation).
+    for (const hopUrl of getResponseHopUrls(response, page.url())) {
+      if (await isRefusedRedirectTarget(robotsUrl, hopUrl)) {
+        throw new Error(`Refusing robots.txt redirected to internal address ${hopUrl}`);
+      }
     }
+    const remoteIp = await getDirectServerAddr(response);
     if (remoteIp) {
       const kind = classifyServerAddress(remoteIp);
       if (kind === 'metadata' || (kind === 'internal' && !originIsInternal)) {
@@ -1295,6 +1290,60 @@ export async function isRefusedRedirectTarget(entryUrl: string, target: string):
   return isInternalOrLoopbackUrl(target);
 }
 
+// Returns the IP the browser connected to, or null when it can't be trusted.
+// Behind a proxy (Crawlee's local proxy-chain, the FAMILY_DNS / CF Worker
+// SOCKS5 listener, HTTP_PROXY) Chromium reports the PROXY's address, e.g.
+// 127.0.0.1:8877, which made every public page look internal. A direct
+// connection reports the site's own port, so only trust the address when its
+// port matches the response URL's port; otherwise rely on the hop checks.
+export const getDirectServerAddr = async (
+  response: { serverAddr: () => Promise<{ ipAddress: string; port: number } | null>; url: () => string } | null | undefined,
+): Promise<string | null> => {
+  if (!response) return null;
+  const addr = await response.serverAddr().catch(() => null);
+  if (!addr?.ipAddress) return null;
+  let expectedPort: number;
+  try {
+    const u = new URL(response.url());
+    expectedPort = Number(u.port || (u.protocol === 'https:' ? 443 : 80));
+  } catch {
+    return null;
+  }
+  return addr.port === expectedPort ? addr.ipAddress : null;
+};
+
+// Every URL a navigation touched: each redirect hop plus the final page URL.
+export const getResponseHopUrls = (
+  response: { request: () => { url: () => string; redirectedFrom: () => any } } | null | undefined,
+  finalUrl?: string,
+): string[] => {
+  const hops = new Set<string>();
+  let hop = response?.request();
+  while (hop) {
+    hops.add(hop.url());
+    hop = hop.redirectedFrom();
+  }
+  if (finalUrl) hops.add(finalUrl);
+  return [...hops];
+};
+
+// Proxy-safe replacement for "check the connected address": refuse if any
+// redirect hop or the final URL is refused for this entry (fresh DNS lookup
+// per hop, so a host rebound to an internal IP is caught), and also check the
+// connected address when the connection was direct.
+export async function isRefusedNavigation(
+  entryUrl: string,
+  response: any,
+  finalUrl?: string,
+): Promise<string | null> {
+  for (const hopUrl of getResponseHopUrls(response, finalUrl)) {
+    if (await isRefusedRedirectTarget(entryUrl, hopUrl)) return hopUrl;
+  }
+  const ip = await getDirectServerAddr(response);
+  if (ip && (await isRefusedServerAddrForEntry(entryUrl, ip))) return ip;
+  return null;
+}
+
 // Same policy as isRefusedRedirectTarget, but for the IP actually connected
 // to (response.serverAddr()) — the DNS-rebinding backstop.
 export async function isRefusedServerAddrForEntry(
@@ -1537,9 +1586,18 @@ export const getLinksFromSitemap = async (
         // the remote address the browser actually connected to falls outside
         // link-local / loopback / RFC1918 ranges before trusting the body.
         if (response) {
+          // Redirect hops: the entry sitemap is only fetched when it is not
+          // internal, so any internal hop is a redirect pivot.
+          for (const hopUrl of getResponseHopUrls(response, page.url())) {
+            if (!isFilePath(hopUrl) && (await isInternalOrLoopbackUrl(hopUrl))) {
+              consoleLogger.warn(`Refusing sitemap body: ${url} redirected to internal address ${hopUrl}`);
+              data = '';
+              return;
+            }
+          }
           try {
-            const serverAddr = await response.serverAddr();
-            const remoteIp = serverAddr?.ipAddress;
+            // Only trusted for direct connections (proxy-safe).
+            const remoteIp = await getDirectServerAddr(response);
             if (remoteIp) {
               const bare = remoteIp.replace(/^\[|\]$/g, '').toLowerCase();
               const isInternal = isIpv4Literal(bare)
