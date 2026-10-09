@@ -33,6 +33,14 @@ jobs:
       - name: Install Chromium (browser-based tests)
         run: npx playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
       - name: Test
-        shell: bash
-        # npm's test:unit uses POSIX `VAR=1 cmd`, which bash handles on Windows too.
+        if: runner.os != 'Windows'
+        run: npm test
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        # npm runs package.json scripts with cmd.exe on Windows regardless of
+        # the step shell, and cmd.exe can't parse test:unit's POSIX
+        # `VAR=1 node --test ...` prefix. Point npm at Git Bash explicitly
+        # (not plain `bash`, which can resolve to WSL's bash.exe).
+        env:
+          npm_config_script_shell: C:\Program Files\Git\bin\bash.exe
         run: npm test
