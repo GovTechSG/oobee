@@ -20,12 +20,25 @@ const sanitizeS3MetadataValue = (value: string): string => {
 };
 
 // asgard-0013 (2026-10-09 scan): siteName is the scanned page's <title>, so it
-// is attacker-controlled. On top of the header-safety above, drop HTML
-// metacharacters and cap the length, so a consumer that renders S3 metadata
-// without escaping can't be handed markup. "&" becomes "and" to keep titles
-// like "Arts & Culture" readable.
+// is attacker-controlled. Drop HTML metacharacters and cap the length, so a
+// consumer that renders S3 metadata without escaping can't be handed markup.
+// "&" becomes "and" to keep titles like "Arts & Culture" readable.
+//
+// asgard-0007 (2026-10-09 re-scan): normalize BEFORE stripping metacharacters.
+// NFKD decomposes fullwidth/compatibility Unicode (e.g. "＜" U+FF1C -> "<",
+// "＞" U+FF1E -> ">", "＂" U+FF02 -> '"') into their ASCII equivalents. The
+// previous order stripped <>"'` first, then normalized — so a title using
+// fullwidth variants sailed through the strip untouched and only became a
+// literal <script> etc. afterward, inside sanitizeS3MetadataValue. Running
+// sanitizeS3MetadataValue (which normalizes) first means every ASCII
+// metacharacter, including ones produced by decomposition, is stripped by
+// the second pass below.
 export const sanitizeSiteNameMetadata = (value: string): string =>
-  sanitizeS3MetadataValue(String(value ?? '').replace(/&/g, ' and ').replace(/[<>"'`]/g, ''))
+  sanitizeS3MetadataValue(String(value ?? ''))
+    .replace(/&/g, ' and ')
+    .replace(/[<>"'`]/g, '')
+    .replace(/\s+/g, ' ') // collapse whitespace introduced by " and " / the strip above
+    .trim()
     .slice(0, 256);
 
 export interface UploadedFileInfo {
