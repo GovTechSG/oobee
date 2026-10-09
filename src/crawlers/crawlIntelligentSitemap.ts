@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { chromium, Page } from 'playwright';
 import { EnqueueStrategy } from 'crawlee';
-import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler } from './commonCrawlerFunc.js';
+import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler, addScopedHeaderRoute } from './commonCrawlerFunc.js';
 import constants, { FileTypes, guiInfoStatusTypes, RuleFlags, sitemapPaths } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
@@ -70,11 +70,17 @@ const crawlIntelligentSitemap = async (
     let context;
     let browserInstance;
 
+    // asgard-0005 (2026-10-09 re-scan): nonAuthHeaders (Cookie, X-Api-Key,
+    // bearer tokens, ...) used to be set as context-wide extraHTTPHeaders, so
+    // they were resent to every redirect hop checkUrlExists follows — not just
+    // internal/metadata hops (which asgard-0003 already blocks), but any public
+    // cross-origin hop too. Drop them from the context and attach them per
+    // request only within the entry URL's scope via addScopedHeaderRoute,
+    // matching the pattern crawlDomain/crawlSitemap already use.
     if (process.env.CRAWLEE_HEADLESS === '1') {
       const effectiveUserDataDirectory = userDataDirectory || '';
       context = await launchPersistentSafeContext(effectiveUserDataDirectory, {
         ...launchOptions,
-        ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
         ...(httpCredentials && { httpCredentials }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
@@ -83,7 +89,6 @@ const crawlIntelligentSitemap = async (
       browserInstance = await constants.launcher.launch(launchOptions);
       register(browserInstance as unknown as { close: () => Promise<void> });
       context = await browserInstance.newContext({
-        ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
         ...(httpCredentials && { httpCredentials }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
@@ -91,6 +96,9 @@ const crawlIntelligentSitemap = async (
 
     if (authHeader) {
       await addAuthRouteHandler(context, link, authHeader);
+    }
+    if (nonAuthHeaders) {
+      await addScopedHeaderRoute(context, link, nonAuthHeaders);
     }
 
     const page = await context.newPage();
