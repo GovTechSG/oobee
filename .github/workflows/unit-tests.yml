@@ -1,0 +1,38 @@
+name: Unit and security regression tests
+
+# Runs `npm test` (node:test suites, including tests/securityInvariants.test.mjs)
+# on every pull request, so a change that reintroduces a fixed security
+# pattern fails before it is merged.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      OOBEE_DISABLE_TELEMETRY: '1'
+      DISABLE_OOBEE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Install Chromium (browser-based tests)
+        run: npx playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
+      - name: Test
+        shell: bash
+        # npm's test:unit uses POSIX `VAR=1 cmd`, which bash handles on Windows too.
+        run: npm test

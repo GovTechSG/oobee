@@ -274,6 +274,19 @@ Google Safe Browsing protects users by blocking navigation to phishing/malware U
 
 ## Testing
 
+### Security regression guard
+
+`tests/securityInvariants.test.mjs` statically checks `src/` so the asgard-0001…0011 fixes stay in place and the patterns they removed don't come back elsewhere. It runs in `npm test` and in `.github/workflows/unit-tests.yml` on every PR. It fails when:
+- a new network call site appears (`fetch`, `axios`, `httpClient.stream`, `https.request`, …). If it takes a URL from scanned content, apply the egress checks (`createPdfEgressGuards`, `isRefusedRedirectTarget`), then add it to `SINKS`.
+- `handlePdfDownload()` is called without `entryIsInternal`.
+- an archive is extracted by shelling out (`unzip`, `tar`, …) instead of `extractZipBufferSafely()`.
+- a loop is bounded by an unchecked `parseInt`/`Number` value.
+- a new module-level `Map`/`Set` is added. Use `BoundedTtlCache` or clear it per scan, then add it to `REVIEWED`.
+- a CDN script is injected without `integrity`, or the Sentry SRI pin becomes optional.
+- any specific guard (redirect check, custom-flow scheme check, readability/page-span/page-capture caps) is removed.
+
+Only update `SINKS` / `REVIEWED` after confirming the new code applies the same guard.
+
 ```bash
 npm test                    # Run Jest tests (uses --experimental-vm-modules)
 npx tsc --noEmit            # Type-check without emitting
