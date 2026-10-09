@@ -100,8 +100,11 @@ const convertScanItemsToScanPageResults = (scanItems: unknown): ScanPageResults 
  * state on `constants` (`sitemapFetchedLinks`, `exportDirectory`) and sets
  * `process.env.CRAWLEE_LOG_LEVEL`; running two `scanCustomFlow` sessions
  * concurrently in the same process will cause them to clobber each other's
- * export directory. Serialise calls at the caller.
+ * export directory. Enforced: a call made while another session is running
+ * rejects immediately (asgard-0010). Serialise calls at the caller.
  */
+let customFlowSessionActive = false;
+
 export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSession => {
   const {
     url,
@@ -187,6 +190,18 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
   });
 
   const result = (async (): Promise<ScanCustomFlowResult> => {
+    // asgard-0010 (2026-10-09 scan): enforce single-flight in code. A second
+    // concurrent session would share constants.exportDirectory with the first
+    // and read/submit (or clean up) the other session's results. Refuse it
+    // before touching any shared state, so the running session is unaffected.
+    if (customFlowSessionActive) {
+      const busy = new Error(
+        'scanCustomFlow is already running in this process; wait for the current session to finish.',
+      );
+      rejectReady(busy);
+      throw busy;
+    }
+    customFlowSessionActive = true;
     try {
       process.env.CRAWLEE_LOG_LEVEL = 'ERROR';
       constants.sitemapFetchedLinks = null;
@@ -306,6 +321,8 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
         await cleanupGeneratedArtifacts(getStoragePath(randomToken)).catch(() => {});
       }
       throw error;
+    } finally {
+      customFlowSessionActive = false;
     }
   })();
 
