@@ -5,7 +5,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 process.env.OOBEE_DISABLE_TELEMETRY = '1';
 process.env.CF_FAMILY_DNS = '1';
@@ -13,7 +13,7 @@ delete process.env.CF_WORKER_PROXY;
 process.env.CF_WORKER_PROXY_PORT = '18877';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const { startFamilyDnsLocalProxy } = await import(path.join(root, 'dist/cfProxyWorker.js'));
+const { startFamilyDnsLocalProxy } = await import(pathToFileURL(path.join(root, 'dist', 'cfProxyWorker.js')).href);
 
 const listen = (host) =>
   new Promise((resolve) => {

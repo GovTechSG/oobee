@@ -5,12 +5,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 process.env.OOBEE_DISABLE_TELEMETRY = '1';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const dist = p => path.join(root, 'dist', p);
+const dist = p => pathToFileURL(path.join(root, 'dist', p)).href;
 const utils = await import(dist('utils.js'));
 const { filterAxeResults } = await import(dist('crawlers/commonCrawlerFunc.js'));
 const { getLinksFromSitemap } = await import(dist('constants/common.js'));

@@ -4,13 +4,13 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 process.env.OOBEE_DISABLE_TELEMETRY = '1';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const dist = p => path.join(root, 'dist', p);
+const dist = p => pathToFileURL(path.join(root, 'dist', p)).href;
 const common = await import(dist('constants/common.js'));
 const { extractText } = await import(dist('crawlers/custom/extractText.js'));
 const { scanHTML, scanCustomFlow } = await import(dist('npmIndex.js'));
