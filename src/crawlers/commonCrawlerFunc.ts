@@ -25,6 +25,7 @@ import type { Response as PlaywrightResponse } from 'playwright';
 import fs from 'fs';
 import { ensureAndInjectSafeBrowsing } from '../safeBrowsingProfile.js';
 import path from 'path';
+import { getDomain } from 'tldts';
 
 // types
 interface AxeResultsWithScreenshot extends AxeResults {
@@ -1675,6 +1676,77 @@ export const splitAuthHeaders = (
   };
 };
 
+// asgard-0007/0008 (2026-10-09 scan): operator headers other than
+// Authorization (Cookie, X-Api-Key, WAF tokens, ...) used to be set as
+// context-wide extraHTTPHeaders, so every cross-origin subresource and
+// redirect target received them. They are now attached per request, only
+// when the request is inside the entry URL's scope:
+//  - default 'site': same registrable domain (keeps static./cdn./api. working);
+//  - OOBEE_SCOPE_HEADERS_TO_ORIGIN=1: exact origin only;
+//  - OOBEE_UNSCOPED_OPERATOR_HEADERS=1: legacy send-everywhere behaviour.
+// Same policy crawlSitemap already applies.
+export type OperatorHeaderScope = 'all' | 'origin' | 'site';
+
+export const getOperatorHeaderScope = (): OperatorHeaderScope => {
+  const on = (v?: string) => /^(1|true|yes)$/i.test(v ?? '');
+  if (on(process.env.OOBEE_UNSCOPED_OPERATOR_HEADERS)) return 'all';
+  if (on(process.env.OOBEE_SCOPE_HEADERS_TO_ORIGIN)) return 'origin';
+  return 'site';
+};
+
+export const makeHeaderScopeMatcher = (
+  entryUrl: string,
+  scope: OperatorHeaderScope = getOperatorHeaderScope(),
+): ((target: string) => boolean) => {
+  if (scope === 'all') return () => true;
+  let entry: { origin: string; site: string } | null = null;
+  try {
+    const u = new URL(entryUrl);
+    entry = { origin: u.origin, site: getDomain(u.hostname, { allowPrivateDomains: true }) || u.hostname };
+  } catch {
+    entry = null;
+  }
+  return (target: string) => {
+    if (!entry) return false;
+    try {
+      const u = new URL(target);
+      if (scope === 'origin') return u.origin === entry.origin;
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+      return (getDomain(u.hostname, { allowPrivateDomains: true }) || u.hostname) === entry.site;
+    } catch {
+      return false;
+    }
+  };
+};
+
+// Header names that carry a credential. Their presence keeps TLS validation
+// on, exactly like an Authorization header.
+const CREDENTIAL_HEADER_RE = /^(authorization|proxy-authorization|cookie|x-api-key|api-key|apikey|x-auth-token|x-access-token|x-csrf-token|x-xsrf-token)$/i;
+export const hasCredentialHeaders = (headers?: Record<string, string> | null): boolean =>
+  Object.keys(headers || {}).some(k => CREDENTIAL_HEADER_RE.test(k) || /token|secret|session/i.test(k));
+
+// Attaches `headers` only to requests inside the entry URL's scope. Uses
+// route.fallback() so later-registered handlers (auth, URL guard) still run.
+export const addScopedHeaderRoute = async (
+  context: BrowserContext,
+  entryUrl: string,
+  headers: Record<string, string> | null | undefined,
+): Promise<void> => {
+  if (!headers || Object.keys(headers).length === 0) return;
+  const inScope = makeHeaderScopeMatcher(entryUrl);
+  await context.route('**/*', async (route, request) => {
+    try {
+      if (inScope(request.url())) {
+        await route.fallback({ headers: { ...request.headers(), ...headers } });
+        return;
+      }
+    } catch {
+      // fall through to an unmodified request
+    }
+    await route.fallback();
+  });
+};
+
 /**
  * Adds a route handler to a BrowserContext that sends the Authorization header
  * only to same-origin requests, preventing CORS preflight failures on cross-origin CDN resources.
@@ -1690,8 +1762,10 @@ export const addAuthRouteHandler = async (
   const entryOrigin = new URL(entryUrl).origin;
   await context.route('**/*', async (route, request) => {
     try {
+      // fallback(), not continue(): lets other route handlers (scoped
+      // operator headers, URL guard) also run for the same request.
       if (new URL(request.url()).origin === entryOrigin) {
-        await route.continue({
+        await route.fallback({
           headers: {
             ...request.headers(),
             ...(extraHeaders || {}),
@@ -1699,10 +1773,10 @@ export const addAuthRouteHandler = async (
           },
         });
       } else {
-        await route.continue();
+        await route.fallback();
       }
     } catch {
-      await route.continue();
+      await route.fallback();
     }
   });
 };

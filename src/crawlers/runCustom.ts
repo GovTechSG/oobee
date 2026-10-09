@@ -1,6 +1,13 @@
 /* eslint-env browser */
 import { Configuration } from 'crawlee';
-import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler } from './commonCrawlerFunc.js';
+import {
+  createCrawleeSubFolders,
+  splitAuthHeaders,
+  addAuthRouteHandler,
+  addScopedHeaderRoute,
+  getOperatorHeaderScope,
+  hasCredentialHeaders,
+} from './commonCrawlerFunc.js';
 import { cleanUpAndExit, getStoragePath, register, registerSoftClose } from '../utils.js';
 import constants, {
   getIntermediateScreenshotsPath,
@@ -155,7 +162,8 @@ const runCustom = async (
     // whenever the context carries credentials AND require the operator
     // to explicitly opt into insecure TLS via OOBEE_ALLOW_INSECURE_TLS
     // — silent disable of TLS validation is what the scanner flagged.
-    const hasCredentials = !!authHeader || !!httpCredentials;
+    const hasCredentials =
+      !!authHeader || !!httpCredentials || hasCredentialHeaders(nonAuthHeaders);
     const allowInsecureTls =
       !hasCredentials &&
       ['1', 'true', 'yes'].includes(
@@ -176,10 +184,16 @@ const runCustom = async (
       viewport: null,
       ...(hasCustomViewport ? contextDeviceOptions : {}),
       userAgent: process.env.OOBEE_USER_AGENT || (deviceUserAgent as string | undefined),
-      ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+      // asgard-0007: non-Authorization operator headers are attached per
+      // request within the entry URL's scope (addScopedHeaderRoute), not
+      // context-wide, so cross-origin requests never receive them.
+      ...(getOperatorHeaderScope() === 'all' && nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
       ...(httpCredentials && { httpCredentials }),
     });
 
+    if (getOperatorHeaderScope() !== 'all') {
+      await addScopedHeaderRoute(context, url, nonAuthHeaders);
+    }
     if (authHeader) {
       await addAuthRouteHandler(context, url, authHeader);
     }
