@@ -335,7 +335,59 @@ interface DohCacheEntry {
   ip: string | null; // null = lookup failed; sentinel = family-blocked
   expiresAt: number;
 }
-const dohCache = new Map<string, DohCacheEntry>();
+
+// asgard-0009: the cache key is the SOCKS5 CONNECT hostname, which a scanned
+// page controls (e.g. thousands of random subdomains). Bound the cache so it
+// can't grow for the lifetime of the process:
+//  - expired entries are dropped on read, and swept when the cache is full;
+//  - a hard cap evicts the least recently used entry (Map keeps insertion
+//    order, and hits are re-inserted so they move to the end).
+// 4096 entries is far more than a scan's real working set within the 60s TTL.
+export const DOH_CACHE_MAX_ENTRIES = 4096;
+
+export class BoundedTtlCache<V extends { expiresAt: number }> {
+  private readonly map = new Map<string, V>();
+
+  constructor(private readonly maxEntries: number) {}
+
+  get size(): number {
+    return this.map.size;
+  }
+
+  get(key: string, now: number = Date.now()): V | undefined {
+    const entry = this.map.get(key);
+    if (!entry) return undefined;
+    this.map.delete(key);
+    if (entry.expiresAt <= now) return undefined;
+    this.map.set(key, entry); // mark as most recently used
+    return entry;
+  }
+
+  set(key: string, entry: V, now: number = Date.now()): void {
+    this.map.delete(key);
+    if (this.map.size >= this.maxEntries) {
+      for (const [k, v] of this.map) {
+        if (v.expiresAt <= now) this.map.delete(k);
+      }
+      while (this.map.size >= this.maxEntries) {
+        const oldest = this.map.keys().next().value;
+        if (oldest === undefined) break;
+        this.map.delete(oldest);
+      }
+    }
+    this.map.set(key, entry);
+  }
+
+  clear(): void {
+    this.map.clear();
+  }
+}
+
+const dohCache = new BoundedTtlCache<DohCacheEntry>(DOH_CACHE_MAX_ENTRIES);
+
+// Test hooks: observe and reset the module-level cache.
+export const getDohCacheSize = (): number => dohCache.size;
+export const clearDohCache = (): void => dohCache.clear();
 
 export function isFamilyDnsEnabled(): boolean {
   return parseBooleanValue(process.env.CF_FAMILY_DNS) ?? false;
@@ -376,10 +428,10 @@ async function queryDoh(hostname: string, type: 'A' | 'AAAA'): Promise<string | 
   }
 }
 
-async function resolveViaFamilyDoH(hostname: string): Promise<string | null> {
+export async function resolveViaFamilyDoH(hostname: string): Promise<string | null> {
   const now = Date.now();
-  const cached = dohCache.get(hostname);
-  if (cached && cached.expiresAt > now) return cached.ip;
+  const cached = dohCache.get(hostname, now);
+  if (cached) return cached.ip;
 
   let ip: string | null = null;
   const a = await queryDoh(hostname, 'A');
@@ -392,7 +444,7 @@ async function resolveViaFamilyDoH(hostname: string): Promise<string | null> {
     if (aaaa) ip = aaaa; // includes '::' (blocked) — caller distinguishes
   }
 
-  dohCache.set(hostname, { ip, expiresAt: now + DOH_CACHE_TTL_MS });
+  dohCache.set(hostname, { ip, expiresAt: now + DOH_CACHE_TTL_MS }, now);
   return ip;
 }
 
