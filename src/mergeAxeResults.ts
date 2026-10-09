@@ -231,8 +231,11 @@ const writeHTML = async (
 
     outputStream.write(prefixData);
 
-    // For Proxied AI environments only
-    outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ''}"\n`);
+    // For Proxied AI environments only. asgard-0010 (2026-10-09 re-scan):
+    // JSON.stringify produces a correctly quoted/escaped JS string literal,
+    // so a value containing `"` can no longer break out of the assignment
+    // and inject script into the generated report.
+    outputStream.write(`let proxyUrl = ${JSON.stringify(process.env.PROXY_API_BASE_URL || '')}\n`);
 
     // Initialize GenAI feature flag
     outputStream.write(`
