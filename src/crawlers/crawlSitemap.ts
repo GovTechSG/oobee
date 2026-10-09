@@ -32,6 +32,8 @@ import {
   isFilePath,
   isInternalOrLoopbackUrl,
   isLinkLocalOrMetadataUrl,
+  makeHostKindCache,
+  isRefusedHostKind,
   classifyServerAddress,
   getDirectServerAddr,
   getResponseHopUrls,
@@ -259,18 +261,20 @@ const crawlSitemap = async ({
   //  - link-local / cloud-metadata: always refused;
   //  - loopback / private: refused unless the operator's entry is internal.
   // Non-http(s) entries (local-file sitemaps) are not network egress.
-  const isRefusedEgressUrl = async (target: string): Promise<boolean> => {
-    let protocol = '';
-    try {
-      protocol = new URL(target).protocol;
-    } catch {
-      return false;
+  // One DNS lookup per host per page: the before-load check and the after-load
+  // hop checks of the same request share a cache (WeakMap on the Request, so
+  // it is never reused across pages and can't go stale or leak).
+  const pageHostKinds = new WeakMap<object, ReturnType<typeof makeHostKindCache>>();
+  const hostKindsFor = (req: object) => {
+    let c = pageHostKinds.get(req);
+    if (!c) {
+      c = makeHostKindCache();
+      pageHostKinds.set(req, c);
     }
-    if (protocol !== 'http:' && protocol !== 'https:') return false;
-    if (await isLinkLocalOrMetadataUrl(target)) return true;
-    if (entryIsInternal) return false;
-    return isInternalOrLoopbackUrl(target);
+    return c;
   };
+  const isRefusedEgressUrl = async (target: string, req: object): Promise<boolean> =>
+    isRefusedHostKind(await hostKindsFor(req)(target), entryIsInternal);
   const recordRefusedEgress = (requestUrl: string) => {
     guiInfoLog(guiInfoStatusTypes.SKIPPED, {
       numScanned: urlsCrawled.scanned.length,
@@ -420,7 +424,7 @@ const crawlSitemap = async ({
           });
         },
         async ({ request, page }, gotoOptions) => {
-          if (await isRefusedEgressUrl(request.url)) {
+          if (await isRefusedEgressUrl(request.url, request)) {
             consoleLogger.warn(`Refusing to navigate to internal/metadata address: ${request.url}`);
             request.skipNavigation = true;
             request.userData.isRefusedEgress = true;
@@ -474,7 +478,7 @@ const crawlSitemap = async ({
         if (response) {
           let refusedHop: string | null = null;
           for (const hopUrl of getResponseHopUrls(response, page.url())) {
-            if (await isRefusedEgressUrl(hopUrl)) {
+            if (await isRefusedEgressUrl(hopUrl, request)) {
               refusedHop = hopUrl;
               break;
             }

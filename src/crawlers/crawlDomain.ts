@@ -37,6 +37,8 @@ import {
   PAGE_GONE_ERROR_RE,
   isInternalOrLoopbackUrl,
   isLinkLocalOrMetadataUrl,
+  makeHostKindCache,
+  isRefusedHostKind,
   classifyServerAddress,
   getDirectServerAddr,
   getResponseHopUrls,
@@ -483,10 +485,22 @@ const crawlDomain = async ({
   //    itself public, i.e. a public site trying to pivot the browser inward.
   //    OOBEE_ALLOW_INTERNAL_TARGETS=1 still lifts the private-range part.
   const entryIsInternal = await isInternalOrLoopbackUrl(url);
-  const isRefusedEgressUrl = async (target: string): Promise<boolean> => {
-    if (await isLinkLocalOrMetadataUrl(target)) return true;
-    if (entryIsInternal) return false;
-    return isInternalOrLoopbackUrl(target);
+  // One DNS lookup per host per page, shared by the before-load check and the
+  // after-load hop checks of the same request (WeakMap on the Request, never
+  // reused across pages).
+  const pageHostKinds = new WeakMap<object, ReturnType<typeof makeHostKindCache>>();
+  const hostKindsFor = (req: object) => {
+    let c = pageHostKinds.get(req);
+    if (!c) {
+      c = makeHostKindCache();
+      pageHostKinds.set(req, c);
+    }
+    return c;
+  };
+  const isRefusedEgressUrl = async (target: string, req: object): Promise<boolean> => {
+    const kind = await hostKindsFor(req)(target);
+    // Non-http(s) targets are rejected separately by ALLOWED_NAV_PROTOCOLS.
+    return isRefusedHostKind(kind, entryIsInternal);
   };
   const isRefusedServerAddress = (remoteIp: string): boolean => {
     const kind = classifyServerAddress(remoteIp);
@@ -582,7 +596,7 @@ const crawlDomain = async ({
               request.skipNavigation = true;
               return;
             }
-            if (await isRefusedEgressUrl(request.url)) {
+            if (await isRefusedEgressUrl(request.url, request)) {
               consoleLogger.warn(`Refusing to navigate to internal/metadata address: ${request.url}`);
               request.skipNavigation = true;
               return;
@@ -719,7 +733,7 @@ const crawlDomain = async ({
           if (response) {
             let refusedAt: string | null = null;
             for (const hopUrl of getResponseHopUrls(response, actualUrl)) {
-              if (await isRefusedEgressUrl(hopUrl)) {
+              if (await isRefusedEgressUrl(hopUrl, request)) {
                 refusedAt = hopUrl;
                 break;
               }

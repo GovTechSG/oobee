@@ -1270,6 +1270,77 @@ export async function isLinkLocalOrMetadataUrl(candidate: string): Promise<boole
   }
 }
 
+// Classifies a URL's host with ONE DNS lookup (isLinkLocalOrMetadataUrl +
+// isInternalOrLoopbackUrl did two). Same rules as those two:
+//  - non-http(s) URLs: 'skip' (not network egress);
+//  - localhost names: 'internal';
+//  - IP literals: classified directly, no DNS;
+//  - otherwise: any metadata answer -> 'metadata', any internal -> 'internal';
+//  - DNS failure: 'public' (page.goto surfaces the error), as before.
+export type UrlHostKind = 'skip' | 'metadata' | 'internal' | 'public';
+
+export async function classifyUrlHost(candidate: string): Promise<UrlHostKind> {
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    return 'skip';
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'skip';
+  const lower = parsed.hostname.toLowerCase();
+  if (!lower) return 'skip';
+  if (lower === 'localhost' || lower.endsWith('.localhost')) return 'internal';
+  const bare = lower.replace(/^\[|\]$/g, '');
+  if (isIpv4Literal(bare)) {
+    if (isMetadataIpv4(bare)) return 'metadata';
+    return isInternalIpv4(bare) ? 'internal' : 'public';
+  }
+  if (bare.includes(':')) {
+    if (isMetadataIpv6(bare)) return 'metadata';
+    return isInternalIpv6(bare) ? 'internal' : 'public';
+  }
+  try {
+    const { lookup } = await import('dns/promises');
+    const records = await lookup(bare, { all: true });
+    let internal = false;
+    for (const r of records) {
+      const v4 = r.family === 4;
+      if (v4 ? isMetadataIpv4(r.address) : isMetadataIpv6(r.address)) return 'metadata';
+      if (v4 ? isInternalIpv4(r.address) : isInternalIpv6(r.address)) internal = true;
+    }
+    return internal ? 'internal' : 'public';
+  } catch {
+    return 'public';
+  }
+}
+
+// Per-page memo of classifyUrlHost, keyed by hostname. One page's
+// before-load check, redirect hops and final URL share a single lookup per
+// host. Create one per page/navigation only: reusing it across pages would
+// let a site rebind its DNS to an internal address after its first page.
+export const makeHostKindCache = () => {
+  const byHost = new Map<string, Promise<UrlHostKind>>();
+  return (target: string): Promise<UrlHostKind> => {
+    let key: string;
+    try {
+      const u = new URL(target);
+      key = `${u.protocol}//${u.hostname.toLowerCase()}`;
+    } catch {
+      return Promise.resolve('skip');
+    }
+    let p = byHost.get(key);
+    if (!p) {
+      p = classifyUrlHost(target);
+      byHost.set(key, p);
+    }
+    return p;
+  };
+};
+
+// Egress decision from a host kind, pinned to whether the entry is internal.
+export const isRefusedHostKind = (kind: UrlHostKind, entryIsInternal: boolean): boolean =>
+  kind === 'metadata' || (kind === 'internal' && !entryIsInternal);
+
 // asgard-0001: egress policy pinned to the operator-supplied entry URL.
 // Returns true when navigating from `entryUrl` to `target` (e.g. via a
 // redirect) would pivot into an address the operator did not choose:
@@ -1285,9 +1356,10 @@ export async function isRefusedRedirectTarget(entryUrl: string, target: string):
     return false;
   }
   if (protocol !== 'http:' && protocol !== 'https:') return false;
-  if (await isLinkLocalOrMetadataUrl(target)) return true;
-  if (await isInternalOrLoopbackUrl(entryUrl)) return false;
-  return isInternalOrLoopbackUrl(target);
+  const kind = await classifyUrlHost(target);
+  if (kind === 'metadata') return true;
+  if (kind !== 'internal') return false;
+  return !(await isInternalOrLoopbackUrl(entryUrl));
 }
 
 // Returns the IP the browser connected to, or null when it can't be trusted.
@@ -1336,8 +1408,17 @@ export async function isRefusedNavigation(
   response: any,
   finalUrl?: string,
 ): Promise<string | null> {
+  // One lookup per distinct host across all hops, and the entry is
+  // classified once (only needed if some hop is internal).
+  const kindOf = makeHostKindCache();
+  let entryInternal: boolean | undefined;
   for (const hopUrl of getResponseHopUrls(response, finalUrl)) {
-    if (await isRefusedRedirectTarget(entryUrl, hopUrl)) return hopUrl;
+    const kind = await kindOf(hopUrl);
+    if (kind === 'metadata') return hopUrl;
+    if (kind === 'internal') {
+      if (entryInternal === undefined) entryInternal = await isInternalOrLoopbackUrl(entryUrl);
+      if (!entryInternal) return hopUrl;
+    }
   }
   const ip = await getDirectServerAddr(response);
   if (ip && (await isRefusedServerAddrForEntry(entryUrl, ip))) return ip;
