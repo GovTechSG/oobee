@@ -13,7 +13,6 @@ import {
   initModifiedUserAgent,
   launchPersistentSafeContext,
   isRefusedRedirectTarget,
-  isRefusedServerAddrForEntry,
 } from '../constants/common.js';
 import { register } from '../utils.js';
 
@@ -113,9 +112,12 @@ const crawlIntelligentSitemap = async (
   // asgard-0003 (2026-10-09 scan): the probed sitemap paths are on the scanned
   // (untrusted) site, which can redirect them anywhere. Apply the same policy
   // as checkUrlConnectivityWithBrowser, pinned to the operator's entry URL:
-  // refuse a probe that targets, redirects to, or is served from an
-  // internal/metadata address the operator did not choose. A refused probe is
-  // treated as "no sitemap here", so the scan falls back to a domain crawl.
+  // refuse a probe that targets or is redirected (at any hop) to an
+  // internal/metadata address the operator did not choose. Each check
+  // resolves DNS again, so a host rebound to an internal IP is refused too.
+  // response.serverAddr() is not used: behind a configured proxy it reports
+  // the proxy's address, not the site's. A refused probe is treated as
+  // "no sitemap here", so the scan falls back to a domain crawl.
   const checkUrlExists = async (page: Page, parsedUrl: string) => {
     try {
       if (await isRefusedRedirectTarget(url, parsedUrl)) {
@@ -124,15 +126,18 @@ const crawlIntelligentSitemap = async (
       }
       const response = await page.goto(parsedUrl);
       if (!response) return false;
-      const finalUrl = page.url();
-      if (finalUrl !== parsedUrl && (await isRefusedRedirectTarget(url, finalUrl))) {
-        consoleLogger.warn(`Refusing sitemap probe ${parsedUrl}: redirected to ${finalUrl}`);
-        return false;
+      const hops = new Set<string>();
+      let hop = response.request();
+      while (hop) {
+        hops.add(hop.url());
+        hop = hop.redirectedFrom();
       }
-      const remoteIp = (await response.serverAddr().catch(() => null))?.ipAddress;
-      if (remoteIp && (await isRefusedServerAddrForEntry(url, remoteIp))) {
-        consoleLogger.warn(`Refusing sitemap probe ${parsedUrl}: served from ${remoteIp}`);
-        return false;
+      hops.add(page.url());
+      for (const hopUrl of hops) {
+        if (await isRefusedRedirectTarget(url, hopUrl)) {
+          consoleLogger.warn(`Refusing sitemap probe ${parsedUrl}: redirected to ${hopUrl}`);
+          return false;
+        }
       }
       return response.ok();
     } catch (e) {
