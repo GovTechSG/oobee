@@ -148,6 +148,7 @@ The `constants` default export object holds runtime state:
 | `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl. `0` disables this check (default `0`) |
 | `OOBEE_MAX_RATCHET_CYCLES` | Max number of concurrency halvings without a full recovery before the crawl aborts. `0` disables this check (default `0`) |
 | `OOBEE_MAX_IDLE_MINUTES` | Max minutes without a successful page scan before the crawl aborts and generates a partial report. `0` disables this check (default `0`) |
+| `OOBEE_SSRF_PROTECTION` | `1`/`true`/`yes` = restrict `scanCustomFlow` to public `http(s)` targets (refuses `file://`, localhost and private hosts). **Required** for library consumers that forward untrusted URLs. Default off. |
 | `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
 | `OOBEE_AXE_RECHECK_HYDRATION_MS` | Fixed post-axe delay before rechecking selected hydration-sensitive violations (`aria-valid-attr-value`, `target-size`, `aria-hidden-focus`, `color-contrast`, `color-contrast-enhanced`). Covers network-driven late updates. Default 1000ms; `0` skips the fixed delay. The wait only runs when one of those violations appears. |
 | `OOBEE_AXE_RECHECK_IDLE_TIMEOUT_MS` | Upper bound on the main-thread idle wait that follows `OOBEE_AXE_RECHECK_HYDRATION_MS` before the recheck. Resolves early once the page's main thread is idle. Default 4000ms; `0` disables the idle gate. |
@@ -385,6 +386,12 @@ When making changes, validate these areas which have well-established edge cases
 - **`about:` protocol must be skipped in `framenavigated`**. Chromium fires `framenavigated` for `about:blank` as a transient intermediate state during every `page.goto()` call. Intercepting it and calling `restoreToSafeUrl` → `page.goto(safeUrl)` → `about:blank` → `restoreToSafeUrl` → … creates a second infinite loop. Always `return` early when `urlObj.protocol === 'about:'`.
 
 - **`reconcileOverlayMenu` must not remove the overlay on macOS/Windows**. On `darwin`/`win32` the custom flow runs headful. When `isOverlayAllowed` returns `false` (e.g. transient `file://` or `about:blank` URL), do **not** call `removeOverlayMenu` — the URL guard will redirect back to the safe URL momentarily. Instead, fall through to the `hasOverlay` / `addOverlayMenu` block so the overlay is (re-)injected regardless of the current URL protocol. On Linux/Docker (headless) the removal behaviour is unchanged.
+
+### scanCustomFlow Entry URL Validation (asgard-0002)
+- `assertSafeCustomFlowUrl()` in `src/crawlers/scanCustomFlow.ts` always enforces a scheme allowlist of `http:`, `https:` and `file:`. `data:`, `javascript:`, `blob:`, `ftp:`, `chrome:`, `view-source:` and similar schemes are refused regardless of env vars.
+- `file:` URLs must be local (empty host or `localhost`). `file://otherhost/share` is a UNC/SMB path on Windows and is always refused.
+- Link-local and cloud-metadata addresses are always refused.
+- Internal hosts, localhost and local `file://` remain allowed by default for operator workflows. **Library consumers that forward untrusted URLs to `scanCustomFlow` must set `OOBEE_SSRF_PROTECTION=1`**, which restricts targets to public `http(s)` only.
 
 ### Proxy & Network
 - Proxy detection must handle `ALL_PROXY` on Windows. The proxy resolution logic should be tested on all platforms.
