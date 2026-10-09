@@ -10,6 +10,7 @@ import {
   runAxeScript,
   isUrlPdf,
   splitAuthHeaders,
+  hasCredentialHeaders,
 } from './commonCrawlerFunc.js';
 
 import constants, {
@@ -212,7 +213,8 @@ const crawlSitemap = async ({
   // credentials are attached, and require an explicit opt-in env var for
   // credential-less scans that legitimately need to reach hosts with broken
   // certs.
-  const hasCredentials = !!httpCredentials;
+  // asgard-0008: Cookie / API-key style headers count as credentials too.
+  const hasCredentials = !!httpCredentials || hasCredentialHeaders(extraHTTPHeaders);
   const allowInsecureTls =
     !hasCredentials &&
     ['1', 'true', 'yes'].includes(
