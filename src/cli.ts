@@ -22,6 +22,7 @@ import {
   validateDirPath,
   validateFilePath,
   validateCustomFlowLabel,
+  isRefusedRedirectTarget,
 } from './constants/common.js';
 import constants, { ScannerTypes } from './constants/constants.js';
 import { cliOptions, messageOptions } from './constants/cliFunctions.js';
@@ -267,6 +268,15 @@ const scanInit = async (argvs: Answers): Promise<string> => {
     // Keep browser-resolved URL as entryUrl for downstream scan metadata/events
     // on non-custom scans.
     if (data.type !== ScannerTypes.CUSTOM) {
+      // asgard-0001: defence in depth — never adopt a redirect-resolved seed
+      // that pivots a public entry URL onto an internal/metadata address.
+      if (res.url !== data.entryUrl && (await isRefusedRedirectTarget(data.entryUrl, res.url))) {
+        const msg = 'Refusing to scan: entry URL redirected to an internal/metadata address.';
+        printMessage([msg], messageOptions);
+        consoleLogger.info(msg);
+        cleanUpAndExit(statuses.systemError.code);
+        return;
+      }
       data.entryUrl = res.url;
       data.url = res.url;
     }

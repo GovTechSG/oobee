@@ -519,6 +519,27 @@ export const checkUrlConnectivityWithBrowser = async (
 
     // Re-read page.url() AFTER potential client-side redirects have resolved
     const finalUrl = page.url();
+
+    // asgard-0001: the connectivity check follows server/JS/meta redirects and
+    // its final URL becomes the crawl seed. A public entry URL must not be able
+    // to redirect us onto an internal/loopback/metadata address, otherwise the
+    // seed (and crawlDomain's entryIsInternal flag) is silently flipped.
+    if (await isRefusedRedirectTarget(url, finalUrl)) {
+      consoleLogger.info(
+        `Connectivity check refused: ${url} redirected to internal address ${finalUrl}`,
+      );
+      res.status = constants.urlCheckStatuses.systemError.code;
+      return res;
+    }
+    const serverAddr = await response.serverAddr().catch(() => null);
+    if (serverAddr?.ipAddress && (await isRefusedServerAddrForEntry(url, serverAddr.ipAddress))) {
+      consoleLogger.info(
+        `Connectivity check refused: ${url} resolved to internal server address ${serverAddr.ipAddress}`,
+      );
+      res.status = constants.urlCheckStatuses.systemError.code;
+      return res;
+    }
+
     const finalStatus = response.status();
     const headers = response.headers();
     contentType = headers['content-type'] || '';
@@ -1252,6 +1273,38 @@ export async function isLinkLocalOrMetadataUrl(candidate: string): Promise<boole
   } catch {
     return false;
   }
+}
+
+// asgard-0001: egress policy pinned to the operator-supplied entry URL.
+// Returns true when navigating from `entryUrl` to `target` (e.g. via a
+// redirect) would pivot into an address the operator did not choose:
+//  - link-local / cloud-metadata: always refused.
+//  - loopback / private ranges: refused unless the entry URL itself was
+//    internal (OOBEE_ALLOW_INTERNAL_TARGETS=1 still lifts the private part).
+// Non-http(s) targets (file:, about:, chrome-error:) are not network egress.
+export async function isRefusedRedirectTarget(entryUrl: string, target: string): Promise<boolean> {
+  let protocol: string;
+  try {
+    protocol = new URL(target).protocol;
+  } catch {
+    return false;
+  }
+  if (protocol !== 'http:' && protocol !== 'https:') return false;
+  if (await isLinkLocalOrMetadataUrl(target)) return true;
+  if (await isInternalOrLoopbackUrl(entryUrl)) return false;
+  return isInternalOrLoopbackUrl(target);
+}
+
+// Same policy as isRefusedRedirectTarget, but for the IP actually connected
+// to (response.serverAddr()) — the DNS-rebinding backstop.
+export async function isRefusedServerAddrForEntry(
+  entryUrl: string,
+  remoteIp: string,
+): Promise<boolean> {
+  const kind = classifyServerAddress(remoteIp);
+  if (kind === 'metadata') return true;
+  if (kind === 'public') return false;
+  return !(await isInternalOrLoopbackUrl(entryUrl));
 }
 
 export async function isInternalOrLoopbackUrl(candidate: string): Promise<boolean> {

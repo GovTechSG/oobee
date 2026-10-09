@@ -363,6 +363,8 @@ When making changes, validate these areas which have well-established edge cases
 - Pages may redirect to external domains. The crawler detects this both pre-scan (via `response.url()` after goto) and post-scan (via `page.url()` after axe completes, since JS redirects can fire during scan). Results are discarded if the page leaves its queued hostname.
 - In custom flow, the entry URL should remain the user-provided URL, not the final redirected URL.
 
+- **Connectivity-check redirects must not pivot inward (asgard-0001)**: `checkUrlConnectivityWithBrowser()` follows server/JS/meta redirects and its `res.url` becomes the crawl seed in `cli.ts`. Both places call `isRefusedRedirectTarget(entryUrl, finalUrl)` (and the connectivity check also calls `isRefusedServerAddrForEntry()` on `response.serverAddr()`), so a public entry URL that redirects to loopback/private/metadata addresses is refused. Without this, an internal seed would flip `crawlDomain`'s `entryIsInternal` flag and turn off its egress guards. Internal entry URLs the operator chose deliberately still work.
+
 ### robots.txt Handling
 - Bare paths like `/subscription/unsubscribe` must emit both the exact-path pattern AND a children glob (`/subscription/unsubscribe/**`). Query-string `?` must be escaped (minimatch treats `?` as a single-char wildcard).
 - URLs found via popups, frame navigations, or interactive clicks go through `enqueueUniqueRequest` which bypasses `transformRequestFunction`. These must also be checked against robots.txt via `isDisallowedInRobotsTxt` before enqueue.
