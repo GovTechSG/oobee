@@ -272,6 +272,25 @@ const BLOCK_TEXT_DISPLAYS: string[] = [
   'flow-root',
 ];
 
+// asgard-0011: upper bounds on page capture. The captured page is scanned
+// content (often third-party), so element count and DOM size are attacker-
+// controlled. Defaults are far above real pages, so normal captures are
+// unchanged; operators can tune them per deployment.
+//  - OOBEE_CAPTURE_MAX_ELEMENTS: computed-style records per viewport.
+//  - OOBEE_CAPTURE_MAX_STYLES_BYTES: approximate size of those records.
+//  - OOBEE_CAPTURE_MAX_DOM_BYTES: saved DOM HTML per viewport.
+// Read at call time so long-lived processes pick up changes.
+const positiveIntFromEnv = (name: string, fallback: number): number => {
+  const v = parseInt(process.env[name] ?? '', 10);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+};
+export const getCaptureMaxElements = (): number =>
+  positiveIntFromEnv('OOBEE_CAPTURE_MAX_ELEMENTS', 100_000);
+export const getCaptureMaxStylesBytes = (): number =>
+  positiveIntFromEnv('OOBEE_CAPTURE_MAX_STYLES_BYTES', 100 * 1024 * 1024);
+export const getCaptureMaxDomBytes = (): number =>
+  positiveIntFromEnv('OOBEE_CAPTURE_MAX_DOM_BYTES', 100 * 1024 * 1024);
+
 // Elements that never contribute to visible page state — no point capturing
 // their computed styles. Skipping these keeps the output file size in check.
 const SKIPPED_TAGS = new Set([
@@ -291,6 +310,8 @@ interface ComputedStylesCapture {
   documentPseudoStyles: Record<string, Record<string, Record<string, string>>>;
   authoredPseudoElements: string[];
   unreadableStylesheets: number;
+  // asgard-0011: set when the element or size cap stopped the capture early.
+  truncated: string | null;
 }
 
 /**
@@ -302,9 +323,18 @@ interface ComputedStylesCapture {
  * Kept as a single self-contained function because Playwright's page.evaluate
  * serialises the arg — no imports or outer bindings survive.
  */
-async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture> {
+export async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture> {
   return page.evaluate(
-    ({ props, skipped, pseudoRules, pseudoProps, docPseudos, blockTextDisplays }) => {
+    ({
+      props,
+      skipped,
+      pseudoRules,
+      pseudoProps,
+      docPseudos,
+      blockTextDisplays,
+      maxElements,
+      maxChars,
+    }) => {
       const skippedSet = new Set(skipped);
       const blockTextDisplaySet = new Set(blockTextDisplays);
 
@@ -387,6 +417,30 @@ async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture>
         return true;
       }
 
+      // asgard-0011: each element's position among same-tag siblings, built in
+      // one pass per parent and reused. The previous code walked every earlier
+      // sibling and copied every sibling for each element, so a flat page with
+      // N siblings cost O(N^2) even with the element cap in place. Produces the
+      // same idx/count values (same tagName comparison, same 1-based index).
+      const siblingInfo = new WeakMap<Element, Map<Element, { idx: number; count: number }>>();
+      function positionOf(cur: Element, parent: Element): { idx: number; count: number } {
+        let info = siblingInfo.get(parent);
+        if (!info) {
+          info = new Map();
+          const seen = new Map<string, number>();
+          const children = parent.children;
+          for (let i = 0; i < children.length; i += 1) {
+            const c = children[i];
+            const n = (seen.get(c.tagName) || 0) + 1;
+            seen.set(c.tagName, n);
+            info.set(c, { idx: n, count: 0 });
+          }
+          for (const [c, v] of info) v.count = seen.get(c.tagName) || 0;
+          siblingInfo.set(parent, info);
+        }
+        return info.get(cur) || { idx: 1, count: 1 };
+      }
+
       function selectorFor(el: Element): string {
         if (el === document.documentElement) return 'html';
         if (el === document.body) return 'html > body';
@@ -402,15 +456,7 @@ async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture>
             parts.unshift(tag);
             break;
           }
-          let idx = 1;
-          let sib: Element | null = cur.previousElementSibling;
-          while (sib) {
-            if (sib.tagName === cur.tagName) idx++;
-            sib = sib.previousElementSibling;
-          }
-          const siblingsOfSameTag = Array.from(parent.children).filter(
-            c => c.tagName === cur!.tagName,
-          ).length;
+          const { idx, count: siblingsOfSameTag } = positionOf(cur, parent);
           parts.unshift(siblingsOfSameTag > 1 ? `${tag}:nth-of-type(${idx})` : tag);
           if (parent instanceof HTMLElement && parent.id) {
             parts.unshift(`#${CSS.escape(parent.id)}`);
@@ -423,13 +469,35 @@ async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture>
       }
 
       const results: Array<Record<string, unknown>> = [];
-      const all = document.querySelectorAll('*');
-      for (const el of Array.from(all)) {
+      let truncated: string | null = null;
+      let approxChars = 0;
+      // A TreeWalker visits elements in the same document order as
+      // querySelectorAll('*') but never materialises a list of every node,
+      // so a page with millions of elements costs nothing past the cap.
+      const root = document.documentElement;
+      const walker = root ? document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT) : null;
+      for (
+        let node: Node | null = walker ? walker.currentNode : null;
+        node;
+        node = walker!.nextNode()
+      ) {
+        const el = node as Element;
         if (skippedSet.has(el.tagName)) continue;
+        if (results.length >= maxElements) {
+          truncated = 'maxElements';
+          break;
+        }
         const cs = window.getComputedStyle(el);
         const styles: Record<string, string> = {};
-        for (const prop of props) styles[prop] = cs.getPropertyValue(prop);
+        let size = 64;
+        for (const prop of props) {
+          const value = cs.getPropertyValue(prop);
+          styles[prop] = value;
+          size += prop.length + value.length;
+        }
         const outer = el.outerHTML || '';
+        const selector = selectorFor(el);
+        const outerHtmlPrefix = outer.length > 200 ? outer.slice(0, 200) : outer;
         // Document-relative, not viewport-relative: getBoundingClientRect is
         // measured from the current scroll position, so raw x/y would shift
         // between captures of the same page and quietly break any spacing or
@@ -437,7 +505,7 @@ async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture>
         // `display: none` stays distinguishable from "not captured".
         const box = el.getBoundingClientRect();
         const record: Record<string, unknown> = {
-          selector: selectorFor(el),
+          selector,
           tag: el.tagName.toLowerCase(),
           styles,
           rect: {
@@ -446,10 +514,19 @@ async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture>
             w: round1(box.width),
             h: round1(box.height),
           },
-          outerHtmlPrefix: outer.length > 200 ? outer.slice(0, 200) : outer,
+          outerHtmlPrefix,
         };
-        if (el instanceof HTMLElement && el.id) record.id = el.id;
-        if (el.classList.length > 0) record.classes = Array.from(el.classList);
+        // +40 approximates the serialised rect.
+        size += selector.length + outerHtmlPrefix.length + 40;
+        if (el instanceof HTMLElement && el.id) {
+          record.id = el.id;
+          size += el.id.length;
+        }
+        if (el.classList.length > 0) {
+          const classes = Array.from(el.classList);
+          record.classes = classes;
+          for (const c of classes) size += c.length + 3;
+        }
 
         const pseudoStyles: Record<string, Record<string, string>> = {};
         for (const rule of pseudoRules) {
@@ -463,11 +540,21 @@ async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture>
           if (!pcs) continue;
           if (!canRenderPseudo(el, rule, cs, pcs)) continue;
           const entry: Record<string, string> = {};
-          for (const prop of pseudoProps) entry[prop] = clip(pcs.getPropertyValue(prop));
+          for (const prop of pseudoProps) {
+            const value = clip(pcs.getPropertyValue(prop));
+            entry[prop] = value;
+            size += prop.length + value.length;
+          }
           pseudoStyles[rule.pseudo] = entry;
         }
         if (Object.keys(pseudoStyles).length > 0) record.pseudoStyles = pseudoStyles;
 
+        // asgard-0011: pseudo-styles count toward the size cap too.
+        if (approxChars + size > maxChars) {
+          truncated = 'maxBytes';
+          break;
+        }
+        approxChars += size;
         results.push(record);
       }
 
@@ -508,6 +595,7 @@ async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture>
         documentPseudoStyles,
         authoredPseudoElements: Array.from(authoredPseudos),
         unreadableStylesheets: document.styleSheets.length - readableStylesheets,
+        truncated,
       };
     },
     {
@@ -517,8 +605,58 @@ async function captureComputedStyles(page: Page): Promise<ComputedStylesCapture>
       pseudoProps: CAPTURED_PSEUDO_CSS_PROPERTIES,
       docPseudos: DOCUMENT_PSEUDO_ELEMENTS,
       blockTextDisplays: BLOCK_TEXT_DISPLAYS,
+      maxElements: getCaptureMaxElements(),
+      maxChars: getCaptureMaxStylesBytes(),
     },
   );
+}
+
+// Builds the computed-styles JSON for one viewport. `truncated` /
+// `truncatedReason` are only added when a cap was hit (asgard-0011), so
+// consumers can tell a partial capture from a complete one.
+async function buildComputedStylesJson(
+  page: Page,
+  url: string,
+  viewport: string,
+  viewportSize: { width: number; height: number } | null,
+): Promise<string> {
+  const capture = await captureComputedStyles(page);
+  const payload = {
+    url,
+    viewport,
+    viewportSize,
+    capturedAt: new Date().toISOString(),
+    properties: CAPTURED_CSS_PROPERTIES,
+    pseudoProperties: CAPTURED_PSEUDO_CSS_PROPERTIES,
+    capturedPseudoElements: CAPTURED_PSEUDO_ELEMENTS,
+    authoredPseudoElements: capture.authoredPseudoElements,
+    unreadableStylesheets: capture.unreadableStylesheets,
+    documentPseudoStyles: capture.documentPseudoStyles,
+    elements: capture.elements,
+    ...(capture.truncated && { truncated: true, truncatedReason: capture.truncated }),
+  };
+  return JSON.stringify(payload);
+}
+
+// Returns page.content(), or throws (caught by the caller and recorded in the
+// manifest's errors, like any other failed save) when the DOM exceeds the
+// byte cap. The size is checked in the page first, so an oversized DOM is
+// never copied into Node. UTF-8 bytes >= UTF-16 length, so the pre-check
+// never skips a DOM that would have fitted.
+export async function readBoundedDom(page: Page): Promise<string> {
+  const maxBytes = getCaptureMaxDomBytes();
+  const approxLength = await page.evaluate(() =>
+    document.documentElement ? document.documentElement.outerHTML.length : 0,
+  );
+  if (approxLength > maxBytes) {
+    throw new Error(`DOM too large (${approxLength} chars > ${maxBytes} byte limit); skipped`);
+  }
+  const content = await page.content();
+  const bytes = Buffer.byteLength(content, 'utf-8');
+  if (bytes > maxBytes) {
+    throw new Error(`DOM too large (${bytes} bytes > ${maxBytes} byte limit); skipped`);
+  }
+  return content;
 }
 
 export async function capturePageData(
@@ -556,7 +694,7 @@ export async function capturePageData(
   if (isSaveDomEnabled()) {
     try {
       await fs.ensureDir(desktopDomDir);
-      const domContent = await page.content();
+      const domContent = await readBoundedDom(page);
       const domFilePath = await getUniqueFilePath(desktopDomDir, fileName, '.html');
       await fs.writeFile(domFilePath, domContent, 'utf-8');
       entry.desktopDom = `pageDOMs/desktopPageDOMs/${getRelativeName(domFilePath, desktopDomDir)}`;
@@ -584,21 +722,8 @@ export async function capturePageData(
     try {
       await fs.ensureDir(desktopComputedStylesDir);
       const stylesPath = await getUniqueFilePath(desktopComputedStylesDir, fileName, '.json');
-      const capture = await captureComputedStyles(page);
-      const payload = {
-        url,
-        viewport: 'desktop',
-        viewportSize: currentViewport,
-        capturedAt: new Date().toISOString(),
-        properties: CAPTURED_CSS_PROPERTIES,
-        pseudoProperties: CAPTURED_PSEUDO_CSS_PROPERTIES,
-        capturedPseudoElements: CAPTURED_PSEUDO_ELEMENTS,
-        authoredPseudoElements: capture.authoredPseudoElements,
-        unreadableStylesheets: capture.unreadableStylesheets,
-        documentPseudoStyles: capture.documentPseudoStyles,
-        elements: capture.elements,
-      };
-      await fs.writeFile(stylesPath, JSON.stringify(payload), 'utf-8');
+      const json = await buildComputedStylesJson(page, url, 'desktop', currentViewport);
+      await fs.writeFile(stylesPath, json, 'utf-8');
       entry.desktopComputedStyles = `pageDOMs/desktopPageComputedStyles/${getRelativeName(stylesPath, desktopComputedStylesDir)}`;
     } catch (err) {
       entry.errors.push(
@@ -617,7 +742,7 @@ export async function capturePageData(
     if (isSaveDomEnabled()) {
       try {
         await fs.ensureDir(mobileDomDir);
-        const domContent = await page.content();
+        const domContent = await readBoundedDom(page);
         const domFilePath = await getUniqueFilePath(mobileDomDir, fileName, '.html');
         await fs.writeFile(domFilePath, domContent, 'utf-8');
         entry.mobileDom = `pageDOMs/mobilePageDOMs/${getRelativeName(domFilePath, mobileDomDir)}`;
@@ -645,24 +770,11 @@ export async function capturePageData(
       try {
         await fs.ensureDir(mobileComputedStylesDir);
         const stylesPath = await getUniqueFilePath(mobileComputedStylesDir, fileName, '.json');
-        const capture = await captureComputedStyles(page);
-        const payload = {
-          url,
-          viewport: 'mobile',
-          viewportSize: {
-            width: MOBILE_VIEWPORT_WIDTH,
-            height: MOBILE_VIEWPORT_HEIGHT,
-          },
-          capturedAt: new Date().toISOString(),
-          properties: CAPTURED_CSS_PROPERTIES,
-          pseudoProperties: CAPTURED_PSEUDO_CSS_PROPERTIES,
-          capturedPseudoElements: CAPTURED_PSEUDO_ELEMENTS,
-          authoredPseudoElements: capture.authoredPseudoElements,
-          unreadableStylesheets: capture.unreadableStylesheets,
-          documentPseudoStyles: capture.documentPseudoStyles,
-          elements: capture.elements,
-        };
-        await fs.writeFile(stylesPath, JSON.stringify(payload), 'utf-8');
+        const json = await buildComputedStylesJson(page, url, 'mobile', {
+          width: MOBILE_VIEWPORT_WIDTH,
+          height: MOBILE_VIEWPORT_HEIGHT,
+        });
+        await fs.writeFile(stylesPath, json, 'utf-8');
         entry.mobileComputedStyles = `pageDOMs/mobilePageComputedStyles/${getRelativeName(stylesPath, mobileComputedStylesDir)}`;
       } catch (err) {
         entry.errors.push(

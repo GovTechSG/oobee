@@ -43,13 +43,17 @@
   // javascript:/data:/vbscript: schemes so an attacker who managed to
   // seed a crafted URL into a shared report can't run script when the
   // reviewer clicks the link.
-  const SAFE_HREF_SCHEMES = /^(https?:|mailto:|file:)/i;
+  // Declared at top level of a classic <script>, so the name is shared with
+  // every other inline script in the report. Keep it distinct from
+  // ScanConfiguration.ejs's stricter crawled-URL allow-list, which omits
+  // `file:` because those URLs come from the scanned site rather than the CLI.
+  const SAFE_SCANNED_HREF_SCHEMES = /^(https?:|mailto:|file:)/i;
   const isSafeScannedHref = (url) => {
     if (typeof url !== 'string') return false;
     const trimmed = url.trim();
     if (trimmed === '') return false;
     if (/^[./]/.test(trimmed)) return true;
-    return SAFE_HREF_SCHEMES.test(trimmed);
+    return SAFE_SCANNED_HREF_SCHEMES.test(trimmed);
   };
   if (isSafeScannedHref(scanData.urlScanned)) {
     urlA.href = scanData.urlScanned;

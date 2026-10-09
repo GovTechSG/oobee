@@ -128,12 +128,32 @@ function cidrMatch(ip: string, cidr: string): boolean {
   return (ipBytes[fullBytes] & mask) === (rangeBytes[fullBytes] & mask);
 }
 
+// Strict decimal octets only. Number('0177') is 177 but glibc inet_aton /
+// getaddrinfo read it as octal 127, so a lenient parse lets `0177.0.0.1` pass
+// the internal-range check and then connect to loopback (asgard-0010).
+const CANONICAL_OCTET = /^(0|[1-9]\d{0,2})$/;
+
+function parseDottedQuad(s: string): number[] | null {
+  const parts = s.split('.');
+  if (parts.length !== 4 || !parts.every((p) => CANONICAL_OCTET.test(p))) return null;
+  const bytes = parts.map(Number);
+  return bytes.some((n) => n > 255) ? null : bytes;
+}
+
+// Hosts made only of decimal/octal/hex numeric labels (`0177.0.0.1`,
+// `0x7f.1`, `2130706433`) are not real DNS names (no TLD is all-numeric),
+// yet the OS resolver would still turn them into IPs. Refuse them outright
+// rather than let them fall through to DNS and dodge the literal guard.
+const NUMERIC_HOST = /^(0x[0-9a-f]*|\d+)(\.(0x[0-9a-f]*|\d+)){0,3}\.?$/i;
+
+function isNonCanonicalNumericHost(s: string): boolean {
+  return NUMERIC_HOST.test(s) && parseDottedQuad(s) === null;
+}
+
 function ipToBytes(ip: string): number[] | null {
   // Pure IPv4 dotted-quad (no colons anywhere).
   if (ip.includes('.') && !ip.includes(':')) {
-    const parts = ip.split('.').map(Number);
-    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
-    return parts;
+    return parseDottedQuad(ip);
   }
   if (ip.includes(':')) {
     // IPv4-mapped / IPv4-compatible form: the last hextet may be written as
@@ -148,9 +168,8 @@ function ipToBytes(ip: string): number[] | null {
     const lastColon = ip.lastIndexOf(':');
     const afterLastColon = ip.slice(lastColon + 1);
     if (afterLastColon.includes('.')) {
-      const parts = afterLastColon.split('.').map(Number);
-      if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
-      trailingV4Bytes = parts;
+      trailingV4Bytes = parseDottedQuad(afterLastColon);
+      if (!trailingV4Bytes) return null;
       ipNoV4 = ip.slice(0, lastColon);
     }
     // Minimal IPv6 parse (supports :: compression). Two synthetic hextets
@@ -316,7 +335,59 @@ interface DohCacheEntry {
   ip: string | null; // null = lookup failed; sentinel = family-blocked
   expiresAt: number;
 }
-const dohCache = new Map<string, DohCacheEntry>();
+
+// asgard-0009: the cache key is the SOCKS5 CONNECT hostname, which a scanned
+// page controls (e.g. thousands of random subdomains). Bound the cache so it
+// can't grow for the lifetime of the process:
+//  - expired entries are dropped on read, and swept when the cache is full;
+//  - a hard cap evicts the least recently used entry (Map keeps insertion
+//    order, and hits are re-inserted so they move to the end).
+// 4096 entries is far more than a scan's real working set within the 60s TTL.
+export const DOH_CACHE_MAX_ENTRIES = 4096;
+
+export class BoundedTtlCache<V extends { expiresAt: number }> {
+  private readonly map = new Map<string, V>();
+
+  constructor(private readonly maxEntries: number) {}
+
+  get size(): number {
+    return this.map.size;
+  }
+
+  get(key: string, now: number = Date.now()): V | undefined {
+    const entry = this.map.get(key);
+    if (!entry) return undefined;
+    this.map.delete(key);
+    if (entry.expiresAt <= now) return undefined;
+    this.map.set(key, entry); // mark as most recently used
+    return entry;
+  }
+
+  set(key: string, entry: V, now: number = Date.now()): void {
+    this.map.delete(key);
+    if (this.map.size >= this.maxEntries) {
+      for (const [k, v] of this.map) {
+        if (v.expiresAt <= now) this.map.delete(k);
+      }
+      while (this.map.size >= this.maxEntries) {
+        const oldest = this.map.keys().next().value;
+        if (oldest === undefined) break;
+        this.map.delete(oldest);
+      }
+    }
+    this.map.set(key, entry);
+  }
+
+  clear(): void {
+    this.map.clear();
+  }
+}
+
+const dohCache = new BoundedTtlCache<DohCacheEntry>(DOH_CACHE_MAX_ENTRIES);
+
+// Test hooks: observe and reset the module-level cache.
+export const getDohCacheSize = (): number => dohCache.size;
+export const clearDohCache = (): void => dohCache.clear();
 
 export function isFamilyDnsEnabled(): boolean {
   return parseBooleanValue(process.env.CF_FAMILY_DNS) ?? false;
@@ -357,10 +428,10 @@ async function queryDoh(hostname: string, type: 'A' | 'AAAA'): Promise<string | 
   }
 }
 
-async function resolveViaFamilyDoH(hostname: string): Promise<string | null> {
+export async function resolveViaFamilyDoH(hostname: string): Promise<string | null> {
   const now = Date.now();
-  const cached = dohCache.get(hostname);
-  if (cached && cached.expiresAt > now) return cached.ip;
+  const cached = dohCache.get(hostname, now);
+  if (cached) return cached.ip;
 
   let ip: string | null = null;
   const a = await queryDoh(hostname, 'A');
@@ -373,7 +444,7 @@ async function resolveViaFamilyDoH(hostname: string): Promise<string | null> {
     if (aaaa) ip = aaaa; // includes '::' (blocked) — caller distinguishes
   }
 
-  dohCache.set(hostname, { ip, expiresAt: now + DOH_CACHE_TTL_MS });
+  dohCache.set(hostname, { ip, expiresAt: now + DOH_CACHE_TTL_MS }, now);
   return ip;
 }
 
@@ -391,6 +462,9 @@ async function resolveHostname(
   // driven browser reach cloud-metadata / loopback services. handleSocks5
   // already treats ``blocked`` as a refusal (0x02) so both branches inherit
   // the guard the sibling handleSocks5FamilyLocal already applies.
+  if (isNonCanonicalNumericHost(hostname)) {
+    return { ip: hostname, bypass: false, blocked: true };
+  }
   if (isIpLiteral(hostname)) {
     return {
       ip: hostname,
@@ -879,6 +953,12 @@ async function handleSocks5FamilyLocal(clientSocket: net.Socket): Promise<void> 
   // Block any literal that points at internal / metadata addresses before
   // opening the direct TCP forward, otherwise a scanned page could pivot the
   // driven browser onto 169.254.169.254 or 127.0.0.1 via a SOCKS request.
+  if (isNonCanonicalNumericHost(hostname)) {
+    consoleLogger.info(`[familyDnsProxy] Refusing SOCKS connect to non-canonical numeric host ${hostname}`);
+    try { clientSocket.write(socksReply(0x02)); } catch { /* ignore */ }
+    clientSocket.end();
+    return;
+  }
   if (isIpLiteral(hostname)) {
     if (isInternalIp(hostname)) {
       consoleLogger.info(`[familyDnsProxy] Refusing SOCKS connect to internal IP literal ${hostname}`);

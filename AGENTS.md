@@ -76,7 +76,7 @@ All crawlers use Crawlee's `PlaywrightCrawler` with:
 
 `getPlaywrightLaunchOptions()` builds Playwright launch config:
 - Headless mode from `process.env.CRAWLEE_HEADLESS`
-- Docker detection (`/.dockerenv`): adds `--disable-gpu`, `--disable-dev-shm-usage`, `--no-zygote`
+- Container detection (`isRunningInContainer()` in `constants.ts`): adds `--disable-gpu`, `--disable-dev-shm-usage`, `--no-zygote`
 - Proxy support (manual, PAC, or none) via `getProxyInfo()`
 - Channel set from browser name (undefined for chromium = bundled)
 - `--mute-audio` is added by default in both headless and headful modes, but must be disabled for `customFlow` by calling `getPlaywrightLaunchOptions(browser, { includeMuteAudio: false })`
@@ -148,10 +148,20 @@ The `constants` default export object holds runtime state:
 | `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl. `0` disables this check (default `0`) |
 | `OOBEE_MAX_RATCHET_CYCLES` | Max number of concurrency halvings without a full recovery before the crawl aborts. `0` disables this check (default `0`) |
 | `OOBEE_MAX_IDLE_MINUTES` | Max minutes without a successful page scan before the crawl aborts and generates a partial report. `0` disables this check (default `0`) |
+| `OOBEE_SSRF_PROTECTION` | `1`/`true`/`yes` = restrict `scanCustomFlow` to public `http(s)` targets (refuses `file://`, localhost and private hosts). **Required** for library consumers that forward untrusted URLs. Default off. |
 | `OOBEE_VALIDATE_URL` | If set, exit after URL validation without scanning |
-| `OOBEE_AXE_RECHECK_HYDRATION_MS` | Shared post-axe wait before rechecking selected hydration-sensitive violations (`aria-valid-attr-value`, `target-size`, `aria-hidden-focus`, `color-contrast`, `color-contrast-enhanced`). Default 5000ms; `0` reruns immediately. The wait only runs when one of those violations appears. |
+| `OOBEE_AXE_RECHECK_HYDRATION_MS` | Fixed post-axe delay before rechecking selected hydration-sensitive violations (`aria-valid-attr-value`, `target-size`, `aria-hidden-focus`, `color-contrast`, `color-contrast-enhanced`). Covers network-driven late updates. Default 1000ms; `0` skips the fixed delay. The wait only runs when one of those violations appears. |
+| `OOBEE_AXE_RECHECK_IDLE_TIMEOUT_MS` | Upper bound on the main-thread idle wait that follows `OOBEE_AXE_RECHECK_HYDRATION_MS` before the recheck. Resolves early once the page's main thread is idle. Default 4000ms; `0` disables the idle gate. |
+| `OOBEE_IDLE_TIMEOUT_MS` | Upper bound on each main-thread idle wait in `waitForPageLoaded` (before and after the DOM-quiet window). Default 10000ms. |
+| `OOBEE_PAGE_LOAD_BUDGET_MS` | Overall ceiling across all `waitForPageLoaded` phases; each phase is clipped to what remains. Keep it below the crawlers' 90s `requestHandlerTimeoutSecs`. Default 60000ms. |
+| `OOBEE_CLICK_DISCOVERY_MAX_MS` | Wall-clock bound on crawlDomain's click-discovery loop per page; the loop also exits as soon as the page is closed or crashed. Default 30000ms. |
+| `OOBEE_IN_CONTAINER` | `1` = force container mode, for runtimes `isRunningInContainer()` can't detect (e.g. Azure Container Instances). Set automatically when a container is detected. |
+| `OOBEE_IDLE_CALLBACKS` | Consecutive `requestIdleCallback` idle periods (with no long tasks) required to treat the main thread as idle. Default 3. |
 | `OOBEE_SAVE_DOM` | `1` or `true` = save full-page DOM HTML for desktop and mobile viewports to `pageDOMs/desktopPageDOMs/` and `pageDOMs/mobilePageDOMs/` in results directory. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
 | `OOBEE_SAVE_PAGE_SCREENSHOT` | `1` or `true` = save full-page desktop + mobile viewport screenshots to `pageDOMs/desktopPageScreenshots/` and `pageDOMs/mobilePageScreenshots/`. Mobile viewport uses iPhone 11 width programmatically. Supported scan types: Website, Sitemap, Intelligent, LocalFile, Custom |
+| `OOBEE_CAPTURE_MAX_ELEMENTS` | Max computed-style records per viewport when `OOBEE_SAVE_COMPUTED_STYLES` is on. Default 100000. Output gets `truncated: true` and `truncatedReason` when hit. |
+| `OOBEE_CAPTURE_MAX_STYLES_BYTES` | Approximate size cap for those computed-style records per viewport. Default 100 MB. |
+| `OOBEE_CAPTURE_MAX_DOM_BYTES` | Max saved DOM HTML per viewport when `OOBEE_SAVE_DOM` is on. Larger DOMs are skipped and recorded in `domManifest.json` errors. Default 100 MB. |
 | `GOOGLE_SAFE_BROWSING` | `1` = enable Google Safe Browsing (requires Chrome, not Chromium) |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | Proxy configuration |
 | `NO_PROXY` / `INCLUDE_PROXY` | Proxy bypass/include lists |
@@ -171,7 +181,8 @@ The `constants` default export object holds runtime state:
 ## Platform Differences
 
 ### Docker/Linux
-- `/.dockerenv` detection adds `--disable-gpu`, `--disable-dev-shm-usage`, `--no-zygote`
+- `isRunningInContainer()` (`constants.ts`) detects Docker (`/.dockerenv`), Podman (`/run/.containerenv`), Kubernetes, ECS/Fargate, Azure Container Apps / App Service, Cloud Run, GAE, or an explicit `OOBEE_IN_CONTAINER=1`. Fargate has no `/.dockerenv`, so never check that file directly; use this helper. When it detects a container, it adds `--disable-gpu`, `--disable-dev-shm-usage` and `--no-zygote`, and sets `OOBEE_IN_CONTAINER=1` and `CRAWLEE_CONTAINERIZED=1` (`??=`, so explicit values win). The second one makes Crawlee's autoscaler read the cgroup CPU/memory quota instead of host-wide stats.
+- Default max concurrency is `3 × os.availableParallelism()`, clamped to [2, 25]. A 2 vCPU task gets 6. Both crawlers use `minConcurrency: 1` and `desiredConcurrency: min(max, 10)`. Don't reintroduce a `minConcurrency` floor: a floor of 10 kept 20+ renderers alive on 2 vCPUs when 2 scans shared a task, starving hydration.
 - No system Chrome/Edge — always falls back to Playwright's bundled Chromium
 - `getDefaultChromeDataDir()` returns null (no Chrome profile to clone)
 - `getDefaultChromiumDataDir()` creates `./Chromium Support` or falls back to `/tmp`
@@ -248,6 +259,14 @@ Google Safe Browsing protects users by blocking navigation to phishing/malware U
 - `src/crawlers/crawlSitemap.ts` — same blocked-page detection
 - `src/crawlers/runCustom.ts` — uses `launchPersistentSafeContext()`
 
+### Prepopulated DB zip (asgard-0003)
+
+`findPrePopulatedSource()` can seed the DB from `SB_PREPOPULATED_ZIP`, `/data/safe-browsing-db.zip`, `/opt/oobee-safe-browsing/safe-browsing-db.zip` or `~/.oobee/safe-browsing-db.zip`:
+- The zip is opened **once**. `readVerifiedPrePopulatedZip()` checks owner/mode via `fstat` on that descriptor, size-limits it, and hashes the same buffer against `SB_PREPOPULATED_SHA256` if set. The same buffer is then extracted, so the file can't be swapped between check and extraction.
+- Extraction uses `extractZipBufferSafely()` (JSZip, in-process), never `unzip`. The whole archive is validated before any write. Symlink/special entries, absolute paths, drive letters, backslashes and `..` segments are refused, plus entry-count and size limits. Files are written with `wx` into a fresh `mkdtemp` staging dir, which is deleted after the DB files are copied.
+- `copyDirectory()` copies regular files only (`lstat`) and removes a symlink at the destination instead of writing through it.
+- Set `SB_PREPOPULATED_SHA256` whenever the zip lives on a shared mount.
+
 ### What Does NOT Work
 
 - Chromium (Playwright's bundled browser) — lacks Safe Browsing entirely
@@ -315,6 +334,15 @@ docker run oobee node dist/cli.js ...
 
 12. **`extraHTTPHeaders` must not be mutated before being passed to crawlers** — `checkUrlConnectivityWithBrowser()` in `common.ts` needs an `Accept` header for its own connectivity check but must NOT add it to the shared `extraHTTPHeaders` object. Mutating the shared object causes crawlers to see a non-empty `extraHTTPHeaders` (at minimum `{ Accept: '...' }`), which silently triggers header rewriting and the Playwright performance warning for every unauthenticated scan. Always use a local copy: `const localHeaders = { ...extraHTTPHeaders }; localHeaders.Accept ||= '...';`.
 
+13. **EJS report partials share one global JS scope — never review one in isolation** — `report.ejs` inlines ~28 `<script>` partials into a single document. Classic script blocks share one global lexical scope, so a top-level `const`/`let`/`class` in one partial collides with the same name in *any other* partial. The second declaration throws `Uncaught SyntaxError: Identifier 'X' has already been declared`, and **that entire block never executes** — so whatever it was responsible for silently renders as empty or `N/A` while the rest of the report looks fine. Each file is valid on its own, so neither `tsc` nor file-scoped review can catch this (see pitfall 14 for how to verify). Prefer partial-specific names (`SAFE_SCANNED_HREF_SCHEMES`, not `SAFE_HREF_SCHEMES`) and treat any generic-sounding top-level name as a collision risk.
+
+14. **Verify EJS/report changes by rendering the whole document, not the partial you edited** — `tsc` does not typecheck `.ejs`, and the templates are only assembled at scan time, so template bugs reach users unless you render the full tree. After changing anything under `src/static/ejs/`:
+    - Render `report.ejs` end to end (it pulls in every partial) and confirm it produces the expected ~20k-line document, then extract every inline `<script>` and compile them **concatenated into one scope** — that reproduces the browser's cross-partial redeclaration check from pitfall 13. Compiling each block separately is not sufficient and will pass on genuinely broken reports.
+    - Open the rendered file in a browser and check the devtools console is clean. A single `SyntaxError` silently blanks a whole section rather than failing loudly.
+    - Grep every `.ejs` for duplicate top-level declarations before pushing.
+    - Prove your check works by reverting the fix and confirming the check fails (negative control) — a verification that cannot fail proves nothing.
+    - Remember `npm run copyfiles` is what moves `src/static/ejs/` into `dist/static/`. A stale `dist/` will keep reproducing a bug you already fixed in `src/`, and Oobee Desktop ships its own separately-versioned copy under `~/Library/Application Support/Oobee/Oobee Backend/oobee/dist/`.
+
 ## Testing Considerations
 
 When making changes, validate these areas which have well-established edge cases:
@@ -329,7 +357,11 @@ When making changes, validate these areas which have well-established edge cases
 - The crawlee dataset folder and `tmp-items` (intermediate JSONL store) must be deleted BEFORE zipping results. `zipResults` must be the last step in `generateArtifacts()` — any cleanup or processing that removes temp files from `storagePath` must happen earlier. The dataset deletion uses an awaited delay (not fire-and-forget setTimeout) to let lingering Crawlee I/O flush.
 - Errors must only be recorded in `failedRequestHandler` (after all retries exhausted), not in the `requestHandler` catch block. Crawlee retries up to 3 times, so recording in the catch block creates duplicates and false positives for URLs that succeed on retry.
 - **"Download is starting" navigation errors**: URLs that trigger file downloads (e.g. Salesforce `/download/` endpoints without `.pdf` extension) cause `page.goto()` to throw. Crawlee retries 3 times (all fail the same way). In `failedRequestHandler`, detect via `request.errorMessages.includes('Download is starting')`. If `isScanPdfs`: re-enqueue with `skipNavigation: true` and unique key `download_${url}` so the requestHandler's PDF download path handles it via `sendRequest`. If not scanning PDFs: classify as `STATUS_CODE_METADATA[1]` ("Not A Supported Document").
-- **403 rate-limit retry**: In `failedRequestHandler`, 403 URLs are re-enqueued once with `userData.rateLimitRetried = true` and unique key `ratelimit_${url}`. This gives them a fresh attempt cycle after adaptive concurrency recovers from the rate-limit burst. On the first pass, `rateController.onFailure()` is called (halves concurrency once) and the URL is re-enqueued. If the retry also 403s, it falls through to the normal `onFailure` + circuit breaker path, but with `skipConcurrencyReduction: true` so the same URL cannot halve concurrency a second time — the retried failure still increments the consecutive-failure counter for the circuit breaker.
+- **403/429 handling (in `requestHandler`, not `failedRequestHandler`)**: Both crawlers set `sessionPoolOptions.blockedStatusCodes: []`. Crawlee's default `[401,403,429]` throws before the handler runs and retires the session and browser, so each blocked URL cost about 8 navigations and 8 Chrome relaunches. The setting is separate from `retryOnBlocked: false`, so you need both. The handler flow for a 403/429:
+  1. Call `rateController.onFailure()`. If the circuit breaker trips, abort.
+  2. On the first pass, re-enqueue once with `userData.rateLimitRetried = true` and unique key `ratelimit_${url}`.
+  3. If the retry also returns 403/429, call `onFailure` with `skipConcurrencyReduction: true`, so the same URL can't halve concurrency twice. Then record the URL in `userExcluded` with its real status.
+  4. The postNav DOM-quiet wait and `waitForPageLoaded` are skipped for 403/429 responses. Only the wait is skipped. In crawlDomain, the postNav redirect-enqueue and `skipNavigation` tail must still run.
 - **Non-HTML document classification ("Unsupported Documents")**: URLs serving non-HTML content (images, PDFs, media, binary files) must be classified as `STATUS_CODE_METADATA[1]` ("Not A Supported Document") with `httpStatusCode: 1` in both crawlers. This applies whether the content-type is detected pre-navigation (via file extension in `preNavigationHooks`) or post-navigation (via response `content-type` header). The report UI identifies unsupported documents by `httpStatusCode === 1` — any other status code (even 0) with incorrect metadata may land in "Pages Not Scanned" instead. Both crawlDomain and crawlSitemap now report these consistently — crawlDomain no longer silently drops them.
   - **`blackListedFileExtensions` (shared constant in `constants.ts`)**: Single source of truth for non-scannable file extensions. Used in both crawlers' `preNavigationHooks` to skip navigation, and in crawlDomain's post-navigation `isBlacklistedFileExtensions()` check. When adding new non-scannable types, update this one list. Does NOT include `.pdf` — PDFs are handled by the separate PDF scan path.
   - **Both crawlers' preNavigationHooks**: Check URL pathname extension against `blackListedFileExtensions`. If matched, set `skipNavigation=true` (crawlDomain) or `skipNavigation=true` + `isNotSupportedDocument=true` (crawlSitemap). This avoids wasting browser resources on non-HTML URLs.
@@ -342,6 +374,10 @@ When making changes, validate these areas which have well-established edge cases
 - `www.example.com` and `example.com` must be treated as the same host. Never compare hostnames with `===` directly — use `isSameHostname()` from `src/utils.ts`, which strips the `www.` prefix. This applies to follow-strategy checks, click-discovery gating, and any other hostname comparison. Sitemaps commonly list child URLs without the `www.` prefix; browsers redirect between www/non-www variants freely.
 - Pages may redirect to external domains. The crawler detects this both pre-scan (via `response.url()` after goto) and post-scan (via `page.url()` after axe completes, since JS redirects can fire during scan). Results are discarded if the page leaves its queued hostname.
 - In custom flow, the entry URL should remain the user-provided URL, not the final redirected URL.
+
+- **Connectivity-check redirects must not pivot inward (asgard-0001)**: `checkUrlConnectivityWithBrowser()` follows server/JS/meta redirects and its `res.url` becomes the crawl seed in `cli.ts`. Both places call `isRefusedRedirectTarget(entryUrl, finalUrl)` (and the connectivity check also calls `isRefusedServerAddrForEntry()` on `response.serverAddr()`), so a public entry URL that redirects to loopback/private/metadata addresses is refused. Without this, an internal seed would flip `crawlDomain`'s `entryIsInternal` flag and turn off its egress guards. Internal entry URLs the operator chose deliberately still work.
+
+- **Server-side PDF downloads use the same egress policy (asgard-0004)**: `handlePdfDownload()` fetches PDFs from Node, not the browser, so browser guards don't apply. `createPdfEgressGuards(entryIsInternal)` in `pdfScanFunc.ts` checks the URL (IP literals), every DNS answer (`dnsLookup`), every redirect hop (`followRedirect`), and the connected peer (`response.ip`). Metadata/link-local is always refused. Loopback/private addresses are refused unless the operator's entry URL is internal. Both crawlers must pass `entryIsInternal` to `handlePdfDownload()`. Refused PDFs are recorded in `userExcluded` as "Page Excluded".
 
 ### robots.txt Handling
 - Bare paths like `/subscription/unsubscribe` must emit both the exact-path pattern AND a children glob (`/subscription/unsubscribe/**`). Query-string `?` must be escaped (minimatch treats `?` as a single-char wildcard).
@@ -364,6 +400,12 @@ When making changes, validate these areas which have well-established edge cases
 
 - **`reconcileOverlayMenu` must not remove the overlay on macOS/Windows**. On `darwin`/`win32` the custom flow runs headful. When `isOverlayAllowed` returns `false` (e.g. transient `file://` or `about:blank` URL), do **not** call `removeOverlayMenu` — the URL guard will redirect back to the safe URL momentarily. Instead, fall through to the `hasOverlay` / `addOverlayMenu` block so the overlay is (re-)injected regardless of the current URL protocol. On Linux/Docker (headless) the removal behaviour is unchanged.
 
+### scanCustomFlow Entry URL Validation (asgard-0002)
+- `assertSafeCustomFlowUrl()` in `src/crawlers/scanCustomFlow.ts` always enforces a scheme allowlist of `http:`, `https:` and `file:`. `data:`, `javascript:`, `blob:`, `ftp:`, `chrome:`, `view-source:` and similar schemes are refused regardless of env vars.
+- `file:` URLs must be local (empty host or `localhost`). `file://otherhost/share` is a UNC/SMB path on Windows and is always refused.
+- Link-local and cloud-metadata addresses are always refused.
+- Internal hosts, localhost and local `file://` remain allowed by default for operator workflows. **Library consumers that forward untrusted URLs to `scanCustomFlow` must set `OOBEE_SSRF_PROTECTION=1`**, which restricts targets to public `http(s)` only.
+
 ### Proxy & Network
 - Proxy detection must handle `ALL_PROXY` on Windows. The proxy resolution logic should be tested on all platforms.
 
@@ -385,7 +427,7 @@ When `CF_WORKER_PROXY` is set, `proxyService.getProxyInfo()` starts a local SOCK
 - Both crawlers use a shared `CrawlRateController` class (`src/crawlers/crawlRateController.ts`) that provides:
   1. **Strict maxPages**: `claimSlot()` is called at the moment of success (synchronously right before `urlsCrawled.scanned.push()`), not at the top of the request handler. `abort()` is called only after claiming the last slot (`isLimitReached()` becomes true post-claim). Never abort from the top of the handler — doing so kills in-flight pages that other handlers are scanning, causing undershoot.
   2. **Circuit breaker**: After 100 consecutive HTTP 4xx/5xx failures (configurable via `OOBEE_CONSECUTIVE_MAX_RETRIES`, default `0` = disabled), the crawl aborts gracefully.
-  3. **Adaptive concurrency**: On each 4xx/5xx failure, concurrency is halved (floor 1). Recovery is tracked by `successesSinceReduction` — after 10 successes since the last reduction, concurrency increases by +2 toward the original value. Non-4xx failures (timeouts, network errors) do NOT reset this counter, so recovery remains reachable on mixed-content sites where PDF/download errors are common. This automatically finds the site's rate limit threshold without manual tuning.
+  3. **Adaptive concurrency**: On each 4xx/5xx failure, concurrency is halved (floor 1), and `desiredConcurrency` is clamped to match. AutoscaledPool gates new tasks on `desiredConcurrency`, so setting `maxConcurrency` alone does nothing. Recovery is tracked by `successesSinceReduction` — after 10 successes since the last reduction, concurrency increases by +2 toward the original value. Non-4xx failures (timeouts, network errors) do NOT reset this counter, so recovery remains reachable on mixed-content sites where PDF/download errors are common. This automatically finds the site's rate limit threshold without manual tuning.
 - **Critical placement of `claimSlot()` and `abort()`**: `claimSlot()` must be synchronously right before `push()` — never at the top of the handler. `abort()` must be called only after the last slot is claimed — never from an early-exit check. Pages can be discarded mid-handler (redirect, dedup, robots.txt block), and aborting prematurely kills in-flight handlers that would have succeeded.
 - Only HTTP 4xx/5xx responses trigger rate adaptation and count toward the circuit breaker — timeouts and network errors do not.
 - In intelligent crawl, each phase (sitemap then domain) creates its own `CrawlRateController` instance — transitioning from sitemap to domain crawl starts fresh.
@@ -419,7 +461,13 @@ When `CF_WORKER_PROXY` is set, `proxyService.getProxyInfo()` starts a local SOCK
 ### Axe & Custom Checks
 - When axe reports color-contrast violations but cannot determine the actual colors, skip augmenting the message with contrast context (avoids crashes on null/undefined color values).
 - Violation messages are enriched with live DOM context (element text, computed styles, dimensions) via `page.evaluate()` during scan. Handle cases where elements are no longer in DOM at evaluation time.
-- Selected hydration-sensitive violations are re-verified against the live DOM after axe completes. When `aria-valid-attr-value`, `target-size`, `aria-hidden-focus`, `color-contrast`, or `color-contrast-enhanced` appears, `runAxeScript()` waits once using `OOBEE_AXE_RECHECK_HYDRATION_MS` (default 5000ms), then rechecks only the rules that appeared. If none of these violations appear, no extra wait is added.
+- **Hydration stability under CPU contention**: wall-clock "no mutations for N ms" windows can elapse while a starved renderer is still compiling the bundle. `waitForPageLoaded` and `runAxeScript` therefore also gate on `waitForMainThreadIdle()`, which waits for N consecutive `requestIdleCallback` idle periods with no `longtask` (in-page probe: `crawlers/custom/waitForMainThreadIdleInPage.ts`, which must stay self-contained because it is stringified and eval'd). If the page is closed (e.g. Crawlee closing in-flight pages on `autoscaledPool.abort()`), the probe returns `page closed` and `waitForPageLoaded` returns silently. Don't report that case as "main thread still busy". Match closed pages with `PAGE_GONE_ERROR_RE`, not `/closed/`: `/closed/` also matches `net::ERR_CONNECTION_CLOSED`, which happens on a live page. Clear every `Promise.race` deadline timer after the race.
+- Selected hydration-sensitive violations are re-verified against the live DOM after axe completes. When `aria-valid-attr-value`, `target-size`, `aria-hidden-focus`, `color-contrast`, or `color-contrast-enhanced` appears, `runAxeScript()` waits once — a fixed `OOBEE_AXE_RECHECK_HYDRATION_MS` delay (default 1000ms, for network-driven late updates) followed by a main-thread idle gate bounded by `OOBEE_AXE_RECHECK_IDLE_TIMEOUT_MS` (default 4000ms, so CPU-starved hydration has actually run) — then rechecks only the rules that appeared. If none of these violations appear, no extra wait is added.
+
+### HTML Report EJS Templates
+- Changes under `src/static/ejs/` are **not** covered by `tsc` or the Jest suite. Render the full `report.ejs` and compile all inline scripts in one shared scope before pushing — see Common Pitfalls 13 and 14 for the failure mode and the verification recipe.
+- The report's JS is split across ~28 partials that share one global scope. Reading only the partial you changed will not reveal cross-partial name collisions, which fail silently as blank or `N/A` sections.
+- `report.ejs` expects a full scan payload. To render without a real scan, stub the locals — note `include()` copies the locals object (so Proxy traps are dropped in partials) and several partials do `const x = <%- JSON.stringify(local) %>;`, so stubs must serialise to a valid JS literal or you will get misleading `Unexpected token ';'` errors that are artifacts of the stub rather than real defects.
 
 ## Report Output Structure
 

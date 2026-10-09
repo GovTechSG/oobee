@@ -61,7 +61,7 @@ Returns an instance of Oobee
 - `ruleset` (optional)
   - The array of rulesets to use. Options: `default`, `disable-oobee`, `enable-wcag-aaa`
 - `specifiedMaxConcurrency` (optional)
-  - The maximum number of concurrent requests to be made. Defaults to 25.
+  - The maximum number of concurrent requests to be made. Defaults to 3 × available CPUs (min 2, max 25).
 - `followRobots` (optional)
   - Whether to follow robots.txt. Defaults to false.
 

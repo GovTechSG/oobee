@@ -131,7 +131,10 @@ const startScanQuestions = [
         return true;
       } else {
         const match = Object.values(statuses).find((s: any) => s.code === res.status);
-        const msg = match && 'message' in match ? match.message : 'Unknown error';
+        let msg = match && 'message' in match ? match.message : 'Unknown error';
+        if (res.status === statuses.errorStatusReceived.code && res.httpStatus) {
+          msg = `${msg}${res.httpStatus}.`;
+        }
         return msg;
       }
     },

@@ -30,6 +30,7 @@ import constants, {
   BrowserTypes,
   FileTypes,
   getEnumKey,
+  isRunningInContainer,
 } from './constants.js';
 import { consoleLogger } from '../logs.js';
 import { isUrlPdf, splitAuthHeaders, addAuthRouteHandler } from '../crawlers/commonCrawlerFunc.js';
@@ -44,6 +45,7 @@ import { Answers, Data } from '../index.js';
 import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
 import { ensureAndInjectSafeBrowsing, getSafeBrowsingIgnoredArgs } from '../safeBrowsingProfile.js';
+import { waitForMainThreadIdleInPage } from '../crawlers/custom/waitForMainThreadIdleInPage.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -376,6 +378,11 @@ export const checkUrlConnectivityWithBrowser = async (
 
   let browserContext;
   let browserInstance;
+  // Status of the last main-frame document response. Chrome can abort
+  // navigation with net::ERR_HTTP_RESPONSE_CODE_FAILURE (e.g. 4xx/5xx with an
+  // empty body), so page.goto() throws and never returns the Response.
+  let mainFrameStatus: number | undefined;
+
 
   const rawDevice = (playwrightDeviceDetailsObject || {}) as Record<string, unknown>;
   const {
@@ -475,6 +482,16 @@ export const checkUrlConnectivityWithBrowser = async (
       return res;
     });
 
+    page.on('response', (r: any) => {
+      try {
+        if (r.request().isNavigationRequest() && r.frame() === page.mainFrame()) {
+          mainFrameStatus = r.status();
+        }
+      } catch {
+        // frame detached / page closed — ignore
+      }
+    });
+
     // OPTIMIZATION: Wait for 'domcontentloaded' only
     let response;
     try {
@@ -502,6 +519,27 @@ export const checkUrlConnectivityWithBrowser = async (
 
     // Re-read page.url() AFTER potential client-side redirects have resolved
     const finalUrl = page.url();
+
+    // asgard-0001: the connectivity check follows server/JS/meta redirects and
+    // its final URL becomes the crawl seed. A public entry URL must not be able
+    // to redirect us onto an internal/loopback/metadata address, otherwise the
+    // seed (and crawlDomain's entryIsInternal flag) is silently flipped.
+    if (await isRefusedRedirectTarget(url, finalUrl)) {
+      consoleLogger.info(
+        `Connectivity check refused: ${url} redirected to internal address ${finalUrl}`,
+      );
+      res.status = constants.urlCheckStatuses.systemError.code;
+      return res;
+    }
+    const serverAddr = await response.serverAddr().catch(() => null);
+    if (serverAddr?.ipAddress && (await isRefusedServerAddrForEntry(url, serverAddr.ipAddress))) {
+      consoleLogger.info(
+        `Connectivity check refused: ${url} resolved to internal server address ${serverAddr.ipAddress}`,
+      );
+      res.status = constants.urlCheckStatuses.systemError.code;
+      return res;
+    }
+
     const finalStatus = response.status();
     const headers = response.headers();
     contentType = headers['content-type'] || '';
@@ -525,6 +563,10 @@ export const checkUrlConnectivityWithBrowser = async (
       res.status = hasDOM
         ? constants.urlCheckStatuses.success.code
         : constants.urlCheckStatuses.systemError.code;
+    } else if (finalStatus >= 400) {
+      // The server answered with an error status (e.g. 403 from a WAF/CDN or
+      // IP allowlist). Report the actual code instead of a generic system error.
+      res.status = constants.urlCheckStatuses.errorStatusReceived.code;
     } else {
       res.status = constants.urlCheckStatuses.systemError.code;
     }
@@ -556,6 +598,18 @@ export const checkUrlConnectivityWithBrowser = async (
       error.message.includes('net::ERR_BLOCKED_BY_RESPONSE')
     ) {
       res.status = constants.urlCheckStatuses.blockedByClient.code;
+    } else if (
+      error.message.includes('net::ERR_HTTP_RESPONSE_CODE_FAILURE') &&
+      mainFrameStatus === 401
+    ) {
+      res.httpStatus = mainFrameStatus;
+      res.status = constants.urlCheckStatuses.unauthorised.code;
+    } else if (
+      error.message.includes('net::ERR_HTTP_RESPONSE_CODE_FAILURE') ||
+      (mainFrameStatus !== undefined && mainFrameStatus >= 400)
+    ) {
+      if (mainFrameStatus !== undefined) res.httpStatus = mainFrameStatus;
+      res.status = constants.urlCheckStatuses.errorStatusReceived.code;
     } else {
       consoleLogger.error(error);
       res.status = constants.urlCheckStatuses.systemError.code;
@@ -975,7 +1029,29 @@ const getRobotsTxtViaPlaywright = async (
 
     const page = await browserContext.newPage();
 
-    await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    // asgard-0007: robots.txt is fetched for whatever origin is being scanned,
+    // including intranet/localhost/Tailscale targets, so a blanket internal-IP
+    // refusal (asgard's patch) would silently drop robots rules for those scans.
+    // Instead: never touch metadata space, and refuse an internal server only
+    // when the robots origin itself is public — that is the redirect / DNS
+    // rebinding pivot. Throwing is safe: callers treat it as "no robots.txt".
+    if (await isLinkLocalOrMetadataUrl(robotsUrl)) {
+      throw new Error('Refusing robots.txt fetch targeting a link-local/metadata address');
+    }
+    const originIsInternal = await isInternalOrLoopbackUrl(robotsUrl);
+    const response = await page.goto(robotsUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    let remoteIp: string | undefined;
+    try {
+      remoteIp = (await response?.serverAddr())?.ipAddress;
+    } catch {
+      // best-effort: not reported for cached / service-worker responses
+    }
+    if (remoteIp) {
+      const kind = classifyServerAddress(remoteIp);
+      if (kind === 'metadata' || (kind === 'internal' && !originIsInternal)) {
+        throw new Error(`Refusing robots.txt body served from internal address ${remoteIp}`);
+      }
+    }
     const robotsTxt: string | null = await page.evaluate(() => document.body.textContent);
     return robotsTxt;
   } catch (e) {
@@ -1143,6 +1219,93 @@ const isInternalIpv6 = (addr: string): boolean => {
   if ((g[0] & 0xfe00) === 0xfc00) return !allowsInternalTargets();
   return false;
 };
+
+// Narrower than isInternalOrLoopbackUrl: only link-local / cloud-metadata /
+// this-network space. Operator-chosen entry URLs (custom flow) legitimately
+// target localhost dev servers and intranet hosts, but nothing a user wants
+// an accessibility report for lives in these ranges, so they are refused on
+// every path regardless of OOBEE_ALLOW_INTERNAL_TARGETS / OOBEE_SSRF_PROTECTION.
+const METADATA_ADDR_RANGES: string[] = [
+  '169.254.0.0/16',
+  '192.0.0.0/24',
+  '0.0.0.0/8',
+  '100.100.100.200/32',
+];
+const isMetadataIpv4 = (ip: string): boolean => METADATA_ADDR_RANGES.some(r => ipv4InRange(ip, r));
+const isMetadataIpv6 = (addr: string): boolean => {
+  const g = ipv6ToGroups(addr.toLowerCase());
+  if (!g) return false;
+  if (g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0xffff) {
+    return isMetadataIpv4(`${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`);
+  }
+  if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  // AWS IMDS IPv6 endpoint fd00:ec2::254
+  return g[0] === 0xfd00 && g[1] === 0x0ec2 && g.slice(2, 7).every(x => x === 0) && g[7] === 0x254;
+};
+
+// Classifies the IP the browser actually connected to (response.serverAddr()),
+// for DNS-rebinding checks where only an address — not a URL — is available.
+export const classifyServerAddress = (remoteIp: string): 'metadata' | 'internal' | 'public' => {
+  const bare = remoteIp.replace(/^\[|\]$/g, '').toLowerCase();
+  const v4 = isIpv4Literal(bare);
+  if (v4 ? isMetadataIpv4(bare) : isMetadataIpv6(bare)) return 'metadata';
+  if (v4 ? isInternalIpv4(bare) : isInternalIpv6(bare)) return 'internal';
+  return 'public';
+};
+
+export async function isLinkLocalOrMetadataUrl(candidate: string): Promise<boolean> {
+  let host: string;
+  try {
+    host = new URL(candidate).hostname;
+  } catch {
+    return false;
+  }
+  if (!host) return false;
+  const bare = host.toLowerCase().replace(/^\[|\]$/g, '');
+  if (isIpv4Literal(bare)) return isMetadataIpv4(bare);
+  if (bare.includes(':')) return isMetadataIpv6(bare);
+  try {
+    const { lookup } = await import('dns/promises');
+    const records = await lookup(bare, { all: true });
+    return records.some(r =>
+      r.family === 4 ? isMetadataIpv4(r.address) : isMetadataIpv6(r.address),
+    );
+  } catch {
+    return false;
+  }
+}
+
+// asgard-0001: egress policy pinned to the operator-supplied entry URL.
+// Returns true when navigating from `entryUrl` to `target` (e.g. via a
+// redirect) would pivot into an address the operator did not choose:
+//  - link-local / cloud-metadata: always refused.
+//  - loopback / private ranges: refused unless the entry URL itself was
+//    internal (OOBEE_ALLOW_INTERNAL_TARGETS=1 still lifts the private part).
+// Non-http(s) targets (file:, about:, chrome-error:) are not network egress.
+export async function isRefusedRedirectTarget(entryUrl: string, target: string): Promise<boolean> {
+  let protocol: string;
+  try {
+    protocol = new URL(target).protocol;
+  } catch {
+    return false;
+  }
+  if (protocol !== 'http:' && protocol !== 'https:') return false;
+  if (await isLinkLocalOrMetadataUrl(target)) return true;
+  if (await isInternalOrLoopbackUrl(entryUrl)) return false;
+  return isInternalOrLoopbackUrl(target);
+}
+
+// Same policy as isRefusedRedirectTarget, but for the IP actually connected
+// to (response.serverAddr()) — the DNS-rebinding backstop.
+export async function isRefusedServerAddrForEntry(
+  entryUrl: string,
+  remoteIp: string,
+): Promise<boolean> {
+  const kind = classifyServerAddress(remoteIp);
+  if (kind === 'metadata') return true;
+  if (kind === 'public') return false;
+  return !(await isInternalOrLoopbackUrl(entryUrl));
+}
 
 export async function isInternalOrLoopbackUrl(candidate: string): Promise<boolean> {
   let host: string;
@@ -1747,7 +1910,7 @@ export const getClonedProfilesWithRandomToken = (browser: string, randomToken: s
   // Keep the path short — Chrome creates Unix sockets inside TMPDIR-based paths,
   // and socket paths are limited to 107 bytes on Linux.
   // Use process.pid to isolate concurrent scan instances.
-  if (fs.existsSync('/.dockerenv')) {
+  if (isRunningInContainer()) {
     const baseDir = getDefaultChromiumDataDir();
     if (baseDir) {
       const scanTmpDir = path.join(baseDir, 'tmp', String(process.pid));
@@ -2502,25 +2665,10 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   // whenever a SOCKS5 proxy is set, which triggers Chrome's yellow
   // "unsupported command-line flag" banner. --test-type suppresses it (and the
   // automation info bar), matching what we already do in Docker.
-  // `/.dockerenv` is only created by the Docker daemon. Other container
-  // runtimes (Podman, containerd, ECS Fargate, Azure Container Apps / App
-  // Service, Google Cloud Run / App Engine, and Kubernetes) don't drop that
-  // marker file, so we also check well-known runtime env vars — otherwise we'd
-  // re-enable the Chrome sandbox and SIGABRT during zygote init under those
-  // seccomp profiles. OOBEE_IN_CONTAINER=1 is an explicit override for
-  // runtimes we don't detect (e.g. Azure Container Instances, which surfaces
-  // no reliable env var).
-  const inDocker =
-    process.env.OOBEE_IN_CONTAINER === '1' ||
-    fs.existsSync('/.dockerenv') ||
-    fs.existsSync('/run/.containerenv') ||
-    !!process.env.KUBERNETES_SERVICE_HOST ||        // Kubernetes (incl. GKE, EKS, AKS)
-    process.env.AWS_EXECUTION_ENV === 'AWS_ECS_FARGATE' ||
-    !!process.env.ECS_CONTAINER_METADATA_URI_V4 ||  // AWS ECS (Fargate + EC2)
-    !!process.env.CONTAINER_APP_NAME ||             // Azure Container Apps
-    !!process.env.WEBSITE_INSTANCE_ID ||            // Azure App Service (Linux containers)
-    !!process.env.K_SERVICE ||                      // Google Cloud Run
-    !!process.env.GAE_SERVICE;                      // Google App Engine (flex/standard)
+  // Container detection covers non-Docker runtimes too (see
+  // isRunningInContainer) — otherwise we'd re-enable the Chrome sandbox and
+  // SIGABRT during zygote init under those seccomp profiles.
+  const inDocker = isRunningInContainer();
   const usingProxy = resolution.kind === 'manual' || resolution.kind === 'pac';
   if ((inDocker || usingProxy) && !finalArgs.includes('--test-type')) {
     finalArgs.push('--test-type');
@@ -2544,7 +2692,57 @@ export const getPlaywrightLaunchOptions = (browser?: string): LaunchOptions => {
   return options;
 };
 
-export const waitForPageLoaded = async (page: Page) => {
+export type MainThreadIdleResult = {
+  reason: string;
+  waitedMs: number;
+};
+
+/**
+ * Waits until the page's main thread has had `requiredIdle` consecutive idle
+ * periods (requestIdleCallback with real idle time and no long tasks observed
+ * in between), or until `timeoutMs` elapses.
+ *
+ * This is the CPU-contention-safe complement to DOM-quiet heuristics: a
+ * wall-clock "no mutations for N ms" window can elapse while a starved
+ * renderer is still parsing/compiling the framework bundle, so hydration
+ * hasn't even started yet. A starved main thread does not yield idle periods,
+ * so this check cannot be satisfied until the page's pending JS has run.
+ */
+// Playwright's messages for a page that's gone — not net::ERR_CONNECTION_CLOSED.
+export const PAGE_GONE_ERROR_RE = /has been closed|Target crashed|was destroyed/i;
+
+export const waitForMainThreadIdle = async (
+  page: Page,
+  timeoutMs: number = Number(process.env.OOBEE_IDLE_TIMEOUT_MS) || 10000,
+): Promise<MainThreadIdleResult> => {
+  const requiredIdle = Number(process.env.OOBEE_IDLE_CALLBACKS) || 3;
+  const start = Date.now();
+  if (timeoutMs <= 0) {
+    return { reason: 'no idle budget', waitedMs: 0 };
+  }
+
+  let deadlineTimer: ReturnType<typeof setTimeout>;
+  const result = await Promise.race([
+    new Promise<{ reason: string }>(resolve => {
+      deadlineTimer = setTimeout(
+        () => resolve({ reason: 'idle hard deadline' }),
+        timeoutMs,
+      );
+    }),
+    page
+      .evaluate(waitForMainThreadIdleInPage, { requiredIdle, timeoutMs })
+      .catch((err: unknown) =>
+        page.isClosed() || PAGE_GONE_ERROR_RE.test(String((err as Error)?.message ?? err))
+          ? { reason: 'page closed' }
+          : { reason: 'idle probe errored' },
+      ),
+  ]);
+  clearTimeout(deadlineTimer);
+
+  return { ...result, waitedMs: Date.now() - start };
+};
+
+export const waitForPageLoaded = async (page: Page): Promise<{ mainThreadBusy: boolean }> => {
   // Budgets are stacked (load, then stability), not shared, so a slow-loading
   // page still gets a fresh window to hydrate. Defaults are sized for busy
   // Docker containers under CPU contention; lower them locally via env vars
@@ -2554,15 +2752,34 @@ export const waitForPageLoaded = async (page: Page) => {
   const quietMs          = Number(process.env.OOBEE_QUIET_MS)             || 1500;
   const maxMutations     = Number(process.env.OOBEE_MAX_MUTATIONS)        || 5000;
   const assetWaitMs      = Number(process.env.OOBEE_ASSET_WAIT_MS)        || 5000;
+  const idleTimeout      = Number(process.env.OOBEE_IDLE_TIMEOUT_MS)      || 10000;
+  // Overall ceiling across every phase. The stacked per-phase budgets above
+  // sum to ~85-100s worst case, which exceeds the crawlers' 90s
+  // requestHandlerTimeoutSecs: Crawlee then closes the page mid-handler and
+  // the rest of the handler (axe, click discovery) runs against a dead page.
+  // Each phase below is clipped to whatever remains of this budget.
+  const totalBudgetMs    = Number(process.env.OOBEE_PAGE_LOAD_BUDGET_MS)  || 60000;
+  const budgetDeadline = Date.now() + totalBudgetMs;
+  const remaining = (phaseMs: number) => Math.max(0, Math.min(phaseMs, budgetDeadline - Date.now()));
 
   // Phase 1 — wait for the `load` event (or its own hard deadline).
   const phase1Start = Date.now();
+  let loadTimer: ReturnType<typeof setTimeout>;
   const loadReason = await Promise.race([
     page.waitForLoadState('load').then(() => 'load event fired').catch(() => 'load errored'),
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('load hard deadline'), loadTimeout),
-    ),
+    new Promise<string>(resolve => {
+      loadTimer = setTimeout(() => resolve('load hard deadline'), remaining(loadTimeout));
+    }),
   ]);
+  clearTimeout(loadTimer);
+
+  // Phase 1.5 — wait for the main thread to go idle before starting the
+  // DOM-quiet window. Under CPU contention (e.g. concurrent scans sharing a
+  // container) a renderer can still be parsing/compiling the framework bundle
+  // well after `load`; the phase-2 quiet window would elapse before hydration
+  // even begins and axe would scan the pre-hydration SSR markup.
+  const preIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
+  if (page.isClosed()) return { mainThreadBusy: false };
 
   // Phase 2 — wait for the DOM to stabilize OR the stability budget.
   //
@@ -2572,10 +2789,12 @@ export const waitForPageLoaded = async (page: Page) => {
   // role="tab" children into a role="tablist" container). The observer's own
   // initial quiet window is the correct "no work in progress" signal.
   const phase2Start = Date.now();
+  const phase2BudgetMs = remaining(stabilityTimeout);
+  let stabilityTimer: ReturnType<typeof setTimeout>;
   const stabilityReason = await Promise.race([
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('stability hard deadline'), stabilityTimeout),
-    ),
+    new Promise<string>(resolve => {
+      stabilityTimer = setTimeout(() => resolve('stability hard deadline'), phase2BudgetMs);
+    }),
     page.evaluate(
       ({
         stabilityTimeout: OBSERVER_TIMEOUT,
@@ -2658,9 +2877,68 @@ export const waitForPageLoaded = async (page: Page) => {
           });
         });
       },
-      { stabilityTimeout, quietMs, maxMutations },
+      { stabilityTimeout: phase2BudgetMs, quietMs, maxMutations },
     ).catch(() => 'observer errored'),
   ]);
+  clearTimeout(stabilityTimer);
+
+  // Post-quiet idle check — the quiet window is wall-clock based, so a
+  // hydration task that was queued behind a starved main thread can run right
+  // as it closes. If the main thread did work since, give the DOM one more
+  // (bounded) quiet window to settle that work.
+  const postIdleStart = Date.now();
+  // A page that never yielded idle in phase 1.5 is perpetually busy (heavy
+  // ads, spin loops) rather than starved — don't pay the full idle budget
+  // twice; one quiet window's worth is enough to catch a just-queued task.
+  const preIdleTimedOut = !preIdle.reason.startsWith('main thread idle');
+  let postIdle = await waitForMainThreadIdle(page, remaining(preIdleTimedOut ? quietMs : idleTimeout));
+  let resettleReason = 'skipped';
+  // Only resettle when the thread demonstrably did work and then went idle —
+  // re-running for a perpetually busy page would just burn more budget.
+  if (
+    postIdle.reason === 'main thread idle after work' &&
+    stabilityReason !== 'stability hard deadline'
+  ) {
+    // Bounded by the same cap as the initial quiet window's outer deadline so
+    // a page that never stops mutating can't extend the wait indefinitely.
+    const resettleCapMs = remaining(Math.min(stabilityTimeout, quietMs * 4));
+    let resettleTimer: ReturnType<typeof setTimeout>;
+    resettleReason = await Promise.race([
+      new Promise<string>(resolve => {
+        resettleTimer = setTimeout(() => resolve('resettle hard deadline'), resettleCapMs);
+      }),
+      page
+        .evaluate(
+          ({ quietMs: QUIET_MS }) =>
+            new Promise<string>(resolve => {
+              const root = document.documentElement || document.body;
+              if (!(root instanceof Node)) {
+                resolve('no root to observe');
+                return;
+              }
+              let timeout: ReturnType<typeof setTimeout>;
+              const observer = new MutationObserver(() => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                  observer.disconnect();
+                  resolve('resettled after mutations');
+                }, QUIET_MS);
+              });
+              timeout = setTimeout(() => {
+                observer.disconnect();
+                resolve('resettle quiet window elapsed');
+              }, QUIET_MS);
+              observer.observe(root, { childList: true, subtree: true, attributes: true });
+            }),
+          { quietMs },
+        )
+        .catch(() => 'resettle errored'),
+    ]);
+    clearTimeout(resettleTimer);
+    postIdle = await waitForMainThreadIdle(page, remaining(idleTimeout));
+  }
+  const postIdleMs = Date.now() - postIdleStart;
+  if (page.isClosed()) return { mainThreadBusy: false };
 
   // Phase 2.5 — wait for fonts and images (raster + SVG-as-<img>) to finish
   // loading. Both are deterministic browser signals: font swap reflows every
@@ -2669,10 +2947,11 @@ export const waitForPageLoaded = async (page: Page) => {
   // in phase 2 doesn't catch these — a font swap or SVG paint doesn't necessarily
   // produce a DOM mutation, but it does change measured geometry.
   const phase25Start = Date.now();
+  let assetTimer: ReturnType<typeof setTimeout>;
   const phase25Reason = await Promise.race([
-    new Promise<string>(resolve =>
-      setTimeout(() => resolve('asset hard deadline'), assetWaitMs),
-    ),
+    new Promise<string>(resolve => {
+      assetTimer = setTimeout(() => resolve('asset hard deadline'), remaining(assetWaitMs));
+    }),
     page
       .evaluate(
         () =>
@@ -2696,14 +2975,19 @@ export const waitForPageLoaded = async (page: Page) => {
       )
       .catch(() => 'asset probe errored'),
   ]);
+  clearTimeout(assetTimer);
 
-  const phase1Ms = phase2Start - phase1Start;
-  const phase2Ms = phase25Start - phase2Start;
+  const phase1Ms = phase2Start - phase1Start - preIdle.waitedMs;
+  const phase2Ms = postIdleStart - phase2Start;
   const phase25Ms = Date.now() - phase25Start;
+  const idleSummary =
+    `preIdle="${preIdle.reason}" (${preIdle.waitedMs}ms) ` +
+    `postIdle="${postIdle.reason}" resettle="${resettleReason}" (${postIdleMs}ms)`;
   // Log at debug level so operators can spot pages that need bigger budgets
   // (i.e. pages resolving via a hard deadline rather than a stability signal).
   // Emit warn only when we time out on stability — that's the case that most
   // often produces the intermittent hydration-timing findings.
+  if (page.isClosed()) return { mainThreadBusy: false };
   let pageUrl: string;
   try {
     pageUrl = page.url();
@@ -2711,17 +2995,39 @@ export const waitForPageLoaded = async (page: Page) => {
     pageUrl = '<unknown>';
   }
 
-  if (stabilityReason === 'stability hard deadline') {
+  if (Date.now() >= budgetDeadline) {
+    consoleLogger.warn(
+      `waitForPageLoaded: overall budget exhausted on ${pageUrl} (OOBEE_PAGE_LOAD_BUDGET_MS=${totalBudgetMs}); ` +
+        `later phases were cut short. load="${loadReason}" stability="${stabilityReason}" assets="${phase25Reason}" ${idleSummary}`,
+    );
+  } else if (stabilityReason === 'stability hard deadline') {
     consoleLogger.warn(
       `waitForPageLoaded: stability hard deadline on ${pageUrl} after ${phase1Ms}ms load + ${phase2Ms}ms stability + ${phase25Ms}ms assets. ` +
         `Page may still be hydrating. Consider raising OOBEE_STABILITY_TIMEOUT_MS (current: ${stabilityTimeout}) ` +
-        `or OOBEE_QUIET_MS (current: ${quietMs}).`,
+        `or OOBEE_QUIET_MS (current: ${quietMs}). ${idleSummary}`,
+    );
+  } else if (preIdle.reason === 'page closed' || postIdle.reason === 'page closed') {
+    consoleLogger.warn(
+      `waitForPageLoaded: page closed or renderer crashed (likely out of memory) on ${pageUrl} during the idle gate. ${idleSummary}`,
+    );
+  } else if (postIdle.reason !== 'main thread idle' && postIdle.reason !== 'main thread idle after work') {
+    // The main thread never went idle within budget — almost always CPU
+    // starvation (too many concurrent pages/scans for the available cores).
+    consoleLogger.warn(
+      `waitForPageLoaded: main thread still busy on ${pageUrl} — results may reflect a partially hydrated page. ` +
+        `Consider lowering concurrency (-t) or raising OOBEE_IDLE_TIMEOUT_MS (current: ${idleTimeout}). ${idleSummary}`,
     );
   } else {
     consoleLogger.debug(
-      `waitForPageLoaded: ${pageUrl} load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms) assets="${phase25Reason}" (${phase25Ms}ms)`,
+      `waitForPageLoaded: ${pageUrl} load="${loadReason}" (${phase1Ms}ms) stability="${stabilityReason}" (${phase2Ms}ms) assets="${phase25Reason}" (${phase25Ms}ms) ${idleSummary}`,
     );
   }
+  return {
+    mainThreadBusy:
+      postIdle.reason !== 'main thread idle' &&
+      postIdle.reason !== 'main thread idle after work' &&
+      postIdle.reason !== 'page closed',
+  };
 };
 
 function isValidHttpUrl(urlString: string) {

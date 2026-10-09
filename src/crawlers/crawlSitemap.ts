@@ -1,6 +1,7 @@
 import crawlee, { EnqueueStrategy, LaunchContext, Request, RequestList, Dataset } from 'crawlee';
-import { CrawlRateController } from './crawlRateController.js';
+import { CrawlRateController, startConcurrencyEnforcer } from './crawlRateController.js';
 import fs from 'fs';
+import { getDomain } from 'tldts';
 import {
   createCrawleeSubFolders,
   getPreLaunchHook,
@@ -9,7 +10,6 @@ import {
   runAxeScript,
   isUrlPdf,
   splitAuthHeaders,
-  addAuthRouteHandler,
 } from './commonCrawlerFunc.js';
 
 import constants, {
@@ -29,6 +29,7 @@ import {
   isSkippedUrl,
   waitForPageLoaded,
   isFilePath,
+  isInternalOrLoopbackUrl,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, normUrl, register } from '../utils.js';
 import {
@@ -156,14 +157,52 @@ const crawlSitemap = async ({
     userUrl || sitemapUrl,
   );
 
-  // Opt-in: origin-scope operator-supplied non-Authorization headers (Cookie,
-  // X-Api-Key, ...) so they only reach the entry origin instead of every
-  // origin the scanned page contacts (asgard-0004). Off by default so scans
-  // that rely on these headers being sent context-wide are unchanged.
-  const scopeHeadersToOrigin = /^(1|true|yes)$/i.test(
-    process.env.OOBEE_SCOPE_HEADERS_TO_ORIGIN ?? '',
-  );
+  // asgard-0004: operator headers (Cookie, X-Api-Key, WAF bypass tokens, ...)
+  // are scoped to the entry URL's registrable domain by default, so a sitemap
+  // entry or third-party subresource on another site never receives them.
+  // Site rather than origin is the default because these headers commonly
+  // authenticate same-site subdomains too (static./cdn./api.) — stripping
+  // them there could change what renders, which would invalidate the scan.
+  // OOBEE_SCOPE_HEADERS_TO_ORIGIN=1 tightens to exact origin;
+  // OOBEE_UNSCOPED_OPERATOR_HEADERS=1 restores the legacy send-everywhere
+  // behaviour for setups that genuinely need it.
+  const envOn = (v?: string) => /^(1|true|yes)$/i.test(v ?? '');
+  const headerScope: 'all' | 'origin' | 'site' = envOn(process.env.OOBEE_UNSCOPED_OPERATOR_HEADERS)
+    ? 'all'
+    : envOn(process.env.OOBEE_SCOPE_HEADERS_TO_ORIGIN)
+      ? 'origin'
+      : 'site';
+  const scopeHeaders = headerScope !== 'all';
   const headerScopedContexts = new WeakSet<object>();
+  const scopeEntry = (() => {
+    try {
+      const u = new URL(userUrl || sitemapUrl);
+      return { origin: u.origin, site: getDomain(u.hostname, { allowPrivateDomains: true }) || u.hostname };
+    } catch {
+      return null;
+    }
+  })();
+  const isInHeaderScope = (target: string): boolean => {
+    if (!scopeEntry) return false;
+    try {
+      const u = new URL(target);
+      if (headerScope === 'origin') return u.origin === scopeEntry.origin;
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+      return (getDomain(u.hostname, { allowPrivateDomains: true }) || u.hostname) === scopeEntry.site;
+    } catch {
+      return false;
+    }
+  };
+  // preNavigationHooks copies whatever it is given onto request.headers,
+  // which Crawlee applies page-wide via setExtraHTTPHeaders — that would
+  // re-leak the non-auth headers to every subresource. When scoping, hand it
+  // only Authorization (which it already origin-gates) and let the route
+  // handler below attach the rest per request.
+  const navHeaders = scopeHeaders
+    ? Object.fromEntries(
+        Object.entries(extraHTTPHeaders || {}).filter(([k]) => k.toLowerCase() === 'authorization'),
+      )
+    : extraHTTPHeaders;
 
   // Never send caller-supplied credentials to a server whose certificate
   // couldn't be validated (asgard-0006). Matches the runCustom /
@@ -205,6 +244,10 @@ const crawlSitemap = async ({
   // 403 rate-limit retry, and enqueueLinks for intelligent sitemap discovery.
   const { requestQueue } = await createCrawleeSubFolders(randomToken, requestQueueName);
 
+  // asgard-0004: PDF downloads may reach internal addresses only when the
+  // operator's own entry URL is internal (localhost / intranet scans).
+  const entryIsInternal = await isInternalOrLoopbackUrl(userUrl || sitemapUrl);
+
   // Shared with handlePdfDownload so PDFs stream through the same client the crawler uses.
   const httpClient = new crawlee.GotScrapingHttpClient();
 
@@ -216,6 +259,14 @@ const crawlSitemap = async ({
         launchOptions: getPlaywrightLaunchOptions(browser),
       },
       retryOnBlocked: false,
+      // Crawlee's session pool treats 401/403/429 as "blocked" by default: it
+      // throws before the requestHandler runs and retires the session, which
+      // retires the whole browser. Combined with maxRequestRetries and the
+      // ratelimit_ re-enqueue below, every blocked URL cost ~8 navigations and
+      // ~8 Chrome relaunches — hours on a 2 vCPU container when a WAF blocks
+      // most of a large sitemap. Let these statuses reach the requestHandler,
+      // which records them and retries once via the ratelimit_ re-enqueue.
+      sessionPoolOptions: { blockedStatusCodes: [] },
       browserPoolOptions: {
         useFingerprints: false,
         retireBrowserAfterPageCount: 500,
@@ -229,7 +280,7 @@ const crawlSitemap = async ({
               ...playwrightDeviceDetailsObject,
               ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
-              ...(!scopeHeadersToOrigin && nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+              ...(!scopeHeaders && nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
               ...(httpCredentials && { httpCredentials }),
             };
           },
@@ -240,38 +291,53 @@ const crawlSitemap = async ({
       requestQueue,
       maxRequestRetries: 3,
       postNavigationHooks: [
-        async ({ page }) => {
+        async ({ page, response }) => {
+          // Blocked responses are recorded/retried without being scanned, so
+          // there's nothing to wait for. Without this, every 403/429 paid the
+          // full observer cap — serialised once the rate controller has
+          // dropped concurrency to 1, that's 5s × every blocked URL × 2.
+          const status = response?.status();
+          if (status === 403 || status === 429) return;
           try {
             // Wait for a quiet period in the DOM, but with safeguards
             await page.evaluate(() => {
               return new Promise(resolve => {
-                let timeout;
+                let timeout: ReturnType<typeof setTimeout>;
+                let hardCap: ReturnType<typeof setTimeout>;
                 let mutationCount = 0;
                 const MAX_MUTATIONS = 500; // stop if things never quiet down
                 const OBSERVER_TIMEOUT = 5000; // hard cap on total wait
+                const QUIET_MS = 1000;
+
+                const finish = (reason: string) => {
+                  clearTimeout(timeout);
+                  clearTimeout(hardCap);
+                  observer.disconnect();
+                  resolve(reason);
+                };
 
                 const observer = new MutationObserver(() => {
                   clearTimeout(timeout);
 
                   mutationCount++;
                   if (mutationCount > MAX_MUTATIONS) {
-                    observer.disconnect();
-                    resolve('Too many mutations, exiting.');
+                    finish('Too many mutations, exiting.');
                     return;
                   }
 
                   // restart quiet‑period timer
-                  timeout = setTimeout(() => {
-                    observer.disconnect();
-                    resolve('DOM stabilized.');
-                  }, 1000);
+                  timeout = setTimeout(() => finish('DOM stabilized.'), QUIET_MS);
                 });
 
-                // overall timeout in case the page never settles
-                timeout = setTimeout(() => {
-                  observer.disconnect();
-                  resolve('Observer timeout reached.');
-                }, OBSERVER_TIMEOUT);
+                // Initial quiet window: a page that never mutates is already
+                // stable. This previously used OBSERVER_TIMEOUT, so every
+                // static page (incl. WAF block pages) waited the full 5s.
+                timeout = setTimeout(() => finish('No mutations, DOM stable.'), QUIET_MS);
+                // Overall cap in case the page never settles. Separate timer:
+                // the old code reused `timeout`, so the first mutation cleared
+                // the cap and a steady trickle of mutations could extend the
+                // wait indefinitely (bounded only by MAX_MUTATIONS).
+                hardCap = setTimeout(() => finish('Observer timeout reached.'), OBSERVER_TIMEOUT);
 
                 const root = document.documentElement || document.body || document;
                 if (!root || typeof observer.observe !== 'function') {
@@ -291,16 +357,30 @@ const crawlSitemap = async ({
         },
       ],
       preNavigationHooks: [
-        ...preNavigationHooks(extraHTTPHeaders, userUrl || sitemapUrl),
-        // asgard-0004: when origin-scoping is enabled, send non-Authorization
-        // operator headers only to the entry origin via a same-origin route
-        // handler instead of the context-wide extraHTTPHeaders above.
+        ...preNavigationHooks(navHeaders, userUrl || sitemapUrl),
+        // Renderer crashes are almost always OOM; let the controller shed load.
+        async ({ page, request }) => {
+          page.once('crash', () => rateController.onRendererCrash(crawler.autoscaledPool, request.url));
+        },
+        // asgard-0004: attach non-Authorization operator headers per request,
+        // only when the request is within headerScope. fallback() (not
+        // continue()) so any later-registered route handler still runs.
         async ({ page }) => {
-          if (!scopeHeadersToOrigin || !nonAuthHeaders) return;
+          if (!scopeHeaders || !nonAuthHeaders) return;
           const ctx = page.context();
           if (headerScopedContexts.has(ctx)) return;
           headerScopedContexts.add(ctx);
-          await addAuthRouteHandler(ctx, userUrl || sitemapUrl, null, nonAuthHeaders);
+          await ctx.route('**/*', async (route, req) => {
+            try {
+              if (isInHeaderScope(req.url())) {
+                await route.fallback({ headers: { ...req.headers(), ...nonAuthHeaders } });
+                return;
+              }
+            } catch {
+              // fall through to an unmodified request
+            }
+            await route.fallback();
+          });
         },
         async ({ request, page }, gotoOptions) => {
           const url = request.url.toLowerCase();
@@ -352,7 +432,13 @@ const crawlSitemap = async ({
         }
 
         try {
-          await waitForPageLoaded(page);
+          // Blocked responses are recorded (or retried) below without being
+          // scanned — don't spend the full page-stability budget on a WAF page.
+          const earlyStatus = response?.status();
+          if (earlyStatus !== 403 && earlyStatus !== 429) {
+            const { mainThreadBusy } = await waitForPageLoaded(page);
+            rateController.onPageLoad(mainThreadBusy, crawler.autoscaledPool);
+          }
 
           // Cross-phase dedup for intelligent scans: skip URLs already scanned by a
           // previous phase (shared urlsCrawled). Standalone sitemap scans have
@@ -401,6 +487,7 @@ const crawlSitemap = async ({
                 httpClient,
                 urlsCrawled,
                 session,
+                entryIsInternal,
               );
 
               uuidToPdfMapping[pdfFileName] = url;
@@ -425,8 +512,32 @@ const crawlSitemap = async ({
           const contentType = response?.headers?.()['content-type'] || '';
           const status = response ? response.status() : 0;
 
-          if (status === 403) {
-            rateController.onFailure(status, crawler.autoscaledPool);
+          if (status === 403 || status === 429) {
+            const isRetry = request.userData?.rateLimitRetried === true;
+            if (
+              rateController.onFailure(status, crawler.autoscaledPool, {
+                skipConcurrencyReduction: isRetry,
+              })
+            ) {
+              consoleLogger.info(
+                `Aborting crawl: consecutive HTTP failures threshold reached (site may be rate-limiting). Successfully scanned ${urlsCrawled.scanned.length} pages.`,
+              );
+              isAbortingScan = true;
+              crawler.autoscaledPool?.abort();
+            }
+            // Retry once (at the back of the queue, after concurrency has
+            // dropped) before recording the URL as blocked.
+            if (!isRetry && !isAbortingScan) {
+              try {
+                await requestQueue.addRequest({
+                  url: request.url,
+                  label: request.url,
+                  uniqueKey: `ratelimit_${request.url}`,
+                  userData: { rateLimitRetried: true },
+                });
+                return;
+              } catch {}
+            }
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
@@ -435,8 +546,8 @@ const crawlSitemap = async ({
               url: request.url,
               pageTitle: request.url,
               actualUrl,
-              metadata: STATUS_CODE_METADATA[403] || STATUS_CODE_METADATA[599],
-              httpStatusCode: 403,
+              metadata: STATUS_CODE_METADATA[status] || STATUS_CODE_METADATA[599],
+              httpStatusCode: status,
             });
             return;
           }
@@ -503,6 +614,8 @@ const crawlSitemap = async ({
               });
               return;
             }
+
+            if (isAbortingScan || page.isClosed()) return;
 
             const results = await runAxeScript({ includeScreenshots, page, randomToken, ruleset });
 
@@ -788,10 +901,14 @@ const crawlSitemap = async ({
         }
       },
       maxRequestsPerCrawl: Infinity,
-      maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
+      maxConcurrency: rateController.target,
       autoscaledPoolOptions: {
-        minConcurrency: specifiedMaxConcurrency ? Math.min(specifiedMaxConcurrency, 10) : 10,
-        maxConcurrency: specifiedMaxConcurrency || maxConcurrency,
+        // Pinned to the rate controller's target (min = desired = max). Only
+        // 403/429 and measured main-thread starvation lower it — not Crawlee's
+        // overload heuristic, which on shared CI runners pins scans at 1.
+        minConcurrency: rateController.target,
+        desiredConcurrency: rateController.target,
+        maxConcurrency: rateController.target,
         desiredConcurrencyRatio: 0.98, // Increase threshold for scaling up
         scaleUpStepRatio: 0.99, // Scale up faster
         scaleDownStepRatio: 0.1, // Scale down slower
@@ -818,9 +935,11 @@ const crawlSitemap = async ({
   // arrives during crawler.run() can abort the autoscaledPool. Without this,
   // the container's SIGKILL lands mid-write and produces a corrupted results.zip.
   registerCrawler(crawler);
+  const stopEnforcer = startConcurrencyEnforcer('sitemap', () => crawler.autoscaledPool, rateController);
   try {
     await crawler.run();
   } finally {
+    stopEnforcer();
     // Always unregister and clear the idle watchdog, even if crawler.run()
     // threw — otherwise a later phase could inherit a stale reference or the
     // interval could keep firing after the crawler has exited.
