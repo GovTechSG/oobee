@@ -109,7 +109,7 @@
     "start": "node --max-old-space-size=10000 dist/index.js",
     "cli": "node --max-old-space-size=10000 dist/cli.js",
     "test": "npm run test:unit",
-    "test:unit": "OOBEE_DISABLE_TELEMETRY=1 DISABLE_OOBEE_TELEMETRY=1 node --test tests/core.test.mjs tests/unit.test.mjs tests/socks.test.mjs tests/ssrfRedirect.test.mjs tests/customFlowUrlGuard.test.mjs tests/safeBrowsingZip.test.mjs tests/pdfEgressGuard.test.mjs tests/readabilityBound.test.mjs",
+    "test:unit": "OOBEE_DISABLE_TELEMETRY=1 DISABLE_OOBEE_TELEMETRY=1 node --test tests/core.test.mjs tests/unit.test.mjs tests/socks.test.mjs tests/ssrfRedirect.test.mjs tests/customFlowUrlGuard.test.mjs tests/safeBrowsingZip.test.mjs tests/pdfEgressGuard.test.mjs tests/readabilityBound.test.mjs tests/pdfLocationBound.test.mjs",
     "test:e2e": "OOBEE_DISABLE_TELEMETRY=1 DISABLE_OOBEE_TELEMETRY=1 node --test tests/e2e.test.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --fix --report-unused-disable-directives --max-warnings 0"
