@@ -181,8 +181,14 @@ describe('scanHTML', () => {
     );
   });
 
-  test('"0" means unlimited', async () => {
+  test('"0" now falls back to the default bound (asgard-0005: 0 no longer means unlimited)', async () => {
     await withEnv({ OOBEE_SCANHTML_MAX_BYTES: '0' }, () => scanHTML(html, cfg));
+    await withEnv({ OOBEE_SCANHTML_MAX_BYTES: '0' }, () =>
+      assert.rejects(
+        scanHTML(`<html><body>${'x'.repeat(60 * 1024 * 1024)}</body></html>`, cfg),
+        /OOBEE_SCANHTML_MAX_BYTES/,
+      ),
+    );
   });
 
   test('array input reports the offending index', async () => {
@@ -237,6 +243,92 @@ describe('Gen AI error rendering', () => {
     errorContainer.replaceChildren(errorDiv);
     assert.equal(errorContainer.querySelector('img'), null);
     assert.equal(errorContainer.querySelector('.generateAiError').textContent, errorMessage);
+  });
+});
+
+describe('Gen AI suggest-fix sanitizer', () => {
+  // Load the real sanitizer from the template rather than a copy, so the test
+  // fails if the shipped code regresses.
+  const ejs = fs.readFileSync(path.join(root, 'src/static/ejs/partials/scripts/ruleModal/utilities.ejs'), 'utf8');
+  const start = ejs.indexOf('const RESOURCE_ATTRS');
+  const end = ejs.indexOf('// Helper function to extract element context');
+  const sanitize = new Function(`${ejs.slice(start, end)}; return sanitizeElementForContext;`)();
+  const run = html => {
+    const doc = new JSDOM(`<body>${html}</body>`).window.document;
+    return sanitize(doc.body.firstElementChild);
+  };
+
+  test('quoted and unquoted external url() are replaced with valid CSS', () => {
+    for (const style of [
+      "color:red;background:url('https://evil.example/a.png')",
+      'color:red;background:url("https://evil.example/a.png")',
+      'color:red;background:url(https://evil.example/a.png)',
+      "color:red;background:url( '//evil.example/a.png' )",
+    ]) {
+      const el = run(`<div style="${style.replace(/"/g, '&quot;')}">x</div>`);
+      const out = el.getAttribute('style');
+      assert.ok(!/evil\.example/.test(out), out);
+      assert.ok(!/url\(/i.test(out), out);
+      assert.match(out, /color:\s*red/);
+      assert.match(out, /background:\s*none/);
+    }
+  });
+
+  test('every element is cleaned, not just alternate ones', () => {
+    const el = run(
+      `<div>${'<span style="background:url(https://evil.example/x.png)">a</span>'.repeat(5)}</div>`,
+    );
+    for (const span of el.querySelectorAll('span')) {
+      assert.ok(!/evil\.example/.test(span.getAttribute('style')), span.outerHTML);
+    }
+  });
+
+  test('a quoted URL containing ")" is removed whole', () => {
+    const el = run(`<div style="background:url('https://evil.example/a).png');color:blue">x</div>`);
+    const out = el.getAttribute('style');
+    assert.ok(!/evil\.example/.test(out), out);
+    assert.match(out, /color:\s*blue/);
+  });
+
+  test('local styles and same-document refs are left alone', () => {
+    const el = run('<a href="#top" style="color:green;background:url(data:image/png;base64,AA==)">x</a>');
+    assert.equal(el.getAttribute('href'), '#top');
+    assert.match(el.getAttribute('style'), /data:image\/png/);
+  });
+
+  test('external src, <style> and handlers are stripped', () => {
+    const el = run('<div onclick="x()"><img src="https://evil.example/b.gif"><style>body{color:red}</style></div>');
+    assert.equal(el.getAttribute('onclick'), null);
+    assert.equal(el.querySelector('img').getAttribute('src'), null);
+    assert.equal(el.querySelector('style'), null);
+  });
+
+  // asgard-0009 (2026-10-10 re-scan): srcset is a candidate list; the old
+  // check only tested whether the WHOLE attribute value started with an
+  // external scheme, so a leading relative candidate let every later
+  // absolute candidate through unexamined.
+  test('srcset with a leading relative candidate and a later external one is stripped', () => {
+    const el = run('<img srcset="placeholder.png 1x, https://evil.example/beacon.png 2x">');
+    assert.equal(el.getAttribute('srcset'), null);
+  });
+
+  test('srcset with only relative candidates is left alone', () => {
+    const el = run('<img srcset="a.png 1x, b.png 2x">');
+    assert.equal(el.getAttribute('srcset'), 'a.png 1x, b.png 2x');
+  });
+
+  // asgard-0009: CSS backslash-hex escapes (e.g. `\68` === 'h') can spell out
+  // a scheme that the old literal-scheme regex never matched as raw text.
+  test('CSS hex-escaped url() scheme is still stripped', () => {
+    const el = run('<div style="background-image:url(\\68ttps://evil.example/beacon)">x</div>');
+    const out = el.getAttribute('style');
+    assert.ok(!/evil\.example/.test(out), out);
+    assert.match(out, /background-image:\s*none/);
+  });
+
+  test('CSS hex-escaped javascript: href scheme is still stripped', () => {
+    const el = run('<a href="\\6a\\61\\76\\61script:alert(1)">x</a>');
+    assert.equal(el.getAttribute('href'), null);
   });
 });
 

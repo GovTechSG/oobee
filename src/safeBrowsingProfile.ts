@@ -5,6 +5,7 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import printMessage from 'print-message';
+import type { Readable } from 'stream';
 import { consoleLogger } from './logs.js';
 import { messageOptions } from './constants/common.js';
 
@@ -181,10 +182,16 @@ export async function extractZipBufferSafely(data: Buffer, destDir: string): Pro
     if (realParent !== realDest && !realParent.startsWith(realDest + path.sep)) {
       throw new Error(`[SafeBrowsing] Archive entry parent escapes extraction dir: ${file.name}`);
     }
-    const content = await file.async('nodebuffer');
-    written += content.length;
-    if (written > SB_ZIP_MAX_UNCOMPRESSED_BYTES) {
-      throw new Error(`[SafeBrowsing] Archive exceeds ${SB_ZIP_MAX_UNCOMPRESSED_BYTES} uncompressed bytes`);
+    // asgard-0009 (10 Oct 2026 re-scan): check BEFORE decompressing, not after.
+    // file.async('nodebuffer') used to fully inflate each entry into one
+    // buffer first and only then compare its length against the budget — a
+    // single highly-compressed entry (deflate can reach ~1000:1) could
+    // balloon to gigabytes in that one allocation before the check ever ran.
+    // _data.uncompressedSize is read from the zip's central directory, with
+    // no decompression, so a declared-oversized entry is rejected up front.
+    const declaredSize = (file as any)._data?.uncompressedSize;
+    if (typeof declaredSize === 'number' && written + declaredSize > SB_ZIP_MAX_UNCOMPRESSED_BYTES) {
+      throw new Error(`[SafeBrowsing] Archive entry ${file.name} declares ${declaredSize} bytes, exceeding the ${SB_ZIP_MAX_UNCOMPRESSED_BYTES}-byte uncompressed budget`);
     }
     // `wx` alone is not enough on Windows: creating a file over a dangling
     // symlink follows the link and creates its target. Refuse anything
@@ -196,7 +203,46 @@ export async function extractZipBufferSafely(data: Buffer, destDir: string): Pro
     if (existing) {
       throw new Error(`[SafeBrowsing] Refusing to overwrite existing path during extraction: ${file.name}`);
     }
-    fs.writeFileSync(target, content, { flag: 'wx', mode: 0o644 });
+    // Stream rather than file.async('nodebuffer'): the declared-size check
+    // above is a cheap first barrier, but a crafted/corrupt zip could lie
+    // about its own central-directory metadata. Streaming re-checks the
+    // REAL decompressed byte count as it arrives and aborts mid-entry if it
+    // ever exceeds the budget, so no single entry is ever fully buffered
+    // in memory before the cap can act.
+    await new Promise<void>((resolve, reject) => {
+      const out = fs.createWriteStream(target, { flags: 'wx', mode: 0o644 });
+      // JSZip's .d.ts types nodeStream() as the generic NodeJS.ReadableStream
+      // interface, which omits .destroy() even though the object returned at
+      // runtime is a real Readable. Cast to the concrete type instead of
+      // suppressing the check, so a genuine API mismatch would still surface.
+      const stream = file.nodeStream('nodebuffer') as unknown as Readable;
+      let entryWritten = 0;
+      let settled = false;
+      const fail = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        stream.unpipe(out);
+        stream.destroy();
+        out.destroy();
+        fs.rm(target, { force: true }, () => reject(err));
+      };
+      stream.on('data', (chunk: Buffer) => {
+        entryWritten += chunk.length;
+        written += chunk.length;
+        if (written > SB_ZIP_MAX_UNCOMPRESSED_BYTES) {
+          fail(new Error(`[SafeBrowsing] Archive exceeds ${SB_ZIP_MAX_UNCOMPRESSED_BYTES} uncompressed bytes`));
+        }
+      });
+      stream.on('error', fail);
+      out.on('error', fail);
+      out.on('finish', () => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      });
+      stream.pipe(out);
+    });
   }
 }
 

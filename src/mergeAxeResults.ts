@@ -25,6 +25,7 @@ import {
   getProgressPercentage,
   retryFunction,
   zipResults,
+  resolveZipOutputPath,
   getIssuesPercentage,
   register,
   getEntryPageTitle,
@@ -230,8 +231,11 @@ const writeHTML = async (
 
     outputStream.write(prefixData);
 
-    // For Proxied AI environments only
-    outputStream.write(`let proxyUrl = "${process.env.PROXY_API_BASE_URL || ''}"\n`);
+    // For Proxied AI environments only. asgard-0010 (2026-10-09 re-scan):
+    // JSON.stringify produces a correctly quoted/escaped JS string literal,
+    // so a value containing `"` can no longer break out of the assignment
+    // and inject script into the generated report.
+    outputStream.write(`let proxyUrl = ${JSON.stringify(process.env.PROXY_API_BASE_URL || '')}\n`);
 
     // Initialize GenAI feature flag
     outputStream.write(`
@@ -1192,12 +1196,9 @@ const generateArtifacts = async (
     }
   }
 
-  if (
-    !path.isAbsolute(constants.cliZipFileName) ||
-    path.dirname(constants.cliZipFileName) === '.'
-  ) {
-    constants.cliZipFileName = path.join(storagePath, constants.cliZipFileName);
-  }
+  // asgard-0001: confine relative names to storagePath (path.join would let
+  // `../..` climb out); absolute paths are checked again inside zipResults.
+  constants.cliZipFileName = resolveZipOutputPath(constants.cliZipFileName, storagePath);
 
   try {
     await fs.ensureDir(storagePath);

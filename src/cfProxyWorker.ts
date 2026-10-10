@@ -1010,6 +1010,15 @@ async function handleSocks5(
 
   let ready = false;
   const preBuffer: Buffer[] = [];
+  // asgard-0007 (2026-10-10 re-scan): bound the pre-handshake buffer. Until
+  // the Worker's 'ready' message arrives, every chunk the client sends is
+  // queued here instead of being forwarded, with no cap — a slow/stalled
+  // WebSocket handshake (or a client that never reads the SOCKS reply and
+  // just keeps writing) let a single connection accumulate unbounded Buffers
+  // in memory. Cap the total queued bytes; once exceeded, tear the
+  // connection down instead of continuing to grow the buffer.
+  const PRE_BUFFER_MAX_BYTES = 4 * 1024 * 1024; // 4 MB
+  let preBufferBytes = 0;
 
   // Send the original hostname (for the worker's INCLUDE_PROXY_FOR_UPSTREAM
   // routing decision) alongside the client-validated pinned IP. Compatible
@@ -1085,6 +1094,24 @@ async function handleSocks5(
     if (ready && ws.readyState === WebSocket.OPEN) {
       ws.send(chunk);
     } else {
+      preBufferBytes += chunk.length;
+      if (preBufferBytes > PRE_BUFFER_MAX_BYTES) {
+        consoleLogger.warn(
+          `[cfProxyWorker] Pre-handshake buffer exceeded ${PRE_BUFFER_MAX_BYTES} bytes for ${hostname} — closing connection`,
+        );
+        preBuffer.length = 0;
+        try {
+          clientSocket.destroy();
+        } catch {
+          /* ignore */
+        }
+        try {
+          ws.close();
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
       preBuffer.push(chunk);
     }
   });

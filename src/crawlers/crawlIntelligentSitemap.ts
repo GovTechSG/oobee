@@ -1,13 +1,20 @@
 import fs from 'fs';
 import { chromium, Page } from 'playwright';
 import { EnqueueStrategy } from 'crawlee';
-import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler } from './commonCrawlerFunc.js';
+import { createCrawleeSubFolders, splitAuthHeaders, addAuthRouteHandler, addScopedHeaderRoute } from './commonCrawlerFunc.js';
 import constants, { FileTypes, guiInfoStatusTypes, RuleFlags, sitemapPaths } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog } from '../logs.js';
 import crawlDomain from './crawlDomain.js';
 import crawlSitemap from './crawlSitemap.js';
 import { ViewportSettingsClass } from '../combine.js';
-import { getPlaywrightLaunchOptions, getSitemapsFromRobotsTxt, initModifiedUserAgent, launchPersistentSafeContext } from '../constants/common.js';
+import {
+  getPlaywrightLaunchOptions,
+  getSitemapsFromRobotsTxt,
+  initModifiedUserAgent,
+  launchPersistentSafeContext,
+  isRefusedRedirectTarget,
+  isRefusedNavigation,
+} from '../constants/common.js';
 import { register } from '../utils.js';
 
 const crawlIntelligentSitemap = async (
@@ -63,11 +70,17 @@ const crawlIntelligentSitemap = async (
     let context;
     let browserInstance;
 
+    // asgard-0005 (2026-10-09 re-scan): nonAuthHeaders (Cookie, X-Api-Key,
+    // bearer tokens, ...) used to be set as context-wide extraHTTPHeaders, so
+    // they were resent to every redirect hop checkUrlExists follows — not just
+    // internal/metadata hops (which asgard-0003 already blocks), but any public
+    // cross-origin hop too. Drop them from the context and attach them per
+    // request only within the entry URL's scope via addScopedHeaderRoute,
+    // matching the pattern crawlDomain/crawlSitemap already use.
     if (process.env.CRAWLEE_HEADLESS === '1') {
       const effectiveUserDataDirectory = userDataDirectory || '';
       context = await launchPersistentSafeContext(effectiveUserDataDirectory, {
         ...launchOptions,
-        ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
         ...(httpCredentials && { httpCredentials }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
@@ -76,7 +89,6 @@ const crawlIntelligentSitemap = async (
       browserInstance = await constants.launcher.launch(launchOptions);
       register(browserInstance as unknown as { close: () => Promise<void> });
       context = await browserInstance.newContext({
-        ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
         ...(httpCredentials && { httpCredentials }),
         ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
       });
@@ -84,6 +96,9 @@ const crawlIntelligentSitemap = async (
 
     if (authHeader) {
       await addAuthRouteHandler(context, link, authHeader);
+    }
+    if (nonAuthHeaders) {
+      await addScopedHeaderRoute(context, link, nonAuthHeaders);
     }
 
     const page = await context.newPage();
@@ -103,10 +118,31 @@ const crawlIntelligentSitemap = async (
     return sitemapExist ? sitemapLink : '';
   }
 
+  // asgard-0003 (2026-10-09 scan): the probed sitemap paths are on the scanned
+  // (untrusted) site, which can redirect them anywhere. Apply the same policy
+  // as checkUrlConnectivityWithBrowser, pinned to the operator's entry URL:
+  // refuse a probe that targets or is redirected (at any hop) to an
+  // internal/metadata address the operator did not choose. Each check
+  // resolves DNS again, so a host rebound to an internal IP is refused too.
+  // response.serverAddr() is not used: behind a configured proxy it reports
+  // the proxy's address, not the site's. A refused probe is treated as
+  // "no sitemap here", so the scan falls back to a domain crawl.
   const checkUrlExists = async (page: Page, parsedUrl: string) => {
     try {
+      if (await isRefusedRedirectTarget(url, parsedUrl)) {
+        consoleLogger.warn(`Refusing sitemap probe to internal/metadata address: ${parsedUrl}`);
+        return false;
+      }
       const response = await page.goto(parsedUrl);
-      return response?.ok() ?? false;
+      if (!response) return false;
+      // Shared proxy-safe check: every redirect hop plus the connected
+      // address when the connection was direct.
+      const refusedAt = await isRefusedNavigation(url, response, page.url());
+      if (refusedAt) {
+        consoleLogger.warn(`Refusing sitemap probe ${parsedUrl}: reached internal address ${refusedAt}`);
+        return false;
+      }
+      return response.ok();
     } catch (e) {
       consoleLogger.error(e);
       return false;

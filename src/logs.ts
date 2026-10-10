@@ -81,9 +81,16 @@ export const guiInfoLog = (status: string, data: { numScanned?: number; urlScann
       case guiInfoStatusTypes.SKIPPED:
       case guiInfoStatusTypes.ERROR:
       case guiInfoStatusTypes.DUPLICATE:
-        const msg = `crawling::${data.numScanned || 0}::${status}::${
-            data.urlScanned || 'no url provided'
-          }`;
+        // asgard-0014 (2026-10-09 scan): the GUI splits this line on "::" and
+        // reads one message per line, and urlScanned comes from crawled
+        // links. Encode "::" and strip control characters so a URL can't add
+        // fields or lines. Display-only: IPv6 hosts such as [::1] show as
+        // [%3A%3A1] in GUI progress; the scan itself uses the real URL.
+        const safeUrl = String(data.urlScanned || 'no url provided')
+          // eslint-disable-next-line no-control-regex
+          .replace(/[\u0000-\u001f\u007f]/g, '')
+          .replace(/::/g, '%3A%3A');
+        const msg = `crawling::${data.numScanned || 0}::${status}::${safeUrl}`;
         console.log(msg);
         silentLogger.info(msg);
         break;

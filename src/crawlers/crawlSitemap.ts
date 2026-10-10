@@ -10,6 +10,7 @@ import {
   runAxeScript,
   isUrlPdf,
   splitAuthHeaders,
+  hasCredentialHeaders,
 } from './commonCrawlerFunc.js';
 
 import constants, {
@@ -30,6 +31,12 @@ import {
   waitForPageLoaded,
   isFilePath,
   isInternalOrLoopbackUrl,
+  isLinkLocalOrMetadataUrl,
+  makeHostKindCache,
+  isRefusedHostKind,
+  classifyServerAddress,
+  getDirectServerAddr,
+  getResponseHopUrls,
 } from '../constants/common.js';
 import { areLinksEqual, isFollowStrategy, isWhitelistedContentType, normUrl, register } from '../utils.js';
 import {
@@ -210,7 +217,8 @@ const crawlSitemap = async ({
   // credentials are attached, and require an explicit opt-in env var for
   // credential-less scans that legitimately need to reach hosts with broken
   // certs.
-  const hasCredentials = !!httpCredentials;
+  // asgard-0008: Cookie / API-key style headers count as credentials too.
+  const hasCredentials = !!httpCredentials || hasCredentialHeaders(extraHTTPHeaders);
   const allowInsecureTls =
     !hasCredentials &&
     ['1', 'true', 'yes'].includes(
@@ -247,6 +255,39 @@ const crawlSitemap = async ({
   // asgard-0004: PDF downloads may reach internal addresses only when the
   // operator's own entry URL is internal (localhost / intranet scans).
   const entryIsInternal = await isInternalOrLoopbackUrl(userUrl || sitemapUrl);
+
+  // asgard-0004 (2026-10-09 scan): sitemap <loc> entries are scanned content,
+  // so they can point anywhere. Same policy as crawlDomain's navigation guard:
+  //  - link-local / cloud-metadata: always refused;
+  //  - loopback / private: refused unless the operator's entry is internal.
+  // Non-http(s) entries (local-file sitemaps) are not network egress.
+  // One DNS lookup per host per page: the before-load check and the after-load
+  // hop checks of the same request share a cache (WeakMap on the Request, so
+  // it is never reused across pages and can't go stale or leak).
+  const pageHostKinds = new WeakMap<object, ReturnType<typeof makeHostKindCache>>();
+  const hostKindsFor = (req: object) => {
+    let c = pageHostKinds.get(req);
+    if (!c) {
+      c = makeHostKindCache();
+      pageHostKinds.set(req, c);
+    }
+    return c;
+  };
+  const isRefusedEgressUrl = async (target: string, req: object): Promise<boolean> =>
+    isRefusedHostKind(await hostKindsFor(req)(target), entryIsInternal);
+  const recordRefusedEgress = (requestUrl: string) => {
+    guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+      numScanned: urlsCrawled.scanned.length,
+      urlScanned: requestUrl,
+    });
+    urlsCrawled.userExcluded.push({
+      url: requestUrl,
+      pageTitle: requestUrl,
+      actualUrl: requestUrl,
+      metadata: STATUS_CODE_METADATA[0],
+      httpStatusCode: 0,
+    });
+  };
 
   // Shared with handlePdfDownload so PDFs stream through the same client the crawler uses.
   const httpClient = new crawlee.GotScrapingHttpClient();
@@ -383,6 +424,12 @@ const crawlSitemap = async ({
           });
         },
         async ({ request, page }, gotoOptions) => {
+          if (await isRefusedEgressUrl(request.url, request)) {
+            consoleLogger.warn(`Refusing to navigate to internal/metadata address: ${request.url}`);
+            request.skipNavigation = true;
+            request.userData.isRefusedEgress = true;
+            return;
+          }
           const url = request.url.toLowerCase();
 
           const isNotSupportedDocument = disallowedListOfPatterns.some(pattern =>
@@ -414,6 +461,42 @@ const crawlSitemap = async ({
       },
       requestHandlerTimeoutSecs: 90,
       requestHandler: async ({ page, request, response, enqueueLinks, session }) => {
+        // asgard-0004: refused before navigation (internal/metadata target).
+        if (request.userData?.isRefusedEgress) {
+          recordRefusedEgress(request.url);
+          return;
+        }
+
+        // asgard-0004: the pre-nav check can't see 3xx targets or a DNS answer
+        // that changes after our lookup. response.serverAddr() can't be used
+        // here: Crawlee routes Chrome through its own local proxy, so it always
+        // reports 127.0.0.1 (that refused every page). Instead re-check every
+        // redirect hop and the final URL; isRefusedEgressUrl resolves DNS again,
+        // so a host that has since rebound to an internal address is refused.
+        // Uses the shared proxy-safe helpers: every hop is re-checked, and the
+        // connected address is only trusted on a direct connection.
+        if (response) {
+          let refusedHop: string | null = null;
+          for (const hopUrl of getResponseHopUrls(response, page.url())) {
+            if (await isRefusedEgressUrl(hopUrl, request)) {
+              refusedHop = hopUrl;
+              break;
+            }
+          }
+          if (!refusedHop) {
+            const directIp = await getDirectServerAddr(response);
+            if (directIp) {
+              const kind = classifyServerAddress(directIp);
+              if (kind === 'metadata' || (kind === 'internal' && !entryIsInternal)) refusedHop = directIp;
+            }
+          }
+          if (refusedHop) {
+            consoleLogger.warn(`Refusing content from internal address ${refusedHop} (${request.url})`);
+            recordRefusedEgress(request.url);
+            return;
+          }
+        }
+
         // Log documents that are not supported
         if (request.userData?.isNotSupportedDocument) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {

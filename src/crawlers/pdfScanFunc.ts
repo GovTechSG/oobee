@@ -397,6 +397,17 @@ export const createPdfEgressGuards = (entryIsInternal: boolean) => {
   return { assertUrlAllowed, dnsLookup, followRedirect };
 };
 
+// asgard-0009 (2026-10-09 scan): PDF URLs come from scanned pages and can carry
+// a malformed percent-escape (e.g. "%E0%A4%A"), on which decodeURI throws
+// URIError and aborts the PDF scan. Fall back to the raw URL instead.
+export const safeDecodeUri = (value: string): string => {
+  try {
+    return decodeURI(value);
+  } catch {
+    return value;
+  }
+};
+
 let inFlightPdfDownloads = 0;
 const waitingPdfDownloads: (() => void)[] = [];
 
@@ -433,7 +444,7 @@ export const handlePdfDownload = (
 ): { pdfFileName: string; url: string } => {
   const pdfFileName = randomUUID();
   const { url } = request;
-  const pageTitle = decodeURI(request.url).split('/').pop() || request.url;
+  const pageTitle = safeDecodeUri(request.url).split('/').pop() || request.url;
   const pdfFilePath = `${getPdfStoragePath(randomToken)}/${pdfFileName}.pdf`;
 
   const recordNotScanned = (bucket: PageInfo[], metadata: string, httpStatusCode: number) => {
@@ -675,7 +686,7 @@ export const mapPdfScanResults = async (
       const filePath = path.join(getPdfStoragePath(randomToken), rawFileName);
 
 
-      const pageTitle = decodeURI(url).split('/').pop();
+      const pageTitle = safeDecodeUri(url).split('/').pop();
       translated.url = url;
       translated.pageTitle = pageTitle;
       
@@ -746,9 +757,42 @@ const transformRule = async (
   return [ruleId, transformed];
 };
 
+// Truncate to at most maxBytes of UTF-8 without splitting a code point.
+export const truncateUtf8 = (value: string, maxBytes: number): string => {
+  let bytes = 0;
+  let out = '';
+  for (const ch of value) {
+    const len = Buffer.byteLength(ch, 'utf8');
+    if (bytes + len > maxBytes) break;
+    bytes += len;
+    out += ch;
+  }
+  return out;
+};
+
+export const formatPdfScreenshotTitle = (pageTitle: string): string =>
+  truncateUtf8(
+    String(pageTitle || '')
+      .normalize('NFC')
+      .replaceAll(' ', '_')
+      .split('.')[0]
+      .replace(/[^\p{L}\p{M}\p{N}_-]/gu, '_'),
+    150,
+  ) || 'pdf';
+
 export const doPdfScreenshots = async (randomToken: string, result: TranslatedObject) => {
   const { filePath, pageTitle } = result;
-  const formattedPageTitle = pageTitle.replaceAll(' ', '_').split('.')[0];
+  // asgard-0002 (2026-10-09 scan): pageTitle comes from the PDF's URL, so it is
+  // attacker-controlled and ends up in a filename and in report markup. Keep
+  // the existing shape (spaces -> _, cut at the first '.') and then allow only
+  // letters, marks and digits in ANY script plus _ and -, so quotes, tabs,
+  // angle brackets and path separators can't reach either. \p{M} keeps Thai /
+  // Devanagari / Tamil vowel signs, which are combining marks, not letters.
+  // An ASCII-only allowlist turned every Chinese/Thai/Arabic title into "___".
+  // Filenames are limited to 255 BYTES; non-Latin scripts take 3 bytes per
+  // character, and "-<category>-<ruleId>-<n>.png" is appended, so the title
+  // is capped at 150 bytes inside formatPdfScreenshotTitle.
+  const formattedPageTitle = formatPdfScreenshotTitle(pageTitle);
   const screenshotsDir = path.join(getStoragePath(randomToken), 'elemScreenshots', 'pdf');
 
   ensureDirSync(screenshotsDir);

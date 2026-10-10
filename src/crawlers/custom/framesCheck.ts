@@ -25,9 +25,18 @@ export function framesCheck(cssSelector: string): {
 
     if (frameset) {
       doc = frameset;
-      iframeSelector = iframeSelector.split('body >')[1].trim();
+      // asgard-0011 (2026-10-09 scan): a selector without "body >" made
+      // split()[1] undefined and threw, aborting the whole page scan on
+      // frameset pages. Keep the selector as-is when the delimiter is absent.
+      const afterBody = iframeSelector.split('body >')[1];
+      if (afterBody !== undefined) iframeSelector = afterBody.trim();
     }
-    targetIframe = doc.querySelector(iframeSelector);
+    try {
+      targetIframe = doc.querySelector(iframeSelector);
+    } catch {
+      // Invalid selector for this document: fall back to the original selector.
+      return { doc: document, remainingSelector: cssSelector };
+    }
 
     if (targetIframe && targetIframe.contentDocument) {
       // Update the document to the iframe's contentDocument

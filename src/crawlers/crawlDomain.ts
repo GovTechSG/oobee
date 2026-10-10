@@ -12,6 +12,9 @@ import {
   shouldSkipClickDueToDisallowedHref,
   shouldSkipDueToUnsupportedContent,
   splitAuthHeaders,
+  addScopedHeaderRoute,
+  getOperatorHeaderScope,
+  hasCredentialHeaders,
 } from './commonCrawlerFunc.js';
 import constants, {
   UrlsCrawled,
@@ -34,6 +37,8 @@ import {
   PAGE_GONE_ERROR_RE,
   isInternalOrLoopbackUrl,
   isLinkLocalOrMetadataUrl,
+  makeHostKindCache,
+  isRefusedHostKind,
   classifyServerAddress,
   getDirectServerAddr,
   getResponseHopUrls,
@@ -455,9 +460,11 @@ const crawlDomain = async ({
   // ON whenever credentials are attached, and require an explicit opt-in env
   // var for credential-less scans that legitimately need to reach hosts with
   // broken certs.
-  const hasCredentials =
-    !!httpCredentials ||
-    Object.keys(extraHTTPHeaders || {}).some(k => k.toLowerCase() === 'authorization');
+  // asgard-0008 (2026-10-09 scan): Cookie / API-key style headers are
+  // credentials too, so they also keep TLS validation on.
+  const hasCredentials = !!httpCredentials || hasCredentialHeaders(extraHTTPHeaders);
+  const scopeOperatorHeaders = getOperatorHeaderScope() !== 'all';
+  const scopedHeaderContexts = new WeakSet<BrowserContext>();
   const allowInsecureTls =
     !hasCredentials &&
     ['1', 'true', 'yes'].includes(
@@ -478,10 +485,22 @@ const crawlDomain = async ({
   //    itself public, i.e. a public site trying to pivot the browser inward.
   //    OOBEE_ALLOW_INTERNAL_TARGETS=1 still lifts the private-range part.
   const entryIsInternal = await isInternalOrLoopbackUrl(url);
-  const isRefusedEgressUrl = async (target: string): Promise<boolean> => {
-    if (await isLinkLocalOrMetadataUrl(target)) return true;
-    if (entryIsInternal) return false;
-    return isInternalOrLoopbackUrl(target);
+  // One DNS lookup per host per page, shared by the before-load check and the
+  // after-load hop checks of the same request (WeakMap on the Request, never
+  // reused across pages).
+  const pageHostKinds = new WeakMap<object, ReturnType<typeof makeHostKindCache>>();
+  const hostKindsFor = (req: object) => {
+    let c = pageHostKinds.get(req);
+    if (!c) {
+      c = makeHostKindCache();
+      pageHostKinds.set(req, c);
+    }
+    return c;
+  };
+  const isRefusedEgressUrl = async (target: string, req: object): Promise<boolean> => {
+    const kind = await hostKindsFor(req)(target);
+    // Non-http(s) targets are rejected separately by ALLOWED_NAV_PROTOCOLS.
+    return isRefusedHostKind(kind, entryIsInternal);
   };
   const isRefusedServerAddress = (remoteIp: string): boolean => {
     const kind = classifyServerAddress(remoteIp);
@@ -521,7 +540,9 @@ const crawlDomain = async ({
               ...playwrightDeviceDetailsObject,
               ...(process.env.OOBEE_USER_AGENT && { userAgent: process.env.OOBEE_USER_AGENT }),
               ...(process.env.OOBEE_DISABLE_BROWSER_DOWNLOAD && { acceptDownloads: false }),
-              ...(nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
+              // asgard-0008: scoped per request below unless the operator
+              // opted back into legacy send-everywhere headers.
+              ...(!scopeOperatorHeaders && nonAuthHeaders && { extraHTTPHeaders: nonAuthHeaders }),
               ...(httpCredentials && { httpCredentials }),
             };
           },
@@ -531,7 +552,25 @@ const crawlDomain = async ({
       requestQueue,
       maxRequestRetries: 3,
       preNavigationHooks: [
-        ...preNavigationHooks(extraHTTPHeaders, url),
+        // asgard-0008: preNavigationHooks copies its headers onto
+        // request.headers, which Crawlee applies page-wide. When scoping, give
+        // it only Authorization (already origin-gated) and attach the rest
+        // per request within the entry site.
+        ...preNavigationHooks(
+          scopeOperatorHeaders
+            ? Object.fromEntries(
+                Object.entries(extraHTTPHeaders || {}).filter(([k]) => k.toLowerCase() === 'authorization'),
+              )
+            : extraHTTPHeaders,
+          url,
+        ),
+        async ({ page }) => {
+          if (!scopeOperatorHeaders || !nonAuthHeaders) return;
+          const ctx = page.context();
+          if (scopedHeaderContexts.has(ctx)) return;
+          scopedHeaderContexts.add(ctx);
+          await addScopedHeaderRoute(ctx, url, nonAuthHeaders);
+        },
         // Renderer crashes are almost always OOM; let the controller shed load.
         async ({ page, request }) => {
           page.once('crash', () => rateController.onRendererCrash(crawler.autoscaledPool, request.url));
@@ -557,7 +596,7 @@ const crawlDomain = async ({
               request.skipNavigation = true;
               return;
             }
-            if (await isRefusedEgressUrl(request.url)) {
+            if (await isRefusedEgressUrl(request.url, request)) {
               consoleLogger.warn(`Refusing to navigate to internal/metadata address: ${request.url}`);
               request.skipNavigation = true;
               return;
@@ -694,7 +733,7 @@ const crawlDomain = async ({
           if (response) {
             let refusedAt: string | null = null;
             for (const hopUrl of getResponseHopUrls(response, actualUrl)) {
-              if (await isRefusedEgressUrl(hopUrl)) {
+              if (await isRefusedEgressUrl(hopUrl, request)) {
                 refusedAt = hopUrl;
                 break;
               }
@@ -1061,7 +1100,7 @@ const crawlDomain = async ({
           }
 
           if (followRobots)
-            await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory, extraHTTPHeaders);
+            await getUrlsFromRobotsTxt(request.url, browser, userDataDirectory, extraHTTPHeaders, url);
           await enqueueProcess(page, enqueueLinks, browserContext);
         } catch (e) {
           // asgard-0013: this recovery path used to leak a browser page on every
