@@ -181,8 +181,14 @@ describe('scanHTML', () => {
     );
   });
 
-  test('"0" means unlimited', async () => {
+  test('"0" now falls back to the default bound (asgard-0005: 0 no longer means unlimited)', async () => {
     await withEnv({ OOBEE_SCANHTML_MAX_BYTES: '0' }, () => scanHTML(html, cfg));
+    await withEnv({ OOBEE_SCANHTML_MAX_BYTES: '0' }, () =>
+      assert.rejects(
+        scanHTML(`<html><body>${'x'.repeat(60 * 1024 * 1024)}</body></html>`, cfg),
+        /OOBEE_SCANHTML_MAX_BYTES/,
+      ),
+    );
   });
 
   test('array input reports the offending index', async () => {
