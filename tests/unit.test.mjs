@@ -302,6 +302,34 @@ describe('Gen AI suggest-fix sanitizer', () => {
     assert.equal(el.querySelector('img').getAttribute('src'), null);
     assert.equal(el.querySelector('style'), null);
   });
+
+  // asgard-0009 (2026-10-10 re-scan): srcset is a candidate list; the old
+  // check only tested whether the WHOLE attribute value started with an
+  // external scheme, so a leading relative candidate let every later
+  // absolute candidate through unexamined.
+  test('srcset with a leading relative candidate and a later external one is stripped', () => {
+    const el = run('<img srcset="placeholder.png 1x, https://evil.example/beacon.png 2x">');
+    assert.equal(el.getAttribute('srcset'), null);
+  });
+
+  test('srcset with only relative candidates is left alone', () => {
+    const el = run('<img srcset="a.png 1x, b.png 2x">');
+    assert.equal(el.getAttribute('srcset'), 'a.png 1x, b.png 2x');
+  });
+
+  // asgard-0009: CSS backslash-hex escapes (e.g. `\68` === 'h') can spell out
+  // a scheme that the old literal-scheme regex never matched as raw text.
+  test('CSS hex-escaped url() scheme is still stripped', () => {
+    const el = run('<div style="background-image:url(\\68ttps://evil.example/beacon)">x</div>');
+    const out = el.getAttribute('style');
+    assert.ok(!/evil\.example/.test(out), out);
+    assert.match(out, /background-image:\s*none/);
+  });
+
+  test('CSS hex-escaped javascript: href scheme is still stripped', () => {
+    const el = run('<a href="\\6a\\61\\76\\61script:alert(1)">x</a>');
+    assert.equal(el.getAttribute('href'), null);
+  });
 });
 
 describe('scanCustomFlow entry URL', () => {
