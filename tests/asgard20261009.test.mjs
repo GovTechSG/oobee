@@ -13,7 +13,7 @@ process.env.OOBEE_DISABLE_TELEMETRY = '1';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const load = p => import(pathToFileURL(path.join(root, 'dist', ...p.split('/'))).href);
 const { resolveZipOutputPath, zipResults } = await load('utils.js');
-const { safeDecodeUri } = await load('crawlers/pdfScanFunc.js');
+const { safeDecodeUri, formatPdfScreenshotTitle } = await load('crawlers/pdfScanFunc.js');
 const { framesCheck } = await load('crawlers/custom/framesCheck.js');
 const { guiInfoLog } = await load('logs.js');
 const { sanitizeSiteNameMetadata } = await load('services/s3Uploader.js');
@@ -84,6 +84,66 @@ describe('asgard-0013 S3 site name', () => {
   test('strips markup, keeps readable text', () => {
     assert.equal(sanitizeSiteNameMetadata('Arts & Culture'), 'Arts and Culture');
     assert.equal(sanitizeSiteNameMetadata('<img src=x onerror="a">Home'), 'img src=x onerror=aHome');
+  });
+
+  // Non-Latin titles must survive as a decodable RFC 2047 encoded-word
+  // instead of collapsing to an empty string.
+  const decode = v => {
+    const m = /^=\?UTF-8\?B\?([A-Za-z0-9+/=]*)\?=$/.exec(v);
+    return m ? Buffer.from(m[1], 'base64').toString('utf8') : v;
+  };
+  const intl = {
+    chinese: '新加坡政府科技局 年度报告',
+    japanese: 'アクセシビリティ報告書',
+    korean: '접근성 보고서',
+    thai: 'รายงานการเข้าถึง',
+    hindi: 'सुलभता रिपोर्ट',
+    tamil: 'அணுகல் அறிக்கை',
+    arabic: 'تقرير إمكانية الوصول',
+    mixed: 'Community Chest 公益金',
+  };
+  for (const [lang, title] of Object.entries(intl)) {
+    test(`${lang} title is kept, header-safe and decodable`, () => {
+      const out = sanitizeSiteNameMetadata(title);
+      assert.match(out, /^[\x20-\x7e]+$/);
+      assert.equal(decode(out), title);
+    });
+  }
+
+  test('Latin accents are transliterated, not encoded', () => {
+    assert.equal(sanitizeSiteNameMetadata('Báo cáo khả năng truy cập'), 'Bao cao kha nang truy cap');
+    assert.equal(sanitizeSiteNameMetadata('Café & Société'), 'Cafe and Societe');
+  });
+
+  test('markup is stripped inside encoded non-Latin titles too', () => {
+    const decoded = decode(sanitizeSiteNameMetadata('公益金 <img src=x onerror="a"> ＜script＞'));
+    assert.ok(!/[<>"'`＜＞]/.test(decoded), decoded);
+    assert.ok(decoded.startsWith('公益金'), decoded);
+  });
+
+  test('long non-Latin titles are capped without splitting characters', () => {
+    const decoded = decode(sanitizeSiteNameMetadata('报'.repeat(500)));
+    assert.ok(Buffer.byteLength(decoded) <= 300);
+    assert.equal(decoded, '报'.repeat(100));
+  });
+});
+
+describe('PDF screenshot filename (international titles)', () => {
+  for (const title of ['新加坡政府科技局 年度报告', 'รายงานการเข้าถึง', 'सुलभता रिपोर्ट', 'அணுகல் அறிக்கை', 'تقرير إمكانية الوصول', 'Báo cáo']) {
+    test(`keeps ${title}`, () => {
+      const out = formatPdfScreenshotTitle(`${title}.pdf`);
+      assert.equal(out, title.normalize('NFC').replaceAll(' ', '_'));
+    });
+  }
+
+  test('path and markup characters are still removed', () => {
+    assert.equal(formatPdfScreenshotTitle('"\t<img onerror=x>/../a.pdf'), '___img_onerror_x__');
+    assert.equal(formatPdfScreenshotTitle(''), 'pdf');
+  });
+
+  test('capped at 150 bytes without splitting characters', () => {
+    const out = formatPdfScreenshotTitle('报'.repeat(500));
+    assert.equal(out, '报'.repeat(50));
   });
 });
 

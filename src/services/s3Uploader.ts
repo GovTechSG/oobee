@@ -33,13 +33,53 @@ const sanitizeS3MetadataValue = (value: string): string => {
 // sanitizeS3MetadataValue (which normalizes) first means every ASCII
 // metacharacter, including ones produced by decomposition, is stripped by
 // the second pass below.
-export const sanitizeSiteNameMetadata = (value: string): string =>
-  sanitizeS3MetadataValue(String(value ?? ''))
+const stripSiteNameMetachars = (value: string): string =>
+  value
     .replace(/&/g, ' and ')
     .replace(/[<>"'`]/g, '')
     .replace(/\s+/g, ' ') // collapse whitespace introduced by " and " / the strip above
-    .trim()
-    .slice(0, 256);
+    .trim();
+
+// Max UTF-8 bytes of a non-Latin site name before base64 (~400 ASCII chars
+// after encoding), keeping well inside S3's 2 KB total user-metadata limit.
+const SITE_NAME_MAX_UTF8_BYTES = 300;
+
+const truncateUtf8 = (value: string, maxBytes: number): string => {
+  let out = '';
+  let bytes = 0;
+  for (const ch of value) {
+    // iterate by code point so a multi-byte char is never split
+    const len = Buffer.byteLength(ch, 'utf8');
+    if (bytes + len > maxBytes) break;
+    out += ch;
+    bytes += len;
+  }
+  return out;
+};
+
+// Titles in non-Latin scripts (CJK, Thai, Devanagari, Tamil, Arabic, ...) have
+// no ASCII transliteration and would collapse to empty under the ASCII-only
+// sanitizer. For those, emit an RFC 2047 encoded-word (=?UTF-8?B?<base64>?=):
+// pure ASCII (header-safe, no HTML metacharacters possible), and the same
+// format S3 itself uses when returning non-ASCII metadata, so consumers can
+// decode it with any standard MIME header decoder.
+export const sanitizeSiteNameMetadata = (value: string): string => {
+  const raw = String(value ?? '');
+  const ascii = stripSiteNameMetachars(sanitizeS3MetadataValue(raw)).slice(0, 256);
+
+  const decomposed = raw.normalize('NFKD').replace(/\p{M}/gu, '');
+  const losesLettersInAscii = /[^\x00-\x7F]/.test(decomposed.replace(/[^\p{L}\p{N}]/gu, ''));
+  if (!losesLettersInAscii) return ascii;
+
+  // NFKC folds fullwidth "＜" etc. to ASCII before the metachar strip
+  // (asgard-0007), while keeping CJK and other scripts composed.
+  const unicode = truncateUtf8(
+    stripSiteNameMetachars(raw.normalize('NFKC').replace(/[\p{C}]/gu, ' ')),
+    SITE_NAME_MAX_UTF8_BYTES,
+  );
+  if (!unicode) return ascii;
+  return `=?UTF-8?B?${Buffer.from(unicode, 'utf8').toString('base64')}?=`;
+};
 
 export interface UploadedFileInfo {
   filename: string;
