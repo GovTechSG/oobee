@@ -302,11 +302,23 @@ export function addUrlGuardScript(context, opts = {}) {
       }
 
       // Subframe reached a disallowed scheme after route interception
-      // (e.g. via document.write) — best-effort detach.
+      // (e.g. via document.write) — detach it.
+      //
+      // asgard-0006 (2026-10-10 re-scan): evaluating inside the subframe and
+      // reading `window.frameElement` is a no-op whenever the subframe is
+      // cross-origin to its parent — per the HTML standard,
+      // `window.frameElement` always returns null across an origin boundary,
+      // which is exactly the case for a frame that has navigated to
+      // `data:`/`blob:`/a foreign `file://` document. That left precisely the
+      // cross-origin subframes this guard was written to kill undetached.
+      // Playwright's `frame.frameElement()` is a privileged, CDP-backed
+      // handle that returns the owning <iframe>/<frame> element handle from
+      // the *parent* frame's context regardless of cross-origin boundaries,
+      // so use that instead of reaching into the (possibly foreign) frame.
       try {
-        await frame.evaluate(() => {
-          const el = window.frameElement as HTMLIFrameElement | null;
-          if (el) el.src = 'about:blank';
+        const frameHandle = await frame.frameElement();
+        await frameHandle.evaluate((el: HTMLIFrameElement) => {
+          el.src = 'about:blank';
         });
       } catch {
         // frame may already be detached
