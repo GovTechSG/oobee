@@ -296,7 +296,13 @@
   // element's own non-url style declarations (extractElementContext reads
   // element.style.cssText back out for the AI suggest-fix payload).
   const RESOURCE_ATTRS = ['src', 'srcset', 'href', 'poster', 'background', 'data', 'formaction', 'action', 'xlink:href'];
-  const CSS_URL_RE = /url\(\s*['"]?\s*(?:https?:)?\/\//gi;
+  // Matches a whole external url(...) token, including its optional matching
+  // quotes and closing paren: url(https://x), url('//x'), url( "https://x" ).
+  // Each quote style is its own branch so a quoted URL containing ")" is
+  // still consumed whole. Only used with String.replace (never .test), so the
+  // /g flag's lastIndex state cannot make a later check skip a match.
+  const CSS_EXTERNAL_URL_RE =
+    /url\(\s*(?:"\s*(?:https?:)?\/\/[^"]*"|'\s*(?:https?:)?\/\/[^']*'|(?:https?:)?\/\/[^)\s]*)\s*\)/gi;
 
   function sanitizeElementForContext(rootElement) {
     const DANGEROUS_TAGS = ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'form', 'style'];
@@ -328,12 +334,14 @@
           /^\s*javascript:/i.test(value)
         ) {
           el.removeAttribute(attr.name);
-        } else if (name === 'style' && CSS_URL_RE.test(value)) {
-          // Drop any external url(...) reference but keep the rest of the
+        } else if (name === 'style') {
+          // Replace each whole external url(...) token with `none` (a valid
+          // value wherever an image url() is) and keep the rest of the
           // declaration block, since extractElementContext below reports
-          // element.style.cssText back to the caller for display purposes.
-          CSS_URL_RE.lastIndex = 0;
-          el.setAttribute('style', value.replace(CSS_URL_RE, 'url(about:blank'));
+          // element.style.cssText back to the caller. Comparing strings
+          // instead of calling .test() avoids the /g lastIndex trap.
+          const cleaned = value.replace(CSS_EXTERNAL_URL_RE, 'none');
+          if (cleaned !== value) el.setAttribute('style', cleaned);
         }
       });
     });

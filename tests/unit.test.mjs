@@ -240,6 +240,64 @@ describe('Gen AI error rendering', () => {
   });
 });
 
+describe('Gen AI suggest-fix sanitizer', () => {
+  // Load the real sanitizer from the template rather than a copy, so the test
+  // fails if the shipped code regresses.
+  const ejs = fs.readFileSync(path.join(root, 'src/static/ejs/partials/scripts/ruleModal/utilities.ejs'), 'utf8');
+  const start = ejs.indexOf('const RESOURCE_ATTRS');
+  const end = ejs.indexOf('// Helper function to extract element context');
+  const sanitize = new Function(`${ejs.slice(start, end)}; return sanitizeElementForContext;`)();
+  const run = html => {
+    const doc = new JSDOM(`<body>${html}</body>`).window.document;
+    return sanitize(doc.body.firstElementChild);
+  };
+
+  test('quoted and unquoted external url() are replaced with valid CSS', () => {
+    for (const style of [
+      "color:red;background:url('https://evil.example/a.png')",
+      'color:red;background:url("https://evil.example/a.png")',
+      'color:red;background:url(https://evil.example/a.png)',
+      "color:red;background:url( '//evil.example/a.png' )",
+    ]) {
+      const el = run(`<div style="${style.replace(/"/g, '&quot;')}">x</div>`);
+      const out = el.getAttribute('style');
+      assert.ok(!/evil\.example/.test(out), out);
+      assert.ok(!/url\(/i.test(out), out);
+      assert.match(out, /color:\s*red/);
+      assert.match(out, /background:\s*none/);
+    }
+  });
+
+  test('every element is cleaned, not just alternate ones', () => {
+    const el = run(
+      `<div>${'<span style="background:url(https://evil.example/x.png)">a</span>'.repeat(5)}</div>`,
+    );
+    for (const span of el.querySelectorAll('span')) {
+      assert.ok(!/evil\.example/.test(span.getAttribute('style')), span.outerHTML);
+    }
+  });
+
+  test('a quoted URL containing ")" is removed whole', () => {
+    const el = run(`<div style="background:url('https://evil.example/a).png');color:blue">x</div>`);
+    const out = el.getAttribute('style');
+    assert.ok(!/evil\.example/.test(out), out);
+    assert.match(out, /color:\s*blue/);
+  });
+
+  test('local styles and same-document refs are left alone', () => {
+    const el = run('<a href="#top" style="color:green;background:url(data:image/png;base64,AA==)">x</a>');
+    assert.equal(el.getAttribute('href'), '#top');
+    assert.match(el.getAttribute('style'), /data:image\/png/);
+  });
+
+  test('external src, <style> and handlers are stripped', () => {
+    const el = run('<div onclick="x()"><img src="https://evil.example/b.gif"><style>body{color:red}</style></div>');
+    assert.equal(el.getAttribute('onclick'), null);
+    assert.equal(el.querySelector('img').getAttribute('src'), null);
+    assert.equal(el.querySelector('style'), null);
+  });
+});
+
 describe('scanCustomFlow entry URL', () => {
   test('metadata entry URL is refused before any browser launches', async () => {
     const session = scanCustomFlow({
