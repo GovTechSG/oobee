@@ -887,25 +887,25 @@ export const scanHTML = async (
     tags.push('wcag2aaa');
   }
 
-  // DoS bounds for scanHTML (asgard-0006). Defaults sit far above any real page
-  // so legitimate callers never hit them, while a multi-hundred-MB payload can
+  // DoS bounds for scanHTML. Defaults sit far above any real page so
+  // legitimate callers never hit them, while a multi-hundred-MB payload can
   // no longer OOM the host. Asgard's few-MB default was rejected: CMS exports
   // and single-file reports legitimately reach tens of MB.
   //
-  // asgard-0006 (2026-10-09 re-scan): "0 = unlimited" must NOT be treated as a
-  // safe setting when htmlContent is untrusted. new JSDOM(htmlString) below
-  // runs synchronously, BEFORE the axe.run timeout race further down, so an
-  // operator who sets 0 (or a very large value) for a caller that forwards
-  // untrusted HTML removes the only guard on that synchronous parse. The
-  // byte cap genuinely cannot bound parse COST (a deeply-nested or
-  // node-dense document under the cap can still be slow to parse and is not
-  // covered by scanHtmlAxeTimeoutMs) — running the parse itself under a
-  // worker-thread time/memory budget is tracked separately as a follow-up,
-  // not addressed by this comment alone.
+  // asgard-0005 (2026-10-10 re-scan): "0 = unlimited" is no longer accepted
+  // for either bound. new JSDOM(htmlString) below runs synchronously, BEFORE
+  // the axe.run timeout race further down, so an operator who disables the
+  // byte cap (or the axe timeout) removes the only guard on that
+  // synchronous, unbounded parse for a caller that forwards untrusted HTML.
+  // A value of 0 (or anything <= 0) now falls back to the safe default
+  // instead of disabling the bound. The byte cap still cannot bound parse
+  // COST (a deeply-nested or node-dense document under the cap can still be
+  // slow to parse) — running the parse itself under a worker-thread
+  // time/memory budget is tracked separately as a follow-up.
   const readBound = (raw: string | undefined, fallback: number): number => {
     if (raw === undefined || raw.trim() === '') return fallback;
     const v = parseInt(raw, 10);
-    return Number.isFinite(v) && v >= 0 ? v : fallback; // 0 = unlimited — see warning above
+    return Number.isFinite(v) && v > 0 ? v : fallback; // reject <= 0 (was: v >= 0, 0 = unlimited)
   };
   const scanHtmlMaxBytes = readBound(process.env.OOBEE_SCANHTML_MAX_BYTES, 50 * 1024 * 1024);
   const scanHtmlAxeTimeoutMs = readBound(process.env.OOBEE_SCANHTML_AXE_TIMEOUT_MS, 5 * 60 * 1000);
