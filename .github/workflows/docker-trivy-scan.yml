@@ -1,0 +1,108 @@
+name: Docker Trivy Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag to label the scanned image (e.g. 0.10.87)'
+        required: false
+        default: 'scan'
+        type: string
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-24.04-arm
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Lowercase repository name
+        id: repo
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image (load, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          load: true
+          tags: ${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scan (table report)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: ${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}
+          format: table
+          output: trivy-report.txt
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      - name: Run Trivy vulnerability scan (SARIF)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: ${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}
+          format: sarif
+          output: trivy-report.sarif
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      - name: Publish Trivy report to job summary
+        if: always()
+        run: |
+          if [ ! -f trivy-report.txt ]; then
+            echo "No Trivy report was generated." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Severity counts, derived by grepping the fixed-width Severity column
+          # of the trivy table report. Fragile if the table format changes, but
+          # good enough for an at-a-glance summary.
+          count() { grep -c "│ $1 " trivy-report.txt || true; }
+          {
+            echo "## Trivy vulnerability scan"
+            echo ""
+            echo "Image: \`${{ steps.repo.outputs.name }}:${{ env.RELEASE_TAG }}\`"
+            echo ""
+            echo "| Severity | Count |"
+            echo "|----------|-------|"
+            echo "| CRITICAL | $(count 'CRITICAL') |"
+            echo "| HIGH     | $(count 'HIGH    ') |"
+            echo "| MEDIUM   | $(count 'MEDIUM  ') |"
+            echo "| LOW      | $(count 'LOW     ') |"
+            echo ""
+            echo "<details><summary>Full vulnerability table (click to expand)</summary>"
+            echo ""
+            echo '```'
+            cat trivy-report.txt
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Trivy report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report-${{ env.RELEASE_TAG }}
+          path: |
+            trivy-report.txt
+            trivy-report.sarif
+          retention-days: 30
