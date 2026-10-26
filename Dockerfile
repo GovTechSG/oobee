@@ -79,15 +79,6 @@ RUN groupadd -r purple && useradd -r -g purple purple && \
   mkdir -p /home/purple /app/oobee /data/chrome-profile && \
   chown purple:purple /home/purple /app /app/oobee /data /data/chrome-profile
 
-# Force CRLSet component update. Best-effort: bounded by `timeout` and never fails the image build.
-RUN timeout 600 google-chrome --headless=new --no-sandbox \
-      --enable-logging=stderr --v=1 \
-      --user-data-dir=/tmp/crlset-warmup \
-      --component-updater=fast-update --check-for-update-interval=1 \
-      about:blank 2>&1 | grep -iE 'crlset|crl_set|certificate_revocation' || true; \
-    echo '--- CRLSet files in warm-up profile:'; \
-    find /tmp/crlset-warmup -iname '*crl*' -exec ls -la --time-style=full-iso {} + 2>/dev/null || echo 'none found'; \
-    rm -rf /tmp/crlset-warmup
   
 WORKDIR /app/oobee
 
