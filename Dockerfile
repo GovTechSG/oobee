@@ -80,7 +80,7 @@ RUN groupadd -r purple && useradd -r -g purple purple && \
   chown purple:purple /home/purple /app /app/oobee /data /data/chrome-profile
 
 # Force CRLSet component update. Best-effort: bounded by `timeout` and never fails the image build.
-RUN timeout 60 google-chrome --headless=new --no-sandbox \
+RUN timeout 180 google-chrome --headless=new --no-sandbox \
       --user-data-dir=/tmp/crlset-warmup \
       --component-updater=fast-update --check-for-update-interval=1 \
       about:blank || true; \
