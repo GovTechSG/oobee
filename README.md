@@ -348,10 +348,12 @@ Options:
   -b, --browserToRun                 Browser to run the scan on: 1) Chromium, 2)
                                       Chrome, 3) Edge. Defaults to Chromium.
                      [choices: "chromium", "chrome", "edge"] [default: "chrome"]
-  -s, --strategy                     Crawls up to general (same parent) domains,
-                                      or only specific hostname. Defaults to "sa
-                                     me-domain".
-                                       [choices: "same-domain", "same-hostname"]
+  -s, --strategy                     Controls URL and redirect scope. Defaults to
+                                     "same-domain" for all scan types, including
+                                     local XML/TXT sitemaps. Use "same-hostname"
+                                     to restrict hostnames, or "ignore" to disable
+                                     filtering in remote sitemap scans.
+                             [choices: "same-domain", "same-hostname", "ignore"]
   -e, --exportDirectory              Preferred directory to store scan results.
                                      Path is relative to your home directory.
                                                                         [string]

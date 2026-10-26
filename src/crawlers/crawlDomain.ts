@@ -83,7 +83,7 @@ const crawlDomain = async ({
   maxRequestsPerCrawl,
   browser,
   userDataDirectory,
-  strategy,
+  strategy = EnqueueStrategy.SameDomain,
   specifiedMaxConcurrency,
   fileTypes,
   blacklistedPatterns,
@@ -105,7 +105,7 @@ const crawlDomain = async ({
   maxRequestsPerCrawl: number;
   browser: string;
   userDataDirectory: string;
-  strategy: EnqueueStrategy;
+  strategy?: EnqueueStrategy;
   specifiedMaxConcurrency: number;
   fileTypes: FileTypes;
   blacklistedPatterns: string[];
@@ -1047,7 +1047,7 @@ const crawlDomain = async ({
               page.off('framenavigated', onFrameNavigated);
 
               const postScanUrl = navigatedToUrl || page.url();
-              if (postScanUrl && postScanUrl !== 'about:blank' && !isFollowStrategy(postScanUrl, request.url, 'same-hostname')) {
+              if (postScanUrl && postScanUrl !== 'about:blank' && !isFollowStrategy(postScanUrl, request.url, strategy)) {
                 urlsCrawled.notScannedRedirects.push({
                   fromUrl: request.url,
                   toUrl: postScanUrl,

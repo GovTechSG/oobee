@@ -64,9 +64,9 @@ const crawlSitemap = async ({
   blacklistedPatterns,
   includeScreenshots,
   extraHTTPHeaders,
-  strategy = EnqueueStrategy.All,
-  // Discovery can include many hosts; redirect scope is configured separately.
-  redirectStrategy = EnqueueStrategy.SameHostname,
+  strategy = EnqueueStrategy.SameDomain,
+  // Follow the crawl strategy unless a caller supplies a redirect override.
+  redirectStrategy = strategy,
   userUrl = '',
   scanDuration = 0,
   fromCrawlIntelligentSitemap = false,
