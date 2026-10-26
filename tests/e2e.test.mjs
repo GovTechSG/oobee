@@ -237,6 +237,52 @@ describe('e2e: local site crawls', () => {
     }
   });
 
+  // The entry URL is an HTML page that redirects client-side to /home; the
+  // connectivity check must follow it instead of failing with code 14.
+  const clientRedirects = {
+    'meta refresh 0s': '<meta http-equiv="refresh" content="0;url=/home">',
+    'meta refresh 2s': '<meta http-equiv="refresh" content="2; URL=\'/home\'">',
+    'location.replace': '<script>location.replace("/home")</script>',
+    'delayed location.href': '<script>setTimeout(() => { location.href = "/home"; }, 1500)</script>',
+    'window.open _self': '<script>window.open("/home", "_self")</script>',
+    'window.open new tab': '<script>window.open("/home", "_blank")</script>',
+    'meta refresh then JS': '<meta http-equiv="refresh" content="0;url=/js">',
+  };
+  for (const [name, head] of Object.entries(clientRedirects)) {
+    test(`entry URL with ${name} redirect to /home is scanned`, async () => {
+      const site = http.createServer((req, res) => {
+        res.writeHead(200, { 'content-type': 'text/html' });
+        if (req.url === '/') return res.end(`<!doctype html><html><head><title>Redirecting</title>${head}</head><body></body></html>`);
+        if (req.url === '/js') return res.end('<!doctype html><html><head><script>location.replace("/home")</script></head></html>');
+        res.end('<!doctype html><html lang="en"><head><title>Home</title></head><body><main><h1>Home</h1><img src="/a.png"></main></body></html>');
+      });
+      const port = await listen(site, '127.0.0.1');
+      try {
+        const { code, dir, log } = await runCli(['-c', '2', '-u', `http://127.0.0.1:${port}/`, '-p', '1']);
+        assert.ok(dir, `no results dir. log tail:\n${log.slice(-800)}`);
+        assert.equal(code, 0);
+        assert.deepEqual(scannedUrls(dir), [`http://127.0.0.1:${port}/home`]);
+      } finally {
+        site.close();
+      }
+    });
+  }
+
+  test('entry URL meta-refreshing to cloud metadata is refused', async () => {
+    const site = http.createServer((_, res) => {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<!doctype html><html><head><meta http-equiv="refresh" content="0;url=http://169.254.169.254/latest/meta-data/"></head></html>');
+    });
+    const port = await listen(site, '127.0.0.1');
+    try {
+      const { code, dir, log } = await runCli(['-c', '2', '-u', `http://127.0.0.1:${port}/`, '-p', '1']);
+      assert.notEqual(code, 0, log.slice(-400));
+      assert.equal(dir, null);
+    } finally {
+      site.close();
+    }
+  });
+
   test('PDF: violations get screenshots; OOBEE_PDF_MAX_SCREENSHOTS caps them but keeps every item', { skip: !hasVera && 'veraPDF/JRE not found' }, async () => {
     const run = env => runCli(['-c', '2', '-u', `http://127.0.0.1:${p4}/table.pdf`, '-p', '1', '-i', 'pdf-only'], env);
     const full = await run({ OOBEE_PDF_MAX_SCREENSHOTS: '' });
