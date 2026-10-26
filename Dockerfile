@@ -79,6 +79,11 @@ RUN groupadd -r purple && useradd -r -g purple purple && \
   mkdir -p /home/purple /app/oobee /data/chrome-profile && \
   chown purple:purple /home/purple /app /app/oobee /data /data/chrome-profile
 
+# Force CRLSet component update
+RUN google-chrome \
+  --component-updater=fast-update \
+  --check-for-update-interval=1
+  
 WORKDIR /app/oobee
 
 # Run app build steps as non-root to avoid a full recursive chown later.
