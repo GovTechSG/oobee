@@ -61,6 +61,10 @@ RUN ARCH="$(dpkg --print-architecture)"; \
         > /etc/apt/sources.list.d/google-chrome.list && \
       apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && \
       rm -f /tmp/google.pub && rm -rf /var/lib/apt/lists/*; \
+      # Enable online OCSP/CRL checks (EnableOnlineRevocationChecks). This is the Linux
+      # equivalent of HKLM\SOFTWARE\Policies\Google\Chrome "EnableOnlineRevocationChecks"=dword:1.
+      mkdir -p /etc/opt/chrome/policies/managed && \
+      echo '{"EnableOnlineRevocationChecks": true}' > /etc/opt/chrome/policies/managed/oobee-revocation.json; \
     else \
       echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $ARCH)"; \
     fi
