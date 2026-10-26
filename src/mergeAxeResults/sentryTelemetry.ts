@@ -15,7 +15,8 @@ import type { AllIssues } from './types.js';
 // tokens, etc.) are never shipped to the third-party telemetry endpoint.
 const sanitizeEntryUrlForTelemetry = (entryUrl: string): string => {
   try {
-    return new URL(entryUrl).host;
+    // file: URLs have an empty host, which Sentry rejects and shows as <invalid>.
+    return new URL(entryUrl).host || 'file://redacted';
   } catch {
     return 'unknown';
   }
