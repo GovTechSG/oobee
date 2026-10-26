@@ -551,6 +551,74 @@ export async function warmupSafeBrowsingBaseProfile(): Promise<void> {
   }
 }
 
+/**
+ * Opens chrome://components in the warmed base profile and clicks "Check for update"
+ * for the given component (default CRLSet). The CLI flags used by the warmup only
+ * register components; they never call the update check, so CRLSet is not fetched.
+ * Best-effort: any failure is logged and swallowed so the image build cannot fail.
+ */
+export async function triggerChromeComponentUpdate(
+  componentName = 'CRLSet',
+  waitMs = Number(process.env.SB_COMPONENT_UPDATE_WAIT_MS ?? 60_000),
+): Promise<boolean> {
+  const exe = getChromeExecutable();
+  if (!exe) {
+    sbDebug('[SafeBrowsing] Component update skipped: Google Chrome not found');
+    return false;
+  }
+
+  const { chromium } = await import('playwright');
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(BASE_PROFILE_DIR, {
+      executablePath: exe,
+      headless: true,
+      args: [
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--enable-logging=stderr',
+        '--v=1',
+        '--component-updater=fast-update',
+        '--check-for-update-interval=1',
+      ],
+    });
+
+    const page = await context.newPage();
+    await page.goto('chrome://components', { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+    const clicked: boolean = await page.evaluate((name: string) => {
+      const doc = (globalThis as any).document;
+      const nameEl = Array.from(doc.querySelectorAll('*') as any[]).find(
+        (el: any) => el.children.length === 0 && el.textContent?.trim() === name,
+      ) as any;
+      let node: any = nameEl;
+      while (node && node !== doc.body) {
+        const btn = (Array.from(node.querySelectorAll('button')) as any[]).find(
+          (b: any) => /check for update/i.test(b.textContent ?? ''),
+        );
+        if (btn) {
+          btn.click();
+          return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    }, componentName);
+
+    sbDebug(`[SafeBrowsing] Clicked "Check for update" for ${componentName}: ${clicked}`);
+    if (!clicked) return false;
+
+    // Give the update request time to complete before closing the browser.
+    await page.waitForTimeout(waitMs);
+    return true;
+  } catch (err) {
+    console.error(`[SafeBrowsing] Component update for ${componentName} failed (ignored):`, err);
+    return false;
+  } finally {
+    await context?.close().catch(() => {});
+  }
+}
+
 export function injectSafeBrowsingDb(targetDir: string): void {
   sbDebug(`[SafeBrowsing] injectSafeBrowsingDb(${targetDir})`);
   sbDebug(`[SafeBrowsing] isDbDir(SB_DIR=${SB_DIR}): ${isDbDir(SB_DIR)}`);

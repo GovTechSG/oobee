@@ -23,10 +23,14 @@ const timeoutMs = getArg('--timeout', undefined);
 if (profileDir) process.env.SB_PROFILE_DIR = profileDir;
 if (timeoutMs) process.env.SB_DB_TIMEOUT_MS = timeoutMs;
 
-const { warmupSafeBrowsingBaseProfile } = await import(path.join(__dirname, '..', 'dist', 'safeBrowsingProfile.js'));
+const { warmupSafeBrowsingBaseProfile, triggerChromeComponentUpdate } = await import(path.join(__dirname, '..', 'dist', 'safeBrowsingProfile.js'));
 
 try {
   await warmupSafeBrowsingBaseProfile();
+  if (args.includes('--components')) {
+    const ok = await triggerChromeComponentUpdate(getArg('--component', 'CRLSet'));
+    console.log(`[SafeBrowsing] Component update triggered: ${ok}`);
+  }
   process.exit(0);
 } catch (err) {
   console.error('[SafeBrowsing] Warmup failed:', err);
