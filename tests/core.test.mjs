@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import yargs from 'yargs';
 
 process.env.OOBEE_DISABLE_TELEMETRY = '1';
 
@@ -15,6 +16,25 @@ const utils = await import(dist('utils.js'));
 const { filterAxeResults } = await import(dist('crawlers/commonCrawlerFunc.js'));
 const { getLinksFromSitemap } = await import(dist('constants/common.js'));
 const sample = await import(dist('constants/sampleData.js'));
+const { cliOptions } = await import(dist('constants/cliFunctions.js'));
+
+describe('CLI crawl strategy', () => {
+  for (const scanner of ['website', 'localfile', 'sitemap', 'intelligent', 'custom']) {
+    for (const strategy of [undefined, 'same-domain', 'same-hostname']) {
+      test(`${scanner}: ${strategy || 'default'}`, () => {
+        const args = ['-c', scanner, '-u', 'https://example.test/'];
+        if (strategy) args.push('-s', strategy);
+        const options = yargs(args).options(cliOptions).parseSync();
+        assert.equal(options.strategy, strategy || 'same-domain');
+      });
+    }
+  }
+  test('remote sitemap: explicit ignore is preserved', () => {
+    const options = yargs(['-c', 'sitemap', '-u', 'https://example.test/sitemap.xml', '-s', 'ignore'])
+      .options(cliOptions).parseSync();
+    assert.equal(options.strategy, 'ignore');
+  });
+});
 
 describe('utils', () => {
   for (const lvl of ['critical', 'serious', 'moderate', 'minor', 'none']) {
@@ -102,6 +122,29 @@ describe('filterAxeResults', () => {
 describe('getLinksFromSitemap (local files, no browser)', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'oobee-sitemap-'));
   after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const mixedHosts = ['https://proxy.example.test/page', 'https://site.example.test/page', 'https://unrelated.test/page'];
+  for (const strategy of [undefined, 'same-domain', 'same-hostname', 'all']) {
+    test(`local sitemap keeps every listed host with ${strategy || 'default'} strategy`, async () => {
+      const p = path.join(tmp, `scope-${strategy || 'default'}.txt`);
+      fs.writeFileSync(p, mixedHosts.join('\n'));
+      // Mirrors crawlSitemap for local files: no entry URL, so userUrl falls back to the file path.
+      const reqs = await getLinksFromSitemap(p, 100, 'chromium', '', '', false, {}, strategy);
+      assert.deepEqual(reqs.map(r => r.url).sort(), [...mixedHosts].sort());
+    });
+
+    test(`local sitemap index descends into every child with ${strategy || 'default'} strategy`, async () => {
+      const dir = fs.mkdtempSync(path.join(tmp, 'index-'));
+      const children = mixedHosts.map((url, i) => {
+        const child = path.join(dir, `child-${i}.xml`);
+        fs.writeFileSync(child, `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${url}</loc></url></urlset>`);
+        return child;
+      });
+      const index = path.join(dir, 'sitemap-index.xml');
+      fs.writeFileSync(index, `<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${children.map(c => `<sitemap><loc>${c}</loc></sitemap>`).join('')}</sitemapindex>`);
+      const reqs = await getLinksFromSitemap(index, 100, 'chromium', '', '', false, {}, strategy);
+      assert.deepEqual(reqs.map(r => r.url).sort(), [...mixedHosts].sort());
+    });
+  }
   // RSS/Atom take only <item>/<entry> links: channel image, feed self-link and
   // enclosures are not pages, so they are intentionally not scanned.
   const cases = [

@@ -225,12 +225,6 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
   .conflicts('d', 'w')
   .parse() as unknown as Answers;
 
-if (!options.strategy) {
-  options.strategy = options.scanner === ScannerTypes.SITEMAP ? 'ignore'
-    : options.scanner === ScannerTypes.LOCALFILE ? 'same-hostname'
-    : 'same-domain';
-}
-
 if (options.websiteTag) {
   process.env.OOBEE_TAGGED_WEBSITE = options.websiteTag;
 }

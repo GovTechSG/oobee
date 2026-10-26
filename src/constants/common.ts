@@ -875,7 +875,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     playwrightDeviceDetailsObject,
     maxRequestsPerCrawl: maxpages || constants.maxRequestsPerCrawl,
     strategy:
-      strategy === 'same-hostname' || (!strategy && scanner === ScannerTypes.LOCALFILE) ? EnqueueStrategy.SameHostname
+      strategy === 'same-hostname' ? EnqueueStrategy.SameHostname
       : strategy === 'ignore' ? EnqueueStrategy.All
       : EnqueueStrategy.SameDomain,
     isLocalFileScan,
@@ -1524,8 +1524,8 @@ export const getLinksFromSitemap = async (
   userUrlInput: string,
   isIntelligent: boolean,
   extraHTTPHeaders: Record<string, string>,
-  strategy: EnqueueStrategy = EnqueueStrategy.All,
-  userUrl: string = userUrlInput,
+  strategy: EnqueueStrategy = EnqueueStrategy.SameDomain,
+  userUrl: string = userUrlInput || sitemapUrl,
   onRobotsDisallowed?: (url: string) => void,
 ) => {
   const scannedSitemaps = new Set<string>();
@@ -1552,6 +1552,18 @@ export const getLinksFromSitemap = async (
   const isImageSitemapUrl = (candidateUrl: string) =>
     /(^|\/)image-sitemap(?:-index)?(?:-\d+)?\.xml(?:$|[?#])/i.test(candidateUrl);
 
+  const entryIsRemote = !isFilePath(sitemapUrl);
+  // Sitemap scans keep every listed URL and child sitemap unless -s same-hostname
+  // is given for a remote sitemap. Intelligent scans always filter because their
+  // sitemaps are auto-discovered from the target site.
+  const isScopeFiltered =
+    isIntelligent || (entryIsRemote && strategy === EnqueueStrategy.SameHostname);
+  const isInSitemapScope = (candidateUrl: string) =>
+    !isScopeFiltered ||
+    !userUrl ||
+    isFilePath(userUrl) ||
+    isFollowStrategy(candidateUrl, userUrl, strategy);
+
   const addToUrlList = (url: string) => {
     if (!url) return;
     if (allUrls.size >= maxLinksToDiscover) {
@@ -1564,7 +1576,7 @@ export const getLinksFromSitemap = async (
       return;
     }
     if (isDisallowedInRobotsTxt(url)) return;
-    if (!isFilePath(userUrl) && !isFollowStrategy(url, userUrl, strategy)) return;
+    if (!isInSitemapScope(url)) return;
 
     url = convertPathToLocalFile(url);
     allUrls.add(url);
@@ -1649,8 +1661,7 @@ export const getLinksFromSitemap = async (
   // If the initial sitemap is remote, do NOT let a hostile server redirect us
   // into the local filesystem via a `<loc>file:///…</loc>` child. Only remote
   // sitemaps may reference file:// / local paths when the operator explicitly
-  // started from a local sitemap file.
-  const entryIsRemote = !isFilePath(sitemapUrl);
+  // started from a local sitemap file (see entryIsRemote above).
 
   const fetchUrls = async (url: string, extraHTTPHeaders: Record<string, string>) => {
     let data;
@@ -1694,7 +1705,7 @@ export const getLinksFromSitemap = async (
       // discovered child sitemaps here so the entry request is covered too —
       // otherwise a hostile robots.txt could point the scanner's browser at
       // internal or link-local/cloud-metadata endpoints (blind SSRF).
-      if (userUrl && !isFollowStrategy(url, userUrl, strategy)) {
+      if (!isInSitemapScope(url)) {
         consoleLogger.info(`Skipping off-strategy sitemap: ${url}`);
         return;
       }
@@ -1917,7 +1928,7 @@ export const getLinksFromSitemap = async (
             // off-scope host. Apply the same strategy gate here, and refuse
             // hosts that resolve into private/link-local/loopback ranges
             // before invoking page.goto().
-            if (userUrl && !isFollowStrategy(childSitemapUrlText, userUrl, strategy)) {
+            if (!isInSitemapScope(childSitemapUrlText)) {
               consoleLogger.info(
                 `Skipping off-strategy child sitemap: ${childSitemapUrlText}`,
               );

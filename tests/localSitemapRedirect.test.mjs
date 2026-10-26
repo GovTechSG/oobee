@@ -31,6 +31,11 @@ const worker = `
       const context = await launch(...args);
       await context.route('**/*', route => {
         const url = route.request().url();
+        if (config.routes?.[url]) return route.fulfill(config.routes[url]);
+        if (config.remote && url === config.sitemap) return route.fulfill({
+          contentType: config.extension === 'txt' ? 'text/plain' : 'application/xml',
+          body: config.sitemapBody,
+        });
         if (url === config.url) return route.fulfill({
           contentType: 'text/html',
           body: '<script>location.replace(' + JSON.stringify(config.destination) + ')</script>',
@@ -47,12 +52,13 @@ const worker = `
   const { default: constants, FileTypes } = await load('constants/constants.js');
   const { crawlLocalFile } = await load('crawlers/crawlLocalFile.js');
   const { default: crawlSitemap } = await load('crawlers/crawlSitemap.js');
-  const crawl = config.sitemapDefaults ? crawlSitemap : crawlLocalFile;
+  const { default: crawlDomain } = await load('crawlers/crawlDomain.js');
+  const crawl = config.domain ? crawlDomain : config.sitemapDefaults || config.remote ? crawlSitemap : crawlLocalFile;
   constants.exportDirectory = path.join(config.dir, 'results');
   process.env.CRAWLEE_STORAGE_DIR = constants.exportDirectory;
   const { urlsCrawled } = await crawl({
-    ...(config.sitemapDefaults
-      ? { sitemapUrl: config.sitemap, crawledFromLocalFile: true }
+    ...(config.domain ? { url: config.url, safeMode: true } : config.sitemapDefaults || config.remote
+      ? { sitemapUrl: config.sitemap, crawledFromLocalFile: !config.remote }
       : { url: config.sitemap }),
     randomToken: 'redirect-test', host: '',
     viewportSettings: { playwrightDeviceDetailsObject: { viewport: { width: 1280, height: 720 } } },
@@ -70,16 +76,18 @@ const worker = `
 async function crawl(config) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oobee-redirect-'));
   try {
-    const sitemap = path.join(dir, `sitemap.${config.extension || 'xml'}`);
-    fs.writeFileSync(sitemap, config.extension === 'txt' ? config.url
-      : `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${config.url.replaceAll('&', '&amp;')}</loc></url></urlset>`);
+    const sitemap = config.sitemap || config.remote ? config.sitemap || `https://proxy.example.test/sitemap.${config.extension || 'xml'}`
+      : path.join(dir, `sitemap.${config.extension || 'xml'}`);
+    const sitemapBody = config.extension === 'txt' ? config.url
+      : `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${config.url.replaceAll('&', '&amp;')}</loc></url></urlset>`;
+    if (!config.remote) fs.writeFileSync(sitemap, sitemapBody);
     const result = await new Promise((resolve, reject) => {
       const child = spawn(process.execPath, ['--use-system-ca', '--input-type=module', '-e', worker], {
         cwd: root,
         env: {
           ...process.env, OOBEE_DISABLE_TELEMETRY: '1', CRAWLEE_HEADLESS: '1',
           OOBEE_LOGS_PATH: dir, OOBEE_VERBOSE: '1', CRAWLEE_LOG_LEVEL: 'ERROR',
-          OOBEE_REDIRECT_CASE: JSON.stringify({ ...config, dir, sitemap }),
+          OOBEE_REDIRECT_CASE: JSON.stringify({ ...config, dir, sitemap, sitemapBody }),
         },
       });
       let log = '';
@@ -107,20 +115,29 @@ for (const extension of ['xml', 'txt']) {
     assert.equal(result.scanned[0].pageTitle, 'Redirect destination');
   });
 
-  test(`local ${extension} sitemap preserves same-hostname redirects by default`, async () => {
+  test(`local ${extension} sitemap follows a sibling-host redirect by default`, async () => {
     const result = await crawl({ url: proxy, destination, extension });
+    assert.equal(result.scanned.length, 1, JSON.stringify(result));
+    assert.equal(result.scanned[0].actualUrl, destination);
+    assert.deepEqual(result.notScannedRedirects, []);
+  });
+}
+
+for (const sitemapDefaults of [false, true]) {
+  test(`${sitemapDefaults ? 'shared' : 'local'} sitemap: same-hostname excludes a sibling-host redirect`, async () => {
+    const result = await crawl({ url: proxy, destination, sitemapDefaults, strategy: 'same-hostname' });
     assert.equal(result.scanned.length, 0);
     assert.deepEqual(result.notScannedRedirects, [{ fromUrl: proxy, toUrl: destination }]);
     assert.ok(result.userExcluded.some(p => p.url === proxy && p.actualUrl === destination));
   });
-}
 
-test('same-hostname excludes a sibling-host redirect', async () => {
-  const result = await crawl({ url: proxy, destination, strategy: 'same-hostname' });
-  assert.equal(result.scanned.length, 0);
-  assert.deepEqual(result.notScannedRedirects, [{ fromUrl: proxy, toUrl: destination }]);
-  assert.ok(result.userExcluded.some(p => p.url === proxy && p.actualUrl === destination));
-});
+  test(`${sitemapDefaults ? 'shared' : 'local'} sitemap: default excludes a redirect to another parent domain`, async () => {
+    const target = 'https://unrelated.test/page';
+    const result = await crawl({ url: proxy, destination: target, sitemapDefaults });
+    assert.equal(result.scanned.length, 0);
+    assert.deepEqual(result.notScannedRedirects, [{ fromUrl: proxy, toUrl: target }]);
+  });
+}
 
 test('same-domain still excludes a redirect to another parent domain', async () => {
   const target = 'https://unrelated.test/page';
@@ -129,19 +146,103 @@ test('same-domain still excludes a redirect to another parent domain', async () 
   assert.deepEqual(result.notScannedRedirects, [{ fromUrl: proxy, toUrl: target }]);
 });
 
-test('shared sitemap crawler retains its same-hostname redirect default', async () => {
+test('shared sitemap crawler follows a sibling-host redirect by default', async () => {
   const result = await crawl({ url: proxy, destination, sitemapDefaults: true });
-  assert.equal(result.scanned.length, 0);
-  assert.deepEqual(result.notScannedRedirects, [{ fromUrl: proxy, toUrl: destination }]);
+  assert.equal(result.scanned.length, 1, JSON.stringify(result));
+  assert.equal(result.scanned[0].actualUrl, destination);
+  assert.deepEqual(result.notScannedRedirects, []);
 });
+
+test('shared sitemap crawler: explicit all permits an unrelated-domain redirect', async () => {
+  const target = 'https://unrelated.test/page';
+  const result = await crawl({ url: proxy, destination: target, sitemapDefaults: true, strategy: 'all' });
+  assert.equal(result.scanned.length, 1, JSON.stringify(result));
+  assert.equal(result.scanned[0].actualUrl, target);
+});
+
+for (const strategy of [undefined, 'same-hostname', 'all']) {
+  test(`remote sitemap: ${strategy || 'default'} controls redirects`, async () => {
+    const target = strategy === 'all' ? 'https://unrelated.test/page' : destination;
+    const result = await crawl({ url: proxy, destination: target, remote: true, strategy });
+    if (strategy === 'same-hostname') {
+      assert.equal(result.scanned.length, 0);
+      assert.deepEqual(result.notScannedRedirects, [{ fromUrl: proxy, toUrl: target }]);
+    } else {
+      assert.equal(result.scanned.length, 1, JSON.stringify(result));
+      assert.equal(result.scanned[0].actualUrl, target);
+    }
+  });
+}
+
+// Remote sitemap index whose children and pages span a sibling host and an unrelated domain.
+const page = title => ({ contentType: 'text/html', body: `<!doctype html><html lang="en"><title>${title}</title><main><h1>${title}</h1></main></html>` });
+const urlset = urls => ({ contentType: 'application/xml', body: `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `<url><loc>${u}</loc></url>`).join('')}</urlset>` });
+const remoteIndex = 'https://proxy.example.test/sitemap.xml';
+const remotePages = ['https://proxy.example.test/a', 'https://site.example.test/b', 'https://unrelated.test/c', 'https://unrelated.test/d'];
+const remoteRoutes = {
+  [remoteIndex]: {
+    contentType: 'application/xml',
+    body: `<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://proxy.example.test/child.xml</loc></sitemap><sitemap><loc>https://unrelated.test/child.xml</loc></sitemap></sitemapindex>`,
+  },
+  'https://proxy.example.test/child.xml': urlset(remotePages.slice(0, 3)),
+  'https://unrelated.test/child.xml': urlset(remotePages.slice(3)),
+  ...Object.fromEntries(remotePages.map(u => [u, page(u)])),
+};
+
+for (const strategy of [undefined, 'same-domain', 'all']) {
+  test(`remote sitemap index: ${strategy || 'default'} scans every listed URL and child sitemap`, async () => {
+    const result = await crawl({ url: proxy, destination, remote: true, sitemap: remoteIndex, routes: remoteRoutes, strategy });
+    assert.deepEqual(result.scanned.map(p => p.url).sort(), [...remotePages].sort(), JSON.stringify(result));
+  });
+}
+
+test('remote sitemap index: same-hostname keeps only the entry hostname', async () => {
+  const result = await crawl({ url: proxy, destination, remote: true, sitemap: remoteIndex, routes: remoteRoutes, strategy: 'same-hostname' });
+  assert.deepEqual(result.scanned.map(p => p.url), ['https://proxy.example.test/a'], JSON.stringify(result));
+});
+
+// www.example.test/sitemap.xml lists bare-host pages that redirect back to www.
+const wwwIndex = 'https://www.example.test/sitemap.xml';
+const wwwRoutes = {
+  [wwwIndex]: {
+    contentType: 'application/xml',
+    body: `<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://example.test/child.xml</loc></sitemap></sitemapindex>`,
+  },
+  'https://example.test/child.xml': urlset(['https://example.test/a', 'https://www.example.test/b']),
+  'https://example.test/a': { contentType: 'text/html', body: '<script>location.replace("https://www.example.test/a")</script>' },
+  'https://www.example.test/a': page('www a'),
+  'https://www.example.test/b': page('www b'),
+};
+
+for (const strategy of [undefined, 'same-hostname']) {
+  test(`remote www sitemap: ${strategy || 'default'} treats bare and www hosts as the same`, async () => {
+    const result = await crawl({ url: proxy, destination, remote: true, sitemap: wwwIndex, routes: wwwRoutes, strategy });
+    assert.deepEqual(result.scanned.map(p => p.url).sort(), ['https://example.test/a', 'https://www.example.test/b'], JSON.stringify(result));
+    assert.equal(result.scanned.find(p => p.url === 'https://example.test/a').actualUrl, 'https://www.example.test/a');
+    assert.deepEqual(result.notScannedRedirects, []);
+  });
+}
+
+for (const strategy of [undefined, 'same-hostname']) {
+  test(`website crawl: ${strategy || 'default'} controls sibling-host redirects`, async () => {
+    const result = await crawl({ url: proxy, destination, domain: true, strategy });
+    if (strategy === 'same-hostname') {
+      assert.equal(result.scanned.length, 0);
+      assert.ok(result.notScannedRedirects.some(p => p.toUrl === destination));
+    } else {
+      assert.ok(result.scanned.some(p => p.url === proxy && p.actualUrl === destination), JSON.stringify(result));
+      assert.deepEqual(result.notScannedRedirects, []);
+    }
+  });
+}
 
 const liveUrls = JSON.parse(process.env.OOBEE_REDIRECT_TEST_URLS || '[]');
 test('live proxy URLs follow sibling-host redirects', { skip: !liveUrls.length }, async () => {
   for (const url of liveUrls) {
-    const result = await crawl({ url, live: true, strategy: 'same-domain' });
+    const result = await crawl({ url, live: true });
     assert.equal(result.scanned.length, 1, JSON.stringify(result));
     assert.notEqual(new URL(result.scanned[0].actualUrl).hostname, new URL(url).hostname);
-    const strict = await crawl({ url, live: true });
+    const strict = await crawl({ url, live: true, strategy: 'same-hostname' });
     assert.equal(strict.scanned.length, 0);
     assert.ok(strict.notScannedRedirects.some(p => p.fromUrl === url));
   }
