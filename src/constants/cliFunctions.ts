@@ -168,7 +168,7 @@ export const cliOptions: { [key: string]: Options } = {
   s: {
     alias: 'strategy',
     describe:
-      'Crawls up to general (same parent) domains, or only specific hostname. Use "ignore" to disable URL filtering (default for sitemap scans). Defaults to "same-domain".',
+      'Crawls up to general (same parent) domains, or only specific hostname. Also controls redirects in local XML/TXT sitemap scans (default: "same-hostname"). Use "ignore" to disable URL filtering (default for remote sitemap scans). Other scans default to "same-domain".',
     choices: ['same-domain', 'same-hostname', 'ignore'],
     requiresArg: true,
     demandOption: false,

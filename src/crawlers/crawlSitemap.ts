@@ -65,6 +65,8 @@ const crawlSitemap = async ({
   includeScreenshots,
   extraHTTPHeaders,
   strategy = EnqueueStrategy.All,
+  // Discovery can include many hosts; redirect scope is configured separately.
+  redirectStrategy = EnqueueStrategy.SameHostname,
   userUrl = '',
   scanDuration = 0,
   fromCrawlIntelligentSitemap = false,
@@ -88,6 +90,7 @@ const crawlSitemap = async ({
   includeScreenshots: boolean;
   extraHTTPHeaders: Record<string, string>;
   strategy?: EnqueueStrategy;
+  redirectStrategy?: EnqueueStrategy;
   userUrl?: string;
   scanDuration?: number;
   fromCrawlIntelligentSitemap?: boolean;
@@ -690,7 +693,7 @@ const crawlSitemap = async ({
               return;
             }
 
-            if (isRedirected && !isFollowStrategy(actualUrl, request.url, 'same-hostname')) {
+            if (isRedirected && !isFollowStrategy(actualUrl, request.url, redirectStrategy)) {
               urlsCrawled.notScannedRedirects.push({
                 fromUrl: request.url,
                 toUrl: actualUrl,
@@ -747,7 +750,7 @@ const crawlSitemap = async ({
               page.off('framenavigated', onFrameNavigated);
 
               const postScanUrl = navigatedToUrl || page.url();
-              if (postScanUrl && postScanUrl !== 'about:blank' && !isFollowStrategy(postScanUrl, request.url, 'same-hostname')) {
+              if (postScanUrl && postScanUrl !== 'about:blank' && !isFollowStrategy(postScanUrl, request.url, redirectStrategy)) {
                 urlsCrawled.notScannedRedirects.push({
                   fromUrl: request.url,
                   toUrl: postScanUrl,

@@ -194,8 +194,8 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
   .check(argvs => {
     const scanner = String(argvs.scanner ?? '');
 
-    if (argvs.strategy && scanner !== ScannerTypes.WEBSITE && scanner !== ScannerTypes.CUSTOM && scanner !== ScannerTypes.INTELLIGENT && scanner !== ScannerTypes.SITEMAP) {
-      throw new Error('-s or --strategy is only available in website, custom flow, intelligent, and sitemap scans.');
+    if (argvs.strategy && scanner !== ScannerTypes.WEBSITE && scanner !== ScannerTypes.CUSTOM && scanner !== ScannerTypes.INTELLIGENT && scanner !== ScannerTypes.SITEMAP && scanner !== ScannerTypes.LOCALFILE) {
+      throw new Error('-s or --strategy is only available in website, custom flow, intelligent, sitemap, and local file scans.');
     }
     if (argvs.strategy === 'ignore' && scanner !== ScannerTypes.SITEMAP) {
       throw new Error('-s ignore is only available for sitemap scans.');
@@ -214,8 +214,8 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
     return duration;
   })
   .check(argvs => {
-    if (argvs.scanner !== ScannerTypes.WEBSITE && argvs.scanner !== ScannerTypes.CUSTOM && argvs.scanner !== ScannerTypes.INTELLIGENT && argvs.scanner !== ScannerTypes.SITEMAP && argvs.strategy) {
-      throw new Error('-s or --strategy is only available in website, custom flow, intelligent, and sitemap scans.');
+    if (argvs.scanner !== ScannerTypes.WEBSITE && argvs.scanner !== ScannerTypes.CUSTOM && argvs.scanner !== ScannerTypes.INTELLIGENT && argvs.scanner !== ScannerTypes.SITEMAP && argvs.scanner !== ScannerTypes.LOCALFILE && argvs.strategy) {
+      throw new Error('-s or --strategy is only available in website, custom flow, intelligent, sitemap, and local file scans.');
     }
     if (argvs.strategy === 'ignore' && argvs.scanner !== ScannerTypes.SITEMAP) {
       throw new Error('-s ignore is only available for sitemap scans.');
@@ -226,7 +226,9 @@ Usage: npm run cli -- -c <crawler> -d <device> -w <viewport> -u <url> OPTIONS`,
   .parse() as unknown as Answers;
 
 if (!options.strategy) {
-  options.strategy = options.scanner === ScannerTypes.SITEMAP ? 'ignore' : 'same-domain';
+  options.strategy = options.scanner === ScannerTypes.SITEMAP ? 'ignore'
+    : options.scanner === ScannerTypes.LOCALFILE ? 'same-hostname'
+    : 'same-domain';
 }
 
 if (options.websiteTag) {

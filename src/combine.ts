@@ -252,6 +252,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         blacklistedPatterns,
         includeScreenshots,
         extraHTTPHeaders,
+        strategy,
         scanDuration: effectiveScanDuration,
         ruleset,
       });

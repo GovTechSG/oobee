@@ -875,7 +875,7 @@ export const prepareData = async (argv: Answers): Promise<Data> => {
     playwrightDeviceDetailsObject,
     maxRequestsPerCrawl: maxpages || constants.maxRequestsPerCrawl,
     strategy:
-      strategy === 'same-hostname' ? EnqueueStrategy.SameHostname
+      strategy === 'same-hostname' || (!strategy && scanner === ScannerTypes.LOCALFILE) ? EnqueueStrategy.SameHostname
       : strategy === 'ignore' ? EnqueueStrategy.All
       : EnqueueStrategy.SameDomain,
     isLocalFileScan,
