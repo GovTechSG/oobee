@@ -81,9 +81,10 @@ RUN groupadd -r purple && useradd -r -g purple purple && \
 
 # Force CRLSet component update. Best-effort: bounded by `timeout` and never fails the image build.
 RUN timeout 180 google-chrome --headless=new --no-sandbox \
+      --enable-logging=stderr --v=1 \
       --user-data-dir=/tmp/crlset-warmup \
       --component-updater=fast-update --check-for-update-interval=1 \
-      about:blank || true; \
+      about:blank 2>&1 | grep -iE 'component|crl|update' || true; \
     rm -rf /tmp/crlset-warmup
   
 WORKDIR /app/oobee
