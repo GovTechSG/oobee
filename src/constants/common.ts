@@ -46,6 +46,7 @@ import { DeviceDescriptor } from '../types/types.js';
 import { getProxyInfo, proxyInfoToResolution, ProxySettings } from '../proxyService.js';
 import { ensureAndInjectSafeBrowsing, getSafeBrowsingIgnoredArgs } from '../safeBrowsingProfile.js';
 import { waitForMainThreadIdleInPage } from '../crawlers/custom/waitForMainThreadIdleInPage.js';
+import { readSettledContent, settleClientRedirects } from '../settleNavigation.js';
 
 // validateDirPath validates a provided directory path
 // returns null if no error
@@ -492,33 +493,24 @@ export const checkUrlConnectivityWithBrowser = async (
       }
     });
 
-    // OPTIMIZATION: Wait for 'domcontentloaded' only
-    let response;
-    try {
-      response = await page.goto(url, {
-        timeout: 15000,
-        waitUntil: 'domcontentloaded',
-      });
-    } catch (navError) {
-      throw navError;
-    }
+    // Follow client-side redirects (meta refresh, JS location changes, window.open)
+    // until the main frame stops navigating, instead of guessing with a fixed delay.
+    let entryResponse;
+    const settled = await settleClientRedirects(browserContext, page, async () => {
+      entryResponse = await page.goto(url, { timeout: 15000, waitUntil: 'domcontentloaded' });
+      return entryResponse;
+    });
+    const settledPage = settled.page;
+    const response = settled.finalResponse ?? entryResponse;
 
     if (!response) throw new Error('No response from navigation');
 
-    // Wait briefly for JS/meta-refresh redirects to settle before reading the final URL.
-    // Server-side redirects are already reflected after goto(), but client-side redirects
-    // (e.g. domain.tld -> www.domain.tld via JS or meta-refresh) need extra time.
-    try {
-      await Promise.race([
-        page.waitForURL(currentUrl => currentUrl !== url, { timeout: 5000 }),
-        new Promise(resolve => setTimeout(resolve, 1000)), // minimum settle time
-      ]);
-    } catch {
-      // No redirect happened within the window — that's fine, continue with current URL
+    const finalUrl = settledPage.url();
+    // A client redirect whose target failed leaves the page on chrome-error://;
+    // classify it like a failed goto() in the catch block below.
+    if (settled.failedNavigation && !/^https?:/i.test(finalUrl)) {
+      throw new Error(`Client-side redirect failed: ${settled.failedNavigation}`);
     }
-
-    // Re-read page.url() AFTER potential client-side redirects have resolved
-    const finalUrl = page.url();
 
     // asgard-0001: the connectivity check follows server/JS/meta redirects and
     // its final URL becomes the crawl seed. A public entry URL must not be able
@@ -527,7 +519,19 @@ export const checkUrlConnectivityWithBrowser = async (
     // Checks every redirect hop and the final URL; the connected address only
     // when the connection was direct (behind FAMILY_DNS / CF Worker / proxy it
     // is the proxy's address and would refuse every public site).
-    const refusedAt = await isRefusedNavigation(url, response, finalUrl);
+    // Client-side hops never go through response.redirectedFrom(), so vet every
+    // requested main-frame URL (including failed ones) and every document response.
+    let refusedAt: string | null = null;
+    for (const hopUrl of settled.requestedUrls) {
+      if (await isRefusedRedirectTarget(url, hopUrl)) {
+        refusedAt = hopUrl;
+        break;
+      }
+    }
+    for (const hop of [...new Set([entryResponse, ...settled.responses, response].filter(Boolean))]) {
+      if (refusedAt) break;
+      refusedAt = await isRefusedNavigation(url, hop, hop === response ? finalUrl : undefined);
+    }
     if (refusedAt) {
       consoleLogger.info(`Connectivity check refused: ${url} reached internal address ${refusedAt}`);
       res.status = constants.urlCheckStatuses.systemError.code;
@@ -553,7 +557,7 @@ export const checkUrlConnectivityWithBrowser = async (
     } else if (finalStatus === 405 || finalStatus === 501) {
       // Some origins 405/501 but the browser-rendered page is still reachable after client redirects.
       // As a last resort, consider DOM presence as success if we actually have a document.
-      const hasDOM = await page.evaluate(() => !!document && !!document.documentElement);
+      const hasDOM = await settledPage.evaluate(() => !!document && !!document.documentElement);
       res.status = hasDOM
         ? constants.urlCheckStatuses.success.code
         : constants.urlCheckStatuses.systemError.code;
@@ -569,12 +573,7 @@ export const checkUrlConnectivityWithBrowser = async (
     if (contentType.includes('pdf') || contentType.includes('octet-stream')) {
       res.content = '%PDF-'; // avoid binary in memory / download
     } else {
-      try {
-        // Try to get a stable DOM; don't fail the check if it times out
-        // Note: Since we used 'domcontentloaded' in goto, this is fast, but kept for safety/stability
-        await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
-      } catch {}
-      res.content = await page.content();
+      res.content = await readSettledContent(settledPage);
     }
   } catch (error) {
     if (error.message.includes('net::ERR_INVALID_AUTH_CREDENTIALS')) {
