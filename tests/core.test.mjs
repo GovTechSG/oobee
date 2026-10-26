@@ -122,16 +122,27 @@ describe('filterAxeResults', () => {
 describe('getLinksFromSitemap (local files, no browser)', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'oobee-sitemap-'));
   after(() => fs.rmSync(tmp, { recursive: true, force: true }));
-  for (const [strategy, expected] of [
-    [undefined, ['https://proxy.example.test/page', 'https://site.example.test/page']],
-    ['same-hostname', ['https://proxy.example.test/page']],
-    ['all', ['https://proxy.example.test/page', 'https://site.example.test/page', 'https://unrelated.test/page']],
-  ]) {
-    test(`sitemap discovery with ${strategy || 'default'} strategy`, async () => {
+  const mixedHosts = ['https://proxy.example.test/page', 'https://site.example.test/page', 'https://unrelated.test/page'];
+  for (const strategy of [undefined, 'same-domain', 'same-hostname', 'all']) {
+    test(`local sitemap keeps every listed host with ${strategy || 'default'} strategy`, async () => {
       const p = path.join(tmp, `scope-${strategy || 'default'}.txt`);
-      fs.writeFileSync(p, 'https://proxy.example.test/page\nhttps://site.example.test/page\nhttps://unrelated.test/page');
-      const reqs = await getLinksFromSitemap(p, 100, 'chromium', '', 'https://proxy.example.test/', false, {}, strategy);
-      assert.deepEqual(reqs.map(r => r.url).sort(), [...expected].sort());
+      fs.writeFileSync(p, mixedHosts.join('\n'));
+      // Mirrors crawlSitemap for local files: no entry URL, so userUrl falls back to the file path.
+      const reqs = await getLinksFromSitemap(p, 100, 'chromium', '', '', false, {}, strategy);
+      assert.deepEqual(reqs.map(r => r.url).sort(), [...mixedHosts].sort());
+    });
+
+    test(`local sitemap index descends into every child with ${strategy || 'default'} strategy`, async () => {
+      const dir = fs.mkdtempSync(path.join(tmp, 'index-'));
+      const children = mixedHosts.map((url, i) => {
+        const child = path.join(dir, `child-${i}.xml`);
+        fs.writeFileSync(child, `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${url}</loc></url></urlset>`);
+        return child;
+      });
+      const index = path.join(dir, 'sitemap-index.xml');
+      fs.writeFileSync(index, `<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${children.map(c => `<sitemap><loc>${c}</loc></sitemap>`).join('')}</sitemapindex>`);
+      const reqs = await getLinksFromSitemap(index, 100, 'chromium', '', '', false, {}, strategy);
+      assert.deepEqual(reqs.map(r => r.url).sort(), [...mixedHosts].sort());
     });
   }
   // RSS/Atom take only <item>/<entry> links: channel image, feed self-link and

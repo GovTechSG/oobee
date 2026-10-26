@@ -31,6 +31,7 @@ const worker = `
       const context = await launch(...args);
       await context.route('**/*', route => {
         const url = route.request().url();
+        if (config.routes?.[url]) return route.fulfill(config.routes[url]);
         if (config.remote && url === config.sitemap) return route.fulfill({
           contentType: config.extension === 'txt' ? 'text/plain' : 'application/xml',
           body: config.sitemapBody,
@@ -75,7 +76,7 @@ const worker = `
 async function crawl(config) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oobee-redirect-'));
   try {
-    const sitemap = config.remote ? `https://proxy.example.test/sitemap.${config.extension || 'xml'}`
+    const sitemap = config.sitemap || config.remote ? config.sitemap || `https://proxy.example.test/sitemap.${config.extension || 'xml'}`
       : path.join(dir, `sitemap.${config.extension || 'xml'}`);
     const sitemapBody = config.extension === 'txt' ? config.url
       : `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${config.url.replaceAll('&', '&amp;')}</loc></url></urlset>`;
@@ -170,6 +171,55 @@ for (const strategy of [undefined, 'same-hostname', 'all']) {
       assert.equal(result.scanned.length, 1, JSON.stringify(result));
       assert.equal(result.scanned[0].actualUrl, target);
     }
+  });
+}
+
+// Remote sitemap index whose children and pages span a sibling host and an unrelated domain.
+const page = title => ({ contentType: 'text/html', body: `<!doctype html><html lang="en"><title>${title}</title><main><h1>${title}</h1></main></html>` });
+const urlset = urls => ({ contentType: 'application/xml', body: `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `<url><loc>${u}</loc></url>`).join('')}</urlset>` });
+const remoteIndex = 'https://proxy.example.test/sitemap.xml';
+const remotePages = ['https://proxy.example.test/a', 'https://site.example.test/b', 'https://unrelated.test/c', 'https://unrelated.test/d'];
+const remoteRoutes = {
+  [remoteIndex]: {
+    contentType: 'application/xml',
+    body: `<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://proxy.example.test/child.xml</loc></sitemap><sitemap><loc>https://unrelated.test/child.xml</loc></sitemap></sitemapindex>`,
+  },
+  'https://proxy.example.test/child.xml': urlset(remotePages.slice(0, 3)),
+  'https://unrelated.test/child.xml': urlset(remotePages.slice(3)),
+  ...Object.fromEntries(remotePages.map(u => [u, page(u)])),
+};
+
+for (const strategy of [undefined, 'same-domain', 'all']) {
+  test(`remote sitemap index: ${strategy || 'default'} scans every listed URL and child sitemap`, async () => {
+    const result = await crawl({ url: proxy, destination, remote: true, sitemap: remoteIndex, routes: remoteRoutes, strategy });
+    assert.deepEqual(result.scanned.map(p => p.url).sort(), [...remotePages].sort(), JSON.stringify(result));
+  });
+}
+
+test('remote sitemap index: same-hostname keeps only the entry hostname', async () => {
+  const result = await crawl({ url: proxy, destination, remote: true, sitemap: remoteIndex, routes: remoteRoutes, strategy: 'same-hostname' });
+  assert.deepEqual(result.scanned.map(p => p.url), ['https://proxy.example.test/a'], JSON.stringify(result));
+});
+
+// www.example.test/sitemap.xml lists bare-host pages that redirect back to www.
+const wwwIndex = 'https://www.example.test/sitemap.xml';
+const wwwRoutes = {
+  [wwwIndex]: {
+    contentType: 'application/xml',
+    body: `<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://example.test/child.xml</loc></sitemap></sitemapindex>`,
+  },
+  'https://example.test/child.xml': urlset(['https://example.test/a', 'https://www.example.test/b']),
+  'https://example.test/a': { contentType: 'text/html', body: '<script>location.replace("https://www.example.test/a")</script>' },
+  'https://www.example.test/a': page('www a'),
+  'https://www.example.test/b': page('www b'),
+};
+
+for (const strategy of [undefined, 'same-hostname']) {
+  test(`remote www sitemap: ${strategy || 'default'} treats bare and www hosts as the same`, async () => {
+    const result = await crawl({ url: proxy, destination, remote: true, sitemap: wwwIndex, routes: wwwRoutes, strategy });
+    assert.deepEqual(result.scanned.map(p => p.url).sort(), ['https://example.test/a', 'https://www.example.test/b'], JSON.stringify(result));
+    assert.equal(result.scanned.find(p => p.url === 'https://example.test/a').actualUrl, 'https://www.example.test/a');
+    assert.deepEqual(result.notScannedRedirects, []);
   });
 }
 
