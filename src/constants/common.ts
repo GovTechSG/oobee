@@ -497,7 +497,7 @@ export const checkUrlConnectivityWithBrowser = async (
     // until the main frame stops navigating, instead of guessing with a fixed delay.
     let entryResponse;
     const settled = await settleClientRedirects(browserContext, page, async () => {
-      entryResponse = await page.goto(url, { timeout: 15000, waitUntil: 'domcontentloaded' });
+      entryResponse = await page.goto(url, { timeout: 30000, waitUntil: 'domcontentloaded' });
       return entryResponse;
     });
     const settledPage = settled.page;

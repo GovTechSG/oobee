@@ -1,7 +1,7 @@
 import type { BrowserContext, Page, Request, Response } from 'playwright';
 
 const QUIET_MS = 1000;
-const MAX_SETTLE_MS = 15000;
+const MAX_SETTLE_MS = 30000;
 const MAX_META_REFRESH_SECONDS = 10;
 const MAX_TIMER_MS = 5000;
 const POLL_MS = 50;
