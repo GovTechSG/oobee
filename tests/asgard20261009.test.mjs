@@ -213,6 +213,30 @@ describe('GUI progress HTTP status and messages', () => {
     assert.ok(!/[\r\n]/.test(line));
   });
 
+  test('colons at the edge of a message cannot shift the URL field', () => {
+    for (const message of ['Error:', ':leading', ':::', 'page.goto: timeout']) {
+      const [line] = capture('error', { statusCode: 404, message, urlScanned: 'https://a.test/x' });
+      const fields = line.split('::');
+      assert.equal(fields.length, 6);
+      assert.equal(fields[4], message.replace(/:/g, '%3A'));
+      assert.equal(fields[5], 'https://a.test/x');
+    }
+  });
+
+  test('Unicode line terminators cannot split the message or URL', () => {
+    const breaks = ['\u0085', '\u2028', '\u2029', '\u000b', '\u000c'];
+    for (const b of breaks) {
+      const lines = capture('error', { statusCode: 500, message: `a${b}b`, urlScanned: `https://a.test/${b}x` });
+      assert.equal(lines.length, 1);
+      const fields = lines[0].split('::');
+      assert.equal(fields.length, 6);
+      assert.equal(fields[3], '500');
+      assert.equal(fields[4], 'a b');
+      assert.equal(fields[5], 'https://a.test/x');
+      assert.ok(!/[\r\n\v\f\u0085\u2028\u2029]/.test(lines[0]));
+    }
+  });
+
   test('COMPLETED retains its existing output', () => {
     assert.deepEqual(capture('completed', {}), ['Scan completed']);
   });
