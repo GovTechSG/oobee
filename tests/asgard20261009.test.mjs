@@ -161,8 +161,51 @@ describe('asgard-0014 GUI progress line', () => {
       if (prev === undefined) delete process.env.RUNNING_FROM_PH_GUI; else process.env.RUNNING_FROM_PH_GUI = prev;
     }
     assert.equal(lines.length, 1);
-    assert.equal(lines[0].split('::').length, 4);
+    assert.equal(lines[0].split('::').length, 6);
     assert.ok(!lines[0].includes('\n'));
+  });
+});
+
+describe('GUI progress HTTP status and errors', () => {
+  const capture = (status, data) => {
+    const previous = process.env.RUNNING_FROM_PH_GUI;
+    const original = console.log;
+    const lines = [];
+    process.env.RUNNING_FROM_PH_GUI = '1';
+    console.log = message => lines.push(String(message));
+    try { guiInfoLog(status, data); }
+    finally {
+      console.log = original;
+      if (previous === undefined) delete process.env.RUNNING_FROM_PH_GUI;
+      else process.env.RUNNING_FROM_PH_GUI = previous;
+    }
+    return lines;
+  };
+
+  test('a skipped 403 includes its error before the URL', () => {
+    const url = 'https://fulcrum.sg/article/long-reads/greenwashing-a-market-distortion-needing-serious-attention-in-southeast-asia';
+    assert.deepEqual(capture('skipped', { numScanned: 0, statusCode: 403, errorMessage: 'Forbidden', urlScanned: url }),
+      ['crawling::0::skipped::403::Forbidden::' + url]);
+  });
+
+  test('missing responses and errors retain fixed field positions', () => {
+    assert.deepEqual(capture('error', { urlScanned: 'https://example.com' }),
+      ['crawling::0::error::0::::https://example.com']);
+    assert.deepEqual(capture('scanned', { numScanned: 2, statusCode: 200, urlScanned: 'https://example.com' }),
+      ['crawling::2::scanned::200::::https://example.com']);
+  });
+
+  test('error messages and IPv6 URLs cannot add fields or lines', () => {
+    const [line] = capture('error', { statusCode: 0, errorMessage: 'net::ERR_FAILED\nnext\rline', urlScanned: 'http://[::1]/x::y' });
+    const fields = line.split('::');
+    assert.equal(fields.length, 6);
+    assert.equal(fields[4], 'net%3A%3AERR_FAILED next line');
+    assert.equal(fields[5], 'http://[%3A%3A1]/x%3A%3Ay');
+    assert.ok(!/[\r\n]/.test(line));
+  });
+
+  test('COMPLETED retains its existing output', () => {
+    assert.deepEqual(capture('completed', {}), ['Scan completed']);
   });
 });
 

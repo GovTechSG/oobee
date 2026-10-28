@@ -179,7 +179,7 @@ export const crawlLocalFile = async ({
 
     const page = await browserContext.newPage();
     url = convertPathToLocalFile(url);
-    await page.goto(url);
+    const response = await page.goto(url);
     await waitForPageLoaded(page);
 
     if (shouldAbort) {
@@ -197,6 +197,8 @@ export const crawlLocalFile = async ({
       guiInfoLog(guiInfoStatusTypes.ERROR, {
         numScanned: urlsCrawled.scanned.length,
         urlScanned: url,
+        statusCode: response?.status(),
+        errorMessage: 'Axe scan failed',
       });
       urlsCrawled.error.push({
         url,
@@ -214,6 +216,7 @@ export const crawlLocalFile = async ({
     guiInfoLog(guiInfoStatusTypes.SCANNED, {
       numScanned: urlsCrawled.scanned.length,
       urlScanned: url,
+      statusCode: response?.status(),
     });
 
     urlsCrawled.scanned.push({

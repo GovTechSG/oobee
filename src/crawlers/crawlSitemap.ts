@@ -280,10 +280,12 @@ const crawlSitemap = async ({
   };
   const isRefusedEgressUrl = async (target: string, req: object): Promise<boolean> =>
     isRefusedHostKind(await hostKindsFor(req)(target), entryIsInternal);
-  const recordRefusedEgress = (requestUrl: string) => {
+  const recordRefusedEgress = (requestUrl: string, statusCode?: number) => {
     guiInfoLog(guiInfoStatusTypes.SKIPPED, {
       numScanned: urlsCrawled.scanned.length,
       urlScanned: requestUrl,
+      statusCode,
+      errorMessage: 'Navigation to an internal/metadata address refused',
     });
     urlsCrawled.userExcluded.push({
       url: requestUrl,
@@ -466,9 +468,11 @@ const crawlSitemap = async ({
       },
       requestHandlerTimeoutSecs: 90,
       requestHandler: async ({ page, request, response, enqueueLinks, session }) => {
+        const pageStatusCode = response?.status();
+        const pageErrorMessage = pageStatusCode && pageStatusCode >= 400 ? `HTTP ${pageStatusCode} ${response.statusText()}`.trim() : '';
         // asgard-0004: refused before navigation (internal/metadata target).
         if (request.userData?.isRefusedEgress) {
-          recordRefusedEgress(request.url);
+          recordRefusedEgress(request.url, pageStatusCode);
           return;
         }
 
@@ -497,7 +501,7 @@ const crawlSitemap = async ({
           }
           if (refusedHop) {
             consoleLogger.warn(`Refusing content from internal address ${refusedHop} (${request.url})`);
-            recordRefusedEgress(request.url);
+            recordRefusedEgress(request.url, pageStatusCode);
             return;
           }
         }
@@ -505,6 +509,8 @@ const crawlSitemap = async ({
         // Log documents that are not supported
         if (request.userData?.isNotSupportedDocument) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+            statusCode: pageStatusCode,
+            errorMessage: pageErrorMessage,
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
@@ -541,6 +547,8 @@ const crawlSitemap = async ({
 
           if (actualUrl.startsWith('chrome-error:')) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              statusCode: pageStatusCode,
+              errorMessage: pageErrorMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -583,6 +591,8 @@ const crawlSitemap = async ({
             }
 
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              statusCode: pageStatusCode,
+              errorMessage: pageErrorMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -627,6 +637,8 @@ const crawlSitemap = async ({
               } catch {}
             }
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              statusCode: pageStatusCode,
+              errorMessage: pageErrorMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -687,6 +699,8 @@ const crawlSitemap = async ({
               });
 
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                statusCode: pageStatusCode,
+                errorMessage: pageErrorMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -706,6 +720,8 @@ const crawlSitemap = async ({
                 httpStatusCode: 0,
               });
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                statusCode: pageStatusCode,
+                errorMessage: pageErrorMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -721,6 +737,8 @@ const crawlSitemap = async ({
 
             if (results.axeScanFailed) {
               guiInfoLog(guiInfoStatusTypes.ERROR, {
+                statusCode: pageStatusCode,
+                errorMessage: 'Axe scan failed',
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -763,6 +781,8 @@ const crawlSitemap = async ({
                   httpStatusCode: 0,
                 });
                 guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+                  statusCode: pageStatusCode,
+                  errorMessage: pageErrorMessage,
                   numScanned: urlsCrawled.scanned.length,
                   urlScanned: request.url,
                 });
@@ -774,6 +794,8 @@ const crawlSitemap = async ({
 
             if (rateController.claimSlot()) {
               guiInfoLog(guiInfoStatusTypes.SCANNED, {
+                statusCode: pageStatusCode,
+                errorMessage: pageErrorMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -837,6 +859,8 @@ const crawlSitemap = async ({
             }
           } else {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              statusCode: pageStatusCode,
+              errorMessage: pageErrorMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -890,6 +914,11 @@ const crawlSitemap = async ({
         }
       },
       failedRequestHandler: async ({ request, response, error }) => {
+        const pageStatusCode = response?.status();
+        const pageErrorMessage =
+          (error instanceof Error ? error.message : typeof error === 'string' ? error : '') ||
+          request.errorMessages?.join('; ') ||
+          (pageStatusCode && pageStatusCode >= 400 ? `HTTP ${pageStatusCode} ${response.statusText()}`.trim() : '');
         if (isAbortingScan) {
           return;
         }
@@ -912,6 +941,8 @@ const crawlSitemap = async ({
             } catch {}
           } else {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+              statusCode: pageStatusCode,
+              errorMessage: pageErrorMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -976,6 +1007,8 @@ const crawlSitemap = async ({
 
         if (isSafeBrowsingBlock) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
+            statusCode: pageStatusCode,
+            errorMessage: pageErrorMessage,
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
@@ -990,6 +1023,8 @@ const crawlSitemap = async ({
         }
 
         guiInfoLog(guiInfoStatusTypes.ERROR, {
+          statusCode: pageStatusCode,
+          errorMessage: pageErrorMessage,
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });

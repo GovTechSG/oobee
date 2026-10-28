@@ -447,10 +447,13 @@ export const handlePdfDownload = (
   const pageTitle = safeDecodeUri(request.url).split('/').pop() || request.url;
   const pdfFilePath = `${getPdfStoragePath(randomToken)}/${pdfFileName}.pdf`;
 
-  const recordNotScanned = (bucket: PageInfo[], metadata: string, httpStatusCode: number) => {
+  let pageStatusCode: number | undefined;
+  const recordNotScanned = (bucket: PageInfo[], metadata: string, httpStatusCode: number, errorMessage = metadata) => {
     guiInfoLog(guiInfoStatusTypes.SKIPPED, {
       numScanned: urlsCrawled.scanned.length,
       urlScanned: request.url,
+      statusCode: pageStatusCode,
+      errorMessage,
     });
     bucket.push({
       url: request.url,
@@ -517,9 +520,11 @@ export const handlePdfDownload = (
             return;
           }
           consoleLogger.error(`Unable to request PDF at ${url}: ${e}`);
-          recordNotScanned(urlsCrawled.error, STATUS_CODE_METADATA[2], 0);
+          recordNotScanned(urlsCrawled.error, STATUS_CODE_METADATA[2], 0, e instanceof Error ? e.message : String(e));
           return;
         }
+
+        pageStatusCode = response.statusCode;
 
         // Backstop: the address actually connected to (e.g. via a proxy-less
         // path that bypassed dnsLookup).
@@ -566,7 +571,7 @@ export const handlePdfDownload = (
         } catch (e) {
           consoleLogger.error(`Unable to save PDF at ${url}: ${e}`);
           await fs.promises.rm(pdfFilePath, { force: true });
-          recordNotScanned(urlsCrawled.error, STATUS_CODE_METADATA[2], 0);
+          recordNotScanned(urlsCrawled.error, STATUS_CODE_METADATA[2], 0, e instanceof Error ? e.message : String(e));
           return;
         }
       } finally {
@@ -577,6 +582,7 @@ export const handlePdfDownload = (
         guiInfoLog(guiInfoStatusTypes.SCANNED, {
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
+          statusCode: pageStatusCode,
         });
         urlsCrawled.scanned.push({
           url: request.url,
@@ -591,6 +597,8 @@ export const handlePdfDownload = (
       guiInfoLog(guiInfoStatusTypes.SKIPPED, {
         numScanned: urlsCrawled.scanned.length,
         urlScanned: request.url,
+        statusCode: pageStatusCode,
+        errorMessage: 'Downloaded content is not a PDF',
       });
       urlsCrawled.invalid.push({
         url: request.url,

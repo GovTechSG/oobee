@@ -70,7 +70,15 @@ const silentLogger = createLogger({
 });
 
 // guiInfoLogger feeds the gui information via console log and is mainly used for scanning process
-export const guiInfoLog = (status: string, data: { numScanned?: number; urlScanned?: string }) => {
+export const guiInfoLog = (
+  status: string,
+  data: {
+    numScanned?: number;
+    urlScanned?: string;
+    statusCode?: number;
+    errorMessage?: string;
+  },
+) => {
   if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE) {
     switch (status) {
       case guiInfoStatusTypes.COMPLETED:
@@ -90,7 +98,12 @@ export const guiInfoLog = (status: string, data: { numScanned?: number; urlScann
           // eslint-disable-next-line no-control-regex
           .replace(/[\u0000-\u001f\u007f]/g, '')
           .replace(/::/g, '%3A%3A');
-        const msg = `crawling::${data.numScanned || 0}::${status}::${safeUrl}`;
+        const statusCode = Number.isInteger(data.statusCode) ? data.statusCode : 0;
+        const safeErrorMessage = String(data.errorMessage ?? '')
+          // eslint-disable-next-line no-control-regex
+          .replace(/[\u0000-\u001f\u007f]/g, ' ')
+          .replace(/::/g, '%3A%3A');
+        const msg = `crawling::${data.numScanned || 0}::${status}::${statusCode}::${safeErrorMessage}::${safeUrl}`;
         console.log(msg);
         silentLogger.info(msg);
         break;

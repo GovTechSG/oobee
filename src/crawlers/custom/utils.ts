@@ -220,6 +220,7 @@ export const runAxeScan = async (
     guiInfoLog(guiInfoStatusTypes.ERROR, {
       numScanned: urlsCrawled.scanned.length,
       urlScanned: page.url(),
+      errorMessage: 'Axe scan failed',
     });
     urlsCrawled.error.push({
       url: page.url(),
