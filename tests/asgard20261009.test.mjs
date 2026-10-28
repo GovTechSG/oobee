@@ -161,8 +161,84 @@ describe('asgard-0014 GUI progress line', () => {
       if (prev === undefined) delete process.env.RUNNING_FROM_PH_GUI; else process.env.RUNNING_FROM_PH_GUI = prev;
     }
     assert.equal(lines.length, 1);
-    assert.equal(lines[0].split('::').length, 4);
+    assert.equal(lines[0].split('::').length, 6);
     assert.ok(!lines[0].includes('\n'));
+  });
+});
+
+describe('GUI progress HTTP status and messages', () => {
+  const capture = (status, data) => {
+    const previous = process.env.RUNNING_FROM_PH_GUI;
+    const original = console.log;
+    const lines = [];
+    process.env.RUNNING_FROM_PH_GUI = '1';
+    console.log = message => lines.push(String(message));
+    try { guiInfoLog(status, data); }
+    finally {
+      console.log = original;
+      if (previous === undefined) delete process.env.RUNNING_FROM_PH_GUI;
+      else process.env.RUNNING_FROM_PH_GUI = previous;
+    }
+    return lines;
+  };
+
+  test('a skipped 403 includes its error before the URL', () => {
+    const url = 'https://fulcrum.sg/article/long-reads/greenwashing-a-market-distortion-needing-serious-attention-in-southeast-asia';
+    assert.deepEqual(capture('skipped', { numScanned: 0, statusCode: 403, message: 'Forbidden', urlScanned: url }),
+      ['crawling::0::skipped::403::Forbidden::' + url]);
+  });
+
+  test('missing responses retain fixed positions and empty status text uses the HTTP reason', () => {
+    assert.deepEqual(capture('error', { urlScanned: 'https://example.com' }),
+      ['crawling::0::error::0::::https://example.com']);
+    assert.deepEqual(capture('scanned', { numScanned: 2, statusCode: 200, urlScanned: 'https://example.com' }),
+      ['crawling::2::scanned::200::OK::https://example.com']);
+  });
+
+  test('provided response text and scan errors override the HTTP reason', () => {
+    assert.deepEqual(capture('scanned', { numScanned: 5, statusCode: 200, message: 'OK', urlScanned: 'https://example.com' }),
+      ['crawling::5::scanned::200::OK::https://example.com']);
+    assert.deepEqual(capture('error', { statusCode: 200, message: 'Axe scan failed', urlScanned: 'https://example.com' }),
+      ['crawling::0::error::200::Axe scan failed::https://example.com']);
+    assert.deepEqual(capture('skipped', { statusCode: 403, message: '', urlScanned: 'https://example.com' }),
+      ['crawling::0::skipped::403::Forbidden::https://example.com']);
+  });
+
+  test('error messages and IPv6 URLs cannot add fields or lines', () => {
+    const [line] = capture('error', { statusCode: 0, message: 'net::ERR_FAILED\nnext\rline', urlScanned: 'http://[::1]/x::y' });
+    const fields = line.split('::');
+    assert.equal(fields.length, 6);
+    assert.equal(fields[4], 'net%3A%3AERR_FAILED next line');
+    assert.equal(fields[5], 'http://[%3A%3A1]/x%3A%3Ay');
+    assert.ok(!/[\r\n]/.test(line));
+  });
+
+  test('colons at the edge of a message cannot shift the URL field', () => {
+    for (const message of ['Error:', ':leading', ':::', 'page.goto: timeout']) {
+      const [line] = capture('error', { statusCode: 404, message, urlScanned: 'https://a.test/x' });
+      const fields = line.split('::');
+      assert.equal(fields.length, 6);
+      assert.equal(fields[4], message.replace(/:/g, '%3A'));
+      assert.equal(fields[5], 'https://a.test/x');
+    }
+  });
+
+  test('Unicode line terminators cannot split the message or URL', () => {
+    const breaks = ['\u0085', '\u2028', '\u2029', '\u000b', '\u000c'];
+    for (const b of breaks) {
+      const lines = capture('error', { statusCode: 500, message: `a${b}b`, urlScanned: `https://a.test/${b}x` });
+      assert.equal(lines.length, 1);
+      const fields = lines[0].split('::');
+      assert.equal(fields.length, 6);
+      assert.equal(fields[3], '500');
+      assert.equal(fields[4], 'a b');
+      assert.equal(fields[5], 'https://a.test/x');
+      assert.ok(!/[\r\n\v\f\u0085\u2028\u2029]/.test(lines[0]));
+    }
+  });
+
+  test('COMPLETED retains its existing output', () => {
+    assert.deepEqual(capture('completed', {}), ['Scan completed']);
   });
 });
 

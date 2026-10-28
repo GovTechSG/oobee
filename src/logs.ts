@@ -4,6 +4,7 @@ import { createLogger, format, transports } from 'winston';
 import { guiInfoStatusTypes } from './constants/constants.js';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { STATUS_CODES } from 'node:http';
 
 const { combine, timestamp, printf } = format;
 
@@ -70,7 +71,15 @@ const silentLogger = createLogger({
 });
 
 // guiInfoLogger feeds the gui information via console log and is mainly used for scanning process
-export const guiInfoLog = (status: string, data: { numScanned?: number; urlScanned?: string }) => {
+export const guiInfoLog = (
+  status: string,
+  data: {
+    numScanned?: number;
+    urlScanned?: string;
+    statusCode?: number;
+    message?: string;
+  },
+) => {
   if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE) {
     switch (status) {
       case guiInfoStatusTypes.COMPLETED:
@@ -86,11 +95,19 @@ export const guiInfoLog = (status: string, data: { numScanned?: number; urlScann
         // links. Encode "::" and strip control characters so a URL can't add
         // fields or lines. Display-only: IPv6 hosts such as [::1] show as
         // [%3A%3A1] in GUI progress; the scan itself uses the real URL.
+        // C0/C1 controls (C1 includes NEL \u0085) plus \u2028/\u2029, which
+        // JS line readers also treat as line terminators.
+        // eslint-disable-next-line no-control-regex
+        const lineBreakingChars = /[\x00-\x1f\x7f-\x9f\u2028\u2029]/g;
         const safeUrl = String(data.urlScanned || 'no url provided')
-          // eslint-disable-next-line no-control-regex
-          .replace(/[\u0000-\u001f\u007f]/g, '')
+          .replace(lineBreakingChars, '')
           .replace(/::/g, '%3A%3A');
-        const msg = `crawling::${data.numScanned || 0}::${status}::${safeUrl}`;
+        const statusCode = Number.isInteger(data.statusCode) ? (data.statusCode ?? 0) : 0;
+        const safeMessage = String(data.message || STATUS_CODES[statusCode] || '')
+          .replace(lineBreakingChars, ' ')
+          // Every ':' — a lone one at either edge would merge with a separator.
+          .replace(/:/g, '%3A');
+        const msg = `crawling::${data.numScanned || 0}::${status}::${statusCode}::${safeMessage}::${safeUrl}`;
         console.log(msg);
         silentLogger.info(msg);
         break;
