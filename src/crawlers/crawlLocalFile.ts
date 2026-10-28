@@ -198,7 +198,7 @@ export const crawlLocalFile = async ({
         numScanned: urlsCrawled.scanned.length,
         urlScanned: url,
         statusCode: response?.status(),
-        errorMessage: 'Axe scan failed',
+        message: 'Axe scan failed',
       });
       urlsCrawled.error.push({
         url,
@@ -217,6 +217,7 @@ export const crawlLocalFile = async ({
       numScanned: urlsCrawled.scanned.length,
       urlScanned: url,
       statusCode: response?.status(),
+      message: response?.statusText(),
     });
 
     urlsCrawled.scanned.push({

@@ -166,7 +166,7 @@ describe('asgard-0014 GUI progress line', () => {
   });
 });
 
-describe('GUI progress HTTP status and errors', () => {
+describe('GUI progress HTTP status and messages', () => {
   const capture = (status, data) => {
     const previous = process.env.RUNNING_FROM_PH_GUI;
     const original = console.log;
@@ -184,19 +184,28 @@ describe('GUI progress HTTP status and errors', () => {
 
   test('a skipped 403 includes its error before the URL', () => {
     const url = 'https://fulcrum.sg/article/long-reads/greenwashing-a-market-distortion-needing-serious-attention-in-southeast-asia';
-    assert.deepEqual(capture('skipped', { numScanned: 0, statusCode: 403, errorMessage: 'Forbidden', urlScanned: url }),
+    assert.deepEqual(capture('skipped', { numScanned: 0, statusCode: 403, message: 'Forbidden', urlScanned: url }),
       ['crawling::0::skipped::403::Forbidden::' + url]);
   });
 
-  test('missing responses and errors retain fixed field positions', () => {
+  test('missing responses retain fixed positions and empty status text uses the HTTP reason', () => {
     assert.deepEqual(capture('error', { urlScanned: 'https://example.com' }),
       ['crawling::0::error::0::::https://example.com']);
     assert.deepEqual(capture('scanned', { numScanned: 2, statusCode: 200, urlScanned: 'https://example.com' }),
-      ['crawling::2::scanned::200::::https://example.com']);
+      ['crawling::2::scanned::200::OK::https://example.com']);
+  });
+
+  test('provided response text and scan errors override the HTTP reason', () => {
+    assert.deepEqual(capture('scanned', { numScanned: 5, statusCode: 200, message: 'OK', urlScanned: 'https://example.com' }),
+      ['crawling::5::scanned::200::OK::https://example.com']);
+    assert.deepEqual(capture('error', { statusCode: 200, message: 'Axe scan failed', urlScanned: 'https://example.com' }),
+      ['crawling::0::error::200::Axe scan failed::https://example.com']);
+    assert.deepEqual(capture('skipped', { statusCode: 403, message: '', urlScanned: 'https://example.com' }),
+      ['crawling::0::skipped::403::Forbidden::https://example.com']);
   });
 
   test('error messages and IPv6 URLs cannot add fields or lines', () => {
-    const [line] = capture('error', { statusCode: 0, errorMessage: 'net::ERR_FAILED\nnext\rline', urlScanned: 'http://[::1]/x::y' });
+    const [line] = capture('error', { statusCode: 0, message: 'net::ERR_FAILED\nnext\rline', urlScanned: 'http://[::1]/x::y' });
     const fields = line.split('::');
     assert.equal(fields.length, 6);
     assert.equal(fields[4], 'net%3A%3AERR_FAILED next line');

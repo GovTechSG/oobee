@@ -1947,7 +1947,7 @@ export const failedRequestHandler = async ({ request }: { request: Request }) =>
   guiInfoLog(guiInfoStatusTypes.ERROR, {
     numScanned: 0,
     urlScanned: request.url,
-    errorMessage: request.errorMessages?.join('; '),
+    message: request.errorMessages?.join('; '),
   });
   log.error(`Failed Request - ${request.url}: ${request.errorMessages}`);
 };

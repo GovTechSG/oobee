@@ -731,7 +731,7 @@ const crawlDomain = async ({
         session,
       }) => {
         const pageStatusCode = response?.status();
-        const pageErrorMessage = pageStatusCode && pageStatusCode >= 400 ? `HTTP ${pageStatusCode} ${response.statusText()}`.trim() : '';
+        const pageMessage = response?.statusText() || '';
         const browserContext: BrowserContext = page.context();
         try {
           // Blocked responses are recorded (or retried) below without being
@@ -770,7 +770,7 @@ const crawlDomain = async ({
               consoleLogger.warn(`Refusing content from internal address ${refusedAt} (${actualUrl})`);
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 statusCode: pageStatusCode,
-                errorMessage: pageErrorMessage,
+                message: pageMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -789,7 +789,7 @@ const crawlDomain = async ({
             const isSafeBrowsingBlock = !!process.env.GOOGLE_SAFE_BROWSING;
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -815,7 +815,7 @@ const crawlDomain = async ({
           ) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: actualUrl,
             });
@@ -854,7 +854,7 @@ const crawlDomain = async ({
             if (!isScanPdfs) {
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 statusCode: pageStatusCode,
-                errorMessage: pageErrorMessage,
+                message: pageMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -884,7 +884,7 @@ const crawlDomain = async ({
           if (isBlacklistedFileExtensions(actualUrl, blackListedFileExtensions)) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -913,7 +913,7 @@ const crawlDomain = async ({
 
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -972,7 +972,7 @@ const crawlDomain = async ({
               }
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 statusCode: pageStatusCode,
-                errorMessage: pageErrorMessage,
+                message: pageMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -1013,7 +1013,7 @@ const crawlDomain = async ({
             if (responseStatus && responseStatus >= 300) {
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 statusCode: pageStatusCode,
-                errorMessage: pageErrorMessage,
+                message: pageMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -1037,7 +1037,7 @@ const crawlDomain = async ({
             if (results.axeScanFailed) {
               guiInfoLog(guiInfoStatusTypes.ERROR, {
                 statusCode: pageStatusCode,
-                errorMessage: 'Axe scan failed',
+                message: 'Axe scan failed',
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -1099,7 +1099,7 @@ const crawlDomain = async ({
               if (rateController.claimSlot()) {
                 guiInfoLog(guiInfoStatusTypes.SCANNED, {
                   statusCode: pageStatusCode,
-                  errorMessage: pageErrorMessage,
+                  message: pageMessage,
                   numScanned: urlsCrawled.scanned.length,
                   urlScanned: request.url,
                 });
@@ -1130,7 +1130,7 @@ const crawlDomain = async ({
             } else if (rateController.claimSlot()) {
               guiInfoLog(guiInfoStatusTypes.SCANNED, {
                 statusCode: pageStatusCode,
-                errorMessage: pageErrorMessage,
+                message: pageMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -1169,7 +1169,7 @@ const crawlDomain = async ({
               // do nothing;
               guiInfoLog(guiInfoStatusTypes.ERROR, {
                 statusCode: pageStatusCode,
-                errorMessage: e instanceof Error ? e.message : String(e),
+                message: e instanceof Error ? e.message : String(e),
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -1231,10 +1231,10 @@ const crawlDomain = async ({
       },
       failedRequestHandler: async ({ request, response, error }) => {
         const pageStatusCode = response?.status();
-        const pageErrorMessage =
+        const pageMessage =
           (error instanceof Error ? error.message : typeof error === 'string' ? error : '') ||
           request.errorMessages?.join('; ') ||
-          (pageStatusCode && pageStatusCode >= 400 ? `HTTP ${pageStatusCode} ${response.statusText()}`.trim() : '');
+          response?.statusText() || '';
         if (isAbortingScanNow) {
           return;
         }
@@ -1259,7 +1259,7 @@ const crawlDomain = async ({
           } else {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -1325,7 +1325,7 @@ const crawlDomain = async ({
         if (isSafeBrowsingBlock) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             statusCode: pageStatusCode,
-            errorMessage: pageErrorMessage,
+            message: pageMessage,
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
@@ -1341,7 +1341,7 @@ const crawlDomain = async ({
 
         guiInfoLog(guiInfoStatusTypes.ERROR, {
           statusCode: pageStatusCode,
-          errorMessage: pageErrorMessage,
+          message: pageMessage,
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });

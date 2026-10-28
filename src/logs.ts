@@ -4,6 +4,7 @@ import { createLogger, format, transports } from 'winston';
 import { guiInfoStatusTypes } from './constants/constants.js';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { STATUS_CODES } from 'node:http';
 
 const { combine, timestamp, printf } = format;
 
@@ -76,7 +77,7 @@ export const guiInfoLog = (
     numScanned?: number;
     urlScanned?: string;
     statusCode?: number;
-    errorMessage?: string;
+    message?: string;
   },
 ) => {
   if (process.env.RUNNING_FROM_PH_GUI || process.env.OOBEE_VERBOSE) {
@@ -98,12 +99,12 @@ export const guiInfoLog = (
           // eslint-disable-next-line no-control-regex
           .replace(/[\u0000-\u001f\u007f]/g, '')
           .replace(/::/g, '%3A%3A');
-        const statusCode = Number.isInteger(data.statusCode) ? data.statusCode : 0;
-        const safeErrorMessage = String(data.errorMessage ?? '')
+        const statusCode = Number.isInteger(data.statusCode) ? (data.statusCode ?? 0) : 0;
+        const safeMessage = String(data.message || STATUS_CODES[statusCode] || '')
           // eslint-disable-next-line no-control-regex
           .replace(/[\u0000-\u001f\u007f]/g, ' ')
           .replace(/::/g, '%3A%3A');
-        const msg = `crawling::${data.numScanned || 0}::${status}::${statusCode}::${safeErrorMessage}::${safeUrl}`;
+        const msg = `crawling::${data.numScanned || 0}::${status}::${statusCode}::${safeMessage}::${safeUrl}`;
         console.log(msg);
         silentLogger.info(msg);
         break;

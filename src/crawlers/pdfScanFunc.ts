@@ -448,12 +448,13 @@ export const handlePdfDownload = (
   const pdfFilePath = `${getPdfStoragePath(randomToken)}/${pdfFileName}.pdf`;
 
   let pageStatusCode: number | undefined;
-  const recordNotScanned = (bucket: PageInfo[], metadata: string, httpStatusCode: number, errorMessage = metadata) => {
+  let pageStatusMessage = '';
+  const recordNotScanned = (bucket: PageInfo[], metadata: string, httpStatusCode: number, message = metadata) => {
     guiInfoLog(guiInfoStatusTypes.SKIPPED, {
       numScanned: urlsCrawled.scanned.length,
       urlScanned: request.url,
       statusCode: pageStatusCode,
-      errorMessage,
+      message,
     });
     bucket.push({
       url: request.url,
@@ -525,6 +526,7 @@ export const handlePdfDownload = (
         }
 
         pageStatusCode = response.statusCode;
+        pageStatusMessage = response.statusMessage || '';
 
         // Backstop: the address actually connected to (e.g. via a proxy-less
         // path that bypassed dnsLookup).
@@ -541,6 +543,7 @@ export const handlePdfDownload = (
             urlsCrawled.userExcluded,
             STATUS_CODE_METADATA[response.statusCode] || STATUS_CODE_METADATA[1],
             0,
+            pageStatusMessage,
           );
           return;
         }
@@ -583,6 +586,7 @@ export const handlePdfDownload = (
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
           statusCode: pageStatusCode,
+          message: pageStatusMessage,
         });
         urlsCrawled.scanned.push({
           url: request.url,
@@ -598,7 +602,7 @@ export const handlePdfDownload = (
         numScanned: urlsCrawled.scanned.length,
         urlScanned: request.url,
         statusCode: pageStatusCode,
-        errorMessage: 'Downloaded content is not a PDF',
+        message: 'Downloaded content is not a PDF',
       });
       urlsCrawled.invalid.push({
         url: request.url,

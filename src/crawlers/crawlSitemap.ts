@@ -285,7 +285,7 @@ const crawlSitemap = async ({
       numScanned: urlsCrawled.scanned.length,
       urlScanned: requestUrl,
       statusCode,
-      errorMessage: 'Navigation to an internal/metadata address refused',
+      message: 'Navigation to an internal/metadata address refused',
     });
     urlsCrawled.userExcluded.push({
       url: requestUrl,
@@ -469,7 +469,7 @@ const crawlSitemap = async ({
       requestHandlerTimeoutSecs: 90,
       requestHandler: async ({ page, request, response, enqueueLinks, session }) => {
         const pageStatusCode = response?.status();
-        const pageErrorMessage = pageStatusCode && pageStatusCode >= 400 ? `HTTP ${pageStatusCode} ${response.statusText()}`.trim() : '';
+        const pageMessage = response?.statusText() || '';
         // asgard-0004: refused before navigation (internal/metadata target).
         if (request.userData?.isRefusedEgress) {
           recordRefusedEgress(request.url, pageStatusCode);
@@ -510,7 +510,7 @@ const crawlSitemap = async ({
         if (request.userData?.isNotSupportedDocument) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             statusCode: pageStatusCode,
-            errorMessage: pageErrorMessage,
+            message: pageMessage,
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
@@ -548,7 +548,7 @@ const crawlSitemap = async ({
           if (actualUrl.startsWith('chrome-error:')) {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -592,7 +592,7 @@ const crawlSitemap = async ({
 
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -638,7 +638,7 @@ const crawlSitemap = async ({
             }
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -700,7 +700,7 @@ const crawlSitemap = async ({
 
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 statusCode: pageStatusCode,
-                errorMessage: pageErrorMessage,
+                message: pageMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -721,7 +721,7 @@ const crawlSitemap = async ({
               });
               guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                 statusCode: pageStatusCode,
-                errorMessage: pageErrorMessage,
+                message: pageMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -738,7 +738,7 @@ const crawlSitemap = async ({
             if (results.axeScanFailed) {
               guiInfoLog(guiInfoStatusTypes.ERROR, {
                 statusCode: pageStatusCode,
-                errorMessage: 'Axe scan failed',
+                message: 'Axe scan failed',
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -782,7 +782,7 @@ const crawlSitemap = async ({
                 });
                 guiInfoLog(guiInfoStatusTypes.SKIPPED, {
                   statusCode: pageStatusCode,
-                  errorMessage: pageErrorMessage,
+                  message: pageMessage,
                   numScanned: urlsCrawled.scanned.length,
                   urlScanned: request.url,
                 });
@@ -795,7 +795,7 @@ const crawlSitemap = async ({
             if (rateController.claimSlot()) {
               guiInfoLog(guiInfoStatusTypes.SCANNED, {
                 statusCode: pageStatusCode,
-                errorMessage: pageErrorMessage,
+                message: pageMessage,
                 numScanned: urlsCrawled.scanned.length,
                 urlScanned: request.url,
               });
@@ -860,7 +860,7 @@ const crawlSitemap = async ({
           } else {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -915,10 +915,10 @@ const crawlSitemap = async ({
       },
       failedRequestHandler: async ({ request, response, error }) => {
         const pageStatusCode = response?.status();
-        const pageErrorMessage =
+        const pageMessage =
           (error instanceof Error ? error.message : typeof error === 'string' ? error : '') ||
           request.errorMessages?.join('; ') ||
-          (pageStatusCode && pageStatusCode >= 400 ? `HTTP ${pageStatusCode} ${response.statusText()}`.trim() : '');
+          response?.statusText() || '';
         if (isAbortingScan) {
           return;
         }
@@ -942,7 +942,7 @@ const crawlSitemap = async ({
           } else {
             guiInfoLog(guiInfoStatusTypes.SKIPPED, {
               statusCode: pageStatusCode,
-              errorMessage: pageErrorMessage,
+              message: pageMessage,
               numScanned: urlsCrawled.scanned.length,
               urlScanned: request.url,
             });
@@ -1008,7 +1008,7 @@ const crawlSitemap = async ({
         if (isSafeBrowsingBlock) {
           guiInfoLog(guiInfoStatusTypes.SKIPPED, {
             statusCode: pageStatusCode,
-            errorMessage: pageErrorMessage,
+            message: pageMessage,
             numScanned: urlsCrawled.scanned.length,
             urlScanned: request.url,
           });
@@ -1024,7 +1024,7 @@ const crawlSitemap = async ({
 
         guiInfoLog(guiInfoStatusTypes.ERROR, {
           statusCode: pageStatusCode,
-          errorMessage: pageErrorMessage,
+          message: pageMessage,
           numScanned: urlsCrawled.scanned.length,
           urlScanned: request.url,
         });
