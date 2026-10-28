@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
     zip \
+    libnss3-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade the image's own nodejs package to the October 2026 security release
@@ -61,13 +62,14 @@ RUN ARCH="$(dpkg --print-architecture)"; \
         > /etc/apt/sources.list.d/google-chrome.list && \
       apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && \
       rm -f /tmp/google.pub && rm -rf /var/lib/apt/lists/*; \
-      # Enable online OCSP/CRL checks (EnableOnlineRevocationChecks). This is the Linux
-      # equivalent of HKLM\SOFTWARE\Policies\Google\Chrome "EnableOnlineRevocationChecks"=dword:1.
-      mkdir -p /etc/opt/chrome/policies/managed && \
-      echo '{"EnableOnlineRevocationChecks": true}' > /etc/opt/chrome/policies/managed/oobee-revocation.json; \
     else \
       echo "NOTICE: Skipping Chrome install (Safe Browsing unavailable on $ARCH)"; \
     fi
+
+# Refresh the system CA trust store so Node.js (which reads the system bundle)
+# also distrusts the compromised emSign roots. Ubuntu Noble's updated
+# ca-certificates package (20260816+) removes them.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # --- App code (changes here don't invalidate Chrome layers above) ---
 
@@ -98,6 +100,30 @@ RUN npm install --omit=dev
 # Copy source and compile TypeScript
 COPY --chown=purple:purple . .
 RUN npm run build || true # true exits with code 0 - workaround for TS errors
+
+# Distrust the 8 compromised eMudhra intermediate CA certificates in Chrome's
+# NSS database. Trust flag "p,p,p" = explicitly prohibited for SSL, email and
+# code signing. This is an offline, build-time block — no runtime OCSP/CRL
+# checks needed. EnableOnlineRevocationChecks is NOT used because it hangs in
+# environments with TLS-intercepting proxies (corporate gateways, Cloudflare
+# WARP/Gateway, Zscaler) where OCSP responders are unreachable.
+# Certs sourced from https://emudhra.we-have-a-problem.com/proof.zip
+# Already present at /app/oobee/certs/emudhra/ via the COPY . . above.
+RUN set -eux; \
+    NSSDB="$HOME/.local/share/pki/nssdb"; \
+    mkdir -p "$NSSDB" "$HOME/.pki"; \
+    certutil -d sql:"$NSSDB" -N --empty-password; \
+    for pem in certs/emudhra/*.crt.pem; do \
+      NICK="$(basename "$pem" .crt.pem)"; \
+      certutil -d sql:"$NSSDB" -A -t "p,p,p" -n "$NICK" -i "$pem"; \
+      echo "Distrusted: $NICK"; \
+    done; \
+    rm -rf "$HOME/.pki/nssdb"; \
+    ln -s "$NSSDB" "$HOME/.pki/nssdb"; \
+    chmod 700 "$HOME/.pki" "$HOME/.local/share/pki" "$NSSDB"; \
+    chmod 600 "$NSSDB"/*; \
+    echo "--- NSS DB contents ---"; \
+    certutil -d sql:"$HOME/.pki/nssdb" -L
 
 # Pre-warm Safe Browsing DB at build time so concurrent scans don't each
 # trigger a 10 minutes warmup (or fight over a lock). The DB is baked into the image.
