@@ -23,7 +23,7 @@ Telemetry is sent **once at the end of each completed scan**. Nothing is sent wh
 | Data | Where it comes from |
 | ---- | ------------------- |
 | Name and email address | The `-k "Name:email"` value you provide when running a scan. |
-| Anonymous user ID | A random ID (UUID) generated on your machine the first time you run Oobee and stored in `userData.txt` (see [Where data is stored on your machine](#where-data-is-stored-on-your-machine)). It lets us count returning users without relying on your email. |
+| Anonymous user ID | A random ID (UUID) read from `userData.txt`, if that file exists on your machine (see [Where data is stored on your machine](#where-data-is-stored-on-your-machine)). It lets us count returning users without relying on your email. If there is no `userData.txt`, scans are sent without a user ID. |
 
 ### About the scan
 
@@ -101,7 +101,12 @@ If you embed the Oobee client scanner script (`oobee-client-scanner.js`) in a we
 
 ## Where data is stored on your machine
 
-Oobee keeps your name, email and anonymous user ID in a file called `userData.txt`:
+Your name, email and anonymous user ID can be stored in a file called `userData.txt`. This file is created by:
+
+- [Oobee Desktop](https://github.com/GovTechSG/oobee-desktop), when you complete its onboarding screen, or
+- interactive mode (`npm start`), which saves the name and email you enter.
+
+The command-line mode (`npm run cli`) does not create this file. It only reads the anonymous user ID from it if it already exists, which is how scans on a machine with Oobee Desktop installed are linked to the same user ID.
 
 | Platform | Location |
 | -------- | -------- |
@@ -109,7 +114,7 @@ Oobee keeps your name, email and anonymous user ID in a file called `userData.tx
 | macOS | `~/Library/Application Support/Oobee/userData.txt` |
 | Linux | `~/.config/oobee/userData.txt` |
 
-Deleting this file resets your anonymous user ID. A new one is generated the next time you scan.
+Deleting this file removes the stored anonymous user ID. A new one is generated only when Oobee Desktop or interactive mode creates the file again.
 
 ## Privacy
 
