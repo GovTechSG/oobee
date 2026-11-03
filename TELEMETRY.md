@@ -16,25 +16,36 @@ We do not use telemetry for advertising, and we do not sell it.
 
 ## What is collected
 
-Telemetry is sent **once at the end of each completed scan**. Nothing is sent while the scan is running, and nothing is sent if the scan is cancelled or no pages could be scanned.
+Telemetry is sent **once per completed scan**. Nothing is sent while the scan is running, and nothing is sent if the scan is cancelled or no pages could be scanned. What counts as "a scan" depends on how you run Oobee:
+
+| How you run Oobee | When telemetry is sent | Opt out with `OOBEE_DISABLE_TELEMETRY` |
+| ----------------- | ---------------------- | -------------------------------------- |
+| Command line (`npm run cli`) or interactive mode (`npm start`) | When the scan finishes and the report is generated. | Yes |
+| [Oobee Desktop](https://github.com/GovTechSG/oobee-desktop) | When the scan finishes. Desktop also sends its own app events; see its [TELEMETRY.md](https://github.com/GovTechSG/oobee-desktop/blob/main/TELEMETRY.md). | Scan summary only |
+| Node.js library (`@govtechsg/oobee`), using `init()` (for example, in Cypress or Playwright tests) | When you call `terminate()` and at least one page was scanned. | Yes |
+| Node.js library, using `scanPage()` or `scanHTML()` | On **every call**, after the results are returned. | Yes |
+| Node.js library, using `scanCustomFlow()` | When the custom flow finishes and the report is generated. | Yes |
+| Browser client scanner (`oobee-client-scanner.js`) | On **every call** to `window.oobee.scan()`, from the browser of whoever loads the page. | No; see [Browser client scanner](#browser-client-scanner) |
+
+If you call `scanPage()` or `scanHTML()` in a loop or a CI job, each call is counted as a separate scan.
 
 ### About you
 
 | Data | Where it comes from |
 | ---- | ------------------- |
-| Name and email address | The `-k "Name:email"` value you provide when running a scan. |
+| Name and email address | The `-k "Name:email"` value on the command line, the details entered in Oobee Desktop or interactive mode, or the `name` and `email` you pass to the library functions (`init()`, `scanPage()`, `scanHTML()`, `scanCustomFlow()`). |
 | Anonymous user ID | A random ID (UUID) read from `userData.txt`, if that file exists on your machine (see [Where data is stored on your machine](#where-data-is-stored-on-your-machine)). It lets us count returning users without relying on your email. If there is no `userData.txt`, scans are sent without a user ID. |
 
 ### About the scan
 
 | Data | Notes |
 | ---- | ----- |
-| Website scanned | The URL you started the scan from and, if it redirected, the URL it ended up at. Usage analytics (Sentry) receives **only the host name** (for example, `www.example.gov.sg`), with no path, query string or credentials. Local file scans are reported as `file://redacted`. |
-| Scan type | For example: website, sitemap, custom flow, intelligent or local file. |
+| Website scanned | The URL you started the scan from and, if it redirected, the URL it ended up at. Usage analytics (Sentry) receives **only the host name** (for example, `www.example.gov.sg`), with no path, query string or credentials. Local file scans are reported as `file://redacted`. For `scanPage()`, this is the URL of the first page passed in. For `scanHTML()`, it is the `pageUrl` you pass in (default `raw-html`, which is reported as `unknown`). |
+| Scan type | For example: website, sitemap, custom flow, intelligent or local file. Library calls to `scanPage()`, `scanHTML()` and `scanCustomFlow()` are reported as custom flow. |
 | Browser | The browser the scan used (Chrome, Edge or Chromium). |
 | Oobee version | The version number of Oobee. |
 | Page counts | The number of pages scanned, pages skipped and redirects followed. |
-| Optional tags | Values you choose to add: `--metadata` / `-q`, `--websiteTag` / `-z`, `OOBEE_TAGGED_WEBSITE`, `OOBEE_SCAN_METADATA` and `OOBEE_SCAN_PRODUCT` (see [Tagging your scans](#tagging-your-scans)). |
+| Optional tags | Values you choose to add: `--metadata` / `-q`, `--websiteTag` / `-z`, `OOBEE_TAGGED_WEBSITE`, `OOBEE_SCAN_METADATA`, `OOBEE_SCAN_PRODUCT`, and the `scanSource` option of the library functions (see [Tagging your scans](#tagging-your-scans)). |
 
 ### About the accessibility issues found
 
@@ -74,10 +85,16 @@ $env:OOBEE_DISABLE_TELEMETRY = "1"
 npm run cli -- -- -c website -u https://example.com
 ```
 
+For the Node.js library, set the variable in the environment of the process that imports `@govtechsg/oobee` (for example, your test runner or CI job):
+
+```shell
+OOBEE_DISABLE_TELEMETRY=1 npx playwright test
+```
+
 When this is set:
 
 - Nothing is sent to Sentry or Google Forms. Your name, email, scanned URL and user ID never leave your machine.
-- The `-k "Name:email"` flag becomes optional, so you can run scans non-interactively (for example, in CI) without providing personal details.
+- On the command line, the `-k "Name:email"` flag becomes optional, so you can run scans non-interactively (for example, in CI) without providing personal details.
 - Scans and reports are unaffected.
 
 To opt out permanently, add the variable to your shell profile, CI pipeline settings or container environment.
@@ -92,12 +109,31 @@ If you run Oobee for a team or across many sites, you can attach your own labels
 | `-q, --metadata` | A JSON string of extra information to attach to the scan record. |
 | `OOBEE_SCAN_METADATA` | Overrides the website host reported to usage analytics. |
 | `OOBEE_SCAN_PRODUCT` | Labels which product or integration ran the scan. |
+| `scanSource` (library option for `scanPage()`, `scanHTML()` and `scanCustomFlow()`) | Labels which product or integration ran the scan. Takes precedence over `OOBEE_SCAN_PRODUCT`. |
 
 Don't put secrets or personal information in these values; they are sent as-is.
 
 ## Browser client scanner
 
-If you embed the Oobee client scanner script (`oobee-client-scanner.js`) in a web page, each call to `window.oobee.scan()` sends a similar summary to a separate Sentry project. That summary contains the page's origin and path (no query string or fragment), the WCAG and issue counts, the Oobee version, and any name and email you pass in. The script loads the Sentry SDK from `browser.sentry-cdn.com` and only sends this one event. It doesn't capture errors, console output, network requests or performance data from your page.
+The client scanner (`oobee-client-scanner.js`) is a script you add to a web page so the page can scan itself in the browser. It works differently from the rest of Oobee:
+
+- **It runs in the browser of whoever loads the page.** If you add it to a site, each visitor whose browser calls `window.oobee.scan()` sends telemetry, not just you.
+- **It is sent on every `window.oobee.scan()` call**, to a separate Sentry project. Nothing is sent to Google Forms.
+- **`OOBEE_DISABLE_TELEMETRY` has no effect.** The variable is read by Node.js, and the script runs in the browser. There is currently no option in the script to turn telemetry off.
+- **It has no anonymous user ID.** The script can't read `userData.txt`.
+
+Each event contains:
+
+| Data | Notes |
+| ---- | ----- |
+| Name and email address | Only if you pass them as `userInfo: { name, email }` to `window.oobee.scan()`. If you leave `userInfo` out, no name or email is sent. |
+| Page scanned | The page's origin and path (for example, `https://www.example.gov.sg/services/apply`). The query string and `#` fragment are removed. Unlike the other modes, the **path is included**. |
+| Oobee version | The version of Oobee the script was built from. |
+| Issue counts | The number of distinct issues and total occurrences in each of *Must Fix*, *Good to Fix* and *Manual Review Required*, and the number of occurrences of each WCAG success criterion. |
+
+HTML snippets are not sent. The script loads the Sentry SDK from `browser.sentry-cdn.com` (checked against a pinned integrity hash) and turns off all of the SDK's automatic features, so it only sends this one event. It doesn't capture errors, console output, network requests, page performance or session data from your page.
+
+If you embed the client scanner on a site with visitors, tell them about this in your own privacy notice. If your content security policy blocks `browser.sentry-cdn.com` or `*.ingest.us.sentry.io`, the scan still works and no telemetry is sent.
 
 ## Where data is stored on your machine
 
