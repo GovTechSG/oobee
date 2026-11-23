@@ -1128,10 +1128,12 @@ const generateArtifacts = async (
     ]);
   }
 
+  // Only the channel is needed here; the PDF browser uses constants.userDataDirectory.
   const browserChannel = getBrowserToRun(
     randomToken,
     (preferredBrowser as BrowserTypes) || BrowserTypes.CHROME,
     false,
+    { cloneProfile: false },
   ).browserToRun;
 
   // Should consider refactor constants.userDataDirectory to be a parameter in future

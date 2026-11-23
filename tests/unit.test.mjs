@@ -384,3 +384,30 @@ describe('scanCustomFlow entry URL', () => {
     await assert.rejects(session.result, /link-local or cloud-metadata/);
   });
 });
+
+const constantsModule = await import(dist('constants/constants.js'));
+
+describe('getBrowserToRun({ cloneProfile: false })', () => {
+  const constants = constantsModule.default;
+  const dataDirs = [
+    constantsModule.getDefaultChromeDataDir(),
+    constantsModule.getDefaultEdgeDataDir(),
+    constantsModule.getDefaultChromiumDataDir(),
+  ].filter(Boolean);
+
+  for (const preferred of [constantsModule.BrowserTypes.CHROME, constantsModule.BrowserTypes.EDGE]) {
+    test(`resolves ${preferred} without copying any browser profile`, () => {
+      const token = `noclone-test-${preferred}-${process.pid}`;
+      const savedLauncher = constants.launcher;
+      try {
+        const result = common.getBrowserToRun(token, preferred, false, { cloneProfile: false });
+        assert.equal(result.clonedBrowserDataDir, '');
+        for (const dir of dataDirs) {
+          assert.equal(fs.existsSync(path.join(dir, `oobee-${token}`)), false, dir);
+        }
+      } finally {
+        constants.launcher = savedLauncher;
+      }
+    });
+  }
+});
