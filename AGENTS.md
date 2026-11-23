@@ -143,7 +143,7 @@ The `constants` default export object holds runtime state:
 | `OOBEE_DISABLE_BROWSER_DOWNLOAD` | Block browser file downloads |
 | `OOBEE_TAGGED_WEBSITE` | Tag to identify the website in Sentry telemetry (overridden by `--websiteTag` CLI flag) |
 | `OOBEE_SCAN_METADATA` | Overrides `entryUrl` tag in Sentry events |
-| `OOBEE_SCAN_PRODUCT` | Adds `scanProduct` tag to Sentry events |
+| `OOBEE_SCAN_PRODUCT` | Adds the `scanProduct` tag to Sentry events. A per-scan npm `scanSource` takes precedence over this environment variable. Callers supply the product label, including `Inspect Preset` for preset scans; `OOBEE_INSPECT_PRESET_SCAN` controls report behavior independently. Product labels: `Dev Suite`, `Tenant API`, `Inspect Preset`, `WebAssist Prelogin`, `WebAssist Postlogin`. |
 | `OOBEE_INSPECT_PRESET_SCAN` | `1`/`true`/`yes`/`on` = render the WOGAA Inspect preset rescan report design, including the combined Oobee/Inspect logo, rescan subtitle, viewport summary, and inspect-data text in the WCAG score card. |
 | `OOBEE_REPORT_PAGE_TITLE` / `OOBEE_REPORT_PAGE_URL` | Optional display overrides for report-level `siteName` and `urlScanned` metadata in generated report artifacts. Per-page crawled URLs/titles remain unchanged. |
 | `OOBEE_CONSECUTIVE_MAX_RETRIES` | Max consecutive HTTP failures before circuit breaker aborts crawl. `0` disables this check (default `0`) |

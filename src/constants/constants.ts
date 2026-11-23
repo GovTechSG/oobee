@@ -324,9 +324,6 @@ export enum FileTypes {
   HtmlOnly = 'html-only',
 }
 
-// Sentry scanProduct tag value when OOBEE_INSPECT_PRESET_SCAN is enabled
-export const INSPECT_PRESET_SCAN_PRODUCT = 'Inspect Preset';
-
 export function getEnumKey<E extends Record<string, string>>(
   enumObj: E,
   value: string,
