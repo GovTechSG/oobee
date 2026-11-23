@@ -9,7 +9,7 @@ We use telemetry to understand:
 - **Adoption.** How many people and teams are using Oobee, and whether usage is growing across releases.
 - **Who our users are.** Which organisations, sectors and industries use Oobee (for example, government agencies or private-sector companies), so we can prioritise the support, guides and features that matter most to them.
 - **The types and scope of accessibility issues.** Which WCAG success criteria fail most often and how many issues a typical site has. This tells us which checks, explanations and fix guidance are most valuable, and helps us track the overall state of web accessibility over time.
-- **How often and how widely scans are run.** How frequently people scan, which scan types they use (website crawl, sitemap, custom flow, local file, and so on), how many pages a typical scan covers, and which browsers they run on.
+- **How often and how widely scans are run.** How frequently people scan, which scan types they use (website crawl, sitemap, custom flow, local file, and so on), how many pages a typical scan covers, and which devices they emulate.
 - **Product health.** Which Oobee versions are in use, so we know when it is safe to retire older releases and whether a release has introduced problems.
 
 We do not use telemetry for advertising, and we do not sell it.
@@ -40,12 +40,12 @@ If you call `scanPage()` or `scanHTML()` in a loop or a CI job, each call is cou
 
 | Data | Notes |
 | ---- | ----- |
-| Website scanned | The URL you started the scan from and, if it redirected, the URL it ended up at. Usage analytics (Sentry) receives **only the host name** (for example, `www.example.gov.sg`), with no path, query string or credentials. Local file scans are reported as `file://redacted`. For `scanPage()`, this is the URL of the first page passed in. For `scanHTML()`, it is the `pageUrl` you pass in (default `raw-html`, which is reported as `unknown`). |
+| Website scanned | The **host name** of the URL you started the scan from (for example, `www.example.gov.sg`), with no path, query string or credentials. Local file scans are reported as `file://redacted`. For `scanPage()`, this is the URL of the first page passed in. For `scanHTML()`, it is the `pageUrl` you pass in (default `raw-html`, which is reported as `unknown`). |
 | Scan type | For example: website, sitemap, custom flow, intelligent or local file. Library calls to `scanPage()`, `scanHTML()` and `scanCustomFlow()` are reported as custom flow. |
-| Browser | The browser the scan used (Chrome, Edge or Chromium). |
+| Device | The device the scan emulated (for example, `Desktop` or a mobile device name). For `scanPage()` and `scanHTML()`, this is reported as `chromium`. |
 | Oobee version | The version number of Oobee. |
-| Page counts | The number of pages scanned, pages skipped and redirects followed. |
-| Optional tags | Values you choose to add: `--metadata` / `-q`, `--websiteTag` / `-z`, `OOBEE_TAGGED_WEBSITE`, `OOBEE_SCAN_METADATA`, `OOBEE_SCAN_PRODUCT`, and the `scanSource` option of the library functions (see [Tagging your scans](#tagging-your-scans)). |
+| Page count | The number of pages scanned. |
+| Optional tags | Values you choose to add: `--websiteTag` / `-z`, `OOBEE_TAGGED_WEBSITE`, `OOBEE_SCAN_METADATA`, `OOBEE_SCAN_PRODUCT`, and the `scanSource` option of the library functions (see [Tagging your scans](#tagging-your-scans)). |
 
 ### About the accessibility issues found
 
@@ -59,18 +59,17 @@ If you call `scanPage()` or `scanHTML()` in a loop or a CI job, each call is cou
 ### What is *not* collected
 
 - Page content, page text, screenshots or the generated report.
-- Full page URLs, URL paths or query strings (usage analytics only sees the host name; see above).
+- Full page URLs, URL paths or query strings (only the host name is sent; see above).
 - Cookies, passwords, authentication headers or anything you pass with `-m` / `--header`.
 - Files on your computer.
 
 ## Where telemetry is sent
 
-| Destination | Purpose |
-| ----------- | ------- |
-| [Sentry](https://sentry.io) (`*.ingest.us.sentry.io`) | Usage analytics: scan counts, WCAG breakdowns, versions and user ID. |
-| Google Forms (`docs.google.com`) | Scan summary records: name, email, scanned URL, scan type, page counts and the issue summary described above. |
+All of the data above is sent to [Sentry](https://sentry.io) (`*.ingest.us.sentry.io`), which we use for usage analytics.
 
-If these services can't be reached (for example, behind a firewall), the scan still completes and your report is unaffected.
+Earlier versions of Oobee also sent scan summaries (including name, email and the full scanned URL) to Google Forms, and the HTML report sent "Useful" / "Not useful" ratings of AI suggestions to Google Forms. Oobee no longer sends any data to Google Forms.
+
+If Sentry can't be reached (for example, behind a firewall), the scan still completes and your report is unaffected.
 
 ## How to turn telemetry off
 
@@ -93,7 +92,7 @@ OOBEE_DISABLE_TELEMETRY=1 npx playwright test
 
 When this is set:
 
-- Nothing is sent to Sentry or Google Forms. Your name, email, scanned URL and user ID never leave your machine.
+- Nothing is sent to Sentry. Your name, email, scanned URL and user ID never leave your machine.
 - On the command line, the `-k "Name:email"` flag becomes optional, so you can run scans non-interactively (for example, in CI) without providing personal details.
 - Scans and reports are unaffected.
 
@@ -106,7 +105,6 @@ If you run Oobee for a team or across many sites, you can attach your own labels
 | Option | What it does |
 | ------ | ------------ |
 | `-z, --websiteTag` / `OOBEE_TAGGED_WEBSITE` | Labels the website being scanned. The CLI flag takes precedence. |
-| `-q, --metadata` | A JSON string of extra information to attach to the scan record. |
 | `OOBEE_SCAN_METADATA` | Overrides the website host reported to usage analytics. |
 | `OOBEE_SCAN_PRODUCT` | Labels which product or integration ran the scan. |
 | `scanSource` (library option for `scanPage()`, `scanHTML()` and `scanCustomFlow()`) | Labels which product or integration ran the scan. Takes precedence over `OOBEE_SCAN_PRODUCT`. |
@@ -118,7 +116,7 @@ Don't put secrets or personal information in these values; they are sent as-is.
 The client scanner (`oobee-client-scanner.js`) is a script you add to a web page so the page can scan itself in the browser. It works differently from the rest of Oobee:
 
 - **It runs in the browser of whoever loads the page.** If you add it to a site, each visitor whose browser calls `window.oobee.scan()` sends telemetry, not just you.
-- **It is sent on every `window.oobee.scan()` call**, to a separate Sentry project. Nothing is sent to Google Forms.
+- **It is sent on every `window.oobee.scan()` call**, to a separate Sentry project.
 - **`OOBEE_DISABLE_TELEMETRY` has no effect.** The variable is read by Node.js, and the script runs in the browser. There is currently no option in the script to turn telemetry off.
 - **It has no anonymous user ID.** The script can't read `userData.txt`.
 

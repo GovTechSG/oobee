@@ -3,7 +3,6 @@
 /* eslint-disable camelcase */
 /* eslint-disable no-use-before-define */
 import validator from 'validator';
-import axios from 'axios';
 import { JSDOM } from 'jsdom';
 import * as cheerio from 'cheerio';
 import crawlee, { EnqueueStrategy, Request } from 'crawlee';
@@ -23,9 +22,6 @@ import constants, {
   getDefaultChromeDataDir,
   getDefaultEdgeDataDir,
   getDefaultChromiumDataDir,
-  // Legacy code start - Google Sheets submission
-  formDataFields,
-  // Legacy code end - Google Sheets submission
   ScannerTypes,
   BrowserTypes,
   FileTypes,
@@ -37,7 +33,6 @@ import { isUrlPdf, splitAuthHeaders, addAuthRouteHandler, makeHeaderScopeMatcher
 import {
   cleanUpAndExit,
   isFollowStrategy,
-  isTelemetryDisabled,
   randomThreeDigitNumberString,
   register,
 } from '../utils.js';
@@ -2754,71 +2749,6 @@ export const getScreenToScan = (
   }
   return 'Desktop';
 };
-
-export const submitForm = async (
-  _browserToRun: string,
-  _userDataDirectory: string,
-  scannedUrl: string,
-  entryUrl: string,
-  scanType: string,
-  email: string,
-  name: string,
-  scanResultsJson: string,
-  numberOfPagesScanned: number,
-  numberOfRedirectsScanned: number,
-  numberOfPagesNotScanned: number,
-  metadata: string,
-) => {
-  // Legacy code start - Google Sheets submission
-  // Best-effort telemetry: this must never fail the caller's scan. The entire
-  // body is guarded because building the payload can throw independently of the
-  // network call (e.g. encodeURIComponent raises URIError on lone surrogates,
-  // which can appear in scanned page content).
-  // Opt-out: OOBEE_DISABLE_TELEMETRY=1 skips this submission entirely so
-  // PII (email, name, entry URL) is never sent off-device. Shared with the
-  // Sentry telemetry path via isTelemetryDisabled() so a single env var
-  // covers both paths (asgard-0008).
-  if (isTelemetryDisabled()) {
-    consoleLogger.info('Skipping telemetry submission: OOBEE_DISABLE_TELEMETRY is set');
-    return;
-  }
-  try {
-    const additionalPageDataJson = JSON.stringify({
-      redirectsScanned: numberOfRedirectsScanned,
-      pagesNotScanned: numberOfPagesNotScanned,
-    });
-
-    // URLSearchParams percent-encodes every value, so a scanned URL / user
-    // name / email containing "&", "#", "%", or CR/LF cannot append extra
-    // query fields, break the request line, or smuggle newlines into the
-    // upstream form endpoint.
-    const params = new URLSearchParams();
-    params.set(formDataFields.entryUrlField, String(entryUrl ?? ''));
-    params.set(formDataFields.scanTypeField, String(scanType ?? ''));
-    params.set(formDataFields.emailField, String(email ?? ''));
-    params.set(formDataFields.nameField, String(name ?? ''));
-    params.set(formDataFields.resultsField, scanResultsJson);
-    params.set(formDataFields.numberOfPagesScannedField, String(numberOfPagesScanned ?? 0));
-    params.set(formDataFields.additionalPageDataField, additionalPageDataJson);
-    params.set(formDataFields.metadataField, String(metadata ?? ''));
-    if (scannedUrl !== entryUrl) {
-      params.set(formDataFields.redirectUrlField, String(scannedUrl ?? ''));
-    }
-
-    // Submit as a POST body rather than a GET query string so that PII
-    // (name, email) and scan-result content are not recorded in the
-    // receiving server's access logs, intermediary/proxy logs, or
-    // referrer/history mechanisms (asgard-0013).
-    await axios.post(formDataFields.formUrl, params, { timeout: 2000 });
-  } catch (error) {
-    // Never rethrow. Previously a timeout here would launch a second browser to
-    // retry the request, which could throw "Executable doesn't exist" on
-    // machines without the Playwright-managed browser and abort an
-    // already-successful scan.
-    consoleLogger.info(`Unable to submit form: ${error}`);
-  }
-};
-// Legacy code end - Google Sheets submission
 
 export async function initModifiedUserAgent(
   browser?: string,

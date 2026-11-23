@@ -53,9 +53,11 @@ export type ScanCustomFlowConfig = {
   blacklistedPatterns?: string[] | null;
   extraHTTPHeaders?: Record<string, string>;
   zip?: string;
+  /** @deprecated Ignored. Scan results are no longer submitted to Google Forms. */
   metadata?: string;
   randomToken?: string;
   cleanupArtifacts?: boolean;
+  /** @deprecated Ignored. Scan results are no longer submitted to Google Forms. */
   waitForResultSubmission?: boolean;
   maxPagesToScan?: number;
   scanSource?: string;

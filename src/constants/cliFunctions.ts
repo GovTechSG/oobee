@@ -231,7 +231,7 @@ export const cliOptions: { [key: string]: Options } = {
   q: {
     alias: 'metadata',
     describe:
-      'Json string that contains additional scan metadata for telemetry purposes. Defaults to "{}"',
+      'Deprecated and ignored. Previously a JSON string of additional scan metadata for telemetry. Defaults to "{}"',
     type: 'string',
     default: '{}',
     demandOption: false,

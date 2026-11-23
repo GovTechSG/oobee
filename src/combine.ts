@@ -7,7 +7,7 @@ import crawlIntelligentSitemap from './crawlers/crawlIntelligentSitemap.js';
 import generateArtifacts from './mergeAxeResults.js';
 import { getHost, createAndUpdateResultsFolders, cleanUpAndExit, getStoragePath, getEntryPageTitle } from './utils.js';
 import constants, { ScannerTypes, UrlsCrawled } from './constants/constants.js';
-import { getBlackListedPatterns, submitForm } from './constants/common.js';
+import { getBlackListedPatterns } from './constants/common.js';
 import { consoleLogger, silentLogger } from './logs.js';
 import runCustom from './crawlers/runCustom.js';
 import { alertMessageOptions } from './constants/cliFunctions.js';
@@ -63,7 +63,6 @@ const combineRun = async (details: Data, deviceToScan: string) => {
     blacklistedPatternsFilename,
     includeScreenshots, // Include screenshots: if checked, = 'true'
     followRobots, // Adhere to robots.txt: if checked, = 'true'
-    metadata,
     customFlowLabel = 'None',
     extraHTTPHeaders,
     safeMode,
@@ -135,9 +134,6 @@ const combineRun = async (details: Data, deviceToScan: string) => {
   const finalUrl = !(type === ScannerTypes.SITEMAP || type === ScannerTypes.LOCALFILE)
     ? new URL(entryUrl)
     : new URL(pathToFileURL(entryUrl));
-
-  // Use the string version of finalUrl to reduce logic at submitForm
-  const finalUrlString = finalUrl.toString();
 
   const scanDetails = {
     startTime: new Date(),
@@ -336,7 +332,7 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         ...urlsCrawledObj.forbidden,
         ...urlsCrawledObj.userExcluded,
       ];
-      const basicFormHTMLSnippet = await generateArtifacts(
+      await generateArtifacts(
         randomToken,
         url,
         type,
@@ -352,8 +348,6 @@ const combineRun = async (details: Data, deviceToScan: string) => {
         generateJsonFiles,
         browser,
       );
-      const [name, email] = (nameEmail ?? '').split(':');
-
       // Upload results to S3 if environment variables are set
       if (isS3UploadEnabled()) {
         const siteName = getEntryPageTitle(urlsCrawledObj.scanned, url)
@@ -383,21 +377,6 @@ const combineRun = async (details: Data, deviceToScan: string) => {
       } else {
         consoleLogger.info('S3 upload not enabled (missing environment variables)');
       }
-
-      await submitForm(
-        browser,
-        userDataDirectory,
-        url, // scannedUrl
-        new URL(finalUrlString).href, // entryUrl
-        type,
-        email,
-        name,
-        JSON.stringify(basicFormHTMLSnippet),
-        urlsCrawledObj.scanned.length,
-        urlsCrawledObj.scannedRedirects.length,
-        pagesNotScanned.length,
-        metadata,
-      );
     } else {
       // No page were scanned because the URL loaded does not meet the crawler requirements
       printMessage([`No pages were scanned.`], alertMessageOptions);

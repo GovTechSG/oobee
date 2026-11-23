@@ -41,7 +41,7 @@ jobs:
         # argument. Environment variables are safe because the shell reads
         # them after parsing. Mirrors the pattern used in docker-push-ghcr.yml.
         # A short scan that ends on its own (page cap + duration cap), with all
-        # telemetry (Google Form and Sentry) disabled. Tag pushes have no
+        # telemetry (Sentry) disabled. Tag pushes have no
         # inputs, so they fall back to the same short defaults.
         env:
           OOBEE_SCAN_URL: ${{ vars.OOBEE_SCAN_URL }}

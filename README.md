@@ -115,7 +115,7 @@ verapdf --version
 | FAMILY_DNS | Optional. Set to `1`, `true`, or `yes` to resolve DNS queries through a family-filtering DNS over HTTPS (DoH) resolver for safer browsing. A blank value counts as unset. Three providers are tried in order, each failing over to the next only when the one before it is unreachable: [Cloudflare Families](https://blog.cloudflare.com/introducing-1-1-1-1-for-families/) (`family.cloudflare-dns.com`), then [ControlD Family](https://controld.com/free-dns) (`freedns.controld.com/family`), then [AdGuard Family](https://adguard-dns.io/en/public-dns.html) (`family.adguard-dns.com`). A hostname the answering resolver reports as blocked is refused; failover applies only when a provider returns no answer at all, so a later provider can never weaken an earlier one's verdict. Does not work when `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` is used. | |
 | CF_FAMILY_DNS | Deprecated alias for `FAMILY_DNS`, kept for backwards compatibility: existing setups using `CF_FAMILY_DNS=1` keep working and get the same three-provider failover. Ignored when `FAMILY_DNS` is set, so `FAMILY_DNS=0` turns the filter off even if `CF_FAMILY_DNS=1` is inherited. Logs a one-time deprecation notice. Prefer `FAMILY_DNS` for new setups. | |
 | GOOGLE_SAFE_BROWSING | When set, enables Google Safe Browsing URL protection. Blocks phishing, malware, and unwanted software URLs — blocked pages are classified as "Blocked by Safe Browsing" in reports. Requires Google Chrome (not Chromium or Edge). On macOS and Windows, copies the threat database from your system Chrome profile. On Docker Linux, connects to a pre-warmed Chrome instance. | |
-| OOBEE_DISABLE_TELEMETRY | Set to `1`, `true`, or `yes` to opt out of **all** telemetry submissions (Google Form and Sentry). When set, PII (name, email, entry URL, userId) is never sent off-device. Also relaxes the `-k user:email` requirement so scans can run non-interactively without providing a name/email. | |
+| OOBEE_DISABLE_TELEMETRY | Set to `1`, `true`, or `yes` to opt out of **all** telemetry submissions (Sentry). When set, PII (name, email, entry URL, userId) is never sent off-device. Also relaxes the `-k user:email` requirement so scans can run non-interactively without providing a name/email. | |
 | OOBEE_SSRF_PROTECTION | Set to `1`, `true`, or `yes` to restrict the `scanCustomFlow` library API to public `http(s)` targets (refuses `file://`, localhost and private hosts). Off by default so operators can scan local and intranet apps. **Required if your application passes URLs from untrusted users to `scanCustomFlow`**: without it, those users can make the scanner load internal hosts or local files and receive their content in the report. | |
 | OOBEE_ALLOW_INSECURE_TLS | Set to `1`, `true`, or `yes` to allow the scanner to accept invalid/self-signed TLS certificates on scanned targets. Only takes effect when no credentials (`Authorization` header / `httpCredentials`) are attached — credentialed scans always require a valid certificate to avoid leaking tokens to a MITM. | |
 | SB_PREPOPULATED_SHA256 | Optional pinned SHA-256 hex digest for a pre-populated Safe Browsing DB zip. When set, any pre-populated zip whose contents do not match the digest is rejected, closing the risk of a locally-planted or stale archive silently disabling Safe Browsing. | |
@@ -387,9 +387,10 @@ Options:
                                      all additional features in the generated re
                                      port
               [string] [choices: "screenshots", "none"] [default: "screenshots"]
-  -q, --metadata                     Json string that contains additional scan m
-                                     etadata for telemetry purposes. Defaults to
-                                      "{}"              [string] [default: "{}"]
+  -q, --metadata                     Deprecated and ignored. Previously a JSON s
+                                     tring of additional scan metadata for telem
+                                     etry. Defaults to "{}"
+                                                        [string] [default: "{}"]
   -r, --followRobots                 Crawler adheres to robots.txt rules if it e
                                      xists. [yes / no]  [string] [default: "no"]
   -m, --header                       The HTTP authentication header keys and the
