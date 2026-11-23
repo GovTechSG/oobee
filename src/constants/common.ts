@@ -2049,12 +2049,14 @@ export const validName = (name: string) => {
  * Check for browser available to run scan and clone data directory of the browser if needed.
  * @param preferredBrowser string of user's preferred browser
  * @param isCli boolean flag to indicate if function is called from cli
+ * @param options.cloneProfile set false when only the browser type is needed, so no profile cookies are copied to disk
  * @returns object consisting of browser to run and cloned data directory
  */
 export const getBrowserToRun = (
   randomToken: string,
   preferredBrowser?: BrowserTypes,
   isCli = false,
+  { cloneProfile = true }: { cloneProfile?: boolean } = {},
 ): { browserToRun: BrowserTypes; clonedBrowserDataDir: string } => {
   const platform = os.platform();
 
@@ -2077,7 +2079,7 @@ export const getBrowserToRun = (
   }
 
   if (preferredBrowser === BrowserTypes.CHROME) {
-    const chromeData = getChromeData(randomToken);
+    const chromeData = getChromeData(randomToken, cloneProfile);
     if (chromeData) return chromeData;
 
     if (platform === 'darwin') {
@@ -2091,7 +2093,7 @@ export const getBrowserToRun = (
       if (isCli)
         printMessage(['Unable to use Chrome, falling back to Edge browser...'], messageOptions);
 
-      const edgeData = getEdgeData(randomToken);
+      const edgeData = getEdgeData(randomToken, cloneProfile);
       if (edgeData) return edgeData;
 
       if (isCli)
@@ -2103,12 +2105,12 @@ export const getBrowserToRun = (
       printMessage(['Unable to use Chrome, falling back to Chromium browser...'], messageOptions);
     }
   } else if (preferredBrowser === BrowserTypes.EDGE) {
-    const edgeData = getEdgeData(randomToken);
+    const edgeData = getEdgeData(randomToken, cloneProfile);
     if (edgeData) return edgeData;
 
     if (isCli)
       printMessage(['Unable to use Edge, falling back to Chrome browser...'], messageOptions);
-    const chromeData = getChromeData(randomToken);
+    const chromeData = getChromeData(randomToken, cloneProfile);
     if (chromeData) return chromeData;
 
     if (platform === 'darwin') {
@@ -2139,7 +2141,7 @@ export const getBrowserToRun = (
   // defaults to chromium
   return {
     browserToRun: BrowserTypes.CHROMIUM,
-    clonedBrowserDataDir: cloneChromiumProfiles(randomToken),
+    clonedBrowserDataDir: cloneProfile ? cloneChromiumProfiles(randomToken) : '',
   };
 };
 
@@ -2172,8 +2174,11 @@ export const getClonedProfilesWithRandomToken = (browser: string, randomToken: s
   return cloneChromiumProfiles(randomToken);
 };
 
-export const getChromeData = (randomToken: string) => {
+export const getChromeData = (randomToken: string, cloneProfile = true) => {
   const browserDataDir = getDefaultChromeDataDir();
+  if (!cloneProfile) {
+    return browserDataDir ? { browserToRun: BrowserTypes.CHROME, clonedBrowserDataDir: '' } : null;
+  }
   const clonedBrowserDataDir = cloneChromeProfiles(randomToken);
   if (browserDataDir && clonedBrowserDataDir) {
     const browserToRun = BrowserTypes.CHROME;
@@ -2182,8 +2187,11 @@ export const getChromeData = (randomToken: string) => {
   return null;
 };
 
-export const getEdgeData = (randomToken: string) => {
+export const getEdgeData = (randomToken: string, cloneProfile = true) => {
   const browserDataDir = getDefaultEdgeDataDir();
+  if (!cloneProfile) {
+    return browserDataDir ? { browserToRun: BrowserTypes.EDGE, clonedBrowserDataDir: '' } : null;
+  }
   const clonedBrowserDataDir = cloneEdgeProfiles(randomToken);
   if (browserDataDir && clonedBrowserDataDir) {
     const browserToRun = BrowserTypes.EDGE;

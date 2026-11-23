@@ -129,10 +129,13 @@ const runCustom = async (
   const pageClosePromises = [];
 
   try {
+    // Only the browser type is needed; the context below uses userDataDirectory,
+    // so don't clone the user's profile cookies as a side effect.
     const { browserToRun: resolvedBrowserToRun } = getBrowserToRun(
       randomToken,
       browserToRun as BrowserTypes,
       false,
+      { cloneProfile: false },
     );
     const deviceConfig = viewportSettings.playwrightDeviceDetailsObject;
     const hasCustomViewport = !!deviceConfig;
