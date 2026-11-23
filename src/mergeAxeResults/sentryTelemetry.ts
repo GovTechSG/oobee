@@ -1,12 +1,11 @@
 import * as Sentry from '@sentry/node';
-import { sentryConfig, setSentryUser, INSPECT_PRESET_SCAN_PRODUCT } from '../constants/constants.js';
+import { sentryConfig, setSentryUser } from '../constants/constants.js';
 import {
   categorizeWcagCriteria,
   getUserDataTxt,
   getWcagCriteriaMap,
   isTelemetryDisabled,
 } from '../utils.js';
-import { resolveInspectPresetScanEnabled } from '../inspectPresetScan.js';
 import { consoleLogger } from '../logs.js';
 import type { AllIssues } from './types.js';
 
@@ -72,9 +71,7 @@ const sendWcagBreakdownToSentry = async (
 
     // Tag app version
     tags.version = appVersion;
-    const scanProduct = resolveInspectPresetScanEnabled()
-      ? INSPECT_PRESET_SCAN_PRODUCT
-      : scanInfo.scanSource?.trim() || process.env.OOBEE_SCAN_PRODUCT;
+    const scanProduct = scanInfo.scanSource?.trim() || process.env.OOBEE_SCAN_PRODUCT;
 
     // Get dynamic WCAG criteria map once
     const wcagCriteriaMap = await getWcagCriteriaMap();
