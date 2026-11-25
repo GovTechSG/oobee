@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 // import { silentLogger } from '../logs.js';
 import { Result } from 'axe-core';
-import { Page } from 'playwright';
+import { Frame, Page } from 'playwright';
 import {
   ContrastDOMContext,
   NodeResultWithScreenshot,
@@ -12,6 +12,29 @@ import {
 } from '../crawlers/commonCrawlerFunc.js';
 
 const screenshotMap: Record<string, string> = {}; // Map of screenshot hashkey to its buffer value and screenshot path
+
+// Resolve an axe node target to the frame that owns the element. axe encodes
+// elements inside iframes as [iframeSelector, ..., elementSelector]; shadow DOM
+// targets (nested arrays) are not supported and return null.
+export const resolveNodeTarget = async (
+  page: Page,
+  target: unknown,
+): Promise<{ scope: Page | Frame; selector: string } | null> => {
+  if (!Array.isArray(target) || target.length === 0) return null;
+  if (!target.every(t => typeof t === 'string')) return null;
+  if (target.length === 1) return { scope: page, selector: target[0] };
+
+  let frame = page.mainFrame();
+  for (const frameSelector of target.slice(0, -1)) {
+    const handle = await frame.$(frameSelector).catch(() => null);
+    if (!handle) return null;
+    const child = await handle.contentFrame().catch(() => null);
+    await handle.dispose().catch(() => {});
+    if (!child) return null;
+    frame = child;
+  }
+  return { scope: frame, selector: target[target.length - 1] };
+};
 
 export const enrichColorContrastDOMContext = async (
   violations: Result[],
@@ -21,12 +44,12 @@ export const enrichColorContrastDOMContext = async (
     if (violation.id !== 'color-contrast' && violation.id !== 'color-contrast-enhanced') continue;
 
     for (const node of violation.nodes) {
-      const { target } = node;
-      const selector = target.length === 1 && typeof target[0] === 'string' ? target[0] : null;
-      if (!selector) continue;
+      const resolved = await resolveNodeTarget(page, node.target);
+      if (!resolved) continue;
+      const { scope, selector } = resolved;
 
       try {
-        const domContext = await page
+        const domContext = await scope
           .evaluate((sel: string): ContrastDOMContext | null => {
             const el = document.querySelector(sel);
             if (!el) return null;
@@ -135,12 +158,10 @@ export const takeScreenshotForHTMLElements = async (
       }
       const nodeWithScreenshotPath: NodeResultWithScreenshot = node;
 
-      const { target } = node;
-      const hasValidSelector = target.length === 1 && typeof target[0] === 'string';
-      const selector = hasValidSelector ? (target[0] as string) : null;
-      if (selector) {
+      const resolved = await resolveNodeTarget(page, node.target);
+      if (resolved) {
         try {
-          const locator = page.locator(selector);
+          const locator = resolved.scope.locator(resolved.selector);
           const locators = await locator.all();
           for (const currLocator of locators) {
             await currLocator.scrollIntoViewIfNeeded({ timeout: locatorTimeout });

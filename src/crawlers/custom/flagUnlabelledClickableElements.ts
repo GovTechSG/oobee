@@ -1334,9 +1334,18 @@ function hasPointerCursor(node: Node): boolean {
 
   // Clean up [data-flagged="true"] attribute added by this script
   function cleanupFlaggedElements() {
-    const flaggedElements = document.querySelectorAll('[data-flagged="true"]');
-    flaggedElements.forEach(flaggedElement => {
-      flaggedElement.removeAttribute('data-flagged');
+    const docs: Document[] = [document];
+    document.querySelectorAll<HTMLIFrameElement>('iframe, frame').forEach(frame => {
+      try {
+        if (frame.contentDocument) docs.push(frame.contentDocument);
+      } catch {
+        // cross-origin frame, never flagged
+      }
+    });
+    docs.forEach(doc => {
+      doc.querySelectorAll('[data-flagged="true"]').forEach(flaggedElement => {
+        flaggedElement.removeAttribute('data-flagged');
+      });
     });
   }
 

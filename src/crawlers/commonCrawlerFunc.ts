@@ -1,6 +1,6 @@
 import { Dataset, RequestQueue, log, playwrightUtils, CrawlingContext, PlaywrightGotoOptions, Request } from 'crawlee';
 import axe, { AxeResults, ImpactValue, NodeResult, Result, resultGroups, TagValue } from 'axe-core';
-import { BrowserContext, ElementHandle, Page } from 'playwright';
+import { BrowserContext, ElementHandle, Frame, Page } from 'playwright';
 import {
   axeScript,
   disallowedListOfPatterns,
@@ -11,7 +11,11 @@ import {
   saflyIconSelector,
 } from '../constants/constants.js';
 import { consoleLogger, guiInfoLog, silentLogger } from '../logs.js';
-import { enrichColorContrastDOMContext, takeScreenshotForHTMLElements } from '../screenshotFunc/htmlScreenshotFunc.js';
+import {
+  enrichColorContrastDOMContext,
+  resolveNodeTarget,
+  takeScreenshotForHTMLElements,
+} from '../screenshotFunc/htmlScreenshotFunc.js';
 import { isFilePath, waitForMainThreadIdle } from '../constants/common.js';
 import { extractAndGradeText } from './custom/extractAndGradeText.js';
 import { ItemsInfo } from '../mergeAxeResults.js';
@@ -689,9 +693,9 @@ export const enrichViolationMessages = async (results: AxeResults, page: Page): 
     if (violation.id !== 'target-size' && violation.id !== 'valid-lang') continue;
 
     for (const node of violation.nodes) {
-      const cssSelector =
-        node.target.length === 1 && typeof node.target[0] === 'string' ? node.target[0] : null;
-      if (!cssSelector) continue;
+      const resolved = await resolveNodeTarget(page, node.target);
+      if (!resolved) continue;
+      const { scope, selector: cssSelector } = resolved;
 
       if (violation.id === 'target-size') {
         // Axe's target-size check records the actual hit-area sub-rect it
@@ -705,7 +709,7 @@ export const enrichViolationMessages = async (results: AxeResults, page: Page): 
         const axeWidth = axeCheck?.data?.width;
         const axeHeight = axeCheck?.data?.height;
 
-        const ctx = await page
+        const ctx = await scope
           .evaluate((sel: string) => {
             try {
               const el = document.querySelector(sel) as HTMLElement | null;
@@ -751,7 +755,7 @@ export const enrichViolationMessages = async (results: AxeResults, page: Page): 
 
         node.failureSummary = message;
       } else if (violation.id === 'valid-lang') {
-        const ctx = await page
+        const ctx = await scope
           .evaluate((sel: string) => {
             try {
               const el = document.querySelector(sel);
@@ -780,6 +784,19 @@ export const enrichViolationMessages = async (results: AxeResults, page: Page): 
       }
     }
   }
+};
+
+// Frame-crossing targets use the same "<frame selector> > html" boundary
+// marker as oobee-accessible-label xpaths, so items stay distinct per frame.
+const targetToXpath = (target: NodeResult['target']): string | null => {
+  if (!Array.isArray(target) || target.length === 0) return null;
+  if (!target.every(t => typeof t === 'string')) return null;
+  if (target.length === 1) return target[0] as string;
+  return target
+    .slice(0, -1)
+    .map(s => `${s} > html`)
+    .concat(target[target.length - 1] as string)
+    .join(' ');
 };
 
 export const filterAxeResults = (
@@ -851,7 +868,7 @@ export const filterAxeResults = (
         finalParentHtml = truncateHtml(sanitised, parentHtmlMaxBytes);
       }
 
-      const xpath = target.length === 1 && typeof target[0] === 'string' ? target[0] : null;
+      const xpath = targetToXpath(target);
 
       // add in screenshot path
       category.rules[rule].items.push({
@@ -906,7 +923,7 @@ export const filterAxeResults = (
       }
 
       const finalHtml = truncateHtml(html);
-      const xpath = target.length === 1 && typeof target[0] === 'string' ? target[0] : undefined;
+      const xpath = targetToXpath(target);
       passed.rules[rule].items.push({ html: finalHtml, screenshotPath: '', message: '', xpath: xpath || '' });
 
       passed.totalItems += 1;
@@ -931,6 +948,157 @@ export const filterAxeResults = (
   };
 };
 
+// Some pages replace native constructors (Set, Map, WeakMap, ...) with
+// incomplete polyfills. axe-core and even Playwright's own return-value
+// serialization use these natives internally and blow up with unhelpful
+// errors like `r.has is not a function` or `i.forEach is not a function`.
+// Restore pristine constructors by stealing them from a fresh same-origin
+// iframe (whose Realm the page hasn't touched) before doing any evaluation.
+const restoreNativeRealm = () => {
+  // Probe first — only pay the iframe cost when the page has actually
+  // clobbered a native collection constructor. On clean pages this is a
+  // no-op that saves ~10ms per scan.
+  try {
+    const s = new Set();
+    const m = new Map();
+    const ws = new WeakSet();
+    const wm = new WeakMap();
+    if (
+      typeof s.has === 'function' &&
+      typeof s.add === 'function' &&
+      typeof m.has === 'function' &&
+      typeof m.get === 'function' &&
+      typeof ws.has === 'function' &&
+      typeof wm.has === 'function'
+    ) {
+      return;
+    }
+  } catch {
+    // fall through to restore
+  }
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.setAttribute('data-oobee-realm-restore', '1');
+  document.documentElement.appendChild(iframe);
+  const w = iframe.contentWindow as unknown as Record<string, unknown>;
+  if (!w) return;
+  for (const name of [
+    'Set', 'Map', 'WeakSet', 'WeakMap',
+    'Array', 'Object', 'Promise', 'Symbol',
+    'Number', 'String', 'Boolean', 'RegExp', 'Date',
+    'JSON', 'Math',
+  ]) {
+    try {
+      (window as unknown as Record<string, unknown>)[name] = w[name];
+    } catch {}
+  }
+  // Intentionally leave the iframe in the DOM — removing it invalidates
+  // its Realm and the constructors we just copied become dead references.
+};
+
+const FRAME_PREP_TIMEOUT_MS = 5000;
+// How long axe waits for a scanned child frame to return results (axe's own
+// default is 60s). On timeout the scan falls back to the top document only.
+const AXE_FRAME_WAIT_MS = 15000;
+
+let axeSourceCache: string | null = null;
+const getAxeSource = (): string => {
+  if (axeSourceCache === null) axeSourceCache = fs.readFileSync(axeScript, 'utf8');
+  return axeSourceCache;
+};
+
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
+};
+
+const isHttpOrigin = (url: string): string | null => {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.origin : null;
+  } catch {
+    return null;
+  }
+};
+
+// axe.run in the top frame only collects results from child frames that have
+// axe loaded, so inject and configure it in every frame that shares the top
+// page's origin (axe's default allowedOrigins ignores the rest anyway).
+// Returns the deepest frame nesting level that was prepared, 0 if none.
+const prepareSameOriginFrames = async (
+  page: Page,
+  { enableWcagAaa, disableOobee }: { enableWcagAaa: boolean; disableOobee: boolean },
+): Promise<number> => {
+  const topOrigin = isHttpOrigin(page.url());
+  if (!topOrigin) return 0;
+
+  const mainFrame = page.mainFrame();
+  const targets: { frame: Frame; depth: number }[] = [];
+  for (const frame of page.frames()) {
+    if (frame === mainFrame || frame.isDetached()) continue;
+    let depth = 0;
+    let sameOriginChain = true;
+    for (let f: Frame | null = frame; f && f !== mainFrame; f = f.parentFrame()) {
+      depth += 1;
+      if (isHttpOrigin(f.url()) !== topOrigin) {
+        sameOriginChain = false;
+        break;
+      }
+    }
+    if (sameOriginChain) targets.push({ frame, depth });
+  }
+  if (targets.length === 0) return 0;
+
+  const axeSource = getAxeSource();
+  const depths = await Promise.all(
+    targets.map(async ({ frame, depth }) => {
+      try {
+        await withTimeout(
+          (async () => {
+            await frame.evaluate(restoreNativeRealm).catch(() => {});
+            await frame.evaluate(axeSource);
+            await frame.evaluate(
+              ({ evaluateAltTextFunctionString, getAxeConfigurationFunctionString, aaa, noOobee }) => {
+                eval(evaluateAltTextFunctionString);
+                eval(getAxeConfigurationFunctionString);
+                // oobee-accessible-label is computed once from the top
+                // document (it already walks same-origin frames), so frames
+                // must not report it a second time.
+                const config = getAxeConfiguration({
+                  enableWcagAaa: aaa,
+                  gradingReadabilityFlag: '',
+                  disableOobee: noOobee,
+                });
+                config.checks = config.checks.filter(c => c.id !== 'oobee-accessible-label');
+                config.rules = config.rules.filter(r => r.id !== 'oobee-accessible-label');
+                axe.configure(config);
+              },
+              {
+                evaluateAltTextFunctionString: evaluateAltText.toString(),
+                getAxeConfigurationFunctionString: getAxeConfiguration.toString(),
+                aaa: enableWcagAaa,
+                noOobee: disableOobee,
+              },
+            );
+          })(),
+          FRAME_PREP_TIMEOUT_MS,
+        );
+        return depth;
+      } catch (e) {
+        silentLogger.info(
+          `runAxeScript: skipping frame ${frame.url()}: ${(e as Error)?.message ?? e}`,
+        );
+        return 0;
+      }
+    }),
+  );
+  return Math.max(0, ...depths);
+};
+
 export const runAxeScript = async ({
   includeScreenshots,
   page,
@@ -949,55 +1117,8 @@ export const runAxeScript = async ({
   const browserContext: BrowserContext = page.context();
   const requestUrl = page.url();
 
-  // Some pages replace native constructors (Set, Map, WeakMap, ...) with
-  // incomplete polyfills. axe-core and even Playwright's own return-value
-  // serialization use these natives internally and blow up with unhelpful
-  // errors like `r.has is not a function` or `i.forEach is not a function`.
-  // Restore pristine constructors by stealing them from a fresh same-origin
-  // iframe (whose Realm the page hasn't touched) before doing any evaluation.
   try {
-    await page.evaluate(() => {
-      // Probe first — only pay the iframe cost when the page has actually
-      // clobbered a native collection constructor. On clean pages this is a
-      // no-op that saves ~10ms per scan.
-      try {
-        const s = new Set();
-        const m = new Map();
-        const ws = new WeakSet();
-        const wm = new WeakMap();
-        if (
-          typeof s.has === 'function' &&
-          typeof s.add === 'function' &&
-          typeof m.has === 'function' &&
-          typeof m.get === 'function' &&
-          typeof ws.has === 'function' &&
-          typeof wm.has === 'function'
-        ) {
-          return;
-        }
-      } catch {
-        // fall through to restore
-      }
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.setAttribute('aria-hidden', 'true');
-      iframe.setAttribute('data-oobee-realm-restore', '1');
-      document.documentElement.appendChild(iframe);
-      const w = iframe.contentWindow as unknown as Record<string, unknown>;
-      if (!w) return;
-      for (const name of [
-        'Set', 'Map', 'WeakSet', 'WeakMap',
-        'Array', 'Object', 'Promise', 'Symbol',
-        'Number', 'String', 'Boolean', 'RegExp', 'Date',
-        'JSON', 'Math',
-      ]) {
-        try {
-          (window as unknown as Record<string, unknown>)[name] = w[name];
-        } catch {}
-      }
-      // Intentionally leave the iframe in the DOM — removing it invalidates
-      // its Realm and the constructors we just copied become dead references.
-    });
+    await page.evaluate(restoreNativeRealm);
   } catch {
     // Page may not be ready or the eval itself may fail on hostile pages;
     // best effort — continue with axe injection regardless.
@@ -1128,6 +1249,11 @@ export const runAxeScript = async ({
     };
   }
 
+  // axe applies string include selectors inside every frame, which would widen
+  // a scoped scan beyond the elements the caller asked for.
+  const preparedFrameDepth =
+    selectors.length > 0 ? 0 : await prepareSameOriginFrames(page, { enableWcagAaa, disableOobee });
+
   let results;
   try {
     results = await page.evaluate(
@@ -1140,6 +1266,8 @@ export const runAxeScript = async ({
       axeRecheckHydrationMs,
       axeRecheckIdleTimeoutMs,
       parentHtmlDepth,
+      preparedFrameDepth,
+      axeFrameWaitMs,
       waitForMainThreadIdleInPageFunctionString,
       evaluateAltTextFunctionString,
       escapeCssSelectorFunctionString,
@@ -1209,13 +1337,27 @@ export const runAxeScript = async ({
         // Exclude the realm-restore iframe (see runAxeScript preamble) so it
         // doesn't inflate the "passed" tally with rules like aria-hidden-focus.
         const axeContext: any = { exclude: [['[data-oobee-realm-restore]']] };
+        // Child frames prepared with axe get their own realm-restore iframe.
+        for (let depth = 1; depth <= preparedFrameDepth; depth++) {
+          axeContext.exclude.push([
+            ...Array(depth).fill('iframe, frame'),
+            '[data-oobee-realm-restore]',
+          ]);
+        }
         if (Array.isArray(selectors) && selectors.length > 0) {
           axeContext.include = selectors;
         }
 
-        return axe
-          .run(axeContext, {
-            resultTypes: defaultResultTypes,
+        const runOptions: axe.RunOptions = { resultTypes: defaultResultTypes };
+        if (preparedFrameDepth > 0) runOptions.frameWaitTime = axeFrameWaitMs;
+        return Promise.resolve()
+          .then(() => axe.run(axeContext, runOptions))
+          .catch(e => {
+            // A hostile or broken child frame (e.g. overridden postMessage)
+            // can make frame messaging throw; still scan the top document.
+            if (!document.querySelector('iframe, frame')) throw e;
+            console.error('axe.run failed with frames, retrying without frames', e);
+            return axe.run(axeContext, { ...runOptions, iframes: false });
           })
           .then(async results => {
             // ==== Re-verify select violations against the live DOM ====
@@ -1230,8 +1372,11 @@ export const runAxeScript = async ({
             // ---- Shared helpers -----------------------------------------
 
             // Extract axe's per-node selector (first entry of node.target).
+            // Nodes inside child frames (multi-part targets) resolve to
+            // nothing here, so they are kept as-is rather than re-verified.
             const getSelector = (n: NodeResult): string | null => {
-              const s = n.target && n.target[0];
+              if (!n.target || n.target.length !== 1) return null;
+              const s = n.target[0];
               return typeof s === 'string' ? s : null;
             };
 
@@ -1299,6 +1444,7 @@ export const runAxeScript = async ({
               const reRun = await axe.run(elements, {
                 runOnly: [ruleId],
                 resultTypes: ['violations'],
+                iframes: false,
               });
 
               for (const v of reRun.violations || []) {
@@ -1355,7 +1501,7 @@ export const runAxeScript = async ({
               'color-contrast-enhanced',
             ]);
             const hasRecheckableViolation = results.violations.some(
-              v => RECHECKABLE_RULE_IDS.has(v.id) && v.nodes.length > 0,
+              v => RECHECKABLE_RULE_IDS.has(v.id) && v.nodes.some(n => getSelector(n) !== null),
             );
 
             if (hasRecheckableViolation) {
@@ -1442,7 +1588,8 @@ export const runAxeScript = async ({
               const attachParentHtml = (rules: any[]) => {
                 for (const rule of rules || []) {
                   for (const node of rule.nodes || []) {
-                    const sel = node.target && node.target[0];
+                    if (!node.target || node.target.length !== 1) continue;
+                    const sel = node.target[0];
                     if (typeof sel !== 'string') continue;
                     const ph = computeParentHtml(sel, parentHtmlDepth);
                     if (ph) (node as any).parentHtml = ph;
@@ -1518,6 +1665,8 @@ export const runAxeScript = async ({
       axeRecheckHydrationMs,
       axeRecheckIdleTimeoutMs,
       parentHtmlDepth: parentHtmlDepth,
+      preparedFrameDepth,
+      axeFrameWaitMs: AXE_FRAME_WAIT_MS,
       waitForMainThreadIdleInPageFunctionString: waitForMainThreadIdleInPage.toString(),
       evaluateAltTextFunctionString: evaluateAltText.toString(),
       escapeCssSelectorFunctionString: escapeCssSelector.toString(),
