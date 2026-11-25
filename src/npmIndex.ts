@@ -11,7 +11,6 @@ import {
   getBrowserToRun,
   getPlaywrightLaunchOptions,
   launchPersistentSafeContext,
-  submitForm,
 } from './constants/common.js';
 import { createCrawleeSubFolders, enrichViolationMessages, filterAxeResults } from './crawlers/commonCrawlerFunc.js';
 import { createAndUpdateResultsFolders, getStoragePath, getVersion } from './utils.js';
@@ -609,7 +608,7 @@ export const init = async ({
         },
         ...scanAboutMetadata,
       };
-      const basicFormHTMLSnippet = await generateArtifacts(
+      await generateArtifacts(
         randomToken,
         scanDetails.requestUrl,
         scanDetails.crawlType,
@@ -620,21 +619,6 @@ export const init = async ({
         updatedScanAboutMetadata,
         scanDetails,
         zip,
-      );
-
-      await submitForm(
-        BrowserTypes.CHROMIUM, // browserToRun
-        '', // userDataDirectory
-        scanDetails.requestUrl, // scannedUrl
-        null, // entryUrl
-        scanDetails.crawlType, // scanType
-        email, // email
-        name, // name
-        JSON.stringify(basicFormHTMLSnippet), // scanResultsKson
-        urlsCrawled.scanned.length, // numberOfPagesScanned
-        0,
-        0,
-        '{}',
       );
     }
 
@@ -760,21 +744,6 @@ const processAndSubmitResults = async (
 
   const basicFormHTMLSnippet = createBasicFormHTMLSnippet(mergedResults);
   const entryUrl = items[0].pageUrl;
-
-  await submitForm(
-    BrowserTypes.CHROMIUM,
-    '',
-    entryUrl,
-    null,
-    ScannerTypes.CUSTOM,
-    email,
-    name,
-    JSON.stringify(basicFormHTMLSnippet),
-    numberOfPagesScanned,
-    0,
-    0,
-    '{}',
-  );
 
   // Generate WCAG breakdown for Sentry
   const wcagOccurrencesMap = new Map<string, number>();

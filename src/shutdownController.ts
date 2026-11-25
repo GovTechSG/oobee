@@ -7,8 +7,8 @@ import { consoleLogger } from './logs.js';
 // which is the "corrupted results.zip" symptom observed in production.
 //
 // The handler triggers the same autoscaledPool.abort() path used by the idle
-// watchdog, so finalization (writeManifest → generateArtifacts → submitForm →
-// S3 upload) runs the same way it does for an idle abort.
+// watchdog, so finalization (writeManifest → generateArtifacts → S3 upload)
+// runs the same way it does for an idle abort.
 
 // Minimal shape we need from a Crawlee crawler — only the pool's abort() is
 // actually called. Kept narrow so we don't couple the shutdown module to

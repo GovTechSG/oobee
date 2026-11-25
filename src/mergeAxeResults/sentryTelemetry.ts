@@ -51,7 +51,7 @@ const sendWcagBreakdownToSentry = async (
 ) => {
   // Opt-out: OOBEE_DISABLE_TELEMETRY=1 skips Sentry telemetry entirely so
   // PII (email, name, entry URL, userId) is never sent off-device
-  // (asgard-0007 / asgard-0008). Mirrors the opt-out honoured by submitForm.
+  // (asgard-0007 / asgard-0008).
   if (isTelemetryDisabled()) {
     consoleLogger.info('Skipping Sentry telemetry submission: OOBEE_DISABLE_TELEMETRY is set');
     return;

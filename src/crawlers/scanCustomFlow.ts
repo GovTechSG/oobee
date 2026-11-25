@@ -9,7 +9,6 @@ import {
   checkUrlConnectivityWithBrowser,
   isInternalOrLoopbackUrl,
   isLinkLocalOrMetadataUrl,
-  submitForm,
 } from '../constants/common.js';
 import runCustom from './runCustom.js';
 import { consoleLogger } from '../logs.js';
@@ -123,9 +122,7 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
     blacklistedPatterns = null,
     extraHTTPHeaders = undefined,
     zip = 'oobee-scan-results',
-    metadata = '{}', // Note: This is intentionally set {} as it is the default -q flag.
     cleanupArtifacts = true,
-    waitForResultSubmission = true,
     maxPagesToScan,
     scanSource,
     overlayScope,
@@ -135,7 +132,6 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
 
   const [date, time] = new Date().toLocaleString('sv').replace(/[-:]/g, '').split(' ');
   const parsedUrl = new URL(url);
-  const entryUrl = parsedUrl.href;
   const domain = parsedUrl.hostname;
   const sanitisedLabel = customFlowLabel ? `_${sanitisePathSegment(customFlowLabel)}` : '';
   // A caller-supplied randomToken is used directly as the results directory
@@ -263,7 +259,7 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
       const userCustomFlowLabel = customResult.customFlowLabel?.trim();
       const artifactCustomFlowLabel = userCustomFlowLabel || customFlowLabel;
 
-      const basicFormHTMLSnippet = await generateArtifacts(
+      await generateArtifacts(
         randomToken,
         url,
         ScannerTypes.CUSTOM,
@@ -286,29 +282,6 @@ export const scanCustomFlow = (config: ScanCustomFlowConfig): ScanCustomFlowSess
         scanItems,
         results: convertScanItemsToScanPageResults(scanItems),
       };
-
-      const submitResult = submitForm(
-        browser,
-        '', // Note: This is the userDataDirectory, which is intentionally left empty so that the scan uses a temporary browser profile and does not persist cookies/session/cache into later scans.
-        url,
-        entryUrl,
-        ScannerTypes.CUSTOM,
-        email,
-        name,
-        JSON.stringify(basicFormHTMLSnippet),
-        customResult.urlsCrawled.scanned.length,
-        customResult.urlsCrawled.scannedRedirects.length,
-        pagesNotScanned.length,
-        metadata,
-      );
-
-      if (waitForResultSubmission) {
-        await submitResult;
-      } else {
-        void submitResult.catch(error => {
-          consoleLogger.warn('[scanCustomFlow] Failed to submit scan result payload.', error);
-        });
-      }
 
       if (cleanupArtifacts) {
         await cleanupGeneratedArtifacts(resultDirectory);
