@@ -1740,8 +1740,8 @@ export const a11yRuleStepByStepGuide: Record<string, { check: string; fix: strin
   },
   'meta-viewport-large': {
     check: 'On a mobile device or mobile browser view, try to pinch-zoom (pinch your fingers apart) to enlarge the page. Does it zoom in? Or is zoom blocked and the page stays the same size?',
-    fix: '(Developer) Check the viewport meta tag. It should NOT have user-scalable="no" or maximum-scale="1". Allow zooming by either removing these restrictions or setting maximum-scale to 2 or higher.',
-    review: 'Test on mobile: Pinch-zoom to enlarge content to 200%. Confirm text is readable and buttons/controls are still usable and clickable at larger zoom levels.',
+    fix: '(Developer) Check the viewport meta tag. maximum-scale is set below 5, which limits how far users can zoom. Remove maximum-scale, or set it to 5 or higher. e.g., <meta name="viewport" content="width=device-width, initial-scale=1">.',
+    review: 'Test on mobile: Pinch-zoom to enlarge content to 500%. Confirm text is readable and buttons/controls are still usable and clickable at larger zoom levels.',
     learn: 'Review and learn more about this issue on A11y Playground',
   },
   'page-has-heading-one': {
