@@ -89,6 +89,24 @@ jobs:
         run: |
           ./install_oobee_dependencies.command
 
+      # The portable zip serves both Apple Silicon and Intel Macs. A missing
+      # @napi-rs/canvas binding crashes the engine on startup for that CPU
+      # ("Cannot find native binding"), so fail the build instead of shipping it.
+      - name: Verify @napi-rs/canvas bindings for both Mac architectures
+        run: |
+          set -euo pipefail
+          for canvas_arch in arm64 x64; do
+            f="oobee/node_modules/@napi-rs/canvas-darwin-${canvas_arch}/skia.darwin-${canvas_arch}.node"
+            if [ ! -f "$f" ]; then
+              echo "ERROR: missing $f"
+              exit 1
+            fi
+            echo "Found $f"
+          done
+          # Load the binding with the bundled Node for this runner's CPU.
+          if [ "$(uname -m)" = "arm64" ]; then node_dir=nodejs-mac-arm64; else node_dir=nodejs-mac-x64; fi
+          (cd oobee && "../${node_dir}/bin/node" -e "require('@napi-rs/canvas'); console.log('@napi-rs/canvas loads on ' + process.arch)")
+
       - name: Decode & import certs into temporary keychain
         run: |
           # --- prepare tmp dir ---
