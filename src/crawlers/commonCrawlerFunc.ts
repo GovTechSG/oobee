@@ -998,6 +998,9 @@ const restoreNativeRealm = () => {
 };
 
 const FRAME_PREP_TIMEOUT_MS = 5000;
+// How long axe waits for a scanned child frame to return results (axe's own
+// default is 60s). On timeout the scan falls back to the top document only.
+const AXE_FRAME_WAIT_MS = 15000;
 
 let axeSourceCache: string | null = null;
 const getAxeSource = (): string => {
@@ -1264,6 +1267,7 @@ export const runAxeScript = async ({
       axeRecheckIdleTimeoutMs,
       parentHtmlDepth,
       preparedFrameDepth,
+      axeFrameWaitMs,
       waitForMainThreadIdleInPageFunctionString,
       evaluateAltTextFunctionString,
       escapeCssSelectorFunctionString,
@@ -1344,7 +1348,8 @@ export const runAxeScript = async ({
           axeContext.include = selectors;
         }
 
-        const runOptions = { resultTypes: defaultResultTypes };
+        const runOptions: axe.RunOptions = { resultTypes: defaultResultTypes };
+        if (preparedFrameDepth > 0) runOptions.frameWaitTime = axeFrameWaitMs;
         return Promise.resolve()
           .then(() => axe.run(axeContext, runOptions))
           .catch(e => {
@@ -1661,6 +1666,7 @@ export const runAxeScript = async ({
       axeRecheckIdleTimeoutMs,
       parentHtmlDepth: parentHtmlDepth,
       preparedFrameDepth,
+      axeFrameWaitMs: AXE_FRAME_WAIT_MS,
       waitForMainThreadIdleInPageFunctionString: waitForMainThreadIdleInPage.toString(),
       evaluateAltTextFunctionString: evaluateAltText.toString(),
       escapeCssSelectorFunctionString: escapeCssSelector.toString(),
