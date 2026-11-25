@@ -17,7 +17,7 @@ import os from 'os';
 import mime from 'mime';
 import { minimatch } from 'minimatch';
 import { globSync, GlobOptionsWithFileTypesFalse } from 'glob';
-import { LaunchOptions, Locator, Page, devices, webkit } from 'playwright';
+import { LaunchOptions, Locator, Page, chromium, devices, webkit } from 'playwright';
 import printMessage from 'print-message';
 import constants, {
   getDefaultChromeDataDir,
@@ -436,7 +436,8 @@ export const checkUrlConnectivityWithBrowser = async (
   };
 
   const launchBrowserContext = async (effectiveLaunchOptions: LaunchOptions) => {
-    if (process.env.CRAWLEE_HEADLESS === '1') {
+    // A persistent context needs a profile dir; without one go straight to ephemeral.
+    if (process.env.CRAWLEE_HEADLESS === '1' && clonedDataDir) {
       try {
         await launchPersistent(effectiveLaunchOptions);
       } catch (error) {
@@ -2078,13 +2079,31 @@ export const getBrowserToRun = (
     printMessage([`Preferred browser ${preferredBrowser}`], messageOptions);
   }
 
+  // The portable macOS/Windows packages don't ship Playwright's own Chromium,
+  // so use system Chrome or Edge when it isn't installed.
+  if (
+    preferredBrowser === BrowserTypes.CHROMIUM &&
+    (platform === 'darwin' || platform === 'win32') &&
+    !fs.existsSync(chromium.executablePath())
+  ) {
+    if (isCli)
+      printMessage(['Chromium is not installed, using Chrome or Edge instead...'], messageOptions);
+    const systemBrowserData =
+      getChromeData(randomToken, cloneProfile) || getEdgeData(randomToken, cloneProfile);
+    if (systemBrowserData) return systemBrowserData;
+  }
+
   if (preferredBrowser === BrowserTypes.CHROME) {
     const chromeData = getChromeData(randomToken, cloneProfile);
     if (chromeData) return chromeData;
 
     if (platform === 'darwin') {
       // mac user who specified -b chrome but does not have chrome
-      if (isCli) printMessage(['Unable to use Chrome, falling back to webkit...'], messageOptions);
+      const edgeData = getEdgeData(randomToken, cloneProfile);
+      if (edgeData) return edgeData;
+
+      if (isCli)
+        printMessage(['Unable to use both Chrome and Edge, falling back to webkit...'], messageOptions);
 
       constants.launcher = webkit;
       return { browserToRun: null, clonedBrowserDataDir: '' };
@@ -2174,17 +2193,27 @@ export const getClonedProfilesWithRandomToken = (browser: string, randomToken: s
   return cloneChromiumProfiles(randomToken);
 };
 
+// macOS Chrome only creates its data dir on first launch, so an installed but
+// never-opened Chrome has no profile to clone. It still runs via the 'chrome'
+// channel, so detect the app bundle too and give it an empty profile.
+const macChromeAppPaths = [
+  '/Applications/Google Chrome.app',
+  path.join(os.homedir(), 'Applications', 'Google Chrome.app'),
+];
+const isChromeAppInstalledOnMac = (): boolean =>
+  os.platform() === 'darwin' && macChromeAppPaths.some(p => fs.existsSync(p));
+
+// Holds empty profiles used when there is no Chrome profile to clone.
+const emptyChromeProfilesDir = path.join(os.tmpdir(), 'Oobee Chrome Profiles');
+
 export const getChromeData = (randomToken: string, cloneProfile = true) => {
-  const browserDataDir = getDefaultChromeDataDir();
-  if (!cloneProfile) {
-    return browserDataDir ? { browserToRun: BrowserTypes.CHROME, clonedBrowserDataDir: '' } : null;
+  if (!getDefaultChromeDataDir() && !isChromeAppInstalledOnMac()) {
+    return null;
   }
-  const clonedBrowserDataDir = cloneChromeProfiles(randomToken);
-  if (browserDataDir && clonedBrowserDataDir) {
-    const browserToRun = BrowserTypes.CHROME;
-    return { browserToRun, clonedBrowserDataDir };
-  }
-  return null;
+  return {
+    browserToRun: BrowserTypes.CHROME,
+    clonedBrowserDataDir: cloneProfile ? cloneChromeProfiles(randomToken) : '',
+  };
 };
 
 export const getEdgeData = (randomToken: string, cloneProfile = true) => {
@@ -2417,7 +2446,13 @@ export const cloneChromeProfiles = (randomToken: string): string => {
   const baseDir = getDefaultChromeDataDir();
 
   if (!baseDir) {
-    return;
+    if (!isChromeAppInstalledOnMac()) {
+      return;
+    }
+    // Nothing to clone: skip cookie cloning and use an empty profile.
+    const emptyProfileDir = path.join(emptyChromeProfilesDir, `oobee-${randomToken}`);
+    fs.mkdirSync(emptyProfileDir, { recursive: true });
+    return emptyProfileDir;
   }
 
   let destDir;
@@ -2554,7 +2589,8 @@ export const deleteClonedProfiles = (browser: string, randomToken: string): void
  * @returns null
  */
 export const deleteClonedChromeProfiles = (randomToken?: string): void => {
-  const baseDir = getDefaultChromeDataDir();
+  const baseDir =
+    getDefaultChromeDataDir() || (isChromeAppInstalledOnMac() ? emptyChromeProfilesDir : null);
 
   if (!baseDir) {
     return;
