@@ -169,15 +169,22 @@ fi
 echo "Installing Node dependencies to $PWD"
 npm install --force --omit=dev
 
-# Add additional canvas dependency in x64 mode
-if [ "$(uname -m)" = "arm64" ] && /usr/bin/pgrep oahd >/dev/null 2>&1; then
-    if [ -f package.json ]; then
-      export PATH="$(dirname "$PWD")/nodejs-mac-x64/bin:$PATH"
-    else
-      export PATH="$PWD/nodejs-mac-x64/bin:$PATH"
-    fi
-    arch -x86_64 npm install @napi-rs/canvas-darwin-x64@0.1.53 --force --omit=dev
-fi
+# The portable package runs on both Apple Silicon and Intel Macs, but npm only
+# installs the @napi-rs/canvas binding for the build machine's CPU. Unpack both
+# darwin bindings directly: running `npm install` again under x64 makes npm 11
+# re-resolve the tree for x64 and delete the arm64 binding.
+CANVAS_VERSION="$(node -p "require('./node_modules/@napi-rs/canvas/package.json').version")"
+CANVAS_TMP="$(mktemp -d)"
+for canvas_arch in arm64 x64; do
+  canvas_pkg="@napi-rs/canvas-darwin-${canvas_arch}"
+  echo "Installing ${canvas_pkg}@${CANVAS_VERSION}"
+  npm pack "${canvas_pkg}@${CANVAS_VERSION}" --pack-destination "$CANVAS_TMP" --silent
+  rm -rf "node_modules/${canvas_pkg}"
+  mkdir -p "node_modules/${canvas_pkg}"
+  tar -xzf "${CANVAS_TMP}/napi-rs-canvas-darwin-${canvas_arch}-${CANVAS_VERSION}.tgz" \
+    -C "node_modules/${canvas_pkg}" --strip-components=1
+done
+rm -rf "$CANVAS_TMP"
 
 echo "Build TypeScript"
 npm run build || true
